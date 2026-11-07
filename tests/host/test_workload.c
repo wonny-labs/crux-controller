@@ -4,9 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "workload/config.h"
-#include "workload/cycle.h"
-#include "workload/message.h"
+#include "workload.h"
 
 static int failures;
 static int checks;
@@ -20,361 +18,285 @@ static int checks;
         }                                                                                          \
     } while (0)
 
-static workload_config_t good_config(void)
+static workload_config_t config_with(uint32_t period_ms, uint32_t message_every)
 {
-    workload_config_t config = {
-        .period_ms = 100, .max_catch_up = 4, .payload_len = 8, .node_id = 7};
+    workload_config_t config = {.period_ms = period_ms, .message_every = message_every};
     return config;
 }
 
-static void test_config(void)
+static void config_default_is_valid(void)
 {
-    workload_config_t config = good_config();
+    workload_config_t config;
 
+    memset(&config, 0xAA, sizeof config);
+    CHECK(workload_config_default(&config) == WORKLOAD_OK);
     CHECK(workload_config_validate(&config) == WORKLOAD_OK);
-    CHECK(workload_config_validate(NULL) == WORKLOAD_ERR_NULL);
+    CHECK(workload_config_default(NULL) == WORKLOAD_ERR_RANGE);
+    CHECK(workload_config_validate(NULL) == WORKLOAD_ERR_RANGE);
+}
 
-    config = good_config();
-    config.period_ms = WORKLOAD_PERIOD_MIN_MS - 1;
-    CHECK(workload_config_validate(&config) == WORKLOAD_ERR_RANGE);
-    config.period_ms = WORKLOAD_PERIOD_MIN_MS;
-    CHECK(workload_config_validate(&config) == WORKLOAD_OK);
-    config.period_ms = WORKLOAD_PERIOD_MAX_MS;
-    CHECK(workload_config_validate(&config) == WORKLOAD_OK);
-    config.period_ms = WORKLOAD_PERIOD_MAX_MS + 1;
-    CHECK(workload_config_validate(&config) == WORKLOAD_ERR_RANGE);
+static void config_period_9_rejected(void)
+{
+    const workload_config_t config = config_with(9, 10);
 
-    config = good_config();
-    config.max_catch_up = 0;
-    CHECK(workload_config_validate(&config) == WORKLOAD_ERR_RANGE);
-    config.max_catch_up = WORKLOAD_CATCH_UP_MAX;
-    CHECK(workload_config_validate(&config) == WORKLOAD_OK);
-    config.max_catch_up = WORKLOAD_CATCH_UP_MAX + 1;
-    CHECK(workload_config_validate(&config) == WORKLOAD_ERR_RANGE);
-
-    config = good_config();
-    config.payload_len = WORKLOAD_PAYLOAD_MAX;
-    CHECK(workload_config_validate(&config) == WORKLOAD_OK);
-    config.payload_len = WORKLOAD_PAYLOAD_MAX + 1;
-    CHECK(workload_config_validate(&config) == WORKLOAD_ERR_RANGE);
-
-    config = good_config();
-    config.node_id = 0;
-    CHECK(workload_config_validate(&config) == WORKLOAD_ERR_RANGE);
-    config.node_id = 1;
-    CHECK(workload_config_validate(&config) == WORKLOAD_OK);
-    config.node_id = WORKLOAD_NODE_ID_MAX;
-    CHECK(workload_config_validate(&config) == WORKLOAD_OK);
-    config.node_id = WORKLOAD_NODE_ID_MAX + 1;
     CHECK(workload_config_validate(&config) == WORKLOAD_ERR_RANGE);
 }
 
-static void test_cycle_basic(void)
+static void config_period_60001_rejected(void)
 {
-    const workload_config_t config = good_config(); /* period 100, catch-up 4 */
+    const workload_config_t config = config_with(60001, 10);
+
+    CHECK(workload_config_validate(&config) == WORKLOAD_ERR_RANGE);
+}
+
+static void config_message_every_0_rejected(void)
+{
+    const workload_config_t config = config_with(100, 0);
+
+    CHECK(workload_config_validate(&config) == WORKLOAD_ERR_RANGE);
+}
+
+static void config_edges_are_accepted_and_one_beyond_is_not(void)
+{
+    workload_config_t config = config_with(10, 1);
+
+    CHECK(workload_config_validate(&config) == WORKLOAD_OK);
+    config = config_with(60000, 1000);
+    CHECK(workload_config_validate(&config) == WORKLOAD_OK);
+    config = config_with(100, 1001);
+    CHECK(workload_config_validate(&config) == WORKLOAD_ERR_RANGE);
+    config = config_with(UINT32_MAX, 1);
+    CHECK(workload_config_validate(&config) == WORKLOAD_ERR_RANGE);
+}
+
+static void cycle_not_due_before_period(void)
+{
+    const workload_config_t config = config_with(100, 10);
     workload_cycle_t cycle;
-    uint32_t due = 99;
+    uint32_t elapsed = 99;
 
     CHECK(workload_cycle_init(&cycle, &config, 1000) == WORKLOAD_OK);
-    CHECK(workload_cycle_next_due(&cycle) == 1100);
-
-    CHECK(workload_cycle_poll(&cycle, 1000, &due) == WORKLOAD_OK);
-    CHECK(due == 0);
-    CHECK(workload_cycle_poll(&cycle, 1099, &due) == WORKLOAD_OK);
-    CHECK(due == 0);
-    CHECK(workload_cycle_poll(&cycle, 1100, &due) == WORKLOAD_OK);
-    CHECK(due == 1);
-    CHECK(workload_cycle_next_due(&cycle) == 1200);
-    CHECK(workload_cycle_poll(&cycle, 1100, &due) == WORKLOAD_OK);
-    CHECK(due == 0);
-    CHECK(workload_cycle_count(&cycle) == 1);
-    CHECK(workload_cycle_skipped(&cycle) == 0);
+    CHECK(workload_cycle_due(&cycle, &config, 1000, &elapsed) == WORKLOAD_OK);
+    CHECK(elapsed == 0);
+    CHECK(workload_cycle_due(&cycle, &config, 1099, &elapsed) == WORKLOAD_OK);
+    CHECK(elapsed == 0);
+    CHECK(cycle.cycle == 0);
+    CHECK(cycle.next_ms == 1100);
 }
 
-static void test_cycle_catch_up(void)
+static void cycle_due_once_at_period(void)
 {
-    const workload_config_t config = good_config();
+    const workload_config_t config = config_with(100, 10);
     workload_cycle_t cycle;
-    uint32_t due = 0;
+    uint32_t elapsed = 0;
+
+    CHECK(workload_cycle_init(&cycle, &config, 1000) == WORKLOAD_OK);
+    CHECK(workload_cycle_due(&cycle, &config, 1100, &elapsed) == WORKLOAD_OK);
+    CHECK(elapsed == 1);
+    CHECK(cycle.cycle == 1);
+    CHECK(cycle.next_ms == 1200);
+    CHECK(workload_cycle_due(&cycle, &config, 1100, &elapsed) == WORKLOAD_OK);
+    CHECK(elapsed == 0);
+}
+
+static void cycle_catches_up_after_stall(void)
+{
+    const workload_config_t config = config_with(100, 10);
+    workload_cycle_t cycle;
+    uint32_t elapsed = 0;
 
     CHECK(workload_cycle_init(&cycle, &config, 0) == WORKLOAD_OK);
-    /* A stall of 350 ms leaves cycles at 100, 200 and 300 due. */
-    CHECK(workload_cycle_poll(&cycle, 350, &due) == WORKLOAD_OK);
-    CHECK(due == 3);
-    CHECK(workload_cycle_next_due(&cycle) == 400);
-    CHECK(workload_cycle_count(&cycle) == 3);
-    CHECK(workload_cycle_skipped(&cycle) == 0);
+    /* A stall of 3.5 periods leaves the cycles at 100, 200 and 300 due. */
+    CHECK(workload_cycle_due(&cycle, &config, 350, &elapsed) == WORKLOAD_OK);
+    CHECK(elapsed == 3);
+    CHECK(cycle.cycle == 3);
+    CHECK(cycle.next_ms == 400); /* still on the original grid */
+    CHECK(workload_cycle_due(&cycle, &config, 400, &elapsed) == WORKLOAD_OK);
+    CHECK(elapsed == 1);
 }
 
-static void test_cycle_stall_beyond_the_catch_up_limit(void)
+static void cycle_survives_64bit_time_near_wrap(void)
 {
-    const workload_config_t config = good_config(); /* limit 4 */
+    const workload_config_t config = config_with(10, 1);
     workload_cycle_t cycle;
-    uint32_t due = 0;
+    uint32_t elapsed = 99;
+    const uint64_t start = UINT64_MAX - 5;
 
-    CHECK(workload_cycle_init(&cycle, &config, 0) == WORKLOAD_OK);
-    /* Cycles at 100 .. 1000 are due: ten. Four run, six are dropped. */
-    CHECK(workload_cycle_poll(&cycle, 1050, &due) == WORKLOAD_OK);
-    CHECK(due == 4);
-    CHECK(workload_cycle_count(&cycle) == 4);
-    CHECK(workload_cycle_skipped(&cycle) == 6);
-    /* The schedule stays on the original grid. */
-    CHECK(workload_cycle_next_due(&cycle) == 1100);
-    CHECK(workload_cycle_poll(&cycle, 1100, &due) == WORKLOAD_OK);
-    CHECK(due == 1);
+    CHECK(workload_cycle_init(&cycle, &config, start) == WORKLOAD_OK);
+    CHECK(cycle.next_ms == 4); /* start + 10 wraps past zero */
+    CHECK(workload_cycle_due(&cycle, &config, start, &elapsed) == WORKLOAD_OK);
+    CHECK(elapsed == 0);
+    CHECK(workload_cycle_due(&cycle, &config, UINT64_MAX, &elapsed) == WORKLOAD_OK);
+    CHECK(elapsed == 0);
+    CHECK(workload_cycle_due(&cycle, &config, 3, &elapsed) == WORKLOAD_OK);
+    CHECK(elapsed == 0);
+    CHECK(workload_cycle_due(&cycle, &config, 4, &elapsed) == WORKLOAD_OK);
+    CHECK(elapsed == 1);
+    CHECK(cycle.next_ms == 14);
+
+    /* A stall across the wrap counts the same as one away from it. */
+    CHECK(workload_cycle_init(&cycle, &config, start) == WORKLOAD_OK);
+    CHECK(workload_cycle_due(&cycle, &config, 25, &elapsed) == WORKLOAD_OK);
+    CHECK(elapsed == 3); /* due at 4, 14 and 24 */
+    CHECK(cycle.next_ms == 34);
 }
 
-static void test_cycle_time_going_backwards(void)
+static void cycle_time_going_backwards_is_not_due(void)
 {
-    const workload_config_t config = good_config();
+    const workload_config_t config = config_with(100, 10);
     workload_cycle_t cycle;
-    uint32_t due = 5;
+    uint32_t elapsed = 5;
 
     CHECK(workload_cycle_init(&cycle, &config, 5000) == WORKLOAD_OK);
-    CHECK(workload_cycle_poll(&cycle, 5100, &due) == WORKLOAD_OK);
-    CHECK(due == 1);
-    CHECK(workload_cycle_poll(&cycle, 4000, &due) == WORKLOAD_OK);
-    CHECK(due == 0);
-    CHECK(workload_cycle_next_due(&cycle) == 5200);
+    CHECK(workload_cycle_due(&cycle, &config, 5100, &elapsed) == WORKLOAD_OK);
+    CHECK(elapsed == 1);
+    CHECK(workload_cycle_due(&cycle, &config, 4000, &elapsed) == WORKLOAD_OK);
+    CHECK(elapsed == 0);
+    CHECK(cycle.next_ms == 5200);
 }
 
-static void test_cycle_near_the_end_of_64_bit_time(void)
+static void cycle_rejects_a_stall_it_cannot_count(void)
 {
-    const workload_config_t config = good_config();
+    const workload_config_t config = config_with(10, 1);
     workload_cycle_t cycle;
-    uint32_t due = 0;
-    const uint64_t last = WORKLOAD_TIME_LIMIT_MS;
+    uint32_t elapsed = 7;
+    /* 2^32 cycles are due, one more than the count can report. */
+    const uint64_t now = 10u + 10u * (uint64_t)UINT32_MAX;
 
-    /* Just below the limit the arithmetic stays exact. */
-    CHECK(workload_cycle_init(&cycle, &config, last - 1000) == WORKLOAD_OK);
-    CHECK(workload_cycle_next_due(&cycle) == last - 900);
-    CHECK(workload_cycle_poll(&cycle, last - 1, &due) == WORKLOAD_OK);
-    CHECK(due == 4);
-    CHECK(workload_cycle_skipped(&cycle) == 5);
-    /* Nine cycles were due: four ran, five were dropped, and the grid moved on by nine. */
-    CHECK(workload_cycle_next_due(&cycle) == last);
-
-    /* Past the limit the module refuses instead of wrapping. */
-    CHECK(workload_cycle_init(&cycle, &config, last + 1) == WORKLOAD_ERR_RANGE);
-    CHECK(workload_cycle_init(&cycle, &config, UINT64_MAX) == WORKLOAD_ERR_RANGE);
-    CHECK(workload_cycle_init(&cycle, &config, last - 1000) == WORKLOAD_OK);
-    CHECK(workload_cycle_poll(&cycle, last + 1, &due) == WORKLOAD_ERR_RANGE);
-    CHECK(workload_cycle_poll(&cycle, UINT64_MAX, &due) == WORKLOAD_ERR_RANGE);
-}
-
-static void test_cycle_arguments(void)
-{
-    workload_config_t config = good_config();
-    workload_cycle_t cycle;
-    uint32_t due = 0;
-
-    CHECK(workload_cycle_init(NULL, &config, 0) == WORKLOAD_ERR_NULL);
-    CHECK(workload_cycle_init(&cycle, NULL, 0) == WORKLOAD_ERR_NULL);
-    config.period_ms = 1;
-    CHECK(workload_cycle_init(&cycle, &config, 0) == WORKLOAD_ERR_RANGE);
-    config = good_config();
     CHECK(workload_cycle_init(&cycle, &config, 0) == WORKLOAD_OK);
-    CHECK(workload_cycle_poll(NULL, 0, &due) == WORKLOAD_ERR_NULL);
-    CHECK(workload_cycle_poll(&cycle, 0, NULL) == WORKLOAD_ERR_NULL);
+    CHECK(workload_cycle_due(&cycle, &config, now, &elapsed) == WORKLOAD_ERR_RANGE);
+    CHECK(elapsed == 7);
+    CHECK(cycle.next_ms == 10);
+    CHECK(cycle.cycle == 0);
+    /* One cycle fewer fits. */
+    CHECK(workload_cycle_due(&cycle, &config, now - 10, &elapsed) == WORKLOAD_OK);
+    CHECK(elapsed == UINT32_MAX);
 }
 
-static void test_crc(void)
+static void cycle_rejects_bad_arguments(void)
 {
-    const uint8_t check[] = "123456789";
+    const workload_config_t good = config_with(100, 10);
+    const workload_config_t bad = config_with(1, 10);
+    workload_cycle_t cycle;
+    uint32_t elapsed = 0;
 
-    CHECK(workload_crc16(check, 9) == 0x29B1);
-    CHECK(workload_crc16(NULL, 0) == 0xFFFF);
+    CHECK(workload_cycle_init(NULL, &good, 0) == WORKLOAD_ERR_RANGE);
+    CHECK(workload_cycle_init(&cycle, NULL, 0) == WORKLOAD_ERR_RANGE);
+    CHECK(workload_cycle_init(&cycle, &bad, 0) == WORKLOAD_ERR_RANGE);
+    CHECK(workload_cycle_init(&cycle, &good, 0) == WORKLOAD_OK);
+    CHECK(workload_cycle_due(NULL, &good, 0, &elapsed) == WORKLOAD_ERR_RANGE);
+    CHECK(workload_cycle_due(&cycle, NULL, 0, &elapsed) == WORKLOAD_ERR_RANGE);
+    CHECK(workload_cycle_due(&cycle, &bad, 0, &elapsed) == WORKLOAD_ERR_RANGE);
+    CHECK(workload_cycle_due(&cycle, &good, 0, NULL) == WORKLOAD_ERR_RANGE);
 }
 
-static workload_message_t sample_message(uint16_t length)
+static void message_round_trip(void)
 {
-    workload_message_t message;
-
-    memset(&message, 0, sizeof message);
-    message.node_id = 9;
-    message.sequence = 0x01020304u;
-    message.payload_len = length;
-    for (uint16_t i = 0; i < length; i++) {
-        message.payload[i] = (uint8_t)(i * 3 + 1);
-    }
-    return message;
-}
-
-static void test_message_round_trip(void)
-{
-    const uint16_t lengths[] = {0, 1, 8, WORKLOAD_PAYLOAD_MAX};
-
-    for (size_t i = 0; i < sizeof lengths / sizeof lengths[0]; i++) {
-        const workload_message_t in = sample_message(lengths[i]);
-        workload_message_t out;
-        uint8_t frame[WORKLOAD_FRAME_MAX];
-        size_t written = 0;
-        size_t consumed = 0;
-
-        memset(&out, 0xAA, sizeof out);
-        CHECK(workload_message_encode(&in, frame, sizeof frame, &written) == WORKLOAD_OK);
-        CHECK(written == (size_t)WORKLOAD_FRAME_OVERHEAD + lengths[i]);
-        CHECK(workload_message_decode(frame, written, &out, &consumed) == WORKLOAD_OK);
-        CHECK(consumed == written);
-        CHECK(out.node_id == in.node_id);
-        CHECK(out.sequence == in.sequence);
-        CHECK(out.payload_len == in.payload_len);
-        CHECK(memcmp(out.payload, in.payload, lengths[i]) == 0);
-    }
-}
-
-static void test_message_wire_form(void)
-{
-    const workload_message_t in = sample_message(2); /* payload 01 04 */
-    uint8_t frame[WORKLOAD_FRAME_MAX];
-    size_t written = 0;
-
-    CHECK(workload_message_encode(&in, frame, sizeof frame, &written) == WORKLOAD_OK);
-    CHECK(written == 14);
-    CHECK(frame[0] == 0x57); /* magic 'W' */
-    CHECK(frame[1] == 1);    /* version */
-    CHECK(frame[2] == 9);    /* node id */
-    CHECK(frame[3] == 0);    /* flags */
-    CHECK(frame[4] == 0x01 && frame[5] == 0x02 && frame[6] == 0x03 && frame[7] == 0x04);
-    CHECK(frame[8] == 0x00 && frame[9] == 0x02);
-    CHECK(frame[10] == 0x01 && frame[11] == 0x04);
-    CHECK((uint16_t)((frame[12] << 8) | frame[13]) == workload_crc16(frame, 12));
-}
-
-static void test_message_encode_errors(void)
-{
-    const workload_message_t in = sample_message(8);
-    uint8_t frame[WORKLOAD_FRAME_MAX];
-    size_t written = 77;
-
-    /* Every capacity below the frame size is a short buffer, and writes nothing. */
-    for (size_t capacity = 0; capacity < (size_t)WORKLOAD_FRAME_OVERHEAD + 8; capacity++) {
-        memset(frame, 0xEE, sizeof frame);
-        written = 77;
-        CHECK(workload_message_encode(&in, frame, capacity, &written) ==
-              WORKLOAD_ERR_SHORT_BUFFER);
-        CHECK(written == 77);
-        CHECK(frame[0] == 0xEE);
-    }
-    CHECK(workload_message_encode(&in, frame, (size_t)WORKLOAD_FRAME_OVERHEAD + 8, &written) ==
-          WORKLOAD_OK);
-
-    {
-        workload_message_t bad = in;
-        bad.payload_len = WORKLOAD_PAYLOAD_MAX + 1;
-        CHECK(workload_message_encode(&bad, frame, sizeof frame, &written) ==
-              WORKLOAD_ERR_RANGE);
-    }
-    CHECK(workload_message_encode(NULL, frame, sizeof frame, &written) == WORKLOAD_ERR_NULL);
-    CHECK(workload_message_encode(&in, NULL, sizeof frame, &written) == WORKLOAD_ERR_NULL);
-    CHECK(workload_message_encode(&in, frame, sizeof frame, NULL) == WORKLOAD_ERR_NULL);
-}
-
-static void test_message_truncated_input(void)
-{
-    const workload_message_t in = sample_message(8);
-    uint8_t frame[WORKLOAD_FRAME_MAX];
-    size_t written = 0;
-
-    CHECK(workload_message_encode(&in, frame, sizeof frame, &written) == WORKLOAD_OK);
-    for (size_t length = 0; length < written; length++) {
-        workload_message_t out;
-        size_t consumed = 55;
-
-        memset(&out, 0xAA, sizeof out);
-        CHECK(workload_message_decode(frame, length, &out, &consumed) == WORKLOAD_ERR_TRUNCATED);
-        CHECK(consumed == 55);
-        CHECK(out.node_id == 0xAA);
-    }
-}
-
-static void fix_crc(uint8_t *frame, size_t length)
-{
-    const uint16_t crc = workload_crc16(frame, length - 2);
-
-    frame[length - 2] = (uint8_t)(crc >> 8);
-    frame[length - 1] = (uint8_t)crc;
-}
-
-static void test_message_malformed_input(void)
-{
-    const workload_message_t in = sample_message(8);
-    uint8_t original[WORKLOAD_FRAME_MAX];
+    const workload_message_t in = {.cycle = 0x01020304u, .value = 0xA0B0C0D0u};
+    workload_message_t out = {0, 0};
+    uint8_t buffer[WORKLOAD_MESSAGE_SIZE];
     size_t length = 0;
 
-    CHECK(workload_message_encode(&in, original, sizeof original, &length) == WORKLOAD_OK);
+    CHECK(workload_message_encode(&in, buffer, sizeof buffer, &length) == WORKLOAD_OK);
+    CHECK(length == WORKLOAD_MESSAGE_SIZE);
+    CHECK(workload_message_decode(buffer, length, &out) == WORKLOAD_OK);
+    CHECK(out.cycle == in.cycle);
+    CHECK(out.value == in.value);
+}
 
-    for (int mutation = 0; mutation < 6; mutation++) {
-        uint8_t frame[WORKLOAD_FRAME_MAX];
-        workload_message_t out;
-        size_t consumed = 55;
+static void message_wire_form_is_big_endian_cycle_then_value(void)
+{
+    const workload_message_t in = {.cycle = 0x01020304u, .value = 0xA0B0C0D0u};
+    const uint8_t expected[8] = {0x01, 0x02, 0x03, 0x04, 0xA0, 0xB0, 0xC0, 0xD0};
+    uint8_t buffer[16];
+    size_t length = 0;
 
-        memcpy(frame, original, length);
-        switch (mutation) {
-        case 0: frame[0] ^= 0xFF; break;          /* magic */
-        case 1: frame[1] = 2; fix_crc(frame, length); break;     /* version */
-        case 2: frame[3] = 1; fix_crc(frame, length); break;     /* reserved flags */
-        case 3: frame[length - 1] ^= 0x01; break; /* checksum */
-        case 4: frame[5] ^= 0x01; break;          /* sequence changed, checksum stale */
-        default:
-            /* payload length field above the maximum, with a matching checksum */
-            frame[8] = 0x00;
-            frame[9] = WORKLOAD_PAYLOAD_MAX + 1;
-            fix_crc(frame, length);
-            break;
+    memset(buffer, 0xEE, sizeof buffer);
+    CHECK(workload_message_encode(&in, buffer, sizeof buffer, &length) == WORKLOAD_OK);
+    CHECK(memcmp(buffer, expected, 8) == 0);
+    CHECK(buffer[8] == 0xEE); /* nothing written past the message */
+}
+
+static void message_encode_small_buffer(void)
+{
+    const workload_message_t in = {.cycle = 1, .value = 2};
+
+    for (size_t capacity = 0; capacity < WORKLOAD_MESSAGE_SIZE; capacity++) {
+        uint8_t buffer[WORKLOAD_MESSAGE_SIZE];
+        size_t length = 77;
+
+        memset(buffer, 0xEE, sizeof buffer);
+        CHECK(workload_message_encode(&in, buffer, capacity, &length) == WORKLOAD_ERR_SIZE);
+        CHECK(length == 77);
+        for (size_t i = 0; i < sizeof buffer; i++) {
+            CHECK(buffer[i] == 0xEE);
         }
-        memset(&out, 0xAA, sizeof out);
-        CHECK(workload_message_decode(frame, length, &out, &consumed) == WORKLOAD_ERR_FORMAT);
-        CHECK(consumed == 55);
-        CHECK(out.node_id == 0xAA);
     }
 }
 
-static void test_message_trailing_bytes_are_left_alone(void)
+static void message_encode_rejects_null(void)
 {
-    const workload_message_t in = sample_message(3);
-    uint8_t frame[WORKLOAD_FRAME_MAX + 5];
-    workload_message_t out;
-    size_t written = 0;
-    size_t consumed = 0;
+    const workload_message_t in = {.cycle = 1, .value = 2};
+    uint8_t buffer[WORKLOAD_MESSAGE_SIZE];
+    size_t length = 0;
 
-    CHECK(workload_message_encode(&in, frame, sizeof frame, &written) == WORKLOAD_OK);
-    memset(frame + written, 0x5A, 5);
-    CHECK(workload_message_decode(frame, written + 5, &out, &consumed) == WORKLOAD_OK);
-    CHECK(consumed == written);
+    CHECK(workload_message_encode(NULL, buffer, sizeof buffer, &length) == WORKLOAD_ERR_RANGE);
+    CHECK(workload_message_encode(&in, NULL, sizeof buffer, &length) == WORKLOAD_ERR_RANGE);
+    CHECK(workload_message_encode(&in, buffer, sizeof buffer, NULL) == WORKLOAD_ERR_RANGE);
 }
 
-static void test_message_decode_arguments(void)
+static void message_decode_truncated(void)
 {
-    const workload_message_t in = sample_message(1);
-    uint8_t frame[WORKLOAD_FRAME_MAX];
-    workload_message_t out;
-    size_t written = 0;
-    size_t consumed = 0;
+    const uint8_t buffer[WORKLOAD_MESSAGE_SIZE] = {0, 0, 0, 1, 0, 0, 0, 2};
 
-    CHECK(workload_message_encode(&in, frame, sizeof frame, &written) == WORKLOAD_OK);
-    CHECK(workload_message_decode(NULL, written, &out, &consumed) == WORKLOAD_ERR_NULL);
-    CHECK(workload_message_decode(frame, written, NULL, &consumed) == WORKLOAD_ERR_NULL);
-    CHECK(workload_message_decode(frame, written, &out, NULL) == WORKLOAD_ERR_NULL);
+    for (size_t length = 0; length < WORKLOAD_MESSAGE_SIZE; length++) {
+        workload_message_t out = {0xAAAAAAAAu, 0xBBBBBBBBu};
+
+        CHECK(workload_message_decode(buffer, length, &out) == WORKLOAD_ERR_FORMAT);
+        CHECK(out.cycle == 0xAAAAAAAAu);
+        CHECK(out.value == 0xBBBBBBBBu);
+    }
+}
+
+static void message_decode_wrong_length_is_rejected(void)
+{
+    const uint8_t buffer[WORKLOAD_MESSAGE_SIZE + 1] = {0, 0, 0, 1, 0, 0, 0, 2, 0};
+    workload_message_t out = {0xAAAAAAAAu, 0xBBBBBBBBu};
+
+    CHECK(workload_message_decode(buffer, sizeof buffer, &out) == WORKLOAD_ERR_FORMAT);
+    CHECK(out.cycle == 0xAAAAAAAAu);
+}
+
+static void message_decode_rejects_null(void)
+{
+    const uint8_t buffer[WORKLOAD_MESSAGE_SIZE] = {0};
+    workload_message_t out;
+
+    CHECK(workload_message_decode(NULL, sizeof buffer, &out) == WORKLOAD_ERR_RANGE);
+    CHECK(workload_message_decode(buffer, sizeof buffer, NULL) == WORKLOAD_ERR_RANGE);
 }
 
 int main(void)
 {
-    test_config();
-    test_cycle_basic();
-    test_cycle_catch_up();
-    test_cycle_stall_beyond_the_catch_up_limit();
-    test_cycle_time_going_backwards();
-    test_cycle_near_the_end_of_64_bit_time();
-    test_cycle_arguments();
-    test_crc();
-    test_message_round_trip();
-    test_message_wire_form();
-    test_message_encode_errors();
-    test_message_truncated_input();
-    test_message_malformed_input();
-    test_message_trailing_bytes_are_left_alone();
-    test_message_decode_arguments();
+    config_default_is_valid();
+    config_period_9_rejected();
+    config_period_60001_rejected();
+    config_message_every_0_rejected();
+    config_edges_are_accepted_and_one_beyond_is_not();
+    cycle_not_due_before_period();
+    cycle_due_once_at_period();
+    cycle_catches_up_after_stall();
+    cycle_survives_64bit_time_near_wrap();
+    cycle_time_going_backwards_is_not_due();
+    cycle_rejects_a_stall_it_cannot_count();
+    cycle_rejects_bad_arguments();
+    message_round_trip();
+    message_wire_form_is_big_endian_cycle_then_value();
+    message_encode_small_buffer();
+    message_encode_rejects_null();
+    message_decode_truncated();
+    message_decode_wrong_length_is_rejected();
+    message_decode_rejects_null();
 
     printf("%d checks, %d failures\n", checks, failures);
     return failures == 0 ? 0 : 1;
