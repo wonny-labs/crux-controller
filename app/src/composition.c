@@ -5,8 +5,10 @@
 #include <crux/status.h>
 #include <crux/time.h>
 
+#ifdef CONFIG_CRUX_THREAD
 #include "workload.h"
 #include "workload_thread.h"
+#endif
 
 int composition_start(void)
 {
