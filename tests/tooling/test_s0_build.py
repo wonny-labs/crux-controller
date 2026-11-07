@@ -34,6 +34,17 @@ class S0BuildJob(unittest.TestCase):
         self.assertIn("zephyr.bin", commands)
         self.assertIn("zephyr.meta", commands)
 
+    def test_every_firmware_build_requires_the_gate(self):
+        for path in sorted(WORKFLOWS.glob("*.yml")):
+            data = yaml.safe_load(path.read_text())
+            for name, job in data["jobs"].items():
+                for step in job["steps"]:
+                    run = step.get("run", "")
+                    if "west build" in run and "-t rom_report" not in run and "-t ram_report" not in run:
+                        self.assertIn(
+                            "-DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON", run, f"{path.name} job {name}"
+                        )
+
     def test_no_workflow_uploads_build_output(self):
         for path in sorted(WORKFLOWS.glob("*.yml")):
             data = yaml.safe_load(path.read_text())
