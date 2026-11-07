@@ -1,0 +1,32 @@
+{
+  "_comment": "Placeholder limits, declared before the first measurement (skeleton plan, section 4). The 25 percent minimum free margin is a placeholder until the owner confirms the numbers (OD11). A change here is a reviewed change.",
+  "min_free_percent": {
+    "S0": {
+      "FLASH": 25,
+      "RAM": 25,
+      "ITCM": 25,
+      "DTCM": 25,
+      "OCRAM": 25,
+      "OCRAM2": 25,
+      "IDT_LIST": 25
+    },
+    "S1": {
+      "FLASH": 25,
+      "RAM": 25,
+      "ITCM": 25,
+      "DTCM": 25,
+      "OCRAM": 25,
+      "OCRAM2": 25,
+      "IDT_LIST": 25
+    },
+    "S2": {
+      "FLASH": 25,
+      "RAM": 25,
+      "ITCM": 25,
+      "DTCM": 25,
+      "OCRAM": 25,
+      "OCRAM2": 25,
+      "IDT_LIST": 25
+    }
+  }
+}
