@@ -1,0 +1,20 @@
+# West manifest of crux-controller. This repository is the manifest repository
+# and Crux (crux-pilot) is its only project, imported at a pinned commit (west's
+# T2 topology). No optional group is enabled in Stage 1.
+manifest:
+  version: "1.2"
+
+  remotes:
+    - name: crux
+      url-base: https://github.com/wonny-labs
+
+  projects:
+    - name: crux-pilot
+      remote: crux
+      # Commit of crux-pilot origin/main chosen for Stage 1 (CI green at that
+      # commit). No Crux tag exists yet, so this is a commit, not a tag.
+      revision: db5adca28bd313caaf3899e959920fac4d508699
+      import: true
+
+  self:
+    path: crux-controller

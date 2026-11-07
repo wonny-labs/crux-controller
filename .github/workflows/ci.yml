@@ -1,0 +1,86 @@
+name: ci
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tooling:
+    name: Tooling tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install pyyaml
+      - run: python -m unittest discover -s tests/tooling -v
+
+  pins:
+    name: West pins
+    runs-on: ubuntu-24.04
+    steps:
+      # The manifest repository sits in a workspace directory, one level
+      # below the west workspace root, as in the product template.
+      - uses: actions/checkout@v4
+        with:
+          path: crux-controller
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install west==1.4.0
+      - name: Fetch the workspace
+        run: |
+          west init -l crux-controller
+          west update
+      - name: Contract check
+        run: |
+          set -o pipefail
+          west crux-pins | tee pins.txt
+          grep -q '^CONTRACT crux-pilot ' pins.txt
+          if grep -q '^MISMATCH' pins.txt; then
+            echo "unexpected MISMATCH" >&2
+            exit 1
+          fi
+      - name: Negative control, a pin without a reason must fail
+        run: |
+          # A newer revision of littlefs than the one Crux pins, with no
+          # crux-override. It contains the pinned commit, so west crux-pins
+          # reports MISMATCH rather than an error. This edit stays in the
+          # runner's working copy.
+          python - <<'PY'
+          import yaml
+
+          path = "crux-controller/west.yml"
+          data = yaml.safe_load(open(path))
+          manifest = data["manifest"]
+          manifest["remotes"].append(
+              {"name": "zephyrproject-rtos", "url-base": "https://github.com/zephyrproject-rtos"}
+          )
+          manifest["projects"].append(
+              {
+                  "name": "littlefs",
+                  "remote": "zephyrproject-rtos",
+                  "revision": "e9a8638fc228e43a3156ed3ac602229af3e3c1d5",
+                  "path": "modules/fs/littlefs",
+              }
+          )
+          yaml.safe_dump(data, open(path, "w"), sort_keys=False)
+          PY
+          west update littlefs
+          set +e
+          west crux-pins > pins-negative.txt 2>&1
+          status=$?
+          set -e
+          cat pins-negative.txt
+          test "$status" -ne 0
+          grep -q '^MISMATCH littlefs ' pins-negative.txt
