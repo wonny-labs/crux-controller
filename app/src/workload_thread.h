@@ -10,6 +10,12 @@
  * "workload: cycle=<n> value=<v>", so a reader can check it. */
 #define WORKLOAD_VALUE_OF(cycle) ((uint32_t)(cycle) ^ 0x5A5A5A5Au)
 
+/* Called on the consumer thread after each message is logged. */
+typedef void (*workload_sink_t)(const workload_message_t *message);
+
+/* Set before workload_thread_start. NULL, the default, means no sink. */
+void workload_thread_set_sink(workload_sink_t sink);
+
 /*
  * Run the workload on Crux threads: one thread drives the cycle on the Crux monotonic clock
  * and queues a message every config->message_every cycles, another thread takes each message

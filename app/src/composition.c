@@ -2,11 +2,34 @@
 
 #include "composition.h"
 
+#include <stdio.h>
+
+#include <crux/logging.h>
 #include <crux/status.h>
 #include <crux/time.h>
 
 #include "workload.h"
 #include "workload_thread.h"
+
+#ifdef CONFIG_CRUX_CONTROLLER_S2
+#include "net_client.h"
+
+/* S2: every logged message also goes to the peer. */
+static void exchange_with_peer(const workload_message_t *message)
+{
+    char text[64];
+    const int result = net_client_exchange(message);
+
+    if (result == NET_CLIENT_OK) {
+        (void)snprintf(text, sizeof text, "exchange ok cycle=%u", (unsigned)message->cycle);
+        (void)crux_log_write(CRUX_LOG_INFO, "net", text);
+    } else {
+        (void)snprintf(text, sizeof text, "exchange failed cycle=%u result=%d",
+                       (unsigned)message->cycle, result);
+        (void)crux_log_write(CRUX_LOG_WARN, "net", text);
+    }
+}
+#endif
 
 int composition_start(void)
 {
@@ -24,6 +47,9 @@ int composition_start(void)
     if (workload_config_default(&config) != WORKLOAD_OK) {
         return CRUX_ERR_INVALID_ARGUMENT;
     }
+#ifdef CONFIG_CRUX_CONTROLLER_S2
+    workload_thread_set_sink(exchange_with_peer);
+#endif
     return workload_thread_start(&config);
 #else
     return 0;

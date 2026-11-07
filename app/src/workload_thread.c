@@ -13,9 +13,15 @@
 #include <crux/thread.h>
 #include <crux/time.h>
 
+#ifdef CONFIG_CRUX_CONTROLLER_WORKER_STACK
+#define WORKER_STACK_BYTES CONFIG_CRUX_CONTROLLER_WORKER_STACK
+#else
+#define WORKER_STACK_BYTES 4096
+#endif
+
 enum {
     QUEUE_CAPACITY = 8,
-    STACK_BYTES = 4096,
+    STACK_BYTES = WORKER_STACK_BYTES,
     JOIN_TIMEOUT_MS = 2000,
     RECEIVE_TIMEOUT_MS = 50,
     /* The producer sleeps in slices, so that a stop request is seen within this time. */
@@ -29,6 +35,7 @@ static struct {
     crux_thread_t consumer;
     atomic_bool stop;
     bool running;
+    workload_sink_t sink;
 } state;
 
 static crux_status_t elapsed_ms(crux_monotonic_time_t start, uint64_t *out)
@@ -102,6 +109,9 @@ static void consumer_main(void *argument)
             (void)snprintf(text, sizeof text, "cycle=%u value=%u", (unsigned)message.cycle,
                            (unsigned)message.value);
             (void)crux_log_write(CRUX_LOG_INFO, "workload", text);
+            if (state.sink != NULL) {
+                state.sink(&message);
+            }
             continue;
         }
         /* A timeout with a stop request means the queue is drained. Any other result ends the thread. */
@@ -109,6 +119,11 @@ static void consumer_main(void *argument)
             return;
         }
     }
+}
+
+void workload_thread_set_sink(workload_sink_t sink)
+{
+    state.sink = sink;
 }
 
 int workload_thread_start(const workload_config_t *config)
