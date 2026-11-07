@@ -61,8 +61,12 @@ static void open_listener(void)
     address.sin_family = AF_INET;
     address.sin_port = htons(CONFIG_CRUX_CONTROLLER_PEER_PORT);
     inet_pton(AF_INET, CONFIG_CRUX_CONTROLLER_PEER_ADDRESS, &address.sin_addr);
+    const int one = 1;
+
     listener = socket(AF_INET, SOCK_STREAM, 0);
     zassert_true(listener >= 0);
+    /* The previous case's connection may still hold the port in a closing state. */
+    zassert_equal(0, setsockopt(listener, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one));
     zassert_equal(0, bind(listener, (struct sockaddr *)&address, sizeof address));
     zassert_equal(0, listen(listener, 1));
 }
