@@ -7,8 +7,21 @@ manifest:
   remotes:
     - name: crux
       url-base: https://github.com/wonny-labs
+    - name: zephyrproject-rtos
+      url-base: https://github.com/zephyrproject-rtos
 
   projects:
+    # THROWAWAY: another Zephyr release, to see the baseline gate fail. Never merge.
+    - name: zephyr
+      remote: zephyrproject-rtos
+      revision: v4.4.0
+      import:
+        name-allowlist:
+          - cmsis
+          - cmsis_6
+          - hal_nxp
+          - littlefs
+          - fatfs
     - name: crux-pilot
       remote: crux
       # Commit of crux-pilot origin/main chosen for Stage 1 (CI green at that
