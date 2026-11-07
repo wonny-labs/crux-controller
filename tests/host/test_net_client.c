@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "net_client.h"
@@ -41,6 +42,14 @@ typedef struct {
     int listener;
     peer_mode_t mode;
 } peer_t;
+
+static void pause_ms(long milliseconds)
+{
+    const struct timespec duration = {.tv_sec = milliseconds / 1000,
+                                      .tv_nsec = (milliseconds % 1000) * 1000000L};
+
+    nanosleep(&duration, NULL);
+}
 
 static int open_listener(void)
 {
@@ -90,11 +99,11 @@ static void *peer_main(void *argument)
     case PEER_SHORT_WRITES:
         for (size_t i = 0; i < got; i++) {
             (void)send(client, data + i, 1, 0);
-            usleep(20000);
+            pause_ms(20);
         }
         break;
     case PEER_SILENT:
-        usleep(2600000); /* longer than the client's deadline */
+        pause_ms(2600); /* longer than the client's deadline */
         break;
     case PEER_EARLY_CLOSE:
         break;
