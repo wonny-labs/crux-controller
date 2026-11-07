@@ -1,12 +1,15 @@
 # West manifest of crux-controller. This repository is the manifest repository
-# and Crux (crux-pilot) is its only project, imported at a pinned commit (west's
-# T2 topology). No optional group is enabled in Stage 1.
+# and Crux (crux-pilot) is imported at a pinned commit (west's T2 topology). No optional
+# group is enabled in Stage 1. The one other project is picolibc, a test-only libc for the
+# native_sim scenario of step S2 (see the comment on the project).
 manifest:
   version: "1.2"
 
   remotes:
     - name: crux
       url-base: https://github.com/wonny-labs
+    - name: zephyrproject-rtos
+      url-base: https://github.com/zephyrproject-rtos
 
   projects:
     - name: crux-pilot
@@ -15,6 +18,16 @@ manifest:
       # commit). No Crux tag exists yet, so this is a commit, not a tag.
       revision: db5adca28bd313caaf3899e959920fac4d508699
       import: true
+
+    # Test-only. The native_sim scenario of S2 needs an embedded libc, because the native
+    # libc of native_sim would bypass Zephyr's socket providers, and Crux's manifest does not
+    # import this module. The revision is the one in Zephyr's own manifest at the Zephyr
+    # release that Crux pins, so west crux-pins reports it as OK. SDK builds of the target
+    # use the toolchain's Picolibc, not this module.
+    - name: picolibc
+      remote: zephyrproject-rtos
+      revision: 01254932e8e81085817ed61fd858648584ffe37c
+      path: modules/lib/picolibc
 
   self:
     path: crux-controller

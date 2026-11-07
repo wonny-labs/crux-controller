@@ -14,10 +14,16 @@ def load_manifest():
 
 
 class ManifestIsOptionA(unittest.TestCase):
-    def test_crux_pilot_is_the_only_project_and_is_imported(self):
+    def test_projects_are_crux_pilot_and_the_test_only_libc(self):
         projects = load_manifest()["projects"]
-        self.assertEqual([p["name"] for p in projects], ["crux-pilot"])
+        self.assertEqual([p["name"] for p in projects], ["crux-pilot", "picolibc"])
         self.assertIs(projects[0]["import"], True)
+        picolibc = projects[1]
+        self.assertNotIn("import", picolibc)
+        self.assertEqual(picolibc["remote"], "zephyrproject-rtos")
+        self.assertEqual(picolibc["path"], "modules/lib/picolibc")
+        # The revision in Zephyr's own manifest at the Zephyr release that Crux pins.
+        self.assertEqual(picolibc["revision"], "01254932e8e81085817ed61fd858648584ffe37c")
 
     def test_crux_pilot_is_pinned_by_a_full_commit_hash(self):
         revision = load_manifest()["projects"][0]["revision"]
