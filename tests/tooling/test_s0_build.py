@@ -57,12 +57,13 @@ class S0Application(unittest.TestCase):
         self.assertIn("project(crux_controller)", cmake)
         self.assertNotIn("product_x", cmake)
 
-    def test_application_links_only_public_crux_targets(self):
+    def test_application_links_only_public_crux_targets_and_the_workload(self):
         cmake = (ROOT / "app" / "CMakeLists.txt").read_text()
         links = [line for line in cmake.splitlines() if "target_link_libraries" in line]
         self.assertTrue(links)
         for line in links:
-            self.assertIn("crux::", line)
+            # The workload is this repository's own portable library.
+            self.assertTrue("crux::" in line or "workload" in line, line)
 
 
 if __name__ == "__main__":
