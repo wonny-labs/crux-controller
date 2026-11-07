@@ -3,18 +3,11 @@
 #include <crux/status.h>
 #include <crux/time.h>
 
-#include <zephyr/sys/printk.h>
-
+/* The skeleton only proves that the build chain links a public Crux target.
+ * Console output arrives with the Logging composition of step S1. */
 int main(void)
 {
     crux_monotonic_time_t now;
-    const crux_status_t status = crux_monotonic_now(&now);
 
-    if (status != CRUX_OK) {
-        printk("crux-controller: clock failed, status=%d\n", (int)status);
-        return -1;
-    }
-
-    printk("crux-controller: ready\n");
-    return 0;
+    return crux_monotonic_now(&now) == CRUX_OK ? 0 : -1;
 }
