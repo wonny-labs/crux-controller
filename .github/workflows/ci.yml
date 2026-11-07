@@ -164,6 +164,14 @@ jobs:
               exit 1
             }
           done
+      - name: Check the resolved S1 configuration
+        run: |
+          build=crux-controller/build/s1/zephyr
+          for option in CONFIG_CRUX_THREAD=y CONFIG_CRUX_QUEUE=y CONFIG_CRUX_LOGGING=y; do
+            grep -qx "$option" "$build/.config" || { echo "missing $option" >&2; exit 1; }
+          done
+          grep -q 'zephyr,log-uart' "$build/zephyr.dts" || { echo "no log UART selection" >&2; exit 1; }
+          ! grep -qx 'CONFIG_CRUX_CONTROLLER_S2=y' "$build/.config"
 
   s2:
     name: S2 build (RT1060-EVKB, networking)
@@ -223,6 +231,23 @@ jobs:
             }
           done
           echo "Built S2 for $BOARD. No flash, reset or hardware command was run."
+      - name: Check the resolved S2 configuration and devicetree
+        run: |
+          build=crux-controller/build/s2/zephyr
+          # A fragment or overlay that is silently not applied would still build, so check
+          # what the build resolved, not what the command line asked for.
+          for option in CONFIG_CRUX_CONTROLLER_S2=y CONFIG_CRUX_SOCKETS=y CONFIG_CRUX_NETIF=y \
+              'CONFIG_NET_CONFIG_MY_IPV4_ADDR="192.168.77.2"' CONFIG_NET_CONFIG_SETTINGS=y; do
+            grep -qxF "$option" "$build/.config" || { echo "missing $option" >&2; exit 1; }
+          done
+          grep -q 'local-mac-address = \[02 43 52 55 58 20\]' "$build/zephyr.dts" || {
+            echo "the S2 overlay did not set the MAC address" >&2
+            exit 1
+          }
+          ! grep -q 'green_led' "$build/zephyr.dts" || {
+            echo "the S2 overlay did not delete green_led" >&2
+            exit 1
+          }
 
   boundary:
     name: Boundary check
