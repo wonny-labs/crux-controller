@@ -40,7 +40,7 @@ SOCKET_PROFILE = frozenset(
 )
 
 CRUX_PUBLIC = re.compile(r"^crux/[A-Za-z0-9_]+\.h$")
-DIRECTIVE = re.compile(r"^[ \t]*#[ \t]*(include_next|include|import)\b(.*)$", re.DOTALL)
+DIRECTIVE = re.compile(r"^[ \t\f\v]*#[ \t\f\v]*(include_next|include|import)\b(.*)$", re.DOTALL)
 OPERAND = re.compile(r'^\s*(?:<([^>\n]+)>|"([^"\n]+)")')
 
 
@@ -96,8 +96,13 @@ def strip_comments(text):
     return "".join(out)
 
 
+def normalise(text):
+    """Line ends as LF, and the digraph and trigraph for # as #, before any other reading."""
+    return text.replace("\r\n", "\n").replace("\r", "\n").replace("??=", "#").replace("%:", "#")
+
+
 def logical_lines(text):
-    """Yield (first line number, text) with backslash-continued lines joined."""
+    """Yield (first line number, text) with backslash-continued lines joined, as C joins them."""
     lines = text.split("\n")
     index = 0
     while index < len(lines):
@@ -105,7 +110,7 @@ def logical_lines(text):
         joined = lines[index]
         while joined.endswith("\\") and index + 1 < len(lines):
             index += 1
-            joined = joined[:-1] + " " + lines[index]
+            joined = joined[:-1] + lines[index]
         yield first + 1, joined
         index += 1
 
@@ -171,7 +176,7 @@ def check(repo, crux_root=None):
         extra_roots = [repo / name for name in rule.extra_roots]
         for source in sorted(p for p in tree.rglob("*") if p.is_file()):
             relative = source.relative_to(repo).as_posix()
-            text = strip_comments(source.read_bytes().decode("utf-8", errors="replace"))
+            text = strip_comments(normalise(source.read_bytes().decode("utf-8", errors="replace")))
             for line, logical in logical_lines(text):
                 directive = DIRECTIVE.match(logical)
                 if not directive:
