@@ -25,7 +25,7 @@ class ManifestIsOptionA(unittest.TestCase):
 
     def test_manifest_has_no_tag_pin(self):
         revision = str(load_manifest()["projects"][0]["revision"])
-        self.assertIsNone(re.match(r"^v?\d+(\.\d+)*", revision))
+        self.assertIsNone(re.fullmatch(r"v?\d+(\.\d+)+(-[0-9A-Za-z.]+)?", revision))
 
     def test_no_optional_group_is_enabled(self):
         self.assertNotIn("group-filter", load_manifest())
