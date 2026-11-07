@@ -25,9 +25,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Each later step adds its Kconfig fragments here as the step lands.
           - step: S0
-            extra: ""
+            conf: ""
+            overlay: ""
+          - step: S1
+            conf: "conf/s1.conf"
+            overlay: ""
+          - step: S2
+            conf: "conf/s1.conf;conf/s2.conf"
+            overlay: "boards/s2.overlay"
     env:
       BOARD: mimxrt1060_evk@B//qspi
       SDK_VERSION: "1.0.1"
@@ -69,12 +75,17 @@ jobs:
       - name: Build the step with the baseline gate required
         env:
           ZEPHYR_BASE: ${{ github.workspace }}/zephyr
+          CONF: ${{ matrix.conf }}
+          OVERLAY: ${{ matrix.overlay }}
         run: |
           set -o pipefail
           build="crux-controller/build/${{ matrix.step }}"
           mkdir -p "$build/budget"
+          args=(-DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON)
+          if [ -n "$CONF" ]; then args+=("-DEXTRA_CONF_FILE=$CONF"); fi
+          if [ -n "$OVERLAY" ]; then args+=("-DEXTRA_DTC_OVERLAY_FILE=$OVERLAY"); fi
           west build -p always -b '${{ env.BOARD }}' -d "$build" crux-controller/app -- \
-            -DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON ${{ matrix.extra }} 2>&1 | tee "$build/budget/build.log"
+            "${args[@]}" 2>&1 | tee "$build/budget/build.log"
           west build -d "$build" -t rom_report > "$build/budget/rom_report.log" 2>&1
           west build -d "$build" -t ram_report > "$build/budget/ram_report.log" 2>&1
       - name: Collect, check and summarise
