@@ -85,6 +85,24 @@ jobs:
           test "$status" -ne 0
           grep -q '^MISMATCH littlefs ' pins-negative.txt
 
+  boundary:
+    name: Boundary check
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: crux-controller
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install west==1.4.0
+      - name: Fetch crux-pilot at the pinned commit
+        run: |
+          west init -l crux-controller
+          west update crux-pilot
+      - name: Check the includes of app/src and workload
+        run: python crux-controller/scripts/check_boundary.py --repo crux-controller --crux-root crux-pilot
+
   s0:
     name: S0 build (RT1060-EVKB)
     runs-on: ubuntu-24.04
