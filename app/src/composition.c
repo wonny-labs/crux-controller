@@ -2,9 +2,6 @@
 
 #include "composition.h"
 
-#include <stdio.h>
-
-#include <crux/logging.h>
 #include <crux/status.h>
 #include <crux/time.h>
 
@@ -14,6 +11,10 @@
 #endif
 
 #ifdef CONFIG_CRUX_CONTROLLER_S2
+#include <stdio.h>
+
+#include <crux/logging.h>
+
 #include "net_client.h"
 
 /* S2: every logged message also goes to the peer. */
