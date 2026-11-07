@@ -168,6 +168,104 @@ class Scope(unittest.TestCase):
         self.assertEqual([], run(files))
 
 
+class Reviewed(unittest.TestCase):
+    """Cases the independent review of Gate A asked for."""
+
+    def test_crux_private_path_fails(self):
+        files = {"app/src/main.c": '#include "../../crux-pilot/components/time/src/x.h"\n'}
+        self.assertEqual(["../../crux-pilot/components/time/src/x.h"], reasons(run(files)))
+
+    def test_private_path_fails_even_when_the_file_exists_outside_the_tree(self):
+        files = {
+            "app/src/main.c": '#include "../../crux-pilot/components/time/src/x.h"\n',
+            "crux-pilot/components/time/src/x.h": "",
+        }
+        self.assertEqual(1, len(run(files)))
+
+    def test_quoted_vendor_header_fails(self):
+        files = {"app/src/main.c": '#include "fsl_enet.h"\n'}
+        self.assertEqual(["fsl_enet.h"], reasons(run(files)))
+
+    def test_other_posix_header_sys_stat_fails(self):
+        files = {"app/src/main.c": "#include <sys/stat.h>\n"}
+        self.assertEqual(["sys/stat.h"], reasons(run(files)))
+
+    def test_every_file_is_scanned_whatever_its_suffix(self):
+        for name in ("zeph.inc", "zeph.inl", "zeph.hh", "zeph.def", "zeph.cxx", "zeph"):
+            files = {f"app/src/{name}": "#include <zephyr/kernel.h>\n"}
+            self.assertEqual(["zephyr/kernel.h"], reasons(run(files)), name)
+
+    def test_include_next_and_import_are_checked(self):
+        files = {"app/src/a.c": "#include_next <zephyr/kernel.h>\n#import <fsl_enet.h>\n"}
+        self.assertEqual(["zephyr/kernel.h", "fsl_enet.h"], reasons(run(files)))
+
+    def test_a_macro_operand_is_a_violation(self):
+        files = {"app/src/a.c": "#define H <zephyr/kernel.h>\n#include H\n"}
+        (violation,) = run(files)
+        self.assertEqual(2, violation.line)
+        self.assertIn("literal", violation.reason)
+
+    def test_a_directive_split_by_a_backslash_is_joined(self):
+        files = {"app/src/a.c": "#include \\\n    <zephyr/kernel.h>\n"}
+        (violation,) = run(files)
+        self.assertEqual("zephyr/kernel.h", violation.include)
+        self.assertEqual(1, violation.line)
+
+    def test_line_numbers_survive_a_joined_directive(self):
+        files = {"app/src/a.c": "#define X \\\n  1\n#include <zephyr/kernel.h>\n"}
+        (violation,) = run(files)
+        self.assertEqual(3, violation.line)
+
+    def test_a_comment_marker_inside_a_string_does_not_hide_an_include(self):
+        text = 'const char *s = "/*";\n#include <zephyr/kernel.h>\nconst char *t = "*/";\n'
+        self.assertEqual(["zephyr/kernel.h"], reasons(run({"app/src/a.c": text})))
+
+    def test_a_comment_marker_in_a_char_literal_does_not_hide_an_include(self):
+        text = "char c = '\"';\n#include <zephyr/kernel.h>\n"
+        self.assertEqual(["zephyr/kernel.h"], reasons(run({"app/src/a.c": text})))
+
+    def test_the_application_may_include_the_workload_header(self):
+        files = {
+            "app/src/main.c": '#include "workload.h"\n',
+            "workload/include/workload.h": "#include <stdint.h>\n",
+        }
+        self.assertEqual([], run(files))
+
+    def test_the_workload_may_not_include_an_application_header(self):
+        files = {
+            "workload/src/a.c": '#include "../../app/src/adapter.h"\n',
+            "app/src/adapter.h": "",
+        }
+        self.assertEqual(1, len(run(files)))
+
+
+class BuildFiles(unittest.TestCase):
+    """The check reads includes only, so the build files must not add include paths."""
+
+    FORBIDDEN = (
+        "include_directories",
+        "zephyr_include_directories",
+        "target_include_directories",
+        "-include",
+        "-I",
+    )
+
+    def test_app_cmake_adds_no_include_path(self):
+        text = (ROOT / "app" / "CMakeLists.txt").read_text()
+        for line in text.splitlines():
+            code = line.split("#", 1)[0]
+            for word in self.FORBIDDEN:
+                self.assertNotIn(word, code, f"app/CMakeLists.txt: {line.strip()}")
+
+    def test_app_cmake_takes_sources_from_app_src_only(self):
+        text = (ROOT / "app" / "CMakeLists.txt").read_text()
+        for line in text.splitlines():
+            code = line.split("#", 1)[0]
+            if "target_sources" in code:
+                self.assertIn("src/", code)
+                self.assertNotIn("..", code)
+
+
 class CommandLine(unittest.TestCase):
     def invoke(self, files, *extra):
         repo = Repo(files)
