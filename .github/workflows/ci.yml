@@ -240,8 +240,10 @@ jobs:
               'CONFIG_NET_CONFIG_MY_IPV4_ADDR="192.168.77.2"' CONFIG_NET_CONFIG_SETTINGS=y; do
             grep -qxF "$option" "$build/.config" || { echo "missing $option" >&2; exit 1; }
           done
-          grep -q 'local-mac-address = \[02 43 52 55 58 20\]' "$build/zephyr.dts" || {
+          grep -Eq 'local-mac-address = \[ *02 *43 *52 *55 *58 *20 *\]' "$build/zephyr.dts" || {
             echo "the S2 overlay did not set the MAC address" >&2
+            grep -n 'mac' "$build/zephyr.dts" | head -20 >&2 || true
+            grep -rn 's2.overlay' crux-controller/build/s2/CMakeCache.txt | head -5 >&2 || true
             exit 1
           }
           ! grep -q 'green_led' "$build/zephyr.dts" || {
