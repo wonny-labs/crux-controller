@@ -8,8 +8,10 @@
 #include <crux/status.h>
 #include <crux/time.h>
 
+#ifdef CONFIG_CRUX_THREAD
 #include "workload.h"
 #include "workload_thread.h"
+#endif
 
 #ifdef CONFIG_CRUX_CONTROLLER_S2
 #include "net_client.h"
