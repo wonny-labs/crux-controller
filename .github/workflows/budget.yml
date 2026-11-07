@@ -2,11 +2,10 @@ name: budget
 
 # Builds each step with the Zephyr baseline gate required and checks its static resource
 # use against budgets/limits.json. It publishes the numbers as a job summary only. No
-# image, ELF or map file is uploaded (decision OD4).
+# image, ELF or map file is uploaded, because the repository publishes hashes only.
 
 on:
   pull_request:
-    branches: [main]
   push:
     branches: [main]
 

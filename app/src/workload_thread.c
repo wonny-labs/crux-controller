@@ -24,6 +24,9 @@ enum {
     STACK_BYTES = WORKER_STACK_BYTES,
     JOIN_TIMEOUT_MS = 2000,
     RECEIVE_TIMEOUT_MS = 50,
+    /* The consumer may be inside a sink that takes up to its own deadline for each of the
+     * queued messages, so it is given longer than the producer to finish. */
+    CONSUMER_JOIN_TIMEOUT_MS = 30000,
     /* The producer sleeps in slices, so that a stop request is seen within this time. */
     MAX_SLEEP_MS = 50,
 };
@@ -33,7 +36,8 @@ static struct {
     crux_queue_t queue;
     crux_thread_t producer;
     crux_thread_t consumer;
-    atomic_bool stop;
+    atomic_bool stop_producer;
+    atomic_bool stop_consumer;
     bool running;
     workload_sink_t sink;
 } state;
@@ -62,7 +66,7 @@ static void producer_main(void *argument)
         (void)crux_log_write(CRUX_LOG_ERROR, "workload", "producer could not start");
         return;
     }
-    while (!atomic_load(&state.stop)) {
+    while (!atomic_load(&state.stop_producer)) {
         uint64_t now_ms;
         uint32_t due = 0;
 
@@ -114,8 +118,9 @@ static void consumer_main(void *argument)
             }
             continue;
         }
-        /* A timeout with a stop request means the queue is drained. Any other result ends the thread. */
-        if (status != CRUX_ERR_TIMEOUT || atomic_load(&state.stop)) {
+        /* The consumer is asked to stop only after the producer was joined, so a timeout with
+         * that request means the queue is drained. Any other result ends the thread. */
+        if (status != CRUX_ERR_TIMEOUT || atomic_load(&state.stop_consumer)) {
             return;
         }
     }
@@ -139,7 +144,8 @@ int workload_thread_start(const workload_config_t *config)
         return CRUX_ERR_INVALID_ARGUMENT;
     }
     state.config = *config;
-    atomic_store(&state.stop, false);
+    atomic_store(&state.stop_producer, false);
+    atomic_store(&state.stop_consumer, false);
 
     status = crux_queue_create(QUEUE_CAPACITY, sizeof(workload_message_t), &state.queue);
     if (status != CRUX_OK) {
@@ -152,9 +158,10 @@ int workload_thread_start(const workload_config_t *config)
     }
     status = crux_thread_create(&options, producer_main, NULL, &state.producer);
     if (status != CRUX_OK) {
-        atomic_store(&state.stop, true);
-        (void)crux_thread_join(&state.consumer, JOIN_TIMEOUT_MS);
-        (void)crux_queue_destroy(&state.queue);
+        atomic_store(&state.stop_consumer, true);
+        if (crux_thread_join(&state.consumer, CONSUMER_JOIN_TIMEOUT_MS) == CRUX_OK) {
+            (void)crux_queue_destroy(&state.queue);
+        }
         return status;
     }
     state.running = true;
@@ -168,12 +175,14 @@ int workload_thread_stop(void)
     if (!state.running) {
         return CRUX_ERR_INVALID_STATE;
     }
-    atomic_store(&state.stop, true);
+    /* Producer first, so that nothing is queued after the consumer is told to finish. */
+    atomic_store(&state.stop_producer, true);
     status = crux_thread_join(&state.producer, JOIN_TIMEOUT_MS);
     if (status != CRUX_OK) {
         return status;
     }
-    status = crux_thread_join(&state.consumer, JOIN_TIMEOUT_MS);
+    atomic_store(&state.stop_consumer, true);
+    status = crux_thread_join(&state.consumer, CONSUMER_JOIN_TIMEOUT_MS);
     if (status != CRUX_OK) {
         return status;
     }

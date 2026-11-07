@@ -8,6 +8,7 @@
 #include <errno.h>
 #include <netinet/in.h>
 #include <pthread.h>
+#include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -132,6 +133,14 @@ static int exchange_with(peer_mode_t mode)
 
 int main(void)
 {
+    /* The Sockets profile requires a Linux executable to ignore SIGPIPE before it uses the profile. */
+    struct sigaction ignore;
+
+    memset(&ignore, 0, sizeof ignore);
+    ignore.sa_handler = SIG_IGN;
+    sigemptyset(&ignore.sa_mask);
+    sigaction(SIGPIPE, &ignore, NULL);
+
     CHECK(exchange_with(PEER_ECHO) == NET_CLIENT_OK);
     CHECK(exchange_with(PEER_SHORT_WRITES) == NET_CLIENT_OK);
     CHECK(exchange_with(PEER_WRONG_REPLY) == NET_CLIENT_ERR_PROTOCOL);

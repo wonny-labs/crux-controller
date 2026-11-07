@@ -1,5 +1,5 @@
 {
-  "_comment": "Placeholder limits, declared before the first measurement (skeleton plan, section 4). The 25 percent minimum free margin is a placeholder until the owner confirms the numbers (OD11). A change here is a reviewed change.",
+  "_comment": "Placeholder limits, declared before the first measurement. The minimum free margin of 25 percent is a placeholder until the owner confirms the numbers. A change here is a reviewed change.",
   "min_free_percent": {
     "S0": {
       "FLASH": 25,

@@ -18,6 +18,7 @@ enum {
  * One exchange with the peer: connect, send the eight-byte message, expect the same eight
  * bytes back, close. Uses only the calls of the Crux Sockets profile: nonblocking descriptors
  * with poll, and one overall deadline. Returns NET_CLIENT_OK or a negative NET_CLIENT_ERR value.
+ * A Linux executable must ignore SIGPIPE before it calls this, as the Sockets profile requires.
  */
 int net_client_exchange(const workload_message_t *message);
 
