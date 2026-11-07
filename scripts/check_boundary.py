@@ -14,7 +14,8 @@ or unknown ``<crux/...>`` paths, and quoted headers that do not resolve inside t
 checked tree (a Crux port header reached through a private include directory is
 the case this catches). The check reads every file under both trees, whatever its suffix, and every
 ``#include``, ``#include_next`` and ``#import`` directive, after joining lines that end in a
-backslash and removing comments. An operand that is not a literal ``<name>`` or ``"name"``
+backslash (as C joins them, with nothing in between), reading CRLF line ends, the digraph
+``%:`` and the trigraph ``??=`` as ``#``, and removing comments. An operand that is not a literal ``<name>`` or ``"name"``
 (a macro, for example) fails, because it cannot be checked. The check does not see include
 paths added by CMake, so the build must not add any; ``tests/tooling/test_boundary.py`` checks
 ``app/CMakeLists.txt`` for that.
