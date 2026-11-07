@@ -83,7 +83,7 @@ jobs:
           set -e
           cat pins-negative.txt
           test "$status" -ne 0
-          grep -q '^MISMATCH littlefs ' pins-negative.txt
+          grep -q '^MISMATCH littlefs .* (contract ' pins-negative.txt
 
   host:
     name: Host tests (sanitize ${{ matrix.sanitize }})
@@ -154,9 +154,11 @@ jobs:
       - name: Install the Zephyr SDK
         if: steps.sdk_cache.outputs.cache-hit != 'true'
         working-directory: zephyr
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           west sdk install --version "$SDK_VERSION" --install-base "$GITHUB_WORKSPACE/sdk" \
-            --gnu-toolchains arm-zephyr-eabi --personal-access-token "${{ github.token }}"
+            --gnu-toolchains arm-zephyr-eabi --personal-access-token "$GH_TOKEN"
       - name: Cross-build with the Zephyr baseline gate required
         env:
           ZEPHYR_BASE: ${{ github.workspace }}/zephyr

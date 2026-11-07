@@ -46,6 +46,12 @@ class S0BuildJob(unittest.TestCase):
 
 
 class S0Application(unittest.TestCase):
+    def test_the_crux_module_switch_is_never_turned_off(self):
+        # The baseline gate lives in the Crux module. Turning it off would turn the gate off.
+        text = (ROOT / "app" / "prj.conf").read_text()
+        self.assertNotIn("CONFIG_CRUX_PILOT_MODULE=n", text)
+        self.assertNotIn("# CONFIG_CRUX_PILOT_MODULE is not set", text)
+
     def test_application_is_named_for_this_repository(self):
         cmake = (ROOT / "app" / "CMakeLists.txt").read_text()
         self.assertIn("project(crux_controller)", cmake)
