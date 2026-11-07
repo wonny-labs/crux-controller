@@ -85,6 +85,21 @@ jobs:
           test "$status" -ne 0
           grep -q '^MISMATCH littlefs ' pins-negative.txt
 
+  host:
+    name: Host tests (sanitize ${{ matrix.sanitize }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        sanitize: ["OFF", "ON"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and run the workload tests
+        run: |
+          cmake -S tests/host -B build/host -G Ninja -DWORKLOAD_SANITIZE=${{ matrix.sanitize }}
+          cmake --build build/host
+          ctest --test-dir build/host --output-on-failure
+
   boundary:
     name: Boundary check
     runs-on: ubuntu-24.04
