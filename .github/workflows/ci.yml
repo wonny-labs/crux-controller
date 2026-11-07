@@ -100,6 +100,71 @@ jobs:
           cmake --build build/host
           ctest --test-dir build/host --output-on-failure
 
+  s1:
+    name: S1 (native_sim and RT1060-EVKB)
+    runs-on: ubuntu-24.04
+    env:
+      BOARD: mimxrt1060_evk@B//qspi
+      SDK_VERSION: "1.0.1"
+      ZEPHYR_SDK_INSTALL_DIR: ${{ github.workspace }}/sdk/zephyr-sdk-1.0.1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: crux-controller
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install host packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential gcc-multilib ca-certificates device-tree-compiler file gperf git \
+            libmagic1 libsdl2-dev pkg-config python3-dev wget xz-utils
+      - name: Install pinned build tools
+        run: python -m pip install cmake==3.28.4 ninja==1.11.1 west==1.4.0
+      - name: Fetch the workspace
+        run: |
+          west init -l crux-controller
+          west update
+          python -m pip install -r zephyr/scripts/requirements-base.txt \
+            -r zephyr/scripts/requirements-build-test.txt \
+            -r zephyr/scripts/requirements-run-test.txt
+      - name: Restore the Zephyr SDK
+        id: sdk_cache
+        uses: actions/cache@v4
+        with:
+          path: sdk
+          key: zephyr-sdk-${{ env.SDK_VERSION }}-arm-zephyr-eabi
+      - name: Install the Zephyr SDK
+        if: steps.sdk_cache.outputs.cache-hit != 'true'
+        working-directory: zephyr
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          west sdk install --version "$SDK_VERSION" --install-base "$GITHUB_WORKSPACE/sdk" \
+            --gnu-toolchains arm-zephyr-eabi --personal-access-token "$GH_TOKEN"
+      - name: Run the S1 scenario on native_sim
+        env:
+          ZEPHYR_BASE: ${{ github.workspace }}/zephyr
+        run: |
+          west twister -p native_sim/native/64 -T crux-controller/tests/native_sim \
+            --inline-logs --clobber-output -O twister-out
+      - name: Cross-build S1 with the baseline gate required
+        env:
+          ZEPHYR_BASE: ${{ github.workspace }}/zephyr
+        run: |
+          west build -p always -b '${{ env.BOARD }}' -d crux-controller/build/s1 \
+            crux-controller/app -- -DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON \
+            -DEXTRA_CONF_FILE=conf/s1.conf
+      - name: Check the outputs exist
+        run: |
+          for output in zephyr.bin zephyr.meta; do
+            test -f "crux-controller/build/s1/zephyr/$output" || {
+              echo "missing $output" >&2
+              exit 1
+            }
+          done
+
   boundary:
     name: Boundary check
     runs-on: ubuntu-24.04
