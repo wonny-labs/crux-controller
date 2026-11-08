@@ -40,6 +40,28 @@ workload_status_t workload_config_default(workload_config_t *out);
 /** Check every field against its range. */
 workload_status_t workload_config_validate(const workload_config_t *config);
 
+/**
+ * Configuration record wire form: twelve bytes, the tag "WCR1", then the big-endian period_ms,
+ * then the big-endian message_every. The tag names the layout, so a file of another kind or of
+ * a later layout is refused instead of misread.
+ */
+#define WORKLOAD_CONFIG_RECORD_SIZE 12u
+
+/**
+ * Write one record. The record is validated first. On any failure the buffer and *length are
+ * untouched.
+ */
+workload_status_t workload_config_encode(const workload_config_t *config, uint8_t *buffer,
+                                         size_t capacity, size_t *length);
+
+/**
+ * Read one record. The input must be exactly WORKLOAD_CONFIG_RECORD_SIZE bytes with the tag, or
+ * the call returns WORKLOAD_ERR_FORMAT. A record whose values are out of range returns
+ * WORKLOAD_ERR_RANGE. On failure *config is untouched.
+ */
+workload_status_t workload_config_decode(const uint8_t *buffer, size_t length,
+                                         workload_config_t *config);
+
 /** A periodic schedule on a caller-supplied millisecond clock. */
 typedef struct {
     uint64_t next_ms; /**< When the next cycle is due. */

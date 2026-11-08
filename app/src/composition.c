@@ -10,6 +10,11 @@
 #include "workload_thread.h"
 #endif
 
+#ifdef CONFIG_CRUX_CONTROLLER_S3
+#include "config_store.h"
+#include "storage_port.h"
+#endif
+
 #ifdef CONFIG_CRUX_CONTROLLER_S2
 #include <stdio.h>
 
@@ -34,6 +39,30 @@ static void exchange_with_peer(const workload_message_t *message)
 }
 #endif
 
+#ifdef CONFIG_CRUX_CONTROLLER_S3
+/* S3: the saved record replaces the default, and a first start saves the default. A volume that
+ * does not mount or bind leaves the default in use, and the volume is never formatted. */
+static void configure_from_storage(workload_config_t *config)
+{
+    workload_config_t saved;
+
+    if (storage_port_mount(STORAGE_PORT_KEEP_VOLUME) != STORAGE_PORT_OK ||
+        storage_port_bind() != STORAGE_PORT_OK) {
+        return;
+    }
+    switch (config_store_load(&saved)) {
+    case CONFIG_STORE_OK:
+        *config = saved;
+        break;
+    case CONFIG_STORE_ERR_NOT_FOUND:
+        (void)config_store_save(config);
+        break;
+    default:
+        break;
+    }
+}
+#endif
+
 int composition_start(void)
 {
     crux_monotonic_time_t now;
@@ -50,6 +79,9 @@ int composition_start(void)
     if (workload_config_default(&config) != WORKLOAD_OK) {
         return CRUX_ERR_INVALID_ARGUMENT;
     }
+#ifdef CONFIG_CRUX_CONTROLLER_S3
+    configure_from_storage(&config);
+#endif
 #ifdef CONFIG_CRUX_CONTROLLER_S2
     workload_thread_set_sink(exchange_with_peer);
 #endif

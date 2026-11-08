@@ -1,8 +1,8 @@
 # The composition zone
 
-Status: a rule of the boundary check, in place before any code uses it. Step S3 (File) is the
-first user. The zone directory `app/compose/` does not exist yet, and the check skips a tree that
-is absent.
+Status: a rule of the boundary check. Step S3 (File) is its first user: `app/compose/storage_mount.c`
+implements the port `app/src/storage_port.h`. The check skips a tree that is absent, so an image
+without the zone has no zone to check.
 
 ## Why a zone
 
@@ -78,7 +78,8 @@ page, in one reviewed pull request.
 ## What the zone does not cover
 
 - The CMake side. The check reads includes only and does not see include paths from CMake. The zone
-  is built as its own library that links `crux::file_zephyr`, so the application target gets no
-  include path from it; `tests/tooling/test_boundary.py` keeps checking that `app/CMakeLists.txt`
-  adds none. This arrives with the first code in the zone.
+  is built as its own library (`app/compose/CMakeLists.txt`) that links `crux::file_zephyr`
+  privately, so the application target gets no include path from it. `tests/tooling/test_boundary.py`
+  keeps checking that `app/CMakeLists.txt` adds none, and `tests/tooling/test_s3.py` checks that
+  only the zone's library links the composition interface and that the zone adds no include path.
 - Whether a mount works. The check does not run anything.

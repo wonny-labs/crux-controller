@@ -1,0 +1,17 @@
+common:
+  platform_allow:
+    - native_sim/native/64
+  tags:
+    - controller
+    - s3
+tests:
+  controller.s3.native_sim.not_ready:
+    extra_args: S3_CASE=not_ready
+  controller.s3.native_sim.mounted_not_bound:
+    extra_args: S3_CASE=mounted_not_bound
+  controller.s3.native_sim.mount_failure:
+    extra_args: S3_CASE=mount_failure
+  controller.s3.native_sim.roundtrip:
+    extra_args: S3_CASE=roundtrip
+  controller.s3.native_sim.bind_failure:
+    extra_args: S3_CASE=bind_failure

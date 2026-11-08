@@ -1,0 +1,20 @@
+/* Step S3: the volume of the File composition, as a devicetree fstab entry.
+ *
+ * Zephyr's FatFs support declares the file system object and the mount description of every
+ * "zephyr,fstab,fatfs" node, so the composition code needs neither the library header nor an
+ * object of its own. The mount is not automatic: the composition mounts it, then binds File.
+ * The mount point /SD: names the onboard microSD disk. The entry has no no-format flag, because
+ * the binding does not support one: whether a volume is formatted is decided by
+ * CONFIG_FS_FATFS_MOUNT_MKFS, which is off. Used only by the S3 image, through
+ * EXTRA_DTC_OVERLAY_FILE. It is configuration, not code.
+ */
+/ {
+    fstab {
+        compatible = "zephyr,fstab";
+        controller_storage: controller-storage {
+            compatible = "zephyr,fstab,fatfs";
+            mount-point = "/SD:";
+            disk-access;
+        };
+    };
+};
