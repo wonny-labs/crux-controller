@@ -11,6 +11,9 @@ run on a board.
 - The west manifest imports `crux-pilot` at a pinned commit (`37c92b18`, which publishes the File
   composition interface `<crux/file_zephyr.h>`) and adds `picolibc` as a test-only project. A CI job
   checks the pins with `west crux-pins` and has a negative control that must fail.
+- A daily build against `crux-pilot` main (`.github/workflows/scheduled-main.yml`) reports pin
+  mismatches and build failures in its job summary. It is information only: the pinned build stays
+  the gate for pull requests, and the workflow publishes nothing.
 - CI builds step S0 (the skeleton), S1 (Crux threads, a queue and logging on a synthetic workload)
   and S2 (a TCP exchange over the Crux Sockets profile) for the NXP RT1060-EVKB Rev B with the Zephyr
   baseline gate required. S2 is built and never run.
@@ -29,6 +32,8 @@ run on a board.
 
 - A release bundle of hashes and identities, its schema and a bundle check, a release dry run that
   publishes nothing and a rebuild comparison at another path (`release/`).
+- The release dry run parses the SPDX files that `west spdx` writes (`release/parse_spdx.py`) and
+  prints the package count of each document.
 
 ### Documents
 
