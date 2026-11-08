@@ -68,6 +68,18 @@ class Dependencies(unittest.TestCase):
             self.assertIn(f"`{project['name']}`", page, project["name"])
             self.assertIn(str(project["revision"]), page, project["name"])
 
+    def test_the_table_lists_the_crux_route_projects_with_full_revisions(self):
+        page = (ROOT / "docs" / "dependencies.md").read_text()
+        rows = {}
+        for line in page.splitlines():
+            cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+            if len(cells) == 5 and cells[0].startswith("`"):
+                match = re.search(r"`([0-9a-f]{40})`", cells[1])
+                rows[cells[0].strip("`")] = match.group(1) if match else None
+        for name in ("zephyr", "cmsis", "cmsis_6", "hal_nxp", "littlefs", "fatfs", "crux-pilot", "picolibc"):
+            self.assertIn(name, rows)
+            self.assertIsNotNone(rows[name], f"{name} has no 40-digit revision in its row")
+
     def test_the_two_groups_that_stay_off_are_named(self):
         page = text("docs/dependencies.md")
         self.assertIn("`crux-secure-management`", page)

@@ -11,6 +11,7 @@ release dry run are the record.
 |---|---|---|
 | Pinned via the Crux contract | The project is named in the Crux manifest at the pinned `crux-pilot` revision, or in the Zephyr manifest that Crux pins. The revision is the one Crux states. | `west crux-pins` prints `CONTRACT` for `crux-pilot` and `OK` for each of these; a revision that differs without a stated reason prints `MISMATCH` and fails CI. |
 | Product-only | The project is named in this repository's `west.yml` and in no Crux manifest. | Its pin is a comment-explained revision in `west.yml`. |
+| The platform itself | `crux-pilot`, the project under evaluation. Its commit is chosen by this repository and imported with its manifest. | `west crux-pins` prints `CONTRACT crux-pilot` for it. |
 
 ```mermaid
 flowchart TD
@@ -31,7 +32,7 @@ flowchart TD
 
 | Project | Revision | Route | Why it is here | Licence as the project states it |
 |---|---|---|---|---|
-| `crux-pilot` | `37c92b18b44b7dfb95c2109f036f23d00f05cb4c` (a commit, no Crux tag exists) | The platform under evaluation, pinned in `west.yml`; its manifest is imported | The Crux components and the composition interface `<crux/file_zephyr.h>` | Apache-2.0 |
+| `crux-pilot` | `37c92b18b44b7dfb95c2109f036f23d00f05cb4c` (a commit, no Crux tag exists) | The platform itself: pinned in `west.yml`, its manifest is imported | The Crux components and the composition interface `<crux/file_zephyr.h>` | Apache-2.0 |
 | `zephyr` | `dccb09599635bdff17633fa7e9dab014b91dce90` (v4.4.2) | Pinned via the Crux contract | The RTOS the image is built on | Apache-2.0 |
 | `cmsis` | `512cc7e895e8491696b61f7ba8066b4a182569b8` | Pinned via the Crux contract | Arm Cortex-M core headers that Zephyr's Cortex-M support uses | Apache-2.0 |
 | `cmsis_6` | `30a859f44ef8ab4dc8f84b03ed586fd16ccf9d74` | Pinned via the Crux contract | Arm core headers of the newer CMSIS interface, which Zephyr's manifest also names | Apache-2.0 |

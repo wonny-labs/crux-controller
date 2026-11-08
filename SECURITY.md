@@ -3,9 +3,9 @@
 ## Reporting a vulnerability
 
 Report a suspected vulnerability in this repository privately. Use **Report a vulnerability** on the
-repository's Security tab (GitHub private vulnerability reporting). If that button is not shown, open
-an issue that asks for a private channel and carries no technical detail, and the repository owner
-will answer there.
+repository's Security tab (GitHub private vulnerability reporting) when the tab shows it. Where it is
+not shown, open an issue that asks for a private channel and carries no technical detail, and the
+repository owner will answer there.
 
 Please do not post exploit details, keys or credentials in a public issue or pull request.
 

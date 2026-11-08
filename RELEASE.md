@@ -16,13 +16,14 @@ requests that change the workflow, `release/` or `west.yml`.
 flowchart TD
     A["Tests of the release tools"] --> B["west update, west crux-pins<br/>CONTRACT line, no MISMATCH"]
     B --> C["Freeze the manifest<br/>west manifest --freeze"]
-    C --> D["Fresh workspace at another path<br/>from the frozen manifest"]
-    D --> E["Build S2<br/>baseline gate required<br/>ROM and RAM reports"]
-    E --> F["west spdx"]
-    F --> G["Parse the SPDX files<br/>release/parse_spdx.py"]
-    G --> H["Assemble the bundle<br/>release/assemble_bundle.py"]
-    H --> I["Check the bundle<br/>release/check_bundle.py"]
-    I --> J["Print the release manifest<br/>nothing is published"]
+    C --> D["Fresh workspace at another path<br/>from the frozen manifest<br/>west crux-pins again"]
+    D --> E["west spdx --init"]
+    E --> F["Build S2<br/>baseline gate required<br/>ROM and RAM reports"]
+    F --> G["west spdx"]
+    G --> H["Parse the SPDX files<br/>release/parse_spdx.py"]
+    H --> I["Assemble the bundle<br/>release/assemble_bundle.py"]
+    I --> J["Check the bundle<br/>release/check_bundle.py"]
+    J --> K["Print the release manifest<br/>scan the SPDX files, informational<br/>nothing is published"]
 ```
 
 | Step | Tool | What fails the run |
