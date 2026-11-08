@@ -32,6 +32,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           path: source
+      - name: Choose the two workspace paths
+        run: |
+          echo "FIRST=$RUNNER_TEMP/first" >> "$GITHUB_ENV"
+          echo "SECOND=$RUNNER_TEMP/second/another/depth" >> "$GITHUB_ENV"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -49,36 +53,36 @@ jobs:
         with:
           path: sdk
           key: zephyr-sdk-${{ env.SDK_VERSION }}-arm-zephyr-eabi
+      - name: Fetch the first workspace
+        run: |
+          mkdir -p "$FIRST"
+          cp -a source "$FIRST/crux-controller"
+          rm -rf "$FIRST/crux-controller/.git"
+          cd "$FIRST"
+          west init -l crux-controller
+          west update
+          python -m pip install -r zephyr/scripts/requirements-base.txt
       - name: Install the Zephyr SDK
         if: steps.sdk_cache.outputs.cache-hit != 'true'
-        working-directory: source
+        working-directory: ${{ env.FIRST }}/zephyr
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          west init -l .
-          west update zephyr
-          cd ../zephyr
           west sdk install --version "$SDK_VERSION" --install-base "$GITHUB_WORKSPACE/sdk" \
             --gnu-toolchains arm-zephyr-eabi --personal-access-token "$GH_TOKEN"
       - name: Build in the first workspace
         run: |
-          mkdir -p first
-          cp -a source first/crux-controller
-          rm -rf first/crux-controller/.git first/crux-controller/.west
-          cd first
-          west init -l crux-controller
-          west update
-          python -m pip install -r zephyr/scripts/requirements-base.txt
+          cd "$FIRST"
           ZEPHYR_BASE="$PWD/zephyr" west build -p always -b "$BOARD" -d crux-controller/build/s2 \
             crux-controller/app -- -DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON \
             "-DEXTRA_CONF_FILE=conf/s1.conf;conf/s2.conf" \
             "-DEXTRA_DTC_OVERLAY_FILE=boards/s2.overlay"
       - name: Build in a second workspace at another path
         run: |
-          mkdir -p second/another/depth
-          cp -a source second/another/depth/crux-controller
-          rm -rf second/another/depth/crux-controller/.git second/another/depth/crux-controller/.west
-          cd second/another/depth
+          mkdir -p "$SECOND"
+          cp -a source "$SECOND/crux-controller"
+          rm -rf "$SECOND/crux-controller/.git"
+          cd "$SECOND"
           west init -l crux-controller
           west update
           ZEPHYR_BASE="$PWD/zephyr" west build -p always -b "$BOARD" -d crux-controller/build/s2 \
@@ -90,7 +94,7 @@ jobs:
           printf 'manifest:\n  projects: []\n' > lock-placeholder.yml
           printf 'rebuild comparison\n' > pins-placeholder.txt
           python source/release/assemble_bundle.py \
-            --build-dir first/crux-controller/build/s2 \
+            --build-dir "$FIRST/crux-controller/build/s2" \
             --lock lock-placeholder.yml --pins-report pins-placeholder.txt \
             --out-dir record-bundle \
             --product-version 0.1.0+1 --security-counter 0 --release-tag v0.1.0 \
@@ -98,6 +102,6 @@ jobs:
           cat record-bundle/release-manifest.json
           python source/release/rebuild_compare.py \
             --record record-bundle/release-manifest.json \
-            --build-dir second/another/depth/crux-controller/build/s2 --target "$BOARD"
+            --build-dir "$SECOND/crux-controller/build/s2" --target "$BOARD"
       - name: What this run did not do
         run: echo "No tag, no GitHub Release, no uploaded artefact, no flash or hardware command."
