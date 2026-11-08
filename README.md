@@ -23,6 +23,15 @@ written code.
   control logic. Its workload will be synthetic and written for this
   repository.
 
+## Boundary
+
+The include rules of the source trees are checked by `scripts/check_boundary.py` in CI.
+`app/src` includes ISO C, the Crux Sockets profile headers, public `<crux/NAME.h>` headers and its
+own tree. `workload` includes ISO C and its own tree. The composition zone `app/compose` is the one
+place that mounts a file system and binds it to Crux with the composition interface
+`<crux/file_zephyr.h>` and a short allow-list of Zephyr headers; `app/src` reaches it only through
+a product-owned header that it declares itself. See `docs/composition-zone.md`.
+
 ## How it is tracked
 
 The platform questions and findings are tracked in a trial issue in the

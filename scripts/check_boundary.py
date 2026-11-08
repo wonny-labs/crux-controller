@@ -2,12 +2,24 @@
 # SPDX-License-Identifier: Apache-2.0
 """Fail when product source includes a header outside the public boundary.
 
-Two trees are checked:
+Three trees are checked:
 
 * ``app/src`` may include ISO C headers, the standard headers of the Crux Sockets
   profile, public ``<crux/NAME.h>`` headers, and headers of its own tree.
 * ``workload/`` is portable code. It may include ISO C headers and headers of its
   own tree, and nothing else.
+* ``app/compose/`` is the composition zone, the one place that mounts a file system and
+  binds it to Crux. It may include ISO C headers, public ``<crux/NAME.h>`` headers, the
+  composition interface ``<crux/file_zephyr.h>``, the explicit allow-list of Zephyr headers
+  in ``COMPOSITION_ZEPHYR_HEADERS``, headers of its own tree and the headers of ``app/src``
+  (header files only: the product-owned header that ``app/src`` declares and the zone
+  implements). Such a header is scanned under the ``app/src`` rules, so a Sockets profile header
+  or a ``workload`` header that it includes reaches the zone indirectly; the zone's own
+  includes are what the rule restricts. It may not
+  include the Sockets profile, a Crux private or port header, any other Zephyr header or a
+  vendor or third-party header. ``app/src`` has no way into the zone: the composition
+  interface and the allow-listed Zephyr headers fail there, and so does a quoted include of a
+  zone header. See ``docs/composition-zone.md``.
 
 Anything else fails: Zephyr, vendor and POSIX headers outside the profile, nested
 or unknown ``<crux/...>`` paths, and quoted headers that do not resolve inside the
@@ -40,6 +52,17 @@ SOCKET_PROFILE = frozenset(
     "sys/socket.h netinet/in.h arpa/inet.h poll.h fcntl.h unistd.h errno.h time.h".split()
 )
 
+# The composition zone's exact allow-list of Zephyr headers (docs/composition-zone.md justifies
+# each one). There are no wildcards: a name is a header or it is not. Adding a name is a reviewed
+# change of this file, of tests/tooling/test_boundary.py and of that document.
+COMPOSITION_ZEPHYR_HEADERS = frozenset({"zephyr/fs/fs.h", "zephyr/devicetree.h"})
+
+# The composition interfaces of Crux that the zone may include. A composition header is
+# <crux/NAME.h> that names a provider; Crux publishes it under components/*/ports/*/include/crux,
+# beside the public headers under components/*/include/crux. Any header of that kind is out of
+# reach of app/src and of the workload, whether or not it is listed here.
+COMPOSITION_CRUX_HEADERS = frozenset({"crux/file_zephyr.h"})
+
 CRUX_PUBLIC = re.compile(r"^crux/[A-Za-z0-9_]+\.h$")
 DIRECTIVE = re.compile(r"^[ \t\f\v]*#[ \t\f\v]*(include_next|include|import)\b(.*)$", re.DOTALL)
 OPERAND = re.compile(r'^\s*(?:<([^>\n]+)>|"([^"\n]+)")')
@@ -52,12 +75,31 @@ class Rule:
     allow_crux: bool
     # Other trees of this repository whose headers a quoted include may name.
     extra_roots: tuple = ()
+    # Zephyr headers this tree may include, by exact name. Empty: no Zephyr header.
+    zephyr_allow: frozenset = frozenset()
+    # Composition interfaces <crux/NAME.h> this tree may include, by exact name.
+    composition_crux: frozenset = frozenset()
+    # True: a quoted include may name only a header file (suffix .h) of an extra root.
+    extra_roots_headers_only: bool = False
 
 
 RULES = (
     # The application binds the workload, so its public headers are in reach.
     Rule("app/src", allow_sockets=True, allow_crux=True, extra_roots=("workload/include",)),
     Rule("workload", allow_sockets=False, allow_crux=False),
+    # The composition zone. Its headers of its own tree are scanned like the rest. app/src
+    # is an extra root so that the zone can implement the product-owned header that app/src
+    # declares; that header is scanned under the rules of app/src, so it cannot carry a
+    # Zephyr or composition include back into the application.
+    Rule(
+        "app/compose",
+        allow_sockets=False,
+        allow_crux=True,
+        extra_roots=("app/src",),
+        extra_roots_headers_only=True,
+        zephyr_allow=COMPOSITION_ZEPHYR_HEADERS,
+        composition_crux=COMPOSITION_CRUX_HEADERS,
+    ),
 )
 
 
@@ -126,34 +168,58 @@ def public_crux_headers(crux_root):
     return names
 
 
-def resolves_locally(include, source, tree, extra_roots):
-    """True when the quoted header is a file inside the tree, or inside an allowed extra root."""
-    pairs = [(source.parent, tree), (tree, tree), (tree / "include", tree)]
-    pairs += [(root, root) for root in extra_roots]
-    for base, root in pairs:
+def composition_crux_headers(crux_root):
+    """The <crux/NAME.h> composition interfaces that Crux publishes at this revision."""
+    return {
+        f"crux/{path.name}"
+        for path in pathlib.Path(crux_root).glob("components/*/ports/*/include/crux/*.h")
+    }
+
+
+def resolves_locally(include, source, tree, extra_roots, headers_only=False):
+    """True when the quoted header is a file inside the tree, or inside an allowed extra root.
+
+    With headers_only, an extra root counts only for a file whose suffix is .h.
+    """
+    pairs = [(source.parent, tree, False), (tree, tree, False), (tree / "include", tree, False)]
+    pairs += [(root, root, headers_only) for root in extra_roots]
+    for base, root, only_headers in pairs:
         candidate = (base / include).resolve()
         try:
             candidate.relative_to(root.resolve())
         except ValueError:
             continue
-        if candidate.is_file():
+        if candidate.is_file() and (not only_headers or candidate.suffix == ".h"):
             return True
     return False
 
 
-def classify(include, angle, source, tree, extra_roots, rule, crux_headers):
+def classify(include, angle, source, tree, extra_roots, rule, crux_headers, composition_headers=None):
     """Return a reason when the include is not allowed, otherwise None."""
     if not angle:
-        if resolves_locally(include, source, tree, extra_roots):
+        if resolves_locally(include, source, tree, extra_roots, rule.extra_roots_headers_only):
             return None
         return "quoted header is not in this tree (private or port header?)"
+    if include in rule.zephyr_allow:
+        return None
     if include.startswith("zephyr/") or include == "zephyr.h":
+        if rule.zephyr_allow:
+            return "Zephyr header that is not on the composition allow-list"
         return "Zephyr header"
     if include in ISO_C:
         return None
     if include.startswith("crux/"):
         if not rule.allow_crux:
             return "Crux header in portable code"
+        known_composition = COMPOSITION_CRUX_HEADERS | (composition_headers or set())
+        if include in known_composition:
+            if include not in rule.composition_crux:
+                if rule.composition_crux:
+                    return "composition interface that is not on the composition allow-list"
+                return "composition interface, for the composition zone only"
+            if composition_headers is not None and include not in composition_headers:
+                return "not a composition interface that Crux publishes at the pinned revision"
+            return None
         if not CRUX_PUBLIC.match(include):
             return "nested Crux path, not a public <crux/NAME.h> header"
         if crux_headers is not None and include not in crux_headers:
@@ -169,6 +235,7 @@ def classify(include, angle, source, tree, extra_roots, rule, crux_headers):
 def check(repo, crux_root=None):
     repo = pathlib.Path(repo)
     crux_headers = public_crux_headers(crux_root) if crux_root else None
+    composition_headers = composition_crux_headers(crux_root) if crux_root else None
     violations = []
     for rule in RULES:
         tree = repo / rule.directory
@@ -195,7 +262,9 @@ def check(repo, crux_root=None):
                     continue
                 angle = operand.group(1) is not None
                 include = operand.group(1) if angle else operand.group(2)
-                reason = classify(include, angle, source, tree, extra_roots, rule, crux_headers)
+                reason = classify(
+                    include, angle, source, tree, extra_roots, rule, crux_headers, composition_headers
+                )
                 if reason:
                     violations.append(Violation(relative, line, include, reason))
     return violations
