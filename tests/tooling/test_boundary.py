@@ -239,6 +239,34 @@ class Reviewed(unittest.TestCase):
         self.assertEqual(1, len(run(files)))
 
 
+class Hardening(unittest.TestCase):
+    """The non-blocking findings of the Gate A review."""
+
+    def test_a_split_inside_the_keyword_is_joined_as_c_joins_it(self):
+        files = {"app/src/a.c": "#inc\\\nlude <zephyr/kernel.h>\n"}
+        self.assertEqual(["zephyr/kernel.h"], reasons(run(files)))
+
+    def test_a_crlf_continuation_is_joined(self):
+        files = {"app/src/a.c": "#include \\\r\n  <zephyr/kernel.h>\r\n"}
+        self.assertEqual(["zephyr/kernel.h"], reasons(run(files)))
+
+    def test_plain_crlf_directives_are_found(self):
+        files = {"app/src/a.c": "#include <zephyr/kernel.h>\r\n"}
+        self.assertEqual(["zephyr/kernel.h"], reasons(run(files)))
+
+    def test_the_digraph_for_hash_is_found(self):
+        files = {"app/src/a.c": "%:include <zephyr/kernel.h>\n"}
+        self.assertEqual(["zephyr/kernel.h"], reasons(run(files)))
+
+    def test_the_trigraph_for_hash_is_found(self):
+        files = {"app/src/a.c": "??=include <zephyr/kernel.h>\n"}
+        self.assertEqual(["zephyr/kernel.h"], reasons(run(files)))
+
+    def test_a_form_feed_before_the_hash_is_allowed_for(self):
+        files = {"app/src/a.c": "\f#include <zephyr/kernel.h>\n"}
+        self.assertEqual(["zephyr/kernel.h"], reasons(run(files)))
+
+
 class BuildFiles(unittest.TestCase):
     """The check reads includes only, so the build files must not add include paths."""
 
