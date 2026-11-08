@@ -5,7 +5,7 @@ import re
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-PUBLIC = (".github", "app", "budgets", "docs", "scripts", "workload", "README.md")
+PUBLIC = (".github", "app", "budgets", "docs", "release", "scripts", "workload", "README.md")
 PRIVATE_REFERENCE = re.compile(r"\b(?:OD|WD)[0-9]+\b|skeleton plan|work package", re.IGNORECASE)
 
 
