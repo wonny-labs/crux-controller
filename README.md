@@ -3,8 +3,19 @@
 Status: Stage 1, in progress. The repository builds in CI for the NXP RT1060-EVKB
 Rev B with the Zephyr baseline gate required: a synthetic workload on Crux threads, a
 queue and logging (step S1), a TCP exchange over the Crux Sockets profile (step S2, built
-and never run), and static resource use checked against declared limits. Nothing has run
-on a board, and there is no release.
+and never run), a configuration record kept in a file through Crux File (step S3, built and
+never run on a board), and static resource use checked against declared limits. Nothing has
+run on a board, and there is no release.
+
+| Step | What it adds | `native_sim` scenario | RT1060-EVKB build | On a board |
+|---|---|---|---|---|
+| S0 | The clock of Crux Time | no | yes | not run |
+| S1 | The workload on Crux threads, a queue and logging | yes | yes | not run |
+| S2 | A TCP exchange over the Crux Sockets profile | yes, over loopback | yes | not run |
+| S3 | A configuration record in a file through Crux File, mounted by the composition zone | yes, simulator provider on a RAM disk | yes, FatFs provider, microSD, no card used | not run |
+
+Every step is checked against its declared resource limits (`budgets/limits.json`,
+placeholders). What S3 needed from the product is recorded in `docs/findings/s3-file-composition.md`.
 
 crux-controller is the official reference consumer firmware for ongoing integration,
 evaluation and regression testing of Crux Platform capabilities through public and approved

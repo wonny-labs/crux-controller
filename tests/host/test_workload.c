@@ -276,6 +276,125 @@ static void message_decode_rejects_null(void)
     CHECK(workload_message_decode(buffer, sizeof buffer, NULL) == WORKLOAD_ERR_RANGE);
 }
 
+static void config_record_round_trip(void)
+{
+    const workload_config_t config = config_with(250, 7);
+    uint8_t buffer[WORKLOAD_CONFIG_RECORD_SIZE];
+    size_t length = 0;
+    workload_config_t out = config_with(1, 1);
+
+    CHECK(workload_config_encode(&config, buffer, sizeof buffer, &length) == WORKLOAD_OK);
+    CHECK(length == WORKLOAD_CONFIG_RECORD_SIZE);
+    CHECK(workload_config_decode(buffer, length, &out) == WORKLOAD_OK);
+    CHECK(out.period_ms == 250);
+    CHECK(out.message_every == 7);
+}
+
+static void config_record_wire_form_is_tag_then_big_endian_fields(void)
+{
+    const workload_config_t config = config_with(0x0D17u, 0x0102u);
+    const uint8_t expected[WORKLOAD_CONFIG_RECORD_SIZE] = {
+        'W', 'C', 'R', '1', 0x00, 0x00, 0x0D, 0x17, 0x00, 0x00, 0x01, 0x02,
+    };
+    uint8_t buffer[WORKLOAD_CONFIG_RECORD_SIZE];
+    size_t length = 0;
+
+    CHECK(WORKLOAD_CONFIG_RECORD_SIZE == 12u);
+    CHECK(workload_config_encode(&config, buffer, sizeof buffer, &length) == WORKLOAD_OK);
+    CHECK(length == sizeof expected);
+    CHECK(memcmp(buffer, expected, sizeof expected) == 0);
+}
+
+static void config_record_encode_refuses_an_invalid_record(void)
+{
+    const workload_config_t config = config_with(9, 10);
+    uint8_t buffer[WORKLOAD_CONFIG_RECORD_SIZE];
+    size_t length = 77;
+
+    memset(buffer, 0xAA, sizeof buffer);
+    CHECK(workload_config_encode(&config, buffer, sizeof buffer, &length) == WORKLOAD_ERR_RANGE);
+    CHECK(length == 77);
+    CHECK(buffer[0] == 0xAA && buffer[WORKLOAD_CONFIG_RECORD_SIZE - 1] == 0xAA);
+}
+
+static void config_record_encode_small_buffer(void)
+{
+    const workload_config_t config = config_with(100, 10);
+    uint8_t buffer[WORKLOAD_CONFIG_RECORD_SIZE];
+    size_t length = 77;
+
+    memset(buffer, 0xAA, sizeof buffer);
+    CHECK(workload_config_encode(&config, buffer, WORKLOAD_CONFIG_RECORD_SIZE - 1, &length) ==
+          WORKLOAD_ERR_SIZE);
+    CHECK(length == 77);
+    CHECK(buffer[0] == 0xAA);
+}
+
+static void config_record_encode_rejects_null(void)
+{
+    const workload_config_t config = config_with(100, 10);
+    uint8_t buffer[WORKLOAD_CONFIG_RECORD_SIZE];
+    size_t length = 0;
+
+    CHECK(workload_config_encode(NULL, buffer, sizeof buffer, &length) == WORKLOAD_ERR_RANGE);
+    CHECK(workload_config_encode(&config, NULL, sizeof buffer, &length) == WORKLOAD_ERR_RANGE);
+    CHECK(workload_config_encode(&config, buffer, sizeof buffer, NULL) == WORKLOAD_ERR_RANGE);
+}
+
+static void config_record_decode_wrong_tag_is_rejected(void)
+{
+    const uint8_t buffer[WORKLOAD_CONFIG_RECORD_SIZE] = {
+        'W', 'C', 'R', '2', 0x00, 0x00, 0x00, 0x64, 0x00, 0x00, 0x00, 0x0A,
+    };
+    workload_config_t out = config_with(0xAAAAAAAAu, 0xBBBBBBBBu);
+
+    CHECK(workload_config_decode(buffer, sizeof buffer, &out) == WORKLOAD_ERR_FORMAT);
+    CHECK(out.period_ms == 0xAAAAAAAAu);
+    CHECK(out.message_every == 0xBBBBBBBBu);
+}
+
+static void config_record_decode_wrong_length_is_rejected(void)
+{
+    const uint8_t buffer[WORKLOAD_CONFIG_RECORD_SIZE + 1] = {
+        'W', 'C', 'R', '1', 0x00, 0x00, 0x00, 0x64, 0x00, 0x00, 0x00, 0x0A, 0x00,
+    };
+    workload_config_t out = config_with(0xAAAAAAAAu, 0xBBBBBBBBu);
+
+    CHECK(workload_config_decode(buffer, WORKLOAD_CONFIG_RECORD_SIZE - 1, &out) ==
+          WORKLOAD_ERR_FORMAT);
+    CHECK(workload_config_decode(buffer, WORKLOAD_CONFIG_RECORD_SIZE + 1, &out) ==
+          WORKLOAD_ERR_FORMAT);
+    CHECK(workload_config_decode(buffer, 0, &out) == WORKLOAD_ERR_FORMAT);
+    CHECK(out.period_ms == 0xAAAAAAAAu);
+}
+
+static void config_record_decode_out_of_range_values_are_rejected(void)
+{
+    const uint8_t low_period[WORKLOAD_CONFIG_RECORD_SIZE] = {
+        'W', 'C', 'R', '1', 0x00, 0x00, 0x00, 0x09, 0x00, 0x00, 0x00, 0x0A,
+    };
+    const uint8_t zero_every[WORKLOAD_CONFIG_RECORD_SIZE] = {
+        'W', 'C', 'R', '1', 0x00, 0x00, 0x00, 0x64, 0x00, 0x00, 0x00, 0x00,
+    };
+    workload_config_t out = config_with(0xAAAAAAAAu, 0xBBBBBBBBu);
+
+    CHECK(workload_config_decode(low_period, sizeof low_period, &out) == WORKLOAD_ERR_RANGE);
+    CHECK(workload_config_decode(zero_every, sizeof zero_every, &out) == WORKLOAD_ERR_RANGE);
+    CHECK(out.period_ms == 0xAAAAAAAAu);
+    CHECK(out.message_every == 0xBBBBBBBBu);
+}
+
+static void config_record_decode_rejects_null(void)
+{
+    const uint8_t buffer[WORKLOAD_CONFIG_RECORD_SIZE] = {
+        'W', 'C', 'R', '1', 0x00, 0x00, 0x00, 0x64, 0x00, 0x00, 0x00, 0x0A,
+    };
+    workload_config_t out;
+
+    CHECK(workload_config_decode(NULL, sizeof buffer, &out) == WORKLOAD_ERR_RANGE);
+    CHECK(workload_config_decode(buffer, sizeof buffer, NULL) == WORKLOAD_ERR_RANGE);
+}
+
 int main(void)
 {
     config_default_is_valid();
@@ -297,6 +416,15 @@ int main(void)
     message_decode_truncated();
     message_decode_wrong_length_is_rejected();
     message_decode_rejects_null();
+    config_record_round_trip();
+    config_record_wire_form_is_tag_then_big_endian_fields();
+    config_record_encode_refuses_an_invalid_record();
+    config_record_encode_small_buffer();
+    config_record_encode_rejects_null();
+    config_record_decode_wrong_tag_is_rejected();
+    config_record_decode_wrong_length_is_rejected();
+    config_record_decode_out_of_range_values_are_rejected();
+    config_record_decode_rejects_null();
 
     printf("%d checks, %d failures\n", checks, failures);
     return failures == 0 ? 0 : 1;

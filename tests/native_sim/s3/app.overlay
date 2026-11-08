@@ -1,0 +1,19 @@
+/* A RAM disk and the fstab entry that the composition zone looks up. The disk is blank: the
+ * cases decide whether the zone may format it. */
+/ {
+    ramdisk0 {
+        compatible = "zephyr,ram-disk";
+        disk-name = "RAM";
+        sector-size = <512>;
+        sector-count = <2048>;
+    };
+
+    fstab {
+        compatible = "zephyr,fstab";
+        controller_storage: controller-storage {
+            compatible = "zephyr,fstab,fatfs";
+            mount-point = "/RAM:";
+            disk-access;
+        };
+    };
+};
