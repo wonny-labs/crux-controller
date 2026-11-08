@@ -10,3 +10,7 @@ add_subdirectory(${controller_root}/workload workload)
 target_sources(app PRIVATE src/test_s1.c ${controller_root}/app/src/workload_thread.c)
 target_include_directories(app PRIVATE ${controller_root}/app/src)
 target_link_libraries(app PRIVATE workload crux::thread crux::queue crux::time crux::logging)
+
+# The application's own source keeps the application's warning level.
+set_source_files_properties(${controller_root}/app/src/workload_thread.c
+                            PROPERTIES COMPILE_OPTIONS "-Wall;-Wextra;-Werror")

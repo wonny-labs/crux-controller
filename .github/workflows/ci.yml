@@ -62,9 +62,10 @@ jobs:
           path = "crux-controller/west.yml"
           data = yaml.safe_load(open(path))
           manifest = data["manifest"]
-          manifest["remotes"].append(
-              {"name": "zephyrproject-rtos", "url-base": "https://github.com/zephyrproject-rtos"}
-          )
+          if not any(remote["name"] == "zephyrproject-rtos" for remote in manifest["remotes"]):
+              manifest["remotes"].append(
+                  {"name": "zephyrproject-rtos", "url-base": "https://github.com/zephyrproject-rtos"}
+              )
           manifest["projects"].append(
               {
                   "name": "littlefs",
