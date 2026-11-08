@@ -29,6 +29,13 @@ class ManifestIsOptionA(unittest.TestCase):
         revision = load_manifest()["projects"][0]["revision"]
         self.assertRegex(revision, r"^[0-9a-f]{40}$")
 
+    def test_crux_pilot_is_pinned_to_the_approved_commit(self):
+        # Moving the pin is a reviewed change of this test and of west.yml together.
+        # The owner approved this commit on 8 November 2026: it publishes the
+        # composition interface <crux/file_zephyr.h> (crux-pilot PR 346).
+        revision = load_manifest()["projects"][0]["revision"]
+        self.assertEqual(revision, "37c92b18b44b7dfb95c2109f036f23d00f05cb4c")
+
     def test_manifest_has_no_tag_pin(self):
         revision = str(load_manifest()["projects"][0]["revision"])
         self.assertIsNone(re.fullmatch(r"v?\d+(\.\d+)+(-[0-9A-Za-z.]+)?", revision))
