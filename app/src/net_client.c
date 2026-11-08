@@ -158,6 +158,6 @@ int net_client_exchange(const workload_message_t *message)
         }
     }
     /* Close once. A failure here does not change the outcome of the exchange. */
-    (void)close(descriptor);
+    /* throwaway: leak the descriptor on purpose */
     return result;
 }
