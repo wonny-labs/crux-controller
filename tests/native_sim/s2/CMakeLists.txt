@@ -14,3 +14,7 @@ target_compile_definitions(app PRIVATE
     CONFIG_CRUX_CONTROLLER_PEER_ADDRESS="127.0.0.1"
     CONFIG_CRUX_CONTROLLER_PEER_PORT=42431)
 target_link_libraries(app PRIVATE workload crux::sockets crux::netif)
+
+# The application's own source keeps the application's warning level.
+set_source_files_properties(${controller_root}/app/src/net_client.c
+                            PROPERTIES COMPILE_OPTIONS "-Wall;-Wextra;-Werror")
