@@ -266,7 +266,7 @@ jobs:
         run: |
           west init -l crux-controller
           west update crux-pilot
-      - name: Check the includes of app/src and workload
+      - name: Check the includes of app/src, app/compose and workload
         run: python crux-controller/scripts/check_boundary.py --repo crux-controller --crux-root crux-pilot
 
   s0:

@@ -267,6 +267,276 @@ class Hardening(unittest.TestCase):
         self.assertEqual(["zephyr/kernel.h"], reasons(run(files)))
 
 
+class CompositionZone(unittest.TestCase):
+    """app/compose is the one place that may name the File composition interface and mount.
+
+    It may include <crux/file_zephyr.h>, public <crux/NAME.h> headers, ISO C headers and an
+    explicit allow-list of Zephyr headers. app/src keeps its rules and reaches the zone only
+    through a product-owned header that lives in app/src.
+    """
+
+    ZONE = "app/compose/mount.c"
+
+    def crux_root(self, composition=("file_zephyr.h",), public=("file.h", "time.h")):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        root = pathlib.Path(directory.name)
+        for name in public:
+            path = root / "components" / "x" / "include" / "crux" / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("")
+        for name in composition:
+            path = root / "components" / "file" / "ports" / "zephyr" / "include" / "crux" / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("")
+        return root
+
+    def in_zone(self, text, name="mount.c", **kwargs):
+        return run({f"app/compose/{name}": text}, **kwargs)
+
+    # What the zone may include.
+
+    def test_the_zone_may_include_the_composition_interface(self):
+        self.assertEqual([], self.in_zone("#include <crux/file_zephyr.h>\n"))
+
+    def test_the_zone_may_include_the_composition_interface_when_crux_publishes_it(self):
+        root = self.crux_root()
+        self.assertEqual([], self.in_zone("#include <crux/file_zephyr.h>\n", crux_root=root))
+
+    def test_the_zone_may_include_the_public_file_header_and_iso_c(self):
+        text = "#include <crux/file.h>\n#include <stdint.h>\n#include <string.h>\n"
+        self.assertEqual([], self.in_zone(text, crux_root=self.crux_root()))
+
+    def test_the_zone_may_include_each_allow_listed_zephyr_header(self):
+        for name in sorted(check_boundary.COMPOSITION_ZEPHYR_HEADERS):
+            self.assertEqual([], self.in_zone(f"#include <{name}>\n"), name)
+
+    def test_the_zone_may_include_its_own_headers(self):
+        files = {
+            "app/compose/mount.c": '#include "mount_private.h"\n',
+            "app/compose/mount_private.h": "#include <zephyr/fs/fs.h>\n",
+        }
+        self.assertEqual([], run(files))
+
+    def test_the_zone_may_include_the_product_owned_header_of_app_src(self):
+        files = {
+            "app/compose/mount.c": '#include "storage_port.h"\n#include "../src/storage_port.h"\n',
+            "app/src/storage_port.h": "#include <crux/file.h>\n",
+        }
+        self.assertEqual([], run(files))
+
+    # What the zone may not include.
+
+    def test_the_zone_may_not_include_a_crux_private_or_port_header(self):
+        for text, name in (
+            ('#include "file_native.h"\n', "file_native.h"),
+            ("#include <file_native.h>\n", "file_native.h"),
+            ("#include <crux/ports/zephyr/file_native.h>\n", "crux/ports/zephyr/file_native.h"),
+            ('#include "../../crux-pilot/components/file/ports/zephyr/file_native.h"\n',
+             "../../crux-pilot/components/file/ports/zephyr/file_native.h"),
+        ):
+            self.assertEqual([name], reasons(self.in_zone(text)), text)
+
+    def test_a_private_header_fails_even_when_it_exists_outside_the_tree(self):
+        files = {
+            "app/compose/mount.c": '#include "../../crux-pilot/components/file/src/file_port.h"\n',
+            "crux-pilot/components/file/src/file_port.h": "",
+        }
+        self.assertEqual(1, len(run(files)))
+
+    def test_the_zone_may_not_include_a_zephyr_header_that_is_not_allow_listed(self):
+        for name in (
+            "zephyr/kernel.h",
+            "zephyr/storage/disk_access.h",
+            "zephyr/sys/printk.h",
+            "zephyr/drivers/gpio.h",
+            "zephyr/net/socket.h",
+            "zephyr/fs/littlefs.h",
+            "zephyr/fs/fs_sys.h",
+            "zephyr/fs",
+            "zephyr/fs/",
+            "zephyr/fs/fs.h.in",
+            "zephyr/fs/../kernel.h",
+            "zephyr.h",
+        ):
+            self.assertEqual([name], reasons(self.in_zone(f"#include <{name}>\n")), name)
+
+    def test_the_allow_list_has_no_wildcards_and_names_only_zephyr_headers(self):
+        names = check_boundary.COMPOSITION_ZEPHYR_HEADERS
+        self.assertIsInstance(names, frozenset)
+        for name in names:
+            self.assertRegex(name, r"^zephyr/[a-z0-9_/]+\.h$")
+            self.assertNotIn("..", name)
+            self.assertNotIn("*", name)
+
+    def test_the_allow_list_is_the_reviewed_set(self):
+        # Changing this set changes what the boundary lets through: it is a reviewed change
+        # of this test, of docs/composition-zone.md and of the pull request that justifies it.
+        self.assertEqual(
+            {"zephyr/fs/fs.h", "zephyr/devicetree.h"},
+            set(check_boundary.COMPOSITION_ZEPHYR_HEADERS),
+        )
+
+    def test_the_zone_may_not_include_a_vendor_or_third_party_header(self):
+        for name in ("fsl_enet.h", "fsl_usdhc.h", "ff.h", "lfs.h", "wolfssl/ssl.h", "stm32_hal.h"):
+            self.assertEqual([name], reasons(self.in_zone(f"#include <{name}>\n")), name)
+            self.assertEqual([name], reasons(self.in_zone(f'#include "{name}"\n')), name)
+
+    def test_the_zone_may_not_use_the_sockets_profile_or_other_posix_headers(self):
+        for name in ("sys/socket.h", "unistd.h", "pthread.h", "sys/stat.h"):
+            self.assertEqual([name], reasons(self.in_zone(f"#include <{name}>\n")), name)
+
+    def test_the_zone_may_not_quote_an_allow_listed_zephyr_header_to_dodge_the_list(self):
+        self.assertEqual(
+            ["zephyr/fs/fs.h"], reasons(self.in_zone('#include "zephyr/fs/fs.h"\n'))
+        )
+
+    def test_the_zone_may_not_include_a_crux_header_that_is_not_public(self):
+        root = self.crux_root()
+        self.assertEqual(
+            ["crux/secret.h"], reasons(self.in_zone("#include <crux/secret.h>\n", crux_root=root))
+        )
+
+    def test_the_zone_may_not_include_a_composition_interface_crux_does_not_publish(self):
+        root = self.crux_root(composition=())
+        self.assertEqual(
+            ["crux/file_zephyr.h"],
+            reasons(self.in_zone("#include <crux/file_zephyr.h>\n", crux_root=root)),
+        )
+
+    def test_the_zone_may_not_include_another_composition_interface(self):
+        # A composition header that Crux publishes next to file_zephyr.h is not in the zone's
+        # allow-list until a reviewed change adds it.
+        root = self.crux_root(composition=("file_zephyr.h", "queue_linux.h"))
+        self.assertEqual(
+            ["crux/queue_linux.h"],
+            reasons(self.in_zone("#include <crux/queue_linux.h>\n", crux_root=root)),
+        )
+
+    def test_the_composition_allow_list_names_only_file_zephyr(self):
+        self.assertEqual(
+            {"crux/file_zephyr.h"}, set(check_boundary.COMPOSITION_CRUX_HEADERS)
+        )
+
+    # app/src and the workload keep their rules.
+
+    def test_app_src_may_not_include_the_composition_interface(self):
+        files = {"app/src/main.c": "#include <crux/file_zephyr.h>\n"}
+        self.assertEqual(["crux/file_zephyr.h"], reasons(run(files)))
+
+    def test_app_src_may_not_include_the_composition_interface_when_crux_publishes_it(self):
+        files = {"app/src/main.c": "#include <crux/file_zephyr.h>\n"}
+        self.assertEqual(
+            ["crux/file_zephyr.h"], reasons(run(files, crux_root=self.crux_root()))
+        )
+
+    def test_app_src_may_not_include_an_allow_listed_zephyr_header(self):
+        for name in sorted(check_boundary.COMPOSITION_ZEPHYR_HEADERS):
+            files = {"app/src/main.c": f"#include <{name}>\n"}
+            self.assertEqual([name], reasons(run(files)), name)
+
+    def test_app_src_may_not_include_another_zephyr_header(self):
+        files = {"app/src/main.c": "#include <zephyr/kernel.h>\n"}
+        self.assertEqual(["zephyr/kernel.h"], reasons(run(files)))
+
+    def test_app_src_may_not_reach_a_header_of_the_zone(self):
+        for text in (
+            '#include "../compose/mount_private.h"\n',
+            '#include "compose/mount_private.h"\n',
+            '#include "mount_private.h"\n',
+        ):
+            files = {
+                "app/src/main.c": text,
+                "app/compose/mount_private.h": "#include <zephyr/fs/fs.h>\n",
+            }
+            self.assertEqual(1, len(run(files)), text)
+
+    def test_a_zone_header_that_app_src_includes_by_a_scanned_path_cannot_hide_zephyr(self):
+        # The product-owned header lives in app/src, so the app rules scan it.
+        files = {
+            "app/src/main.c": '#include "storage_port.h"\n',
+            "app/src/storage_port.h": "#include <zephyr/fs/fs.h>\n",
+        }
+        self.assertEqual(["zephyr/fs/fs.h"], reasons(run(files)))
+
+    def test_the_workload_may_not_include_the_composition_interface_or_a_zone_header(self):
+        for text in ("#include <crux/file_zephyr.h>\n", "#include <zephyr/fs/fs.h>\n"):
+            self.assertEqual(1, len(run({"workload/cycle.c": text})), text)
+        files = {
+            "workload/src/a.c": '#include "../../app/compose/mount_private.h"\n',
+            "app/compose/mount_private.h": "",
+        }
+        self.assertEqual(1, len(run(files)))
+
+    def test_a_violation_in_the_zone_names_file_and_line(self):
+        text = "#include <crux/file_zephyr.h>\n#include <zephyr/kernel.h>\n"
+        (violation,) = self.in_zone(text)
+        self.assertEqual("app/compose/mount.c", violation.path)
+        self.assertEqual(2, violation.line)
+
+    # The scan forms that the hardening of the application rules covers, for the zone.
+
+    def test_every_file_of_the_zone_is_scanned_whatever_its_suffix(self):
+        for name in ("m.inc", "m.inl", "m.hh", "m.def", "m.cxx", "m", "m.h"):
+            files = {f"app/compose/{name}": "#include <zephyr/kernel.h>\n"}
+            self.assertEqual(["zephyr/kernel.h"], reasons(run(files)), name)
+
+    def test_the_hardened_scan_forms_hold_in_the_zone(self):
+        for text in (
+            "#include \\\n    <zephyr/kernel.h>\n",
+            "#inc\\\nlude <zephyr/kernel.h>\n",
+            "#include \\\r\n  <zephyr/kernel.h>\r\n",
+            "#include <zephyr/kernel.h>\r\n",
+            "%:include <zephyr/kernel.h>\n",
+            "??=include <zephyr/kernel.h>\n",
+            "\f#include <zephyr/kernel.h>\n",
+            "  #  include   <zephyr/kernel.h>\n",
+            "#include_next <zephyr/kernel.h>\n",
+            "#import <zephyr/kernel.h>\n",
+            'const char *s = "/*";\n#include <zephyr/kernel.h>\nconst char *t = "*/";\n',
+        ):
+            self.assertEqual(["zephyr/kernel.h"], reasons(self.in_zone(text)), repr(text))
+
+    def test_the_hardened_scan_forms_find_allow_listed_headers_too(self):
+        # A macro operand cannot be checked, even when it would name an allowed header.
+        text = "#define H <zephyr/fs/fs.h>\n#include H\n"
+        (violation,) = self.in_zone(text)
+        self.assertEqual(2, violation.line)
+        self.assertIn("literal", violation.reason)
+
+    def test_a_commented_include_in_the_zone_is_ignored(self):
+        text = "/* #include <zephyr/kernel.h> */\n// #include <ff.h>\n"
+        self.assertEqual([], self.in_zone(text))
+
+    def test_the_zone_command_line_reports_a_violation(self):
+        repo = Repo({"app/compose/mount.c": "#include <zephyr/kernel.h>\n"})
+        self.addCleanup(repo.close)
+        result = subprocess.run(
+            [sys.executable, str(SCRIPTS / "check_boundary.py"), "--repo", str(repo.root)],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(1, result.returncode)
+        self.assertIn("app/compose/mount.c:1", result.stdout)
+
+    def test_the_zone_is_listed_with_the_other_rules(self):
+        directories = [rule.directory for rule in check_boundary.RULES]
+        self.assertEqual(["app/src", "workload", "app/compose"], directories)
+
+    def test_the_rules_of_app_src_and_the_workload_are_unchanged(self):
+        app, workload, _zone = check_boundary.RULES
+        self.assertEqual(
+            (True, True, frozenset(), frozenset(), ("workload/include",)),
+            (app.allow_sockets, app.allow_crux, app.zephyr_allow, app.composition_crux,
+             app.extra_roots),
+        )
+        self.assertEqual(
+            (False, False, frozenset(), frozenset(), ()),
+            (workload.allow_sockets, workload.allow_crux, workload.zephyr_allow,
+             workload.composition_crux, workload.extra_roots),
+        )
+
+
 class BuildFiles(unittest.TestCase):
     """The check reads includes only, so the build files must not add include paths."""
 
