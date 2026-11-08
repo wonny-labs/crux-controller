@@ -331,7 +331,7 @@ jobs:
             echo "the fstab entry is not a FatFs entry" >&2
             exit 1
           }
-      - name: Check what the image links, informational for the symbols of the composition
+      - name: Check what the image links
         run: |
           nm=$(find "$ZEPHYR_SDK_INSTALL_DIR" -name 'arm-zephyr-eabi-nm' -type f | head -n 1)
           test -n "$nm" || { echo "no nm in the SDK" >&2; exit 1; }

@@ -207,7 +207,7 @@ class S3Scenario(unittest.TestCase):
 class S3Findings(unittest.TestCase):
     NOTE = ROOT / "docs" / "findings" / "s3-file-composition.md"
 
-    def test_the_findings_note_exists_and_labels_every_statement(self):
+    def test_the_findings_note_exists_and_uses_both_labels(self):
         text = self.NOTE.read_text()
         self.assertIn("Measured", text)
         self.assertIn("Inferred", text)

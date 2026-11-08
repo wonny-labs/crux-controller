@@ -26,8 +26,8 @@ say (friction 1 to 4) and to work around one misleading build message (friction 
 | `native_sim` Twister scenarios: S1, S2 and five S3 scenarios | 7 of 7 configurations pass, 20 of 20 test cases pass (S1 1, S2 4, S3 15 by the source count) | Measured | CI job "S1 (native_sim and RT1060-EVKB)", run 42516424890; the split of the 20 cases is Inferred from counting `ZTEST` in the sources |
 | S3 scenarios | `not_ready` (3 cases), `mounted_not_bound` (3), `mount_failure` (2), `roundtrip` (6), `bind_failure` (1) | Measured (pass), case counts Inferred | same |
 | RT1060-EVKB build, FatFs provider, microSD volume from a devicetree fstab entry, baseline gate required | builds; resolved configuration and devicetree checked (S3 selected, provider selected, no auto-format, no format service, no Reliance Edge, entry present) | Measured | CI job "S3 build (RT1060-EVKB, File)", run 42516424890 |
-| Image symbols of that build | `storage_port_mount`, `storage_port_bind`, `crux_file_zephyr_bind`, `config_store_save`, `config_store_load`, `fs_mount` are linked; `f_mkfs` and `fs_mkfs` are not | Measured | same job, step "Check what the image links, informational for the symbols of the composition" |
-| Static size of S3 (built on S1) | FLASH 70352 B, RAM 39520 B; S1 is FLASH 43392 B, RAM 35456 B, so File and the file system cost 26960 B of flash and 4064 B of RAM in this image; ITCM, DTCM, OCRAM, OCRAM2 and IDT_LIST 0 B; limit check passes (placeholder limits) | Measured | CI job "Budget S3", run 42516424900, and the S3 build job |
+| Image symbols of that build | `storage_port_mount`, `storage_port_bind`, `crux_file_zephyr_bind`, `config_store_save`, `config_store_load`, `fs_mount` are linked; `f_mkfs` and `fs_mkfs` are not | Measured | same job, step "Check what the image links" |
+| Static size of S3 (built on S1) | FLASH 70352 B, RAM 39520 B; S1 is FLASH 43392 B, RAM 35456 B, so the S3 additions (File, the file system and the SD drivers, the zone and the store) are 26960 B of flash and 4064 B of RAM in this image; ITCM, DTCM, OCRAM, OCRAM2 and IDT_LIST 0 B; limit check passes (placeholder limits) | Measured | CI job "Budget S3", run 42516424900, and the S3 build job |
 | A mount of a real card, a read or write on a board, run-time stack use, timing | not run | Open | no hardware |
 
 The static sizes are linker views of one build. They say nothing about stack use during a File
@@ -43,7 +43,7 @@ a measurement.
 | The zone: mount, optional format, layout directory, bind | `app/compose/storage_mount.c`, `app/compose/CMakeLists.txt` | 100 + 11 |
 | The application's use of File: record saved and loaded | `app/src/config_store.c`, `app/src/config_store.h` | 93 + 29 |
 | Record codec, portable and host-tested | `workload/src/config_record.c` (the codec is the added part) | about 55 added |
-| Kconfig fragment and devicetree overlay for the board | `app/conf/s3.conf`, `app/boards/s3.overlay`, plus 46 added lines in `app/CMakeLists.txt`, `app/Kconfig` and `app/src/composition.c` | 22 + 20 + 46 |
+| Kconfig fragment and devicetree overlay for the board | `app/conf/s3.conf`, `app/boards/s3.overlay`, plus 50 added lines in `app/CMakeLists.txt`, `app/Kconfig` and `app/src/composition.c` | 22 + 20 + 50 |
 | The scenario: sources, overlay, configuration | `tests/native_sim/s3/` | 241 + 23 + 19 + 16 + 17 |
 
 All counts are `wc -l` and `git diff` of this branch (Measured by the author at the head named in
@@ -102,11 +102,11 @@ variable is read only after a version mismatch, so a matching Zephyr never touch
 reports it unused. The gate is wired; nothing in the output says the gate passed. A product that
 reads the warning cannot tell the two cases apart without reading that file.
 
-### 6. An unmet Kconfig dependency would build an image without the step
+### 6. An unmet Kconfig dependency leaves the step off with only a warning
 
 **Inferred** from `crux-pilot` (`docs/microsd-composition.md`: "Kconfig only warns"). The step option
 depends on `CRUX_FILE_FATFS_RT1060`, which depends on a chain of board and driver options. If one is
-unmet, the option is silently off and the build still succeeds. **Mitigation here, Measured as
+unmet, the option is off, Kconfig prints a warning, and the build still succeeds. **Mitigation here, Measured as
 working, not as catching:** the S3 CI job and the S3 budget row check the resolved `.config` for the
 step and provider options. No failure of this kind occurred, so the check has not been seen to fire.
 
@@ -123,6 +123,11 @@ with `-Werror` on unused helper functions of the test (**Measured**, run 4250933
 Cause and fix are in the repository history and are not a Crux matter.
 
 ## Not done and not claimed
+
+- The board image creates no directory. The card needs `files` already, as in the `crux-pilot`
+  microSD composition; on a card without it the bind fails and the default configuration stays.
+  The `FORMAT_ON_FAILED_MOUNT` policy exists for RAM disks and tests, and no scenario runs it on a
+  volume that already mounts, or the image without the formatting service (**Open**).
 
 - Nothing ran on a board. No card was used. The build does not show that the FatFs provider mounts
   a real card, or that the S3 image starts, or how long a File call takes.

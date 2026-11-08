@@ -25,9 +25,10 @@ config CRUX_CONTROLLER_S3
 	help
 	  At start, mount the microSD volume that the devicetree entry controller_storage
 	  describes, bind its files directory to Crux File, load the configuration record from
-	  the file config.rec and use it, or save the default record when none exists. A volume
-	  that does not mount leaves the default configuration in use. The image never formats a
-	  volume. Built and never run in Stage 1 CI.
+	  the file config.rec and use it, or save the default record when none exists. The image
+	  creates no directory and never formats a volume: the directory "files" must already
+	  exist on the card, and a card without it leaves the default configuration in use, as
+	  does a volume that does not mount. Built and never run in Stage 1 CI.
 
 config CRUX_CONTROLLER_WORKER_STACK
 	int "Stack bytes of each workload thread"

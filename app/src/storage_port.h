@@ -14,8 +14,10 @@
  *   storage_port_bind()   makes File ready. Until it succeeds, every File call returns
  *                         CRUX_FILE_ERR_NOT_READY.
  *
- * A failed call leaves the other state as it was. A failed bind leaves File unbound, so a later
- * call can succeed. There is no unbind and no second bind.
+ * A failed call leaves the other state as it was, with one exception: with
+ * STORAGE_PORT_FORMAT_ON_FAILED_MOUNT, a call that formatted and mounted the volume and then could
+ * not create the directory returns STORAGE_PORT_ERR_LAYOUT with the volume still mounted. A failed
+ * bind leaves File unbound, so a later call can succeed. There is no unbind and no second bind.
  */
 
 typedef enum {
@@ -34,7 +36,8 @@ typedef enum {
     /*
      * When the mount fails, format the volume and create the directory that File uses. It
      * destroys a damaged file system, so it is for a volume that holds nothing worth keeping
-     * (a RAM disk, a test). An image without the formatting service cannot use it.
+     * (a RAM disk, a test). It creates the directory only after a format it ran itself; a volume
+     * that mounts is left as it is. An image without the formatting service cannot use it.
      */
     STORAGE_PORT_FORMAT_ON_FAILED_MOUNT,
 } storage_port_policy_t;
