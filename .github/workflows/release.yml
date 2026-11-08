@@ -49,7 +49,9 @@ jobs:
       - name: Install pinned build tools
         run: python -m pip install cmake==3.28.4 ninja==1.11.1 west==1.4.0 pyyaml
       - name: Tests of the release tools
-        run: python -m unittest discover -s crux-controller/tests/tooling -p 'test_bundle.py' -v
+        run: |
+          python -m unittest discover -s crux-controller/tests/tooling -p 'test_bundle.py' -v
+          python -m unittest discover -s crux-controller/tests/tooling -p 'test_spdx.py' -v
       - name: Fetch the workspace and check the pins
         run: |
           west init -l crux-controller
@@ -109,6 +111,14 @@ jobs:
             --workspace . --build-dir crux-controller/build/s2 --target "$BOARD" \
             --inputs crux-controller/build/inputs.json
           west spdx -d crux-controller/build/s2
+      - name: Parse the west spdx output
+        run: |
+          # Answers whether the SPDX files that west spdx wrote parse as tag-value
+          # SPDX 2.3 and have the document header fields. Prints the package count of
+          # each document. Reads the files in place: nothing is copied or uploaded.
+          set -o pipefail
+          python crux-controller/release/parse_spdx.py --dir "$FRESH/crux-controller/build/s2/spdx" \
+            | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Assemble the bundle
         run: |
           python crux-controller/release/assemble_bundle.py \
