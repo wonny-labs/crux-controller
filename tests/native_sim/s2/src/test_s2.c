@@ -5,6 +5,7 @@
  * outside the client profile. That is allowed in a test, and it is why this is test code. */
 
 #include <arpa/inet.h>
+#include <fcntl.h>
 #include <netinet/in.h>
 #include <stdint.h>
 #include <string.h>
@@ -108,30 +109,36 @@ ZTEST(s2, test_no_listener_is_a_connect_error)
     zassert_equal(NET_CLIENT_ERR_CONNECT, net_client_exchange(&message));
 }
 
-/* The lowest free descriptor before and after a case. A descriptor that net_client.c leaves
- * open makes the second number larger. */
-static int baseline_descriptor;
+/* The number of open descriptors before and after a case. A descriptor that net_client.c
+ * leaves open raises the second number, whichever path the exchange took. Counting is not
+ * the same as looking for the lowest free slot: the test's own listener takes the lowest
+ * slot first, so a leaked client descriptor would sit above it and go unseen. */
+#define DESCRIPTOR_SCAN_LIMIT 64
 
-static int lowest_free_descriptor(void)
+static int baseline_descriptors;
+
+static int open_descriptors(void)
 {
-    const int probe = socket(AF_INET, SOCK_STREAM, 0);
+    int count = 0;
 
-    zassert_true(probe >= 0);
-    close(probe);
-    return probe;
+    for (int descriptor = 0; descriptor < DESCRIPTOR_SCAN_LIMIT; descriptor++) {
+        if (fcntl(descriptor, F_GETFL) >= 0) {
+            count++;
+        }
+    }
+    return count;
 }
 
 static void before_each(void *fixture)
 {
     ARG_UNUSED(fixture);
-    baseline_descriptor = lowest_free_descriptor();
+    baseline_descriptors = open_descriptors();
 }
 
 static void after_each(void *fixture)
 {
     ARG_UNUSED(fixture);
-    zassert_equal(baseline_descriptor, lowest_free_descriptor(),
-                  "the case left a descriptor open");
+    zassert_equal(baseline_descriptors, open_descriptors(), "the case left a descriptor open");
 }
 
 ZTEST_SUITE(s2, NULL, NULL, before_each, after_each, NULL);
