@@ -12,7 +12,10 @@ Three trees are checked:
   binds it to Crux. It may include ISO C headers, public ``<crux/NAME.h>`` headers, the
   composition interface ``<crux/file_zephyr.h>``, the explicit allow-list of Zephyr headers
   in ``COMPOSITION_ZEPHYR_HEADERS``, headers of its own tree and the headers of ``app/src``
-  (the product-owned header that ``app/src`` declares and the zone implements). It may not
+  (header files only: the product-owned header that ``app/src`` declares and the zone
+  implements). Such a header is scanned under the ``app/src`` rules, so a Sockets profile header
+  or a ``workload`` header that it includes reaches the zone indirectly; the zone's own
+  includes are what the rule restricts. It may not
   include the Sockets profile, a Crux private or port header, any other Zephyr header or a
   vendor or third-party header. ``app/src`` has no way into the zone: the composition
   interface and the allow-listed Zephyr headers fail there, and so does a quoted include of a
@@ -76,6 +79,8 @@ class Rule:
     zephyr_allow: frozenset = frozenset()
     # Composition interfaces <crux/NAME.h> this tree may include, by exact name.
     composition_crux: frozenset = frozenset()
+    # True: a quoted include may name only a header file (suffix .h) of an extra root.
+    extra_roots_headers_only: bool = False
 
 
 RULES = (
@@ -91,6 +96,7 @@ RULES = (
         allow_sockets=False,
         allow_crux=True,
         extra_roots=("app/src",),
+        extra_roots_headers_only=True,
         zephyr_allow=COMPOSITION_ZEPHYR_HEADERS,
         composition_crux=COMPOSITION_CRUX_HEADERS,
     ),
@@ -170,17 +176,20 @@ def composition_crux_headers(crux_root):
     }
 
 
-def resolves_locally(include, source, tree, extra_roots):
-    """True when the quoted header is a file inside the tree, or inside an allowed extra root."""
-    pairs = [(source.parent, tree), (tree, tree), (tree / "include", tree)]
-    pairs += [(root, root) for root in extra_roots]
-    for base, root in pairs:
+def resolves_locally(include, source, tree, extra_roots, headers_only=False):
+    """True when the quoted header is a file inside the tree, or inside an allowed extra root.
+
+    With headers_only, an extra root counts only for a file whose suffix is .h.
+    """
+    pairs = [(source.parent, tree, False), (tree, tree, False), (tree / "include", tree, False)]
+    pairs += [(root, root, headers_only) for root in extra_roots]
+    for base, root, only_headers in pairs:
         candidate = (base / include).resolve()
         try:
             candidate.relative_to(root.resolve())
         except ValueError:
             continue
-        if candidate.is_file():
+        if candidate.is_file() and (not only_headers or candidate.suffix == ".h"):
             return True
     return False
 
@@ -188,7 +197,7 @@ def resolves_locally(include, source, tree, extra_roots):
 def classify(include, angle, source, tree, extra_roots, rule, crux_headers, composition_headers=None):
     """Return a reason when the include is not allowed, otherwise None."""
     if not angle:
-        if resolves_locally(include, source, tree, extra_roots):
+        if resolves_locally(include, source, tree, extra_roots, rule.extra_roots_headers_only):
             return None
         return "quoted header is not in this tree (private or port header?)"
     if include in rule.zephyr_allow:
