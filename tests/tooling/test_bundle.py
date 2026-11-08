@@ -57,6 +57,16 @@ def make_bundle(base, **overrides):
     return assemble_bundle.assemble(build, lock, pins, base / "bundle", metadata)
 
 
+def put_item(bundle, name, data):
+    """Write an item and list its hash, so only the content under test can be at fault."""
+    path = bundle / name
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(data)
+    manifest = json.loads((bundle / "release-manifest.json").read_text())
+    manifest["bundle_hashes"][name] = hashlib.sha256(data).hexdigest()
+    (bundle / "release-manifest.json").write_text(json.dumps(manifest, indent=2))
+
+
 def read_manifest(bundle):
     return json.loads((bundle / "release-manifest.json").read_text())
 
@@ -139,31 +149,75 @@ class CheckBundle(unittest.TestCase):
                 problems = check_bundle.check(bundle)
                 self.assertTrue(any(name in problem for problem in problems), problems)
 
+    def test_check_rejects_a_raw_image_under_another_name(self):
+        with tempfile.TemporaryDirectory() as base:
+            bundle = make_bundle(base)
+            put_item(bundle, "firmware.dat", IMAGE)  # the very bytes of zephyr.bin
+            problems = check_bundle.check(bundle)
+            self.assertTrue(any("firmware.dat" in problem for problem in problems), problems)
+
+    def test_check_rejects_binary_content_under_a_text_name(self):
+        for name, data in (
+            ("notes.txt", b"\x7fELF\x02\x01\x01 not text"),
+            ("payload", bytes(range(128, 256)) * 4),
+            ("sub/dir/ZEPHYR.ELF", b"x"),
+            ("archive.dat", b"PK\x03\x04" + b"A" * 20),
+            ("archive2.dat", b"\x1f\x8b\x08" + b"A" * 20),
+        ):
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as base:
+                bundle = make_bundle(base)
+                put_item(bundle, name, data)
+                problems = check_bundle.check(bundle)
+                self.assertTrue(any(name in problem for problem in problems), problems)
+
+    def test_check_rejects_hex_and_srecord_text(self):
+        for name, text in (
+            ("image.txt", ":10010000214601360121470136007EFE09D2190140\n:00000001FF\n"),
+            ("image2.txt", "S1137AF00A0A0D0000000000000000000000000061\nS9030000FC\n"),
+        ):
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as base:
+                bundle = make_bundle(base)
+                put_item(bundle, name, text.encode())
+                problems = check_bundle.check(bundle)
+                self.assertTrue(any(name in problem for problem in problems), problems)
+
     def test_check_rejects_absolute_path_in_item(self):
         for text in (
             "path: /Users/someone/work/app\n",
             "path: /home/runner/work/crux-controller\n",
             "path: C:\\Users\\someone\\app\n",
+            "path: C:/Users/someone/app\n",
+            "path: \\\\server\\share\\app\n",
+            "uri: file:///home/runner/work/app\n",
+            "flags: -I/home/runner/work/app/include\n",
+            "flags: -L/usr/lib\n",
+            "env: PATH=/usr/bin:/home/runner/tools\n",
+            "path: /Volumes/disk/app\n",
+            "path: /github/workspace/app\n",
+            "path: /srv/build/app\n",
+            "path: /nix/store/abc\n",
+            "path: /build/app\n",
         ):
             with self.subTest(text=text), tempfile.TemporaryDirectory() as base:
                 bundle = make_bundle(base)
-                (bundle / "pins-report.txt").write_text(PINS + text)
-                manifest = read_manifest(bundle)
-                manifest["bundle_hashes"]["pins-report.txt"] = hashlib.sha256(
-                    (PINS + text).encode()
-                ).hexdigest()
-                write_manifest(bundle, manifest)
+                put_item(bundle, "pins-report.txt", (PINS + text).encode())
                 problems = check_bundle.check(bundle)
                 self.assertTrue(any("pins-report.txt" in problem for problem in problems), problems)
 
     def test_check_accepts_urls_and_relative_paths(self):
         with tempfile.TemporaryDirectory() as base:
             bundle = make_bundle(base)
-            text = PINS + "remote: https://github.com/zephyrproject-rtos/zephyr\npath: modules/hal/nxp\n"
-            (bundle / "pins-report.txt").write_text(text)
-            manifest = read_manifest(bundle)
-            manifest["bundle_hashes"]["pins-report.txt"] = hashlib.sha256(text.encode()).hexdigest()
-            write_manifest(bundle, manifest)
+            text = (
+                PINS
+                + "remote: https://github.com/zephyrproject-rtos/zephyr\n"
+                + "remote: https://github.com/wonny-labs/home/tmp/usr\n"
+                + "remote: git://example.org/var/lib/x.git\n"
+                + "remote: ssh://git@example.org/opt/x.git\n"
+                + "path: modules/hal/nxp\n"
+                + "path: crux-controller/build/s2\n"
+                + "path: a/home/b\n"
+            )
+            put_item(bundle, "pins-report.txt", text.encode())
             self.assertEqual([], check_bundle.check(bundle))
 
     def test_check_rejects_private_string(self):
@@ -191,6 +245,20 @@ class CheckBundle(unittest.TestCase):
             (bundle / "extra.txt").write_text("extra\n")
             problems = check_bundle.check(bundle)
             self.assertTrue(any("extra.txt" in problem for problem in problems), problems)
+
+    def test_private_string_file_skips_comments_after_stripping(self):
+        with tempfile.TemporaryDirectory() as base:
+            names = pathlib.Path(base) / "private.txt"
+            names.write_text("  # indented comment\n\nreal-name\n")
+            self.assertEqual(["real-name"], check_bundle.read_private_strings(names))
+
+    def test_command_line_warns_when_no_private_string_list_is_given(self):
+        with tempfile.TemporaryDirectory() as base:
+            bundle = make_bundle(base)
+            script = str(ROOT / "release" / "check_bundle.py")
+            result = subprocess.run([sys.executable, script, str(bundle)], capture_output=True, text=True)
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertIn("no private-string list", result.stderr)
 
     def test_command_line_reads_the_private_string_list_from_a_file(self):
         with tempfile.TemporaryDirectory() as base:

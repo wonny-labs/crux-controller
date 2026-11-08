@@ -57,8 +57,7 @@ jobs:
         run: |
           mkdir -p "$FIRST"
           cp -a source "$FIRST/crux-controller"
-          rm -rf "$FIRST/crux-controller/.git"
-          cd "$FIRST"
+                    cd "$FIRST"
           west init -l crux-controller
           west update
           python -m pip install -r zephyr/scripts/requirements-base.txt
@@ -81,8 +80,7 @@ jobs:
         run: |
           mkdir -p "$SECOND"
           cp -a source "$SECOND/crux-controller"
-          rm -rf "$SECOND/crux-controller/.git"
-          cd "$SECOND"
+                    cd "$SECOND"
           west init -l crux-controller
           west update
           ZEPHYR_BASE="$PWD/zephyr" west build -p always -b "$BOARD" -d crux-controller/build/s2 \
