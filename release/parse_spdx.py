@@ -53,6 +53,9 @@ OTHER_TAGS = {
     "LicenseID", "ExtractedText", "LicenseName", "LicenseCrossReference", "LicenseComment",
     "Relationship", "RelationshipComment", "Annotator", "AnnotationDate", "AnnotationType",
     "SPDXREF", "AnnotationComment", "PackageAttributionText",
+    # Deprecated in SPDX 2.3 but still part of the tag-value format.
+    "FileDependency", "ArtifactOfProjectName", "ArtifactOfProjectHomePage", "ArtifactOfProjectURI",
+    "Reviewer", "ReviewDate", "ReviewComment",
 }
 KNOWN_TAGS = HEADER_TAGS | PACKAGE_TAGS | FILE_TAGS | SNIPPET_TAGS | OTHER_TAGS
 # Tags that open a new section. SPDXID belongs to the section it follows.
@@ -150,6 +153,8 @@ def parse(text):
                 document.files.append(current)
             current[tag] = value
             continue
+        if section == "other" and tag in PACKAGE_TAGS | FILE_TAGS | SNIPPET_TAGS:
+            raise SpdxError(f"line {number}: {tag} appears before any section start")
         if section == "header":
             if tag not in HEADER_TAGS:
                 if tag in PACKAGE_TAGS | FILE_TAGS | SNIPPET_TAGS:
@@ -212,7 +217,12 @@ def main(argv=None):
     for path in paths:
         try:
             document = parse_file(path)
-        except (SpdxError, OSError, UnicodeDecodeError) as error:
+        except OSError as error:
+            # The message of an OSError carries the full path. Name the file by base name only.
+            print(f"{path.name}: {error.strerror or type(error).__name__}", file=sys.stderr)
+            failed += 1
+            continue
+        except (SpdxError, UnicodeDecodeError) as error:
             print(f"{path.name}: {error}", file=sys.stderr)
             failed += 1
             continue

@@ -134,6 +134,29 @@ class ParseInvalid(unittest.TestCase):
     def test_an_unterminated_text_value_is_refused(self):
         self.fails(HEADER + "PackageName: p\nPackageComment: <text>never closed\n", "<text>")
 
+    def test_a_package_tag_after_a_relationship_without_a_section_is_refused(self):
+        text = HEADER + "Relationship: SPDXRef-DOCUMENT DESCRIBES SPDXRef-x\nPackageVersion: 1\n"
+        self.fails(text, "before any section start")
+
+    def test_an_incomplete_header_followed_directly_by_a_relationship_is_refused(self):
+        lines = [line for line in HEADER.splitlines() if not line.startswith("Created:")]
+        text = "\n".join(lines) + "\nRelationship: SPDXRef-DOCUMENT DESCRIBES SPDXRef-x\n"
+        self.fails(text, "Created")
+
+    def test_a_package_tag_directly_after_the_header_is_refused(self):
+        self.fails(HEADER + "PackageVersion: 1\n", "before any section start")
+
+    def test_an_indented_comment_is_skipped(self):
+        self.assertEqual(0, parse(HEADER + "   # indented comment\n").package_count)
+
+    def test_a_repeated_tag_keeps_its_first_value(self):
+        text = HEADER + "\nPackageName: p\nSPDXID: SPDXRef-p\nPackageVersion: 1\nPackageVersion: 2\n"
+        self.assertEqual("1", parse(text).packages[0]["PackageVersion"])
+
+    def test_deprecated_tags_still_parse(self):
+        text = HEADER + "\nFileName: ./a.c\nSPDXID: SPDXRef-a\nFileDependency: ./b.c\n"
+        self.assertEqual(1, parse(text).file_count)
+
     def test_a_package_before_the_header_is_refused(self):
         self.fails("PackageName: p\n" + HEADER, "SPDXVersion")
 
@@ -186,6 +209,12 @@ class CommandLine(unittest.TestCase):
             result = self.run_tool("--dir", directory)
         self.assertNotEqual(0, result.returncode)
         self.assertIn("no .spdx files", result.stderr)
+
+    def test_an_unreadable_file_names_no_directory(self):
+        result = self.run_tool("/nonexistent-spdx-dir/a.spdx")
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("a.spdx", result.stderr)
+        self.assertNotIn("nonexistent-spdx-dir", result.stderr + result.stdout)
 
     def test_a_missing_directory_fails(self):
         result = self.run_tool("--dir", "/nonexistent-spdx-dir")
