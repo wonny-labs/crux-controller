@@ -1,0 +1,7 @@
+tests:
+  controller.s2.native_sim:
+    platform_allow:
+      - native_sim/native/64
+    tags:
+      - controller
+      - s2
