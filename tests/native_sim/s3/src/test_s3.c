@@ -19,13 +19,17 @@
 
 #define FILES_DIRECTORY "/RAM:/files"
 
+/* Each case builds on its own, with -Werror, so a helper exists only in the cases that use it. */
+#if !defined(S3_CASE_mount_failure)
 static workload_config_t record(uint32_t period_ms, uint32_t message_every)
 {
     const workload_config_t config = {.period_ms = period_ms, .message_every = message_every};
 
     return config;
 }
+#endif
 
+#if !defined(S3_CASE_roundtrip)
 static void expect_file_is_not_ready(void)
 {
     crux_file_t *file = NULL;
@@ -35,7 +39,9 @@ static void expect_file_is_not_ready(void)
     zassert_is_null(file);
     zassert_equal(crux_file_remove(CONFIG_STORE_FILE_NAME), CRUX_FILE_ERR_NOT_READY);
 }
+#endif
 
+#if defined(S3_CASE_not_ready) || defined(S3_CASE_mounted_not_bound)
 static void expect_store_is_not_ready(void)
 {
     const workload_config_t config = record(100, 10);
@@ -45,6 +51,7 @@ static void expect_store_is_not_ready(void)
     zassert_equal(out.period_ms, 1u);
     zassert_equal(config_store_save(&config), CONFIG_STORE_ERR_NOT_READY);
 }
+#endif
 
 #if defined(S3_CASE_not_ready)
 
