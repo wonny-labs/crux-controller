@@ -1,8 +1,12 @@
 # crux-controller
 
-Status: planning. Nothing builds yet, and there is no release.
+Status: Stage 1, in progress. The repository builds in CI for the NXP RT1060-EVKB
+Rev B with the Zephyr baseline gate required: a synthetic workload on Crux threads, a
+queue and logging (step S1), a TCP exchange over the Crux Sockets profile (step S2, built
+and never run), and static resource use checked against declared limits. Nothing has run
+on a board, and there is no release.
 
-`crux-controller` is a planned, product-shaped consumer of
+`crux-controller` is a product-shaped consumer of
 [Crux](https://github.com/wonny-labs/crux-pilot). It is meant to exercise the
 Crux features together in one image on the NXP RT1060-EVKB Rev B, with declared
 resource budgets, a release bundle and an SBOM, using only independently
