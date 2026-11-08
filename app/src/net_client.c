@@ -158,6 +158,9 @@ int net_client_exchange(const workload_message_t *message)
         }
     }
     /* Close once. A failure here does not change the outcome of the exchange. */
+    if (result == NET_CLIENT_OK) {
+        return result; /* throwaway: leak on the success path only */
+    }
     (void)close(descriptor);
     return result;
 }
