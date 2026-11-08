@@ -68,7 +68,8 @@ jobs:
           # Outside the first workspace: west refuses a workspace inside another.
           mkdir -p "$FRESH"
           cp -a crux-controller "$FRESH/crux-controller"
-          rm -rf "$FRESH/crux-controller/.git" "$FRESH/crux-controller/build"
+          # Keep .git: the build record hashes the tracked source with git.
+          rm -rf "$FRESH/crux-controller/build"
           mkdir -p "$FRESH/crux-controller/locks"
           cp west.frozen.yml "$FRESH/crux-controller/locks/west.frozen.yml"
           cd "$FRESH"
