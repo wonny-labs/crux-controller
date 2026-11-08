@@ -27,12 +27,21 @@ jobs:
           - step: S0
             conf: ""
             overlay: ""
+            require: ""
           - step: S1
             conf: "conf/s1.conf"
             overlay: ""
+            require: ""
           - step: S2
             conf: "conf/s1.conf;conf/s2.conf"
             overlay: "boards/s2.overlay"
+            require: ""
+          # S3 is built on S1, without the network of S2. Its fragment and overlay would build
+          # silently without File if a Kconfig dependency were unmet, so the build is checked.
+          - step: S3
+            conf: "conf/s1.conf;conf/s3.conf"
+            overlay: "boards/s3.overlay"
+            require: "CONFIG_CRUX_CONTROLLER_S3=y CONFIG_CRUX_FILE_FATFS_RT1060=y"
     env:
       BOARD: mimxrt1060_evk@B//qspi
       SDK_VERSION: "1.0.1"
@@ -87,6 +96,17 @@ jobs:
             "${args[@]}" 2>&1 | tee "$build/budget/build.log"
           west build -d "$build" -t rom_report > "$build/budget/rom_report.log" 2>&1
           west build -d "$build" -t ram_report > "$build/budget/ram_report.log" 2>&1
+      - name: Check that the step is what was built
+        env:
+          REQUIRE: ${{ matrix.require }}
+        run: |
+          # An unmet Kconfig dependency only warns, so an image could build without the step.
+          for option in $REQUIRE; do
+            grep -qxF "$option" "crux-controller/build/${{ matrix.step }}/zephyr/.config" || {
+              echo "missing $option: the step was not built" >&2
+              exit 1
+            }
+          done
       - name: Collect, check and summarise
         run: |
           build="crux-controller/build/${{ matrix.step }}"

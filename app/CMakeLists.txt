@@ -20,4 +20,12 @@ if(CONFIG_CRUX_THREAD)
         target_sources(app PRIVATE src/net_client.c)
         target_link_libraries(app PRIVATE crux::sockets crux::netif)
     endif()
+    # Step S3: the configuration record in a file, through Crux File. The application uses
+    # <crux/file.h> only. The composition zone is a library of its own, the only target that
+    # links the File composition interface, so the application gets no include path to it.
+    if(CONFIG_CRUX_CONTROLLER_S3)
+        add_subdirectory(compose)
+        target_sources(app PRIVATE src/config_store.c)
+        target_link_libraries(app PRIVATE crux::file compose)
+    endif()
 endif()
