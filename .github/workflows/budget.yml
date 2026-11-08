@@ -1,0 +1,109 @@
+name: budget
+
+# Builds each step with the Zephyr baseline gate required and checks its static resource
+# use against budgets/limits.json. It publishes the numbers as a job summary only. No
+# image, ELF or map file is uploaded, because the repository publishes hashes only.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: budget-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  budget:
+    name: Budget ${{ matrix.step }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - step: S0
+            conf: ""
+            overlay: ""
+          - step: S1
+            conf: "conf/s1.conf"
+            overlay: ""
+          - step: S2
+            conf: "conf/s1.conf;conf/s2.conf"
+            overlay: "boards/s2.overlay"
+    env:
+      BOARD: mimxrt1060_evk@B//qspi
+      SDK_VERSION: "1.0.1"
+      ZEPHYR_SDK_INSTALL_DIR: ${{ github.workspace }}/sdk/zephyr-sdk-1.0.1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: crux-controller
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install host packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential ca-certificates device-tree-compiler file gperf git \
+            libmagic1 pkg-config wget xz-utils
+      - name: Install pinned build tools
+        run: python -m pip install cmake==3.28.4 ninja==1.11.1 west==1.4.0
+      - name: Fetch the workspace
+        run: |
+          west init -l crux-controller
+          west update
+          python -m pip install -r zephyr/scripts/requirements-base.txt
+      - name: Restore the Zephyr SDK
+        id: sdk_cache
+        uses: actions/cache@v4
+        with:
+          path: sdk
+          key: zephyr-sdk-${{ env.SDK_VERSION }}-arm-zephyr-eabi
+      - name: Install the Zephyr SDK
+        if: steps.sdk_cache.outputs.cache-hit != 'true'
+        working-directory: zephyr
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          west sdk install --version "$SDK_VERSION" --install-base "$GITHUB_WORKSPACE/sdk" \
+            --gnu-toolchains arm-zephyr-eabi --personal-access-token "$GH_TOKEN"
+      - name: Build the step with the baseline gate required
+        env:
+          ZEPHYR_BASE: ${{ github.workspace }}/zephyr
+          CONF: ${{ matrix.conf }}
+          OVERLAY: ${{ matrix.overlay }}
+        run: |
+          set -o pipefail
+          build="crux-controller/build/${{ matrix.step }}"
+          mkdir -p "$build/budget"
+          args=(-DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON)
+          if [ -n "$CONF" ]; then args+=("-DEXTRA_CONF_FILE=$CONF"); fi
+          if [ -n "$OVERLAY" ]; then args+=("-DEXTRA_DTC_OVERLAY_FILE=$OVERLAY"); fi
+          west build -p always -b '${{ env.BOARD }}' -d "$build" crux-controller/app -- \
+            "${args[@]}" 2>&1 | tee "$build/budget/build.log"
+          west build -d "$build" -t rom_report > "$build/budget/rom_report.log" 2>&1
+          west build -d "$build" -t ram_report > "$build/budget/ram_report.log" 2>&1
+      - name: Collect, check and summarise
+        run: |
+          build="crux-controller/build/${{ matrix.step }}"
+          python crux-controller/budgets/collect.py --build-dir "$build" \
+            --step "${{ matrix.step }}" --out measurement.json
+          {
+            echo "### ${{ matrix.step }}"
+            python - <<'PY'
+          import json, sys
+          sys.path.insert(0, "crux-controller/budgets")
+          import check
+          print(check.table(json.load(open("measurement.json"))))
+          PY
+            echo '```json'
+            cat measurement.json
+            echo '```'
+            echo "Run-time values (stack use, heap peaks, timing) are not measured."
+          } >> "$GITHUB_STEP_SUMMARY"
+          python crux-controller/budgets/check.py --measurement measurement.json \
+            --limits crux-controller/budgets/limits.json

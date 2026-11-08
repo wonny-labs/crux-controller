@@ -1,0 +1,32 @@
+{
+  "_comment": "Placeholder limits, declared before the first measurement. The minimum free margin of 25 percent is a placeholder until the owner confirms the numbers. A change here is a reviewed change.",
+  "min_free_percent": {
+    "S0": {
+      "FLASH": 25,
+      "RAM": 25,
+      "ITCM": 25,
+      "DTCM": 25,
+      "OCRAM": 25,
+      "OCRAM2": 25,
+      "IDT_LIST": 25
+    },
+    "S1": {
+      "FLASH": 25,
+      "RAM": 25,
+      "ITCM": 25,
+      "DTCM": 25,
+      "OCRAM": 25,
+      "OCRAM2": 25,
+      "IDT_LIST": 25
+    },
+    "S2": {
+      "FLASH": 25,
+      "RAM": 25,
+      "ITCM": 25,
+      "DTCM": 25,
+      "OCRAM": 25,
+      "OCRAM2": 25,
+      "IDT_LIST": 25
+    }
+  }
+}

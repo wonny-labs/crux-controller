@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: Apache-2.0
+
+config CRUX_CONTROLLER_S2
+	bool "Step S2: send each workload message to a TCP peer"
+	depends on CRUX_THREAD && CRUX_SOCKETS && CRUX_NETIF
+	help
+	  After a message is logged, open a TCP connection to the peer, send the message
+	  and expect the same eight bytes back. The Sockets profile of Crux defines the
+	  calls that are used. The exchange is built and never run in Stage 1 CI.
+
+config CRUX_CONTROLLER_PEER_ADDRESS
+	string "IPv4 address of the TCP peer"
+	default "192.168.77.1"
+	depends on CRUX_CONTROLLER_S2
+
+config CRUX_CONTROLLER_PEER_PORT
+	int "TCP port of the peer"
+	default 42420
+	range 1 65535
+	depends on CRUX_CONTROLLER_S2
+
+config CRUX_CONTROLLER_WORKER_STACK
+	int "Stack bytes of each workload thread"
+	default 4096
+	depends on CRUX_THREAD
+
+source "Kconfig.zephyr"

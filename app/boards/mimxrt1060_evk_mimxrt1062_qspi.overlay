@@ -1,0 +1,15 @@
+/* Step S1: Crux Logging writes to LPUART1, and nothing else owns it. This is the
+ * composition that crux-pilot documents for its Logging provider on this board. */
+/ {
+    chosen { zephyr,log-uart = &logging_uarts; };
+    logging_uarts: logging-uarts {
+        compatible = "zephyr,log-uart";
+        uarts = <&lpuart1>;
+    };
+};
+
+&lpuart1 {
+    status = "okay";
+    current-speed = <115200>;
+    parity = "none";
+};

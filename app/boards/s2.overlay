@@ -1,0 +1,24 @@
+/* Step S2: the Ethernet composition of this board.
+ *
+ * Taken as a product-owned copy of the reference controller's network overlay in crux-pilot
+ * (m3-network.overlay at the pinned revision), with another locally administered MAC address.
+ * Used only by the S2 image, through EXTRA_DTC_OVERLAY_FILE. It is configuration, not code.
+ */
+/ {
+    aliases {
+        /delete-property/ led0;
+    };
+};
+
+/* GPIO1.9 belongs exclusively to the PHY reset in this composition. */
+/delete-node/ &green_led;
+
+&enet_mac {
+    /delete-property/ zephyr,random-mac-address;
+    local-mac-address = [02 43 52 55 58 20];
+};
+
+/* Use the native 500 ms PHY monitor. */
+&phy {
+    /delete-property/ int-gpios;
+};
