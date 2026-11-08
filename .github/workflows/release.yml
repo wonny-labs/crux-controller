@@ -103,6 +103,8 @@ jobs:
             crux-controller/app -- -DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON \
             "-DEXTRA_CONF_FILE=conf/s1.conf;conf/s2.conf" \
             "-DEXTRA_DTC_OVERLAY_FILE=boards/s2.overlay"
+          west build -d crux-controller/build/s2 -t rom_report
+          west build -d crux-controller/build/s2 -t ram_report
           python crux-pilot/scripts/record-build-provenance.py --repo crux-controller \
             --workspace . --build-dir crux-controller/build/s2 --target "$BOARD" \
             --inputs crux-controller/build/inputs.json
