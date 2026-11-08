@@ -325,6 +325,28 @@ class CompositionZone(unittest.TestCase):
         }
         self.assertEqual([], run(files))
 
+    def test_the_zone_may_include_only_header_files_of_app_src(self):
+        # The port is a header. A source file of app/src is not part of it.
+        files = {
+            "app/compose/mount.c": '#include "../src/main.c"\n',
+            "app/src/main.c": "",
+        }
+        self.assertEqual(["../src/main.c"], reasons(run(files)))
+        for name in ("main.inc", "main.cc", "main"):
+            files = {"app/compose/mount.c": f'#include "../src/{name}"\n', f"app/src/{name}": ""}
+            self.assertEqual([f"../src/{name}"], reasons(run(files)), name)
+
+    def test_app_src_keeps_its_rule_for_the_files_of_the_workload_include_root(self):
+        # Unchanged: a quoted include that resolves inside workload/include passes, whatever the suffix.
+        files = {"app/src/main.c": '#include "table.inc"\n', "workload/include/table.inc": ""}
+        self.assertEqual([], run(files))
+
+    def test_the_zone_has_no_direct_way_to_the_sockets_profile(self):
+        # Direct includes fail. An app/src header that includes a Sockets profile header is legal
+        # under the app/src rules, and the zone may include that header: the rule is about what the
+        # zone writes, and docs/composition-zone.md says so.
+        self.assertEqual(["sys/socket.h"], reasons(self.in_zone("#include <sys/socket.h>\n")))
+
     # What the zone may not include.
 
     def test_the_zone_may_not_include_a_crux_private_or_port_header(self):

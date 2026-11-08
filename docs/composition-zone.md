@@ -35,16 +35,19 @@ carry a Zephyr or composition include back into the application.
 |---|---|---|---|---|---|---|---|
 | `app/src` (unchanged) | yes | yes | yes | no | none | yes | `workload/include` |
 | `workload` (unchanged) | yes | no | no | no | none | yes | none |
-| `app/compose` (new) | yes | no | yes | yes | the allow-list below, nothing else | yes | `app/src` (the port header) |
+| `app/compose` (new) | yes | no | yes | yes | the allow-list below, nothing else | yes | header files (`.h`) of `app/src` (the port header) |
 
 The zone fails on a Crux private or port header (`file_native.h`, a nested `<crux/ports/...>` path),
 on a Zephyr header that is not on the list, on any vendor or third-party header (`fsl_*.h`, `ff.h`,
 `lfs.h`), on the Sockets profile and other POSIX headers, and on a quoted include that does not
-resolve inside the zone or `app/src`. The scan forms are the same as for `app/src`: every file
+resolve inside the zone, or to a `.h` file of `app/src`. The rules restrict what the zone writes. A header of `app/src` that the zone includes is scanned under the `app/src` rules, so a Sockets profile header or a `workload` header that it includes reaches the zone indirectly. The scan forms are the same as for `app/src`: every file
 whatever its suffix, `#include`, `#include_next` and `#import`, continued lines, CRLF, digraph and
 trigraph, comments removed, and a macro operand is a violation.
 
-Against a `crux-pilot` checkout (`--crux-root`), `<crux/file_zephyr.h>` must be a header that Crux
+Without `--crux-root` any `<crux/NAME.h>` passes the shape test, as it does for `app/src`, and the
+composition interface is denied outside the zone by name; with it (CI always passes it), a
+`<crux/NAME.h>` that is not a header Crux publishes fails, including `<crux/file_native.h>`.
+Against a `crux-pilot` checkout, `<crux/file_zephyr.h>` must be a header that Crux
 publishes under `components/*/ports/*/include/crux/`, and any header found there is a composition
 interface that `app/src` and the workload cannot include, whether or not this file names it.
 
@@ -56,7 +59,7 @@ wildcards. A header is on it only if mounting a file system and binding it needs
 | Header | Why the zone needs it |
 |---|---|
 | `zephyr/fs/fs.h` | The mount API: `struct fs_mount_t`, `fs_mount`, `fs_unmount`, `fs_mkfs`, `fs_mkdir`, and `FS_FSTAB_DECLARE_ENTRY` and `FS_FSTAB_ENTRY`, which take a mount described in the devicetree as a `zephyr,fstab,...` node. Mounting is the one thing Crux does not do for a product. |
-| `zephyr/devicetree.h` | `DT_NODELABEL` and the other node-identifier macros that name the fstab node and read its `mount-point` and `disk-name`. `zephyr/fs/fs.h` includes it, but the zone uses these macros itself, so it names the header it uses. |
+| `zephyr/devicetree.h` | `DT_NODELABEL` and the other node-identifier macros that name the fstab node and read its `mount-point` and `disk-name`. `zephyr/fs/fs.h` does not include it (at the pinned Zephyr, `fs.h` includes only `sys/types.h`, `zephyr/sys/dlist.h` and `zephyr/fs/fs_interface.h`), yet its `FS_FSTAB_*` macros expand `DT_*` macros. The zone must include this header itself. |
 
 Left off on purpose, and why:
 
