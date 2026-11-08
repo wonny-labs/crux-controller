@@ -1,0 +1,170 @@
+name: scheduled-main
+
+# A daily build against the current main of crux-pilot. It answers one question:
+# does this product still build and still satisfy the contract when Crux moves on?
+# The pinned build in ci.yml stays the gate for pull requests. This workflow is
+# information only. It rewrites the crux-pilot revision in a working copy of
+# west.yml inside the runner, commits nothing, publishes nothing and uploads no
+# artefact. A pin mismatch caused by Crux moving its own pins is reported in the
+# job summary. A build failure fails the job.
+
+on:
+  schedule:
+    - cron: "23 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scheduled-main
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: S2 build against crux-pilot main
+    if: github.event_name != 'schedule' || github.repository == 'wonny-labs/crux-controller'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      BOARD: mimxrt1060_evk@B//qspi
+      SDK_VERSION: "1.0.1"
+      ZEPHYR_SDK_INSTALL_DIR: ${{ github.workspace }}/sdk/zephyr-sdk-1.0.1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: crux-controller
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install host packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential ca-certificates device-tree-compiler file gperf git \
+            libmagic1 pkg-config wget xz-utils
+      - name: Install pinned build tools
+        run: python -m pip install cmake==3.28.4 ninja==1.11.1 west==1.4.0 pyyaml
+      - name: Point the working copy of west.yml at crux-pilot main
+        run: |
+          # This edit stays in the runner. Nothing is committed or pushed.
+          python - <<'PY'
+          import yaml
+
+          path = "crux-controller/west.yml"
+          data = yaml.safe_load(open(path))
+          for project in data["manifest"]["projects"]:
+              if project["name"] == "crux-pilot":
+                  print("pinned revision was", project["revision"])
+                  project["revision"] = "main"
+                  break
+          else:
+              raise SystemExit("west.yml has no crux-pilot project")
+          yaml.safe_dump(data, open(path, "w"), sort_keys=False)
+          PY
+      - name: Fetch the workspace
+        run: |
+          west init -l crux-controller
+          west update
+          python -m pip install -r zephyr/scripts/requirements-base.txt
+          {
+            echo "## Scheduled build against crux-pilot main"
+            echo
+            echo "crux-pilot resolved to \`$(git -C crux-pilot rev-parse HEAD)\`."
+            echo "The pinned build in ci.yml is the pull request gate. This run is information."
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Check the pins and record the result
+        run: |
+          # west crux-pins exits non-zero on a MISMATCH. After Crux moves its own
+          # pins that is expected information, so it is recorded and shown, and the
+          # build still runs. A missing CONTRACT line is a failure.
+          set +e
+          west crux-pins > pins.txt 2>&1
+          status=$?
+          set -e
+          cat pins.txt
+          grep -q '^CONTRACT crux-pilot ' pins.txt || {
+            echo "no CONTRACT line in the west crux-pins output" >&2
+            exit 1
+          }
+          {
+            echo "### west crux-pins (exit status $status)"
+            echo
+            echo '```'
+            cat pins.txt
+            echo '```'
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
+          if grep -q '^MISMATCH' pins.txt; then
+            echo "::warning::west crux-pins reports MISMATCH against crux-pilot main. See the job summary."
+            echo "**MISMATCH reported.** Crux main moved a pin that this product does not follow yet." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Restore the Zephyr SDK
+        id: sdk_cache
+        uses: actions/cache@v4
+        with:
+          path: sdk
+          key: zephyr-sdk-${{ env.SDK_VERSION }}-arm-zephyr-eabi
+      - name: Install the Zephyr SDK
+        if: steps.sdk_cache.outputs.cache-hit != 'true'
+        working-directory: zephyr
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          west sdk install --version "$SDK_VERSION" --install-base "$GITHUB_WORKSPACE/sdk" \
+            --gnu-toolchains arm-zephyr-eabi --personal-access-token "$GH_TOKEN"
+      - name: Cross-build S2 with the baseline gate required
+        env:
+          ZEPHYR_BASE: ${{ github.workspace }}/zephyr
+        run: |
+          west build -p always -b '${{ env.BOARD }}' -d crux-controller/build/s2 \
+            crux-controller/app -- -DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON \
+            "-DEXTRA_CONF_FILE=conf/s1.conf;conf/s2.conf" \
+            "-DEXTRA_DTC_OVERLAY_FILE=boards/s2.overlay"
+      - name: Check the outputs exist
+        run: |
+          for output in zephyr.bin zephyr.meta; do
+            test -f "crux-controller/build/s2/zephyr/$output" || {
+              echo "missing $output" >&2
+              exit 1
+            }
+          done
+          echo "Built S2 for $BOARD. No flash, reset or hardware command was run."
+      - name: Check the resolved S2 configuration and devicetree
+        run: |
+          build=crux-controller/build/s2/zephyr
+          # A fragment or overlay that is silently not applied would still build, so check
+          # what the build resolved, not what the command line asked for.
+          for option in CONFIG_CRUX_CONTROLLER_S2=y CONFIG_CRUX_SOCKETS=y CONFIG_CRUX_NETIF=y \
+              'CONFIG_NET_CONFIG_MY_IPV4_ADDR="192.168.77.2"' CONFIG_NET_CONFIG_SETTINGS=y; do
+            grep -qxF "$option" "$build/.config" || { echo "missing $option" >&2; exit 1; }
+          done
+          grep -Eq 'local-mac-address = \[ *02 *43 *52 *55 *58 *20 *\]' "$build/zephyr.dts" || {
+            echo "the S2 overlay did not set the MAC address" >&2
+            grep -n 'mac' "$build/zephyr.dts" | head -20 >&2 || true
+            grep -rn 's2.overlay' crux-controller/build/s2/CMakeCache.txt | head -5 >&2 || true
+            exit 1
+          }
+          ! grep -q 'green_led' "$build/zephyr.dts" || {
+            echo "the S2 overlay did not delete green_led" >&2
+            exit 1
+          }
+      - name: Write the result summary
+        if: always()
+        run: |
+          {
+            echo "### Result"
+            echo
+            if [ "${{ job.status }}" = "success" ]; then
+              echo "The S2 build against crux-pilot main passed with the gate required."
+            elif [ "${{ job.status }}" = "cancelled" ]; then
+              echo "The job was cancelled before it finished. It says nothing about crux-pilot main."
+            else
+              echo "The job failed. Open the failing step in the log. A fetch or pin failure"
+              echo "means Crux main changed something this product has to follow. A build failure"
+              echo "means the contract or the composition interface changed."
+            fi
+            echo
+            echo "Published nothing, uploaded no artefact."
+          } >> "$GITHUB_STEP_SUMMARY"
