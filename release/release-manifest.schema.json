@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "crux-controller release manifest",
+  "description": "What a release bundle records about one build. check_bundle.py applies the subset of keywords used here: type, required, properties, additionalProperties, pattern and minimum.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "product_version",
+    "security_counter",
+    "release_tag",
+    "sdk_version",
+    "runner_image",
+    "target",
+    "bundle_hashes",
+    "zephyr_bin_sha256",
+    "firmware_identity"
+  ],
+  "properties": {
+    "product_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+\\+[0-9]+$"},
+    "security_counter": {"type": "integer", "minimum": 0},
+    "release_tag": {"type": "string", "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "sdk_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "runner_image": {"type": "string", "pattern": "^[A-Za-z0-9._-]+$"},
+    "target": {"type": "string", "pattern": "^[A-Za-z0-9_@/.-]+$"},
+    "bundle_hashes": {
+      "type": "object",
+      "additionalProperties": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+    },
+    "zephyr_bin_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "firmware_identity": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}
