@@ -1,5 +1,10 @@
 # crux-controller
 
+crux-controller is the official reference consumer firmware for ongoing integration,
+evaluation and regression testing of Crux Platform capabilities through public and approved
+composition interfaces. It may provide supporting evidence for relevant platform milestones, but it
+is not a mandatory exit criterion for any of them.
+
 Status: Stage 1, in progress. The repository builds in CI for the NXP RT1060-EVKB
 Rev B with the Zephyr baseline gate required: a synthetic workload on Crux threads, a
 queue and logging (step S1), a TCP exchange over the Crux Sockets profile (step S2, built
@@ -17,11 +22,9 @@ run on a board, and there is no release.
 Every step is checked against its declared resource limits (`budgets/limits.json`,
 placeholders). What S3 needed from the product is recorded in `docs/findings/s3-file-composition.md`.
 
-`crux-controller` is a product-shaped consumer of
-[Crux](https://github.com/wonny-labs/crux-pilot). It is meant to exercise the
-Crux features together in one image on the NXP RT1060-EVKB Rev B, with declared
-resource budgets, a release bundle and an SBOM, using only independently
-written code.
+It is a product-shaped consumer of [Crux](https://github.com/wonny-labs/crux-pilot). It is meant to
+exercise the Crux features together in one image on the NXP RT1060-EVKB Rev B, with declared
+resource budgets, a release bundle and an SBOM, using only independently written code.
 
 ## What it is not
 
@@ -29,7 +32,8 @@ written code.
   reported to `crux-pilot` as an issue.
 - It is not evidence for any Crux security claim. That evidence lives in
   `crux-pilot`.
-- It is not an exit criterion of any `crux-pilot` milestone.
+- It is not a mandatory exit criterion of any `crux-pilot` milestone. Where it supports a milestone,
+  it is supporting evidence only.
 - It contains no restricted or company-owned source and no product-specific
   control logic. Its workload will be synthetic and written for this
   repository.
@@ -52,5 +56,7 @@ milestones and issues.
 ## Licence, support and ownership
 
 - Licence: Apache-2.0. See `LICENSE`.
-- Support: no support period is promised. The period is fixed when the product
-  makes its release. Until then, only the latest release is supported.
+- Support: no support period is promised. Only the latest release is supported.
+- Security reports: see `SECURITY.md`.
+- Releases: see `RELEASE.md`. Dependencies and their licences: see `docs/dependencies.md`.
+  Changes: see `CHANGELOG.md`.
