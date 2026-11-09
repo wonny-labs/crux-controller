@@ -36,9 +36,10 @@ class PublicText(unittest.TestCase):
     def test_a_private_reference_in_the_contribution_guide_is_found(self):
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
-            (root / "CONTRIBUTING.md").write_text("fine line\nsee the skeleton plan\n")
+            phrase = "see the " + "work" + " package"
+            (root / "CONTRIBUTING.md").write_text(f"fine line\n{phrase}\n")
             found = scan(root, ("CONTRIBUTING.md",))
-        self.assertEqual(["CONTRIBUTING.md:2: see the skeleton plan"], found)
+        self.assertEqual([f"CONTRIBUTING.md:2: {phrase}"], found)
 
 
 if __name__ == "__main__":
