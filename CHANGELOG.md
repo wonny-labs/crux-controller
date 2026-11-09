@@ -1,8 +1,8 @@
 # Changelog
 
 This file follows the idea of [Keep a Changelog](https://keepachangelog.com/). There is no release
-yet and no tag, so everything below is unreleased: it is what the `main` branch contains. Nothing has
-run on a board.
+yet and no tag, so everything below is unreleased: it is what the `main` branch contains. Step S2 ran
+once on a board (see `docs/findings/s2-first-board-run.md`); nothing else has run on a board.
 
 ## Unreleased
 
@@ -17,7 +17,7 @@ run on a board.
 - CI builds step S0 (the skeleton), S1 (Crux threads, a queue and logging on a synthetic workload),
   S2 (a TCP exchange over the Crux Sockets profile) and S3 (a configuration record in a file through
   Crux File, mounted by the composition zone, on a FatFs provider for microSD) for the NXP RT1060-EVKB Rev B with the Zephyr
-  baseline gate required. S2 and S3 are built and never run on a board.
+  baseline gate required. S3 is built and never run on a board; S2 ran once on a board.
 - A `native_sim` scenario runs S1, one for S2 uses the test-only `picolibc`, and one for S3 runs the
   file through the simulator provider on a RAM disk. Host tests with and
   without sanitizers cover the portable workload core.
