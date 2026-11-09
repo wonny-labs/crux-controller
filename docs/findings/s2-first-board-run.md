@@ -20,8 +20,10 @@ criterion of any Crux milestone; this run is supporting evidence at most.
 | Reviewed driver | the `crux-pilot` target test driver at `3b2dce56` (the merges of pull requests 352 and 353) with its S2 image profile: one start, a raw passive UART capture of 180 s |
 | Restored afterwards | the accepted normal image, BIN SHA-256 `ad729684749181f0c26853828550187a2c3e60dbb28cf3ee2194a7984141e02f`, 107,872 bytes |
 
-The S2 hash is the one that CI printed for this source and pin, and that the local rebuild
-reproduced before the run (Measured by the preparation of the run; not re-measured here).
+The S2 hash is the value the run was approved for. Before the run, a local rebuild at `d123620`
+gave this hash, and two local builds were byte-identical (Measured by the preparation of the run;
+not re-measured here). CI had printed the same hash at an earlier commit of the same pin; a CI run
+at `d123620` was not read for this run.
 
 ## Results
 
@@ -36,14 +38,14 @@ reproduced before the run (Measured by the preparation of the run; not re-measur
 | One TCP exchange | the host peer, started once for one exchange, accepted a connection from `192.168.77.2` and recorded request and response `000000fa5a5a5aa0`, `echoed: true`; the board logged `net: exchange ok cycle=250` | Measured |
 | `net: exchange failed ... result=-2` | 174 lines, from `cycle=10` (uptime 6.097 s) to `cycle=1750` (uptime 2:58.810), one for every message cycle in the window except cycle 250 | Measured |
 | Restore | status `NORMAL_RESTORED_VERIFIED_STARTED`; the normal image was loaded and verified (`Verify successful.`), verified again by a read-only step, and started; the 15 s capture after the start shows `M3_BOOT source=ec94fbec22cd profile=integrated`, which is the boot identity line of the accepted normal image | Measured |
-| Offline replay of the capture | the replay record says `status: PASS` for its default state. The files do not say what its oracle asserts for an S2 image, so this note builds nothing on it | Measured, not interpreted |
+| Offline replay of the restore capture | with the accepted normal image's oracles, the replay record says `status: PASS`; this supports the restore, and says nothing about the S2 image | Measured |
 
 ### The `result=-2` lines
 
 The workload sends one message about every second (every tenth 100 ms cycle). Each message is one
-TCP exchange: connect, send 8 bytes, expect the same 8 bytes back. `result=-2` is an immediate
-connect failure. In the capture they appear before the peer existed, and they are the expected
-outcome when nothing listens at `192.168.77.1:42420`. The peer was started once, about 29 s after the
+TCP exchange: connect, send 8 bytes, expect the same 8 bytes back. `result=-2` is a connect failure
+(not a timeout). In the capture they appear before the peer existed, and they are the expected
+outcome when nothing listens at `192.168.77.1:42420`. The peer was started once, about 28.5 s after the
 board's boot, for exactly one exchange; the first message after that, at cycle 250 (uptime 28.812 s),
 succeeded. The peer then stopped by design (`exchanges_done: 1`), and every later message failed
 with `result=-2` again until the window ended. The 174 lines are therefore not a link fault; they
@@ -53,7 +55,7 @@ pass criterion of the run.
 ## Main finding
 
 **The S2 image brought the Ethernet link up without the MDIO correction that the Crux sample applies, in
-this run.** The image carries no such correction. The host saw the link active at 100 Mbit/s full
+this run.** The image carries no such correction (read from its configuration and devicetree overlay, not from the run's files). The link evidence is host-side: the S2 image logs no link line, only `workload:` and `net:` lines. The host saw the link active at 100 Mbit/s full
 duplex, ping was answered 5 of 5 times at the static address, and the board answered ARP with the
 MAC from its devicetree. One TCP exchange with the host peer was echoed.
 
@@ -92,8 +94,9 @@ about the PHY, the board design or the correction in general.
 
 The owner approved one run of a written plan for this image, hashes and capture time. The plan was
 reviewed independently before it was approved. An operator then ran only the reviewed driver in
-four gated steps (identify, program, host checks, restore), each started only after the owner's
-go-ahead and a host-side guard check, and the normal image was restored and verified at the end.
+four gated steps (identify, program, host checks, restore), under the owner's written approval, with an
+explicit owner yes before the board was overwritten and a guard check before each probe step; the
+normal image was restored and verified at the end.
 The evidence of the run (host command output, probe logs, the raw capture, the peer record) is
 kept privately; this note quotes only what those files print and states the hashes above so that
 the images can be recognised.
