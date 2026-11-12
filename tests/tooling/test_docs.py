@@ -9,12 +9,15 @@ import yaml
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 ROLE = (
-    "crux-controller is the official reference consumer firmware for ongoing integration, "
+    "Crux Controller is the official reference consumer firmware for ongoing integration, "
     "evaluation and regression testing of Crux Platform capabilities through public and approved "
     "composition interfaces. It may provide supporting evidence for relevant platform milestones, "
     "but it is not a mandatory exit criterion for any of them."
 )
-DOCS = ("README.md", "SECURITY.md", "RELEASE.md", "CHANGELOG.md", "docs/dependencies.md")
+DOCS = (
+    "README.md", "SECURITY.md", "RELEASE.md", "CHANGELOG.md", "docs/dependencies.md",
+    "CONTRIBUTING.md",
+)
 
 
 def text(name):

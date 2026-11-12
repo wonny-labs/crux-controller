@@ -1,6 +1,6 @@
-# crux-controller
+# Crux Controller
 
-crux-controller is the official reference consumer firmware for ongoing integration,
+Crux Controller is the official reference consumer firmware for ongoing integration,
 evaluation and regression testing of Crux Platform capabilities through public and approved
 composition interfaces. It may provide supporting evidence for relevant platform milestones, but it
 is not a mandatory exit criterion for any of them.
@@ -57,6 +57,7 @@ milestones and issues.
 
 - Licence: Apache-2.0. See `LICENSE`.
 - Support: no support period is promised. Only the latest release is supported.
+- Contributing: see [CONTRIBUTING.md](CONTRIBUTING.md).
 - Security reports: see `SECURITY.md`.
 - Releases: see `RELEASE.md`. Dependencies and their licences: see `docs/dependencies.md`.
   Changes: see `CHANGELOG.md`.
