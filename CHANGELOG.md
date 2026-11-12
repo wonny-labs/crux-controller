@@ -2,7 +2,7 @@
 
 This file follows the idea of [Keep a Changelog](https://keepachangelog.com/). There is no release
 yet and no tag, so everything below is unreleased: it is what the `main` branch contains. Step S2 ran
-once on a board (see `docs/findings/s2-first-board-run.md`); nothing else has run on a board.
+twice on a board (see `docs/findings/s2-first-board-run.md`); nothing else has run on a board.
 
 ## Unreleased
 
@@ -17,7 +17,7 @@ once on a board (see `docs/findings/s2-first-board-run.md`); nothing else has ru
 - CI builds step S0 (the skeleton), S1 (Crux threads, a queue and logging on a synthetic workload),
   S2 (a TCP exchange over the Crux Sockets profile) and S3 (a configuration record in a file through
   Crux File, mounted by the composition zone, on a FatFs provider for microSD) for the NXP RT1060-EVKB Rev B with the Zephyr
-  baseline gate required. S3 is built and never run on a board; S2 ran once on a board.
+  baseline gate required. S3 is built and never run on a board; S2 ran twice on a board.
 - A `native_sim` scenario runs S1, one for S2 uses the test-only `picolibc`, and one for S3 runs the
   file through the simulator provider on a RAM disk. Host tests with and
   without sanitizers cover the portable workload core.
@@ -39,6 +39,10 @@ once on a board (see `docs/findings/s2-first-board-run.md`); nothing else has ru
 
 ### Documents
 
+- The finding on the S2 board runs (`docs/findings/s2-first-board-run.md`) records a second run on
+  12 November 2026 with the same S2 image on the same bench: the link, ping, S2 log and restore
+  checks reproduced those of the first run. That is two runs on one bench; it shows no S2 timing,
+  stack or resource use, and it is not qualification.
 - The File binding finding and the S3 findings note (`docs/findings/`), the composition zone note, the README with the
   repository's role, and this changelog together with `SECURITY.md`, `RELEASE.md` and
   `docs/dependencies.md`.
