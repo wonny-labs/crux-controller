@@ -12,8 +12,9 @@ those interfaces shows up here and is reported to `crux-pilot` as an issue.
 - It is not a product, not Crux, and it adds no Crux public interface.
 - It may provide supporting evidence for a Crux milestone. It is never a mandatory exit criterion of one.
 - It is not evidence for any Crux security claim. That evidence lives in `crux-pilot`.
-- Its workload is synthetic and written for this repository. Steps S0 to S3 are built in CI. Nothing
-  has run on a board, and a change must not claim otherwise.
+- Its workload is synthetic and written for this repository. Steps S0 to S3 are built in CI. Step S2 has
+  run on a board (twice, on one bench; see `docs/findings/s2-first-board-run.md`) and nothing else
+  has, and a change must not claim otherwise.
 
 ## The boundary
 

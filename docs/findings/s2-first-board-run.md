@@ -106,8 +106,9 @@ gated procedure as run 1.
   without the MDIO correction.
 - Ping: 5 of 5 answered; round trips min/avg/max 1.388 / 1.491 / 1.721 ms (run 1: 0.858 / 1.454 /
   1.757 ms).
-- S2 log: 175 S2 workload lines, `cycle=10` to `cycle=1750` in steps of 10, with the same first and
-  last line times as run 1.
+- S2 log: 175 S2 workload lines, `cycle=10` to `cycle=1750` in steps of 10, the first at 4.808 s and
+  the last at 2:58.808 of S2 uptime, as in run 1 (these are the workload lines; the `net:` lines
+  above start later and are a different line type).
 - TCP exchange (informational): one exchange with the host peer was echoed.
 - Restore: the accepted normal image (BIN SHA-256
   `ad729684749181f0c26853828550187a2c3e60dbb28cf3ee2194a7984141e02f`) was restored, verified twice,
