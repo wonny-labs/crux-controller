@@ -7,20 +7,24 @@ is not a mandatory exit criterion for any of them.
 
 Status: Stage 1, in progress. The repository builds in CI for the NXP RT1060-EVKB
 Rev B with the Zephyr baseline gate required: a synthetic workload on Crux threads, a
-queue and logging (step S1), a TCP exchange over the Crux Sockets profile (step S2, built
-and never run), a configuration record kept in a file through Crux File (step S3, built and
-never run on a board), and static resource use checked against declared limits. Nothing has
-run on a board, and there is no release.
+queue and logging (step S1), a TCP exchange over the Crux Sockets profile (step S2), a
+configuration record kept in a file through Crux File (step S3, built and never run on a board),
+and static resource use checked against declared limits. Step S2 ran once on a board on
+9 November 2026: the Ethernet link came up without the MDIO correction that the Crux sample applies,
+the board answered ping, and one TCP exchange with a host peer was echoed. That is one run on one
+board, not repeatability; the TCP exchange was informational. Nothing else has run on a board, and
+there is no release.
 
 | Step | What it adds | `native_sim` scenario | RT1060-EVKB build | On a board |
 |---|---|---|---|---|
 | S0 | The clock of Crux Time | no | yes | not run |
 | S1 | The workload on Crux threads, a queue and logging | yes | yes | not run |
-| S2 | A TCP exchange over the Crux Sockets profile | yes, over loopback | yes | not run |
+| S2 | A TCP exchange over the Crux Sockets profile | yes, over loopback | yes | ran once (link up, ping answered, one exchange echoed) |
 | S3 | A configuration record in a file through Crux File, mounted by the composition zone | yes, simulator provider on a RAM disk | yes, FatFs provider, microSD, no card used | not run |
 
 Every step is checked against its declared resource limits (`budgets/limits.json`,
-placeholders). What S3 needed from the product is recorded in `docs/findings/s3-file-composition.md`.
+placeholders). What S3 needed from the product is recorded in `docs/findings/s3-file-composition.md`;
+what the one board run of S2 shows and does not show is recorded in `docs/findings/s2-first-board-run.md`.
 
 It is a product-shaped consumer of [Crux](https://github.com/wonny-labs/crux-pilot). It is meant to
 exercise the Crux features together in one image on the NXP RT1060-EVKB Rev B, with declared
