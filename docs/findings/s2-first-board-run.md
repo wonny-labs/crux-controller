@@ -1,7 +1,9 @@
-# Finding: step S2 ran once on a board (9 November 2026)
+# Finding: step S2 on a board (9 and 12 November 2026)
 
-Status: the S2 image ran **once** on one RT1060-EVKB Rev B, and the board was then restored to the
-accepted normal image. This note says what that one run shows and what it does not show.
+Status: the S2 image ran **twice** on one RT1060-EVKB Rev B on the same bench, on 9 November 2026
+(run 1, described first) and on 12 November 2026 (run 2, a reproducibility run, described under
+"Run 2" below). After each run the board was restored to the accepted normal image. This note says
+what the runs show and what they do not show.
 
 Every statement is labelled **Measured** (a tool of the run printed it, or it follows by counting in
 the raw capture of the run, which is kept privately and is not published here) or **Not shown**.
@@ -59,8 +61,8 @@ this run.** The image carries no such correction (read from its configuration an
 duplex, ping was answered 5 of 5 times at the static address, and the board answered ARP with the
 MAC from its devicetree. One TCP exchange with the host peer was echoed.
 
-This is **one boot of one board in one run**. It is not repeatability and it is not a statement
-about the PHY, the board design or the correction in general.
+Run 1 is **one boot of one board in one run**. It is not a statement about the PHY, the board design
+or the correction in general. Run 2 below repeats it once.
 
 ## Friction
 
@@ -83,16 +85,55 @@ about the PHY, the board design or the correction in general.
 ## Not shown
 
 - Run-time values of S2: stack use, CPU use and timing beyond what the log lines literally print.
-- Repeatability: the link, ping or exchange on a second boot, another board or another cable.
+- Repeatability beyond two boots on one bench: another board, another cable or another bench, and any
+  statistical statement about how often the link comes up.
 - Behaviour after the 180 s window.
 - Whether the link comes up the same way after a cold power cycle; the run restarted the image by
   programming and reset.
 - An exchange that is repeated, or an exchange when the peer is slow or restarts.
 - Anything about the S3 image, microSD, or the release bundle: they did not run.
 
+## Run 2 (12 November 2026, a reproducibility run)
+
+The S2 image was run a second time on the same bench as run 1, with the same S2 image (BIN SHA-256
+`e7c588c79c31d113ef3b0464731f17dfb4cc453874831b8bc20f9dd7da55b56c`, 103,180 bytes) and the same
+gated procedure as run 1.
+
+**Repeated** (all Measured):
+
+- Program: the S2 image was loaded, verified and started.
+- Link: the host adapter's interface reported `status: active`, `100baseTX <full-duplex>`, again
+  without the MDIO correction.
+- Ping: 5 of 5 answered; round trips min/avg/max 1.388 / 1.491 / 1.721 ms (run 1: 0.858 / 1.454 /
+  1.757 ms).
+- S2 log: 175 S2 workload lines, `cycle=10` to `cycle=1750` in steps of 10, the first at 4.808 s and
+  the last at 2:58.808 of S2 uptime, as in run 1 (these are the workload lines; the `net:` lines
+  above start later and are a different line type).
+- TCP exchange (informational): one exchange with the host peer was echoed.
+- Restore: the accepted normal image (BIN SHA-256
+  `ad729684749181f0c26853828550187a2c3e60dbb28cf3ee2194a7984141e02f`) was restored, verified twice,
+  and its boot lines were seen.
+
+**Different:**
+
+- The raw capture is 39,508 bytes (run 1: 41,527). It is complete, with no non-ASCII bytes and no
+  gaps. The shorter capture is the entry image's own output before S2 started; the cause of the
+  difference was not checked.
+- The board's first successful exchange came at a slightly later cycle than in run 1, because the
+  peer was started a few seconds later. Failed attempts before the peer connects are expected, as in
+  run 1.
+- The `M3_` lines in the capture belong to the entry image. S2 prints none, so S2's own stack and
+  logger figures are not available from this run either.
+
+**Verdict: reproduced.** Run 2 made the same observations as run 1 for the loaded-and-started, S2
+log, link, ping and restore checks. Two boots on one bench are evidence collection, not
+qualification. **Not shown** by run 2: S2 timing, stack or resource use, behaviour after the 180 s
+window, another bench or board, and statistical repeatability.
+
 ## Method
 
-The owner approved one run of a written plan for this image, hashes and capture time. The plan was
+The owner approved one run of a written plan for this image, hashes and capture time. Run 2 followed
+the same gated procedure. The plan was
 reviewed independently before it was approved. An operator then ran only the reviewed driver in
 four gated steps (identify, program, host checks, restore), under the owner's written approval, with an
 explicit owner yes before the board was overwritten and a guard check before each probe step; the

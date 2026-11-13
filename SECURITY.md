@@ -15,7 +15,7 @@ to reproduce it. There is no service level for a reply.
 ## What this repository is
 
 This is a reference consumer firmware used to evaluate [Crux](https://github.com/wonny-labs/crux-pilot).
-It is built in CI and has not run on a board. A weakness in Crux itself belongs in the `crux-pilot`
+It is built in CI. Step S2 has run on a board twice, on one bench, and nothing else has. A weakness in Crux itself belongs in the `crux-pilot`
 repository. A report here can be redirected there.
 
 ## Support
