@@ -36,7 +36,7 @@ carry a Zephyr or composition include back into the application.
 | `app/src` (unchanged) | yes | yes | yes | no | none | yes | `workload/include` |
 | `workload` (unchanged) | yes | no | no | no | none | yes | none |
 | `app/compose` | yes | no | yes | yes | the allow-list below, nothing else | yes | header files (`.h`) of `app/src` (the port header) |
-| `app/os` (the adapter zone, new) | yes | no | yes | no | `zephyr/kernel.h`, nothing else | yes | header files (`.h`) of `app/src` (the port header) |
+| `app/os` (the adapter zone, new) | yes | no | yes | no | `zephyr/kernel.h` and `zephyr/net/sntp.h`, nothing else | yes | header files (`.h`) of `app/src` (the port header) |
 
 The zone fails on a Crux private or port header (`file_native.h`, a nested `<crux/ports/...>` path),
 on a Zephyr header that is not on the list, on any vendor or third-party header (`fsl_*.h`, `ff.h`,
@@ -68,7 +68,7 @@ Left off on purpose, and why:
 |---|---|
 | `zephyr/storage/disk_access.h` | `disk_access_init` only tells a missing card from a failed mount. `fs_mount` reports both, and a product that must tell them apart can ask for the header in a reviewed change. |
 | `ff.h` | The FatFs library header. Every reference composition in Crux includes it to declare a `FATFS` object. A mount that the devicetree describes as `zephyr,fstab,fatfs` makes Zephyr declare that object, so the zone does not need the header. Whether that route works for the S3 composition is a question of step S3, which records its answer in its own findings note. |
-| `zephyr/kernel.h`, `zephyr/sys/printk.h`, `zephyr/logging/log.h` | The composition returns a result code. The application logs through Crux Logging and runs its threads through the adapter zone `app/os`. `zephyr/kernel.h` is allowed in the adapter zone `app/os` and stays off this list, see [The adapter zone](#the-adapter-zone). |
+| `zephyr/kernel.h`, `zephyr/sys/printk.h`, `zephyr/logging/log.h` | The composition returns a result code. The application logs through Crux Logging and runs its threads through the adapter zone `app/os`. `zephyr/kernel.h` is allowed in the adapter zone `app/os` and stays off this list, see [The adapter zone](#the-adapter-zone). `zephyr/net/sntp.h` is allowed there too, for the same reason. |
 | `zephyr/fs/littlefs.h`, `zephyr/fs/fs_sys.h` | Provider and file system specifics that S3 does not select. |
 | `zephyr/drivers/*`, `zephyr/net/*`, vendor `fsl_*.h` | Not part of mounting a file system. A driver or network detail in the zone would be a second product layer, not a composition. |
 
@@ -89,25 +89,47 @@ the adapter in `app/os` implements it with Zephyr kernel calls. The link joins t
 flowchart LR
     SRC["app/src<br/>product behaviour, plain C<br/>ISO C, Sockets profile, public crux/NAME.h"]
     PORT["app/src port header<br/>product-owned, declared by the application"]
-    OS["app/os<br/>adapter zone<br/>zephyr/kernel.h only"]
+    OS["app/os<br/>adapter zone<br/>zephyr/kernel.h, zephyr/net/sntp.h"]
     KERNEL["Zephyr kernel<br/>threads, queues, sleeping"]
     SRC -->|includes| PORT
     OS -->|implements, includes| PORT
     OS --> KERNEL
-    SRC -. "fails: zephyr/kernel.h,<br/>quoted include of an adapter header" .-> OS
+    SRC -. "fails: the two Zephyr headers,<br/>quoted include of an adapter header" .-> OS
 ```
 
 The adapter zone may include ISO C headers, public `<crux/NAME.h>` headers, its own tree, header
-files (`.h`) of `app/src` and exactly one Zephyr header, `zephyr/kernel.h`
+files (`.h`) of `app/src` and exactly two Zephyr headers, `zephyr/kernel.h` and `zephyr/net/sntp.h`
 (`OS_ADAPTER_ZEPHYR_HEADERS` in `scripts/check_boundary.py`, no wildcard). It fails on the Sockets
 profile and other POSIX headers, on `<crux/file_zephyr.h>` and any other composition interface, on
-every other Zephyr header (`zephyr/sys/printk.h`, `zephyr/logging/log.h`, a driver header, a
-network header), on a vendor or third-party header, and on a quoted include that does not resolve
+every other Zephyr header (`zephyr/sys/printk.h`, `zephyr/logging/log.h`, a driver header, any other
+network header, `zephyr/net/socket.h` included), on a vendor or third-party header, and on a quoted include that does not resolve
 inside the zone or to a `.h` file of `app/src`. The scan forms and the indirect reach through an
 `app/src` header are the same as for the composition zone.
 
-`app/src`, `app/compose` and `workload` keep failing on `zephyr/kernel.h`, and a quoted include of an
-`app/os` header fails in all three, as a quoted include of a composition zone header does.
+`app/src`, `app/compose` and `workload` keep failing on `zephyr/kernel.h` and on `zephyr/net/sntp.h`,
+and a quoted include of an `app/os` header fails in all three, as a quoted include of a composition
+zone header does.
+
+The adapter zone's allow-list is the whole list, and each entry has a reason:
+
+| Header | Why the zone needs it |
+|---|---|
+| `zephyr/kernel.h` | Threads, message queues and sleeping, the OS facilities the zone exists for. |
+| `zephyr/net/sntp.h` | The Zephyr SNTP library, for a product time-source adapter. See below. |
+
+Why `zephyr/net/sntp.h`: Crux deliberately provides no SNTP client and leaves the choice of a time
+source to the product, because its Time contract designates the product as the owner of the Time
+Authority. A product that wants SNTP has two choices. It can reuse the Zephyr SNTP library, which
+this entry allows, or it can write its own SNTP packet parser, which is more product code to
+review and test than a call into a maintained library. The public Crux interface is not enough
+because it offers no time-source client at all. The adapter will use the library's simple string-based query
+(`sntp_simple()`, which takes a host name and a timeout), so it includes no socket type and no socket
+header itself, and the rule keeps `allow_sockets` off for the zone: `zephyr/net/socket.h`, the
+Sockets profile headers and every other network header still fail there. The check reads direct
+includes only, so this relies on the zone not including socket headers itself, which the rule
+continues to forbid; a header that the library header includes in turn is not an include of the
+zone. The rule change allows the include and nothing else: no SNTP adapter exists yet, and the
+code that uses the header arrives in a later pull request.
 
 Why `zephyr/kernel.h` is not on the composition zone's list: that zone exists to mount a file system
 and bind it to Crux, and `COMPOSITION_ZEPHYR_HEADERS` names only what that needs. The kernel header

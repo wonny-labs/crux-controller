@@ -43,6 +43,10 @@ twice on a board (see `docs/findings/s2-first-board-run.md`); nothing else has r
   behind a product-owned port header of `app/src`. The boundary check fails `app/src` and `app/os`
   on `<crux/thread.h>`, `<crux/sync.h>`, `<crux/queue.h>` and `<crux/serial.h>`. Not run on a board:
   the S2 comparison with the earlier runs is still to do.
+- The adapter zone `app/os` may now include `<zephyr/net/sntp.h>`, the Zephyr SNTP library header,
+  besides `<zephyr/kernel.h>`. Sockets stay off for the zone, and every other Zephyr header, the Zephyr
+  and Crux Sockets profile socket headers included, still fails there. This allows the include only:
+  no SNTP code exists yet. See `docs/composition-zone.md`.
 - The workload's build switch is the product's own Kconfig option `CRUX_CONTROLLER_S1`, not the Crux
   Thread provider. `app/Kconfig`, `app/CMakeLists.txt` and `app/src/composition.c` key on it, and no
   conf of the product or of the S1 scenario selects Crux Thread or Crux Queue any more. The worker
