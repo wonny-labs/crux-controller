@@ -50,4 +50,32 @@ ZTEST(s1, test_the_workload_logs_one_line_per_message)
     zassert_true(found >= 3, "only %u workload lines in: %s", found, captured);
 }
 
+static volatile unsigned int hook_calls;
+
+static void count_hook(void)
+{
+    hook_calls++;
+}
+
+/* Step S4 feeds its watchdog from this hook: once for each pass that finds cycles due, so about
+ * once per cycle here, and never when the cycle does not run. */
+ZTEST(s1, test_the_cycle_hook_runs_about_once_per_cycle_and_stops_with_the_workload)
+{
+    const workload_config_t config = {.period_ms = 10, .message_every = 1000};
+
+    hook_calls = 0;
+    workload_thread_set_cycle_hook(count_hook);
+    zassert_equal(0, workload_thread_start(&config));
+    k_msleep(250);
+    zassert_equal(0, workload_thread_stop());
+    workload_thread_set_cycle_hook(NULL);
+
+    const unsigned int after_stop = hook_calls;
+
+    zassert_true(after_stop >= 5, "the hook ran only %u times in 250 ms of 10 ms cycles", after_stop);
+    zassert_true(after_stop <= 26, "the hook ran %u times, more than once per cycle", after_stop);
+    k_msleep(100);
+    zassert_equal(after_stop, hook_calls, "the hook ran after the workload was stopped");
+}
+
 ZTEST_SUITE(s1, NULL, NULL, NULL, NULL, NULL);

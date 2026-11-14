@@ -1,0 +1,15 @@
+/* Crux Logging writes to an emulated UART here, so that the test can read what it wrote. */
+/ {
+    chosen { zephyr,log-uart = &logging_uarts; };
+    logging_uarts: logging-uarts {
+        compatible = "zephyr,log-uart";
+        uarts = <&logging_test>;
+    };
+    logging_test: logging-test {
+        compatible = "zephyr,uart-emul";
+        current-speed = <115200>;
+        rx-fifo-size = <16>;
+        tx-fifo-size = <4096>;
+        status = "okay";
+    };
+};

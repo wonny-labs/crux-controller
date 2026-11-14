@@ -36,3 +36,10 @@ target_compile_definitions(test_net_client PRIVATE
     CONFIG_CRUX_CONTROLLER_PEER_PORT=42431)
 target_compile_options(test_net_client PRIVATE -Wall -Wextra -Werror)
 add_test(NAME net_client COMMAND test_net_client)
+
+# The reset-cause and watchdog policy of step S4: ISO C only, so it builds here without Crux or
+# Zephyr headers. The glue that calls Crux System is not built on the host.
+add_executable(test_health_policy test_health_policy.c ../../app/src/health_policy.c)
+target_include_directories(test_health_policy PRIVATE ../../app/src)
+target_compile_options(test_health_policy PRIVATE -Wall -Wextra -Wpedantic -Werror)
+add_test(NAME health_policy COMMAND test_health_policy)

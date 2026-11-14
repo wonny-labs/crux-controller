@@ -36,6 +36,15 @@
       "OCRAM": 25,
       "OCRAM2": 25,
       "IDT_LIST": 25
+    },
+    "S4": {
+      "FLASH": 25,
+      "RAM": 25,
+      "ITCM": 25,
+      "DTCM": 25,
+      "OCRAM": 25,
+      "OCRAM2": 25,
+      "IDT_LIST": 25
     }
   }
 }

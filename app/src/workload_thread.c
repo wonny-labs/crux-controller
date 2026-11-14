@@ -29,6 +29,7 @@ static struct {
     atomic_bool stop_consumer;
     bool running;
     workload_sink_t sink;
+    workload_cycle_hook_t cycle_hook;
 } state;
 
 static crux_status_t elapsed_ms(crux_monotonic_time_t start, uint64_t *out)
@@ -81,6 +82,9 @@ static void producer_main(void)
             workload_os_sleep_ms((uint32_t)wait_ms);
             continue;
         }
+        if (state.cycle_hook != NULL) {
+            state.cycle_hook();
+        }
         for (uint32_t i = 0; i < due; i++) {
             const uint32_t number = cycle.cycle - due + 1u + i;
 
@@ -124,6 +128,11 @@ static void consumer_main(void)
 void workload_thread_set_sink(workload_sink_t sink)
 {
     state.sink = sink;
+}
+
+void workload_thread_set_cycle_hook(workload_cycle_hook_t hook)
+{
+    state.cycle_hook = hook;
 }
 
 int workload_thread_start(const workload_config_t *config)

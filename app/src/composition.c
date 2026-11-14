@@ -15,6 +15,10 @@
 #include "storage_port.h"
 #endif
 
+#ifdef CONFIG_CRUX_CONTROLLER_S4
+#include "health.h"
+#endif
+
 #ifdef CONFIG_CRUX_CONTROLLER_S2
 #include <stdio.h>
 
@@ -82,6 +86,17 @@ int composition_start(void)
     }
 #ifdef CONFIG_CRUX_CONTROLLER_S3
     configure_from_storage(&config);
+#endif
+#ifdef CONFIG_CRUX_CONTROLLER_S4
+    /* S4: say why the last run ended, then arm the watchdog for the configured cycle, after the
+     * storage so that a slow mount cannot cost a reset. The producer feeds it once for each pass
+     * that has cycles due. No watchdog runs only when the policy or Crux refuses the interval, or
+     * there is no device; on any other error the native start may have been attempted, the
+     * state is unknown, nothing feeds it and the watchdog may still reset the board. Either way
+     * health.c reports it and the workload starts. */
+    (void)health_report_reset_cause();
+    (void)health_watchdog_start(config.period_ms);
+    workload_thread_set_cycle_hook(health_cycle);
 #endif
 #ifdef CONFIG_CRUX_CONTROLLER_S2
     workload_thread_set_sink(exchange_with_peer);

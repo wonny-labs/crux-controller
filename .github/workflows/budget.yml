@@ -42,6 +42,12 @@ jobs:
             conf: "conf/s1.conf;conf/s3.conf"
             overlay: "boards/s3.overlay"
             require: "CONFIG_CRUX_CONTROLLER_S3=y CONFIG_CRUX_FILE_FATFS_RT1060=y"
+          # S4 is built on S1, without the network of S2 or the file of S3. Its fragment would
+          # build silently without System if a Kconfig dependency were unmet, so the build is checked.
+          - step: S4
+            conf: "conf/s1.conf;conf/s4.conf"
+            overlay: "boards/s4.overlay"
+            require: "CONFIG_CRUX_CONTROLLER_S4=y CONFIG_CRUX_SYSTEM=y"
     env:
       BOARD: mimxrt1060_evk@B//qspi
       SDK_VERSION: "1.0.1"
