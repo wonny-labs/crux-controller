@@ -174,14 +174,22 @@ class AdapterSource(unittest.TestCase):
             self.assertIn(call, self.SOURCE, call)
         self.assertIn("K_THREAD_STACK_DEFINE", self.SOURCE)
 
-    def test_it_ties_the_stack_to_the_thread_provider_option_it_replaces(self):
-        # A Kconfig symbol, not a Crux header: where Crux Thread is selected, both options hold
-        # the same number, so the provider's stacks and the adapter's stacks have one size.
-        self.assertRegex(self.SOURCE, r"#ifdef CONFIG_CRUX_THREAD_STACK_BYTES")
+    def test_it_takes_the_stack_from_the_product_option_and_no_provider_option(self):
+        # The stack size belongs to the product: CONFIG_CRUX_CONTROLLER_WORKER_STACK, with the
+        # provider's former default as the fallback of a build without app/Kconfig (the native_sim
+        # scenario). The Crux Thread option no longer exists in any step, so nothing may read it.
+        stripped = c_code(ADAPTER)
+        self.assertRegex(stripped, r"#ifdef CONFIG_CRUX_CONTROLLER_WORKER_STACK")
         self.assertRegex(
-            self.SOURCE,
-            r"BUILD_ASSERT\(WORKLOAD_OS_STACK_BYTES == CONFIG_CRUX_THREAD_STACK_BYTES",
+            stripped,
+            r"#define WORKLOAD_OS_STACK_BYTES CONFIG_CRUX_CONTROLLER_WORKER_STACK",
         )
+        self.assertNotIn("CRUX_THREAD", stripped)
+        self.assertNotIn("CRUX_QUEUE", stripped)
+
+    def test_it_needs_64_bit_timeouts_for_its_absolute_deadlines(self):
+        # Crux Thread and Crux Queue selected this option; the product now asks for it itself.
+        self.assertRegex(c_code(ADAPTER), r"BUILD_ASSERT\(IS_ENABLED\(CONFIG_TIMEOUT_64BIT\)")
 
     def test_it_includes_the_kernel_header_and_the_port_by_a_relative_path(self):
         found = includes(ADAPTER)
