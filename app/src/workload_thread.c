@@ -8,20 +8,12 @@
 #include <stdio.h>
 
 #include <crux/logging.h>
-#include <crux/queue.h>
 #include <crux/status.h>
-#include <crux/thread.h>
 #include <crux/time.h>
 
-#ifdef CONFIG_CRUX_CONTROLLER_WORKER_STACK
-#define WORKER_STACK_BYTES CONFIG_CRUX_CONTROLLER_WORKER_STACK
-#else
-#define WORKER_STACK_BYTES 4096
-#endif
+#include "workload_os.h"
 
 enum {
-    QUEUE_CAPACITY = 8,
-    STACK_BYTES = WORKER_STACK_BYTES,
     JOIN_TIMEOUT_MS = 2000,
     RECEIVE_TIMEOUT_MS = 50,
     /* The consumer may be inside a sink that takes up to its own deadline for each of the
@@ -33,9 +25,6 @@ enum {
 
 static struct {
     workload_config_t config;
-    crux_queue_t queue;
-    crux_thread_t producer;
-    crux_thread_t consumer;
     atomic_bool stop_producer;
     atomic_bool stop_consumer;
     bool running;
@@ -55,9 +44,17 @@ static crux_status_t elapsed_ms(crux_monotonic_time_t start, uint64_t *out)
     return CRUX_OK;
 }
 
-static void producer_main(void *argument)
+/* A join that did not succeed: a timeout is CRUX_ERR_TIMEOUT, anything else CRUX_ERR_IO. */
+static crux_status_t join_status(workload_os_status_t result)
 {
-    (void)argument;
+    if (result == WORKLOAD_OS_OK) {
+        return CRUX_OK;
+    }
+    return result == WORKLOAD_OS_TIMEOUT ? CRUX_ERR_TIMEOUT : CRUX_ERR_IO;
+}
+
+static void producer_main(void)
+{
     crux_monotonic_time_t start;
     workload_cycle_t cycle;
 
@@ -81,7 +78,7 @@ static void producer_main(void *argument)
             if (wait_ms > MAX_SLEEP_MS) {
                 wait_ms = MAX_SLEEP_MS;
             }
-            (void)crux_thread_sleep_for(crux_duration_from_ms((int32_t)wait_ms));
+            workload_os_sleep_ms((uint32_t)wait_ms);
             continue;
         }
         for (uint32_t i = 0; i < due; i++) {
@@ -92,22 +89,20 @@ static void producer_main(void *argument)
             }
             const workload_message_t message = {.cycle = number, .value = WORKLOAD_VALUE_OF(number)};
 
-            if (crux_queue_send(state.queue, &message, sizeof message, 0) != CRUX_OK) {
+            if (workload_os_queue_send(&message) != WORKLOAD_OS_OK) {
                 (void)crux_log_write(CRUX_LOG_WARN, "workload", "queue full, message dropped");
             }
         }
     }
 }
 
-static void consumer_main(void *argument)
+static void consumer_main(void)
 {
-    (void)argument;
     for (;;) {
         workload_message_t message;
-        const crux_status_t status =
-            crux_queue_receive(state.queue, &message, sizeof message, RECEIVE_TIMEOUT_MS);
+        const workload_os_status_t status = workload_os_queue_receive(&message, RECEIVE_TIMEOUT_MS);
 
-        if (status == CRUX_OK) {
+        if (status == WORKLOAD_OS_OK) {
             char text[64];
 
             (void)snprintf(text, sizeof text, "cycle=%u value=%u", (unsigned)message.cycle,
@@ -120,7 +115,7 @@ static void consumer_main(void *argument)
         }
         /* The consumer is asked to stop only after the producer was joined, so a timeout with
          * that request means the queue is drained. Any other result ends the thread. */
-        if (status != CRUX_ERR_TIMEOUT || atomic_load(&state.stop_consumer)) {
+        if (status != WORKLOAD_OS_TIMEOUT || atomic_load(&state.stop_consumer)) {
             return;
         }
     }
@@ -133,10 +128,6 @@ void workload_thread_set_sink(workload_sink_t sink)
 
 int workload_thread_start(const workload_config_t *config)
 {
-    const crux_thread_options_t options = {
-        .stack_size_bytes = STACK_BYTES, .priority = CRUX_THREAD_PRIORITY_NORMAL};
-    crux_status_t status;
-
     if (state.running) {
         return CRUX_ERR_INVALID_STATE;
     }
@@ -147,22 +138,11 @@ int workload_thread_start(const workload_config_t *config)
     atomic_store(&state.stop_producer, false);
     atomic_store(&state.stop_consumer, false);
 
-    status = crux_queue_create(QUEUE_CAPACITY, sizeof(workload_message_t), &state.queue);
-    if (status != CRUX_OK) {
-        return status;
-    }
-    status = crux_thread_create(&options, consumer_main, NULL, &state.consumer);
-    if (status != CRUX_OK) {
-        (void)crux_queue_destroy(&state.queue);
-        return status;
-    }
-    status = crux_thread_create(&options, producer_main, NULL, &state.producer);
-    if (status != CRUX_OK) {
-        atomic_store(&state.stop_consumer, true);
-        if (crux_thread_join(&state.consumer, CONSUMER_JOIN_TIMEOUT_MS) == CRUX_OK) {
-            (void)crux_queue_destroy(&state.queue);
-        }
-        return status;
+    /* The adapter creates the consumer first and the producer second, and creates neither when it
+     * returns an error. The kernel does not fail to create a thread, so there is no half-started
+     * state to unwind here. */
+    if (workload_os_start(producer_main, consumer_main) != WORKLOAD_OS_OK) {
+        return CRUX_ERR_NO_RESOURCES;
     }
     state.running = true;
     return 0;
@@ -177,19 +157,16 @@ int workload_thread_stop(void)
     }
     /* Producer first, so that nothing is queued after the consumer is told to finish. */
     atomic_store(&state.stop_producer, true);
-    status = crux_thread_join(&state.producer, JOIN_TIMEOUT_MS);
+    status = join_status(workload_os_join_producer(JOIN_TIMEOUT_MS));
     if (status != CRUX_OK) {
         return status;
     }
     atomic_store(&state.stop_consumer, true);
-    status = crux_thread_join(&state.consumer, CONSUMER_JOIN_TIMEOUT_MS);
+    status = join_status(workload_os_join_consumer(CONSUMER_JOIN_TIMEOUT_MS));
     if (status != CRUX_OK) {
         return status;
     }
-    status = crux_queue_destroy(&state.queue);
-    if (status != CRUX_OK) {
-        return status;
-    }
+    workload_os_release();
     state.running = false;
     return 0;
 }
