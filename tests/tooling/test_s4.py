@@ -232,7 +232,7 @@ class S4Sources(unittest.TestCase):
     def test_the_glue_and_its_header_pass_the_boundary_check_against_a_crux_that_publishes_system(self):
         with tempfile.TemporaryDirectory() as directory:
             crux = pathlib.Path(directory)
-            for name in ("system.h", "logging.h", "status.h", "time.h", "file.h"):
+            for name in ("system.h", "logging.h", "status.h", "time.h", "time_authority.h", "file.h"):
                 header = crux / "components" / "x" / "include" / "crux" / name
                 header.parent.mkdir(parents=True, exist_ok=True)
                 header.write_text("")
