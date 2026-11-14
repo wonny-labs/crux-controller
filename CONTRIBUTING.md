@@ -12,7 +12,7 @@ those interfaces shows up here and is reported to `crux-pilot` as an issue.
 - It is not a product, not Crux, and it adds no Crux public interface.
 - It may provide supporting evidence for a Crux milestone. It is never a mandatory exit criterion of one.
 - It is not evidence for any Crux security claim. That evidence lives in `crux-pilot`.
-- Its workload is synthetic and written for this repository. Steps S0 to S3 are built in CI. Step S2 has
+- Its workload is synthetic and written for this repository. Steps S0 to S4 are built in CI. Step S2 has
   run on a board (twice, on one bench; see `docs/findings/s2-first-board-run.md`) and nothing else
   has, and a change must not claim otherwise.
 
@@ -54,8 +54,8 @@ the pull request says so. CI is configured in `.github/workflows/`:
 
 | Workflow | Jobs | When |
 |---|---|---|
-| `ci.yml` | `Tooling tests`, `West pins`, `Host tests` (sanitizer off and on), `S1` (Twister on `native_sim` for the scenarios in `tests/native_sim`, then the RT1060-EVKB build), `S2 build`, `S3 build`, `S0 build`, `Boundary check` (names shortened) | pull requests and pushes to `main` |
-| `budget.yml` | `Budget` for S0 to S3: static resource use against `budgets/limits.json` | pull requests and pushes to `main` |
+| `ci.yml` | `Tooling tests`, `West pins`, `Host tests` (sanitizer off and on), `S1` (Twister on `native_sim` for the scenarios in `tests/native_sim`, then the RT1060-EVKB build), `S2 build`, `S3 build`, `S4 build`, `S0 build`, `Boundary check` (names shortened) | pull requests and pushes to `main` |
+| `budget.yml` | `Budget` for S0 to S4: static resource use against `budgets/limits.json` | pull requests and pushes to `main` |
 | `rebuild.yml` | builds S2 twice at different paths and compares `zephyr.bin` and `firmware_identity` | by hand, and pull requests that change the workflow or `release/` |
 | `release.yml` | dry run of the release flow, publishes nothing | by hand, and pull requests that change the workflow, `release/` or `west.yml` |
 | `scheduled-main.yml` | `S2 build against crux-pilot main` | daily, and by hand |
