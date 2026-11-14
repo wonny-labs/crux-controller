@@ -1,0 +1,13 @@
+common:
+  platform_allow:
+    - native_sim/native/64
+  tags:
+    - controller
+    - s4
+tests:
+  controller.s4.native_sim.reset_cause:
+    extra_args: S4_CASE=reset_cause
+  controller.s4.native_sim.watchdog_unsupported:
+    extra_args: S4_CASE=watchdog_unsupported
+  controller.s4.native_sim.period_out_of_range:
+    extra_args: S4_CASE=period_out_of_range

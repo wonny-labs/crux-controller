@@ -31,4 +31,11 @@ if(CONFIG_CRUX_CONTROLLER_S1)
         target_sources(app PRIVATE src/config_store.c)
         target_link_libraries(app PRIVATE crux::file compose)
     endif()
+    # Step S4: the reset cause and the watchdog, through <crux/system.h>. The glue and the policy
+    # are sources of the application, and crux::system gives the public header only: the driver,
+    # HWINFO and reboot facilities are inside Crux, so no zone and no include path is added here.
+    if(CONFIG_CRUX_CONTROLLER_S4)
+        target_sources(app PRIVATE src/health.c src/health_policy.c)
+        target_link_libraries(app PRIVATE crux::system)
+    endif()
 endif()

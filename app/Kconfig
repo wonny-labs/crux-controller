@@ -43,6 +43,19 @@ config CRUX_CONTROLLER_S3
 	  exist on the card, and a card without it leaves the default configuration in use, as
 	  does a volume that does not mount. Built and never run in Stage 1 CI.
 
+config CRUX_CONTROLLER_S4
+	bool "Step S4: report the reset cause and feed a watchdog from the workload cycle"
+	depends on CRUX_CONTROLLER_S1 && CRUX_SYSTEM && WATCHDOG && HWINFO && REBOOT
+	help
+	  At start, write one line for the reset cause through Crux Logging and clear the flags, then
+	  start the one watchdog of the boot with an interval of about ten workload cycles and feed it
+	  once for each workload cycle, from the workload's producer thread and nowhere else. The
+	  application uses <crux/system.h> only. The native watchdog, HWINFO and reboot facilities,
+	  and the devicetree alias crux-watchdog0 (boards/s4.overlay), are what Crux System requires of
+	  the image; the product selects no Crux symbol. A platform without a watchdog, such as the
+	  native_sim simulator, reports it as not supported and the workload runs without one. A missed
+	  feed ends in the watchdog's own reset; the product adds none. Built and never run on a board.
+
 config CRUX_CONTROLLER_WORKER_STACK
 	int "Stack bytes of each workload thread"
 	default 4096
