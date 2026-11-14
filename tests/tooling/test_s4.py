@@ -498,7 +498,8 @@ class S4Workflows(unittest.TestCase):
 
     def test_the_budget_rows_of_the_other_steps_are_unchanged(self):
         rows = self.budget_rows()
-        self.assertEqual(["S0", "S1", "S2", "S3", "S4"], sorted(rows))
+        # Step S5 later added its own row, which test_s5.py pins.
+        self.assertEqual(["S0", "S1", "S2", "S3", "S4", "S5"], sorted(rows))
         self.assertEqual(("", "", ""), (rows["S0"]["conf"], rows["S0"]["overlay"], rows["S0"]["require"]))
         self.assertEqual("conf/s1.conf", rows["S1"]["conf"])
         self.assertEqual("conf/s1.conf;conf/s2.conf", rows["S2"]["conf"])

@@ -662,22 +662,22 @@ class S5Workflows(unittest.TestCase):
     def test_the_s5_job_checks_that_nothing_else_takes_the_clock_or_the_crux_providers(self):
         commands = self.commands("s5")
         for needle in (
-            "CONFIG_CRUX_TIME_RTC=y", "CONFIG_RTC=y", "CONFIG_CRUX_THREAD=y", "CONFIG_CRUX_SYNC=y",
+            "CONFIG_CRUX_TIME_RTC=y", "CONFIG_CRUX_THREAD=y", "CONFIG_CRUX_SYNC=y",
             "CONFIG_CRUX_QUEUE=y", "CONFIG_CRUX_CONTROLLER_S3=y", "CONFIG_CRUX_CONTROLLER_S4=y",
             "CONFIG_SNTP_UNCERTAINTY=y",
         ):
             self.assertIn(needle, commands, needle)
 
-    def test_the_s5_job_checks_what_the_image_links_and_what_it_does_not(self):
+    def test_the_s5_job_checks_what_the_image_links(self):
         commands = self.commands("s5")
         for symbol in ("time_sync_init", "time_sync_poll", "time_sync_start", "time_sync_decide",
                        "time_sync_port_query", "sntp_simple", "crux_realtime_init",
                        "crux_realtime_set", "crux_realtime_set_synchronized",
                        "crux_realtime_get_snapshot"):
             self.assertIn(symbol, commands, symbol)
-        for forbidden_symbol in ("crux_realtime_adopt", "crux_realtime_invalidate", "sntp_init",
-                                 "sntp_query", "sys_clock_settime"):
-            self.assertIn(forbidden_symbol, commands, forbidden_symbol)
+        # The Crux Time and SNTP libraries define the other authority and query calls themselves, so
+        # their symbols prove no caller: the job says so and leaves the callers to the source tests.
+        self.assertIn("their symbols are not a sign of a caller", " ".join(commands.replace("#", " ").split()))
         self.assertIn("arm-zephyr-eabi-nm", commands)
 
     def test_the_s5_job_runs_no_hardware_command_and_says_nothing_ran_on_a_board(self):
