@@ -45,11 +45,11 @@ class S3Configuration(unittest.TestCase):
                               "SECURE", "CREDENTIAL", "CRUX_MGMT", "CRUX_WEB", "SSH"):
                 self.assertNotIn(forbidden, name.upper(), name)
 
-    def test_the_step_option_needs_the_thread_service_and_the_provider(self):
+    def test_the_step_option_needs_the_workload_step_and_the_provider(self):
         kconfig = (ROOT / "app" / "Kconfig").read_text()
         block = re.search(r"config CRUX_CONTROLLER_S3\n(.*?)(?=\nconfig |\nsource )", kconfig, re.S)
         self.assertIsNotNone(block)
-        self.assertIn("depends on CRUX_THREAD && CRUX_FILE_FATFS_RT1060", block.group(1))
+        self.assertIn("depends on CRUX_CONTROLLER_S1 && CRUX_FILE_FATFS_RT1060", block.group(1))
 
     def test_the_overlay_declares_the_fstab_entry_the_zone_looks_up(self):
         text = (ROOT / "app" / "boards" / "s3.overlay").read_text()

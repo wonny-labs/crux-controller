@@ -5,7 +5,7 @@
 #include <crux/status.h>
 #include <crux/time.h>
 
-#ifdef CONFIG_CRUX_THREAD
+#ifdef CONFIG_CRUX_CONTROLLER_S1
 #include "workload.h"
 #include "workload_thread.h"
 #endif
@@ -72,7 +72,7 @@ int composition_start(void)
     if (clock != CRUX_OK) {
         return clock;
     }
-#ifdef CONFIG_CRUX_THREAD
+#ifdef CONFIG_CRUX_CONTROLLER_S1
     /* S1: the workload runs on Zephyr threads behind the product-owned port (the Zephyr calls are in
      * app/os) and reports through Crux Logging. */
     workload_config_t config;

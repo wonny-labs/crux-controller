@@ -12,8 +12,8 @@ target_compile_options(app PRIVATE -Wall -Wextra -Werror)
 # Step S1 and later: the workload on Zephyr threads, a message queue and Crux Logging. Its
 # portable core is a library of this repository, and the thread and queue calls are the source of
 # the adapter zone (app/os), so the application takes no include path of its own and links neither
-# Crux Thread nor Crux Queue.
-if(CONFIG_CRUX_THREAD)
+# Crux Thread nor Crux Queue. The switch is the product's own option, CRUX_CONTROLLER_S1.
+if(CONFIG_CRUX_CONTROLLER_S1)
     add_subdirectory(../workload workload)
     add_subdirectory(os)
     target_sources(app PRIVATE src/workload_thread.c)

@@ -1,8 +1,21 @@
 # SPDX-License-Identifier: Apache-2.0
 
+config CRUX_CONTROLLER_S1
+	bool "Step S1: the workload on Zephyr threads and a message queue"
+	depends on MULTITHREADING
+	# The adapter zone builds absolute deadlines (K_TIMEOUT_ABS_TICKS), which need 64-bit kernel
+	# timeouts. Zephyr turns them on by default, and the Crux Thread and Queue providers selected
+	# them while the workload called those providers. The product asks for them itself now.
+	select TIMEOUT_64BIT
+	help
+	  Run the workload: a producer and a consumer thread joined by one message queue, created by
+	  the adapter zone app/os with Zephyr kernel calls, reading Crux Time and reporting through
+	  Crux Logging. Steps S2 and S3 build on this one. The product uses no Crux Thread, Sync or
+	  Queue provider, so none is selected for it.
+
 config CRUX_CONTROLLER_S2
 	bool "Step S2: send each workload message to a TCP peer"
-	depends on CRUX_THREAD && CRUX_SOCKETS && CRUX_NETIF
+	depends on CRUX_CONTROLLER_S1 && CRUX_SOCKETS && CRUX_NETIF
 	help
 	  After a message is logged, open a TCP connection to the peer, send the message
 	  and expect the same eight bytes back. The Sockets profile of Crux defines the
@@ -21,7 +34,7 @@ config CRUX_CONTROLLER_PEER_PORT
 
 config CRUX_CONTROLLER_S3
 	bool "Step S3: keep the workload configuration record in a file"
-	depends on CRUX_THREAD && CRUX_FILE_FATFS_RT1060
+	depends on CRUX_CONTROLLER_S1 && CRUX_FILE_FATFS_RT1060
 	help
 	  At start, mount the microSD volume that the devicetree entry controller_storage
 	  describes, bind its files directory to Crux File, load the configuration record from
@@ -33,6 +46,11 @@ config CRUX_CONTROLLER_S3
 config CRUX_CONTROLLER_WORKER_STACK
 	int "Stack bytes of each workload thread"
 	default 4096
-	depends on CRUX_THREAD
+	range 1024 65536
+	depends on CRUX_CONTROLLER_S1
+	help
+	  Each of the two workload threads has a stack of this size. The default is what the Crux
+	  Thread provider gave the workload before it called Zephyr directly, and the S2 image sets
+	  8192 because its exchange reaches into the network stack.
 
 source "Kconfig.zephyr"
