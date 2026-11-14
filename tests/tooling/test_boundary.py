@@ -742,36 +742,38 @@ class OsAdapterZone(unittest.TestCase):
         files = {"workload/cycle.c": "#include <zephyr/kernel.h>\n"}
         self.assertEqual(["zephyr/kernel.h"], reasons(run(files)))
 
+    def assertRejectedAsQuotedHeader(self, files, source, include):
+        """The reaching include is the one violation, and the rule that rejects it is the
+        quoted-header rule, not a count that some other include could also produce."""
+        (violation,) = run(files)
+        self.assertEqual(source, violation.path, include)
+        self.assertEqual(1, violation.line, include)
+        self.assertEqual(include, violation.include)
+        self.assertIn("quoted header is not in this tree", violation.reason, include)
+
     def test_app_src_may_not_reach_a_header_of_the_adapter_zone(self):
-        for text in (
-            '#include "../os/adapter_private.h"\n',
-            '#include "os/adapter_private.h"\n',
-            '#include "adapter_private.h"\n',
-        ):
+        for include in ("../os/adapter_private.h", "os/adapter_private.h", "adapter_private.h"):
             files = {
-                "app/src/main.c": text,
+                "app/src/main.c": f'#include "{include}"\n',
                 "app/os/adapter_private.h": "#include <zephyr/kernel.h>\n",
             }
-            self.assertEqual(1, len(run(files)), text)
+            self.assertRejectedAsQuotedHeader(files, "app/src/main.c", include)
 
     def test_the_composition_zone_may_not_reach_a_header_of_the_adapter_zone(self):
-        for text in (
-            '#include "../os/adapter_private.h"\n',
-            '#include "os/adapter_private.h"\n',
-            '#include "adapter_private.h"\n',
-        ):
+        for include in ("../os/adapter_private.h", "os/adapter_private.h", "adapter_private.h"):
             files = {
-                "app/compose/mount.c": text,
+                "app/compose/mount.c": f'#include "{include}"\n',
                 "app/os/adapter_private.h": "#include <zephyr/kernel.h>\n",
             }
-            self.assertEqual(1, len(run(files)), text)
+            self.assertRejectedAsQuotedHeader(files, "app/compose/mount.c", include)
 
     def test_the_workload_may_not_reach_a_header_of_the_adapter_zone(self):
-        files = {
-            "workload/src/a.c": '#include "../../app/os/adapter_private.h"\n',
-            "app/os/adapter_private.h": "",
-        }
-        self.assertEqual(1, len(run(files)))
+        for include in ("../../app/os/adapter_private.h", "app/os/adapter_private.h"):
+            files = {
+                "workload/src/a.c": f'#include "{include}"\n',
+                "app/os/adapter_private.h": "#include <zephyr/kernel.h>\n",
+            }
+            self.assertRejectedAsQuotedHeader(files, "workload/src/a.c", include)
 
     # Scan forms and reporting hold in the adapter zone.
 
@@ -790,11 +792,15 @@ class OsAdapterZone(unittest.TestCase):
         for text in (
             "#include \\\n    <zephyr/sys/printk.h>\n",
             "#inc\\\nlude <zephyr/sys/printk.h>\n",
+            "#include \\\r\n  <zephyr/sys/printk.h>\r\n",
             "#include <zephyr/sys/printk.h>\r\n",
             "%:include <zephyr/sys/printk.h>\n",
             "??=include <zephyr/sys/printk.h>\n",
+            "\f#include <zephyr/sys/printk.h>\n",
+            "  #  include   <zephyr/sys/printk.h>\n",
             "#include_next <zephyr/sys/printk.h>\n",
             "#import <zephyr/sys/printk.h>\n",
+            'const char *s = "/*";\n#include <zephyr/sys/printk.h>\nconst char *t = "*/";\n',
         ):
             self.assertEqual(["zephyr/sys/printk.h"], reasons(self.in_adapter(text)), repr(text))
 
@@ -807,6 +813,34 @@ class OsAdapterZone(unittest.TestCase):
     def test_a_commented_include_in_the_adapter_is_ignored(self):
         text = "/* #include <zephyr/sys/printk.h> */\n// #include <ff.h>\n"
         self.assertEqual([], self.in_adapter(text))
+
+    def test_a_multi_line_block_comment_hides_an_include_in_the_adapter(self):
+        text = "/*\n#include <zephyr/sys/printk.h>\n#include <ff.h>\n*/\n"
+        self.assertEqual([], self.in_adapter(text))
+
+    def test_a_comment_inside_a_directive_does_not_hide_the_include_in_the_adapter(self):
+        for text in (
+            "#/* c */include <zephyr/sys/printk.h>\n",
+            "#include /* c */ <zephyr/sys/printk.h>\n",
+            "#include <zephyr/sys/printk.h> // the next line is fine\n",
+            "#include <zephyr/sys/printk.h> /* trailing */\n",
+        ):
+            (violation,) = self.in_adapter(text)
+            self.assertEqual("zephyr/sys/printk.h", violation.include, repr(text))
+            self.assertEqual(1, violation.line, repr(text))
+
+    def test_a_comment_inside_the_keyword_does_not_form_an_include_in_the_adapter(self):
+        # A comment is one space to the compiler, so "inc" and "lude" are two tokens.
+        self.assertEqual([], self.in_adapter("#inc/* c */lude <zephyr/sys/printk.h>\n"))
+
+    def test_an_include_in_a_disabled_conditional_block_is_still_checked_in_the_adapter(self):
+        # The check does not evaluate #if, so a disabled block cannot hide an include. It fails
+        # closed, and the allowed header stays allowed there.
+        text = "#if 0\n#include <zephyr/sys/printk.h>\n#endif\n"
+        (violation,) = self.in_adapter(text)
+        self.assertEqual("zephyr/sys/printk.h", violation.include)
+        self.assertEqual(2, violation.line)
+        self.assertEqual([], self.in_adapter("#if 0\n#include <zephyr/kernel.h>\n#endif\n"))
 
     def test_the_adapter_command_line_reports_a_violation(self):
         repo = Repo({"app/os/adapter.c": "#include <zephyr/sys/printk.h>\n"})
@@ -829,9 +863,53 @@ class OsAdapterZone(unittest.TestCase):
         )
         self.assertEqual(0, result.returncode, result.stdout)
 
+    PRODUCT = {
+        "app/src/main.c": "#include <stdint.h>\n",
+        "workload/src/cycle.c": "#include <stdint.h>\n",
+    }
+
     def test_an_absent_adapter_tree_is_skipped(self):
-        # main has no app/os yet, and the check must keep passing there.
-        self.assertEqual([], run({"app/src/main.c": "#include <stdint.h>\n"}))
+        # main has no app/os yet, and the check must keep passing there. A clean result alone
+        # would also come from a rule that never ran, so the same layout with the tree present
+        # must report the violation that the tree holds.
+        with_tree = dict(self.PRODUCT, **{"app/os/adapter.c": "#include <zephyr/sys/printk.h>\n"})
+        (violation,) = run(with_tree)
+        self.assertEqual("app/os/adapter.c", violation.path)
+        self.assertEqual("zephyr/sys/printk.h", violation.include)
+        self.assertEqual([], run(self.PRODUCT))
+
+    def test_an_absent_adapter_tree_is_not_an_error_on_the_command_line(self):
+        repo = Repo(self.PRODUCT)
+        self.addCleanup(repo.close)
+        result = subprocess.run(
+            [sys.executable, str(SCRIPTS / "check_boundary.py"), "--repo", str(repo.root)],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertEqual("boundary check passed\n", result.stdout)
+        self.assertEqual("", result.stderr)
+
+    def test_an_absent_tree_does_not_stop_the_scan_of_the_trees_after_it(self):
+        # Each tree alone: every tree before it is absent, so a skip that ended the scan would
+        # lose the violation of a later tree, and the adapter is the last one.
+        for tree, name in (
+            ("app/src", "main.c"),
+            ("workload", "cycle.c"),
+            ("app/compose", "mount.c"),
+            ("app/os", "adapter.c"),
+        ):
+            files = {f"{tree}/{name}": "#include <zephyr/sys/printk.h>\n"}
+            self.assertEqual([f"{tree}/{name}"], [v.path for v in run(files)], tree)
+
+    def test_an_absent_adapter_tree_does_not_hide_the_violations_of_the_other_trees(self):
+        files = {
+            "app/src/main.c": "#include <zephyr/kernel.h>\n",
+            "workload/src/cycle.c": "#include <crux/time.h>\n",
+        }
+        self.assertEqual(
+            ["app/src/main.c", "workload/src/cycle.c"], sorted(v.path for v in run(files))
+        )
 
 
 class FrozenCruxHeaders(unittest.TestCase):
