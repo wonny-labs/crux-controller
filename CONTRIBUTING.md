@@ -23,10 +23,10 @@ those interfaces shows up here and is reported to `crux-pilot` as an issue.
 
 | Tree | May include | Fails |
 |---|---|---|
-| `app/src` | ISO C, the headers of the Crux Sockets profile, public `<crux/NAME.h>` headers, its own tree, `workload/include` | any Zephyr header, `<crux/file_zephyr.h>`, a header of `app/compose` |
+| `app/src` | ISO C, the headers of the Crux Sockets profile, public `<crux/NAME.h>` headers except the frozen four, its own tree, `workload/include` | any Zephyr header, `<crux/thread.h>`, `<crux/sync.h>`, `<crux/queue.h>`, `<crux/serial.h>`, `<crux/file_zephyr.h>`, a header of `app/compose` |
 | `workload/` | ISO C and its own tree | Crux, Sockets profile and Zephyr headers |
 | `app/compose/` (the composition zone) | ISO C, public `<crux/NAME.h>` headers, `<crux/file_zephyr.h>`, `zephyr/fs/fs.h`, `zephyr/devicetree.h`, its own tree, header files (`.h`) of `app/src` | the Sockets profile, a Crux private or port header, any other Zephyr header, vendor and third-party headers |
-| `app/os/` (the adapter zone) | ISO C, public `<crux/NAME.h>` headers, `zephyr/kernel.h`, its own tree, header files (`.h`) of `app/src` | the Sockets profile and other POSIX headers, `<crux/file_zephyr.h>` or any composition interface, a Crux private or port header, any other Zephyr header, vendor and third-party headers |
+| `app/os/` (the adapter zone) | ISO C, public `<crux/NAME.h>` headers except the frozen four, `zephyr/kernel.h`, its own tree, header files (`.h`) of `app/src` | the Sockets profile and other POSIX headers, `<crux/thread.h>`, `<crux/sync.h>`, `<crux/queue.h>`, `<crux/serial.h>`, `<crux/file_zephyr.h>` or any composition interface, a Crux private or port header, any other Zephyr header, vendor and third-party headers |
 
 Any other include fails, and so does an include whose operand is a macro, because it cannot be checked.
 The check reads includes only, so do not add include paths in CMake: `app/CMakeLists.txt` is checked
