@@ -56,12 +56,12 @@ int health_report_reset_cause(void)
     crux_reset_cause_t cause = {0};
     char names[96];
     char text[160];
-    const crux_status_t read = crux_system_reset_cause_get(&cause);
+    const crux_status_t read_status = crux_system_reset_cause_get(&cause);
 
-    if (read != CRUX_OK) {
-        (void)snprintf(text, sizeof text, "reset cause unavailable status=%d", (int)read);
+    if (read_status != CRUX_OK) {
+        (void)snprintf(text, sizeof text, "reset cause unavailable status=%d", (int)read_status);
         say(HEALTH_LOG_WARN, text);
-        return (int)read;
+        return (int)read_status;
     }
     const health_boot_decision_t decision = health_boot_decide(cause.causes);
 

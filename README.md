@@ -9,6 +9,7 @@ Status: Stage 1, in progress. The repository builds in CI for the NXP RT1060-EVK
 Rev B with the Zephyr baseline gate required: a synthetic workload on Zephyr threads and a
 message queue behind an adapter zone, with Crux Time and Logging (step S1), a TCP exchange over the Crux Sockets profile (step S2), a
 configuration record kept in a file through Crux File (step S3, built and never run on a board),
+the reset cause and a single-owner watchdog through Crux System (step S4, built and never run on a board),
 and static resource use checked against declared limits. Step S2 ran twice on a board, on
 9 and 12 November 2026: both times the Ethernet link came up without the MDIO correction that the
 Crux sample applies, the board answered ping, and one TCP exchange with a host peer was echoed. The
@@ -22,9 +23,10 @@ has run on a board, and there is no release.
 | S1 | The workload on Zephyr threads and a message queue (adapter zone `app/os`), with Crux Time and Logging | yes | yes | not run |
 | S2 | A TCP exchange over the Crux Sockets profile | yes, over loopback | yes | ran twice, reproduced on one bench (link up, ping answered, one exchange echoed) |
 | S3 | A configuration record in a file through Crux File, mounted by the composition zone | yes, simulator provider on a RAM disk | yes, FatFs provider, microSD, no card used | not run |
+| S4 | The reset cause logged at boot and a watchdog fed once per workload cycle, through Crux System | yes, the boot line and a watchdog that the simulator does not have; no feed cycle | yes, WDOG1 named by a devicetree alias | not run |
 
 Every step is checked against its declared resource limits (`budgets/limits.json`,
-placeholders). What S3 needed from the product is recorded in `docs/findings/s3-file-composition.md`;
+placeholders). What S3 needed from the product is recorded in `docs/findings/s3-file-composition.md` and what S4 needed in `docs/findings/s4-system-composition.md`;
 what the two board runs of S2 show and do not show is recorded in `docs/findings/s2-first-board-run.md`.
 Why none of the Crux management features (HTTPS, serial and SSH command line, SFTP) is built here is
 recorded in `docs/findings/management-has-no-public-composition.md`.

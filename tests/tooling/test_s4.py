@@ -501,5 +501,45 @@ class S4Workflows(unittest.TestCase):
         self.assertNotIn("permissions", self.ci()["jobs"]["s4"])
 
 
+class S4Findings(unittest.TestCase):
+    NOTE = ROOT / "docs" / "findings" / "s4-system-composition.md"
+
+    def test_the_findings_note_exists_and_uses_the_three_labels(self):
+        text = self.NOTE.read_text()
+        for label in ("Measured", "Inferred", "Open"):
+            self.assertIn(label, text)
+
+    def test_the_note_says_nothing_ran_on_a_board_and_names_the_pinned_revision(self):
+        text = " ".join(self.NOTE.read_text().split())
+        self.assertIn("Nothing ran on a board", text)
+        self.assertIn("37c92b18b44b7dfb95c2109f036f23d00f05cb4c", text)
+
+    def test_the_note_records_that_the_simulator_cannot_show_a_feed_cycle(self):
+        text = " ".join(self.NOTE.read_text().split())
+        self.assertIn("a feed cycle", text)
+        self.assertIn("system_binding.c", text)
+
+    def test_the_note_claims_no_ci_result_it_does_not_have(self):
+        text = self.NOTE.read_text()
+        for claim in ("CI job \"S4 build", "CI job \"Budget S4"):
+            line = next(line for line in text.splitlines() if claim in line)
+            self.assertIn("Open", line)
+            self.assertIn("not yet known", line)
+
+    def test_the_readme_lists_s4_as_built_and_never_run_on_a_board(self):
+        readme = (ROOT / "README.md").read_text()
+        row = re.search(r"^\|\s*S4\s*\|.*$", readme, re.M)
+        self.assertIsNotNone(row)
+        self.assertIn("not run", row.group(0))
+        self.assertIn("s4-system-composition.md", readme)
+
+    def test_the_changelog_names_s4(self):
+        self.assertIn("S4", (ROOT / "CHANGELOG.md").read_text())
+
+    def test_the_pin_has_not_moved(self):
+        manifest = (ROOT / "west.yml").read_text()
+        self.assertIn("revision: 37c92b18b44b7dfb95c2109f036f23d00f05cb4c", manifest)
+
+
 if __name__ == "__main__":
     unittest.main()
