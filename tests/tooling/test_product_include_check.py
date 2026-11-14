@@ -61,6 +61,21 @@ class ProductIncludeCheckStep(unittest.TestCase):
         verify_line = next(line for line in self.run.splitlines() if "sha256sum" in line)
         self.assertIn("CHECK_SHA256", verify_line)
 
+    def test_the_verification_is_a_strict_check_that_cannot_be_ignored(self):
+        verify_line = next(line for line in self.run.splitlines() if "sha256sum" in line)
+        self.assertRegex(verify_line, r"sha256sum\s+--check\s+--strict\s+-\s*$")
+        for swallow in ("|| true", "|| :", "||true"):
+            self.assertNotIn(swallow, self.run)
+        self.assertNotIn("continue-on-error", self.step)
+        self.assertEqual(self.run.splitlines()[0].strip(), "set -euo pipefail")
+
+    def test_the_script_is_downloaded_to_the_temporary_directory_before_it_is_checked(self):
+        lines = [line.strip() for line in self.run.splitlines()]
+        self.assertTrue(lines[1].startswith('script="$RUNNER_TEMP/'))
+        curl = next(i for i, line in enumerate(lines) if line.startswith("curl"))
+        download = " ".join(lines[curl : curl + 3])
+        self.assertIn('--output "$script"', download)
+
     def test_a_failed_command_fails_the_step(self):
         self.assertIn("set -euo pipefail", self.run)
 
