@@ -362,6 +362,21 @@ jobs:
           west update crux-pilot
       - name: Check the includes of app/src, app/compose and workload
         run: python crux-controller/scripts/check_boundary.py --repo crux-controller --crux-root crux-pilot
+      # The crux-pilot revision pinned in west.yml predates this script, so it is downloaded
+      # from an immutable commit and checked against its hash. Moving the pin makes the
+      # download unnecessary.
+      - name: Run the Crux Pilot product include check
+        env:
+          CHECK_COMMIT: a72032b2f29c8c4579de8de07a43b40f19bb9516
+          CHECK_SHA256: eb297a527da071ed2e863fd456ec80a46c77b446f2544cf984f7a4775b94bf80
+        run: |
+          set -euo pipefail
+          script="$RUNNER_TEMP/check_domain_includes.py"
+          curl --fail --silent --show-error --location --retry 3 --output "$script" \
+            "https://raw.githubusercontent.com/wonny-labs/crux-pilot/${CHECK_COMMIT}/templates/product/check_domain_includes.py"
+          echo "${CHECK_SHA256}  ${script}" | sha256sum --check --strict -
+          cd crux-controller
+          python3 "$script" --product .
 
   s0:
     name: S0 build (RT1060-EVKB)
