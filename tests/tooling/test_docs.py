@@ -88,6 +88,14 @@ class Dependencies(unittest.TestCase):
         self.assertIn("`crux-secure-management`", page)
         self.assertIn("`crux-reliance`", page)
 
+    def test_the_page_documents_how_the_crux_import_is_narrowed(self):
+        page = text("docs/dependencies.md")
+        for phrase in ("name-blocklist", "scripts/check_mbed_only.py",
+                       "west list --all -f '{name} {active}'", "negative control"):
+            self.assertIn(phrase, page, phrase)
+        for name in ("wolfssl", "wolfssh", "wolfpsa", "mbedtls", "tf-psa-crypto"):
+            self.assertIn(f"`{name}`", page, name)
+
     def test_the_pinned_crux_revision_matches_the_manifest(self):
         manifest = yaml.safe_load((ROOT / "west.yml").read_text())["manifest"]
         pilot = next(p for p in manifest["projects"] if p["name"] == "crux-pilot")
