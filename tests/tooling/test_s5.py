@@ -717,5 +717,115 @@ class S5Workflows(unittest.TestCase):
         self.assertNotIn("permissions", self.ci()["jobs"]["s5"])
 
 
+class S5Findings(unittest.TestCase):
+    NOTE = ROOT / "docs" / "findings" / "s5-time-synchronisation.md"
+
+    def words(self, path=None):
+        return " ".join((path or self.NOTE).read_text().split())
+
+    def test_the_findings_note_exists_and_uses_the_three_labels(self):
+        text = self.NOTE.read_text()
+        for label in ("Measured", "Inferred", "Open"):
+            self.assertIn(label, text)
+
+    def test_the_note_says_nothing_ran_on_a_board_and_names_the_pinned_revision(self):
+        text = self.words()
+        self.assertIn("Nothing ran on a board", text)
+        self.assertIn("37c92b18b44b7dfb95c2109f036f23d00f05cb4c", text)
+
+    def test_the_note_states_each_rule_of_the_policy(self):
+        text = self.words()
+        for needle in (
+            "outside 2000-01-01 to 2100-01-01", "never sets", "counts as a failure",
+            "strictly", "marked not synchronised once", "any in-range answer",
+            "below the correction threshold", "up to and including the maximum step",
+            "refused", "synchronisation is lost", "the next in-range answer",
+            "a failed query at boot sets nothing",
+        ):
+            self.assertIn(needle, text, needle)
+
+    def test_the_note_lists_every_default_and_what_it_is(self):
+        text = self.words()
+        for needle in (
+            "192.168.77.1", "600 s", "3000 ms", "1800 s", "100 ms", "1000 ms", "8192",
+            "starting value", "not measured",
+        ):
+            self.assertIn(needle, text, needle)
+
+    def test_the_note_records_the_limits_the_owner_has_to_know(self):
+        text = self.words()
+        for needle in (
+            "unauthenticated", "a rogue server", "can move the clock", "accepted limitation",
+            "step, not a slew", "nothing persists time", "no RTC", "not valid after a reset",
+            "path delay is not compensated",
+        ):
+            self.assertIn(needle, text, needle)
+
+    def test_the_note_states_the_event_wall_clock_consequence(self):
+        text = self.words()
+        for needle in ("monotonic time", "snapshot", "seq", "up", "before the first set",
+                       "across a step", "shifted"):
+            self.assertIn(needle, text, needle)
+
+    def test_the_note_states_the_four_duties_as_consult_results_and_where_each_is_met(self):
+        text = self.words()
+        self.assertIn("consult", text)
+        for needle in ("staleness is the product's", "write failure", "one writer of the native clock",
+                       "events"):
+            self.assertIn(needle, text, needle)
+
+    def test_the_note_names_the_scenario_cases_and_what_they_cannot_show(self):
+        text = self.words()
+        for needle in ("failed native write", "first_sync", "kiss_of_death", "late_answer",
+                       "out_of_range", "step_refused_then_resync", "correction_and_threshold",
+                       "stale_after_silence", "v4.4.0", "v4.4.2"):
+            self.assertIn(needle, text, needle)
+
+    def test_the_note_claims_no_ci_result_it_does_not_have(self):
+        text = self.NOTE.read_text()
+        for claim in ("CI job \"S5 build", "CI job \"Budget S5", "CI job \"S1 (native_sim"):
+            line = next(line for line in text.splitlines() if claim in line)
+            self.assertIn("Open", line)
+            self.assertIn("not yet known", line)
+
+    def test_the_note_has_no_line_counts_and_no_private_planning_names(self):
+        text = self.NOTE.read_text()
+        self.assertNotIn("wc -l", text)
+        self.assertNotRegex(text, r"\bOD\d+\b|\bWD\d+\b|skeleton plan|work package")
+        self.assertNotRegex(text, r"/Users/|/home/")
+
+    def test_the_readme_lists_s5_as_built_and_never_run_on_a_board(self):
+        readme = (ROOT / "README.md").read_text()
+        row = re.search(r"^\|\s*S5\s*\|.*$", readme, re.M)
+        self.assertIsNotNone(row)
+        self.assertIn("not run", row.group(0))
+        self.assertIn("s5-time-synchronisation.md", readme)
+        self.assertIn("step S5", " ".join(readme.split()))
+
+    def test_the_changelog_names_s5_and_its_limits(self):
+        text = " ".join((ROOT / "CHANGELOG.md").read_text().split())
+        self.assertIn("S5", text)
+        self.assertIn("SNTP", text)
+        self.assertIn("unauthenticated", text)
+
+    def test_the_contributing_guide_lists_s5_where_it_lists_the_steps_and_jobs(self):
+        text = (ROOT / "CONTRIBUTING.md").read_text()
+        self.assertIn("Steps S0 to S5 are built in CI", text)
+        self.assertIn("`S5 build`", text)
+        self.assertIn("`Budget` for S0 to S5:", text)
+
+    def test_the_zone_note_no_longer_says_that_no_sntp_code_exists(self):
+        zone = " ".join((ROOT / "docs" / "composition-zone.md").read_text().split())
+        self.assertNotIn("no SNTP adapter exists yet", zone)
+        self.assertNotIn("holds one source", zone)
+        self.assertIn("time_sync_zephyr.c", zone)
+        adapter = (APP_OS / "workload_os_zephyr.c").read_text()
+        self.assertNotIn("which no source includes yet", adapter)
+
+    def test_the_pin_has_not_moved(self):
+        manifest = (ROOT / "west.yml").read_text()
+        self.assertIn("revision: 37c92b18b44b7dfb95c2109f036f23d00f05cb4c", manifest)
+
+
 if __name__ == "__main__":
     unittest.main()

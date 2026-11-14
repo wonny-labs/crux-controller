@@ -30,6 +30,16 @@ twice on a board (see `docs/findings/s2-first-board-run.md`); nothing else has r
   the target `crux::system`, a Kconfig fragment and a devicetree alias, with no new zone and no change to
   the boundary lists. Its conservative defaults are in `docs/findings/s4-system-composition.md`. S4 is built
   and never run on a board.
+- CI also builds step S5 (the Crux Time realtime clock set from an SNTP server, on the S2 network) and the Budget
+  job has an S5 row against limits declared first. A low-priority thread queries one IPv4 server through the
+  Zephyr SNTP library (called only in the adapter zone `app/os`, with `sntp_simple()`), and the product's
+  policy (`app/src/time_sync_policy.c`, plain C) decides what an answer may do: it never sets for a failed,
+  kiss-o'-death or out-of-range answer, sets any in-range answer while the clock is not synchronised, corrects a
+  synchronised clock from the threshold up to the maximum step, and refuses a larger step once and marks
+  synchronisation lost. A clock that nothing confirms for the stale age is marked not synchronised. The glue
+  `app/src/time_sync.c` is the only caller of the Crux Time authority. SNTP here is unauthenticated, the clock
+  is stepped and not slewed, nothing persists time, and S5 is built and never run on a board. Defaults and
+  limits are in `docs/findings/s5-time-synchronisation.md`.
 - A `native_sim` scenario runs S1, one for S2 uses the test-only `picolibc`, and one for S3 runs the
   file through the simulator provider on a RAM disk. Host tests with and
   without sanitizers cover the portable workload core.
@@ -46,7 +56,7 @@ twice on a board (see `docs/findings/s2-first-board-run.md`); nothing else has r
 - The adapter zone `app/os` may now include `<zephyr/net/sntp.h>`, the Zephyr SNTP library header,
   besides `<zephyr/kernel.h>`. Sockets stay off for the zone, and every other Zephyr header, the Zephyr
   and Crux Sockets profile socket headers included, still fails there. This allows the include only:
-  no SNTP code exists yet. See `docs/composition-zone.md`.
+  the first SNTP code is step S5 below. See `docs/composition-zone.md`.
 - The workload's build switch is the product's own Kconfig option `CRUX_CONTROLLER_S1`, not the Crux
   Thread provider. `app/Kconfig`, `app/CMakeLists.txt` and `app/src/composition.c` key on it, and no
   conf of the product or of the S1 scenario selects Crux Thread or Crux Queue any more. The worker

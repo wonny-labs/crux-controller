@@ -128,8 +128,8 @@ header itself, and the rule keeps `allow_sockets` off for the zone: `zephyr/net/
 Sockets profile headers and every other network header still fail there. The check reads direct
 includes only, so this relies on the zone not including socket headers itself, which the rule
 continues to forbid; a header that the library header includes in turn is not an include of the
-zone. The rule change allows the include and nothing else: no SNTP adapter exists yet, and the
-code that uses the header arrives in a later pull request.
+zone. The rule change allows the include and nothing else. The one source that uses it is
+`app/os/time_sync_zephyr.c` (step S5), which calls `sntp_simple()` and nothing else of the library.
 
 Why `zephyr/kernel.h` is not on the composition zone's list: that zone exists to mount a file system
 and bind it to Crux, and `COMPOSITION_ZEPHYR_HEADERS` names only what that needs. The kernel header
@@ -141,10 +141,10 @@ change to either list is a reviewed change of `scripts/check_boundary.py`, of
 set) and of this page, in one pull request.
 
 The same limit applies as for the composition zone: the check reads includes only, so the adapter
-zone adds no include path to the application target. The tree `app/os` holds one source,
-`workload_os_zephyr.c`, that its `CMakeLists.txt` adds to the application target. It is not a library
-of its own: as a static library of its own it left the references to the kernel's message queue
-unresolved in the CI link of the S1 and S3 images. `tests/tooling/test_os_adapter.py` checks that the zone adds no include path
+zone adds no include path to the application target. The tree `app/os` holds two sources,
+`workload_os_zephyr.c` (every step) and `time_sync_zephyr.c` (step S5 only), which its `CMakeLists.txt` adds to
+the application target. The zone is not a library of its own: as a static library it left the references to the
+kernel's message queue unresolved in the CI link of the S1 and S3 images. `tests/tooling/test_os_adapter.py` checks that the zone adds no include path
 and no library, and that the application target links neither a zone library nor Crux Thread nor Crux
 Queue.
 

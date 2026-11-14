@@ -10,6 +10,7 @@ Rev B with the Zephyr baseline gate required: a synthetic workload on Zephyr thr
 message queue behind an adapter zone, with Crux Time and Logging (step S1), a TCP exchange over the Crux Sockets profile (step S2), a
 configuration record kept in a file through Crux File (step S3, built and never run on a board),
 the reset cause and a single-owner watchdog through Crux System (step S4, built and never run on a board),
+the Crux Time realtime clock set from an SNTP server (step S5, built and never run on a board),
 and static resource use checked against declared limits. Step S2 ran twice on a board, on
 9 and 12 November 2026: both times the Ethernet link came up without the MDIO correction that the
 Crux sample applies, the board answered ping, and one TCP exchange with a host peer was echoed. The
@@ -24,9 +25,10 @@ has run on a board, and there is no release.
 | S2 | A TCP exchange over the Crux Sockets profile | yes, over loopback | yes | ran twice, reproduced on one bench (link up, ping answered, one exchange echoed) |
 | S3 | A configuration record in a file through Crux File, mounted by the composition zone | yes, simulator provider on a RAM disk | yes, FatFs provider, microSD, no card used | not run |
 | S4 | The reset cause logged at boot and a watchdog fed once for each pass of the workload that has cycles due, through Crux System | yes, the boot line and a watchdog that the simulator does not have; no feed cycle | yes, WDOG1 named by a devicetree alias | not run |
+| S5 | The Crux Time realtime clock set from an SNTP server by a low-priority thread, with a product policy for what an answer may do (on the S2 network) | yes, a responder over loopback: seven cases, no failed native write | yes, on the S2 base | not run |
 
 Every step is checked against its declared resource limits (`budgets/limits.json`,
-placeholders). What S3 needed from the product is recorded in `docs/findings/s3-file-composition.md` and what S4 needed in `docs/findings/s4-system-composition.md`;
+placeholders). What S3 needed from the product is recorded in `docs/findings/s3-file-composition.md`, what S4 needed in `docs/findings/s4-system-composition.md` and what S5 decides and leaves open in `docs/findings/s5-time-synchronisation.md`;
 what the two board runs of S2 show and do not show is recorded in `docs/findings/s2-first-board-run.md`.
 Why none of the Crux management features (HTTPS, serial and SSH command line, SFTP) is built here is
 recorded in `docs/findings/management-has-no-public-composition.md`.

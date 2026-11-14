@@ -5,7 +5,7 @@
  * sleeps. It implements the port that app/src declares (workload_os.h) with Zephyr kernel calls,
  * where the workload used the Crux Thread and Queue contracts before. The one Zephyr header this
  * file includes is <zephyr/kernel.h>, an entry on the allow-list of docs/composition-zone.md for
- * this zone (the allow-list also names zephyr/net/sntp.h, which no source includes yet).
+ * this zone (the allow-list also names zephyr/net/sntp.h, which only time_sync_zephyr.c includes).
  *
  * The numbers below are the ones that the Crux providers gave this workload, read at crux-pilot
  * revision 37c92b18b44b7dfb95c2109f036f23d00f05cb4c (the revision that west.yml pins when this
