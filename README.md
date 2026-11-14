@@ -58,8 +58,9 @@ a product-owned header that it declares itself. See `docs/composition-zone.md`.
 
 ## How it is tracked
 
-The platform questions and findings are tracked in a trial issue in the
-`crux-pilot` M7 milestone. Implementation is tracked in this repository's own
+The platform questions and findings are tracked in this repository's own issues: the epic #44 and
+its steps #40 (the management finding), #41 (S4), #42 and #43. Nothing has been filed in `crux-pilot`
+yet; filing there needs the owner's approval. Implementation is tracked in this repository's own
 milestones and issues.
 
 ## Licence, support and ownership
