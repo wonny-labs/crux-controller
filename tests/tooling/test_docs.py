@@ -110,5 +110,36 @@ class Dependencies(unittest.TestCase):
             self.assertIn(short, text(name), name)
 
 
+class Contributing(unittest.TestCase):
+    """The guide names the CI jobs and the steps that the workflows actually define."""
+
+    @staticmethod
+    def workflow(name):
+        return yaml.safe_load((ROOT / ".github" / "workflows" / name).read_text())
+
+    def build_steps(self):
+        names = [job["name"] for job in self.workflow("ci.yml")["jobs"].values()]
+        steps = [m.group(1) for m in (re.match(r"(S\d) build\b", n) for n in names) if m]
+        self.assertTrue(steps, "no step build job found in ci.yml")
+        return steps
+
+    def budget_steps(self):
+        matrix = self.workflow("budget.yml")["jobs"]["budget"]["strategy"]["matrix"]
+        return [entry["step"] for entry in matrix["include"]]
+
+    def test_the_ci_row_lists_every_step_build_job(self):
+        body = text("CONTRIBUTING.md")
+        for step in self.build_steps():
+            self.assertIn(f"`{step} build`", body, step)
+
+    def test_the_budget_row_covers_the_steps_of_the_budget_matrix(self):
+        steps = self.budget_steps()
+        self.assertIn(f"`Budget` for S0 to {steps[-1]}:", text("CONTRIBUTING.md"))
+
+    def test_the_role_section_names_the_steps_built_in_ci(self):
+        last = max(self.build_steps(), key=lambda step: int(step[1:]))
+        self.assertIn(f"Steps S0 to {last} are built in CI", text("CONTRIBUTING.md"))
+
+
 if __name__ == "__main__":
     unittest.main()
