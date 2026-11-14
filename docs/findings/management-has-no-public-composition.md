@@ -1,6 +1,6 @@
 # Finding: the management features have no public product composition
 
-Status: recorded after Stage 1 step S3. Filing it in `crux-pilot` needs the owner's approval and has not happened. No issue tracks it yet.
+Status: recorded after Stage 1 step S3. In this repository it is tracked by issue #40 (closed) and the epic #44. Filing it in `crux-pilot` needs the owner's approval and has not happened, and this repository has created no issue there.
 
 ## Finding
 

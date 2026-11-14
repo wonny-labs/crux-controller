@@ -110,6 +110,24 @@ class Dependencies(unittest.TestCase):
             self.assertIn(short, text(name), name)
 
 
+class Tracking(unittest.TestCase):
+    """The pages say where the management finding is tracked, and do not promise a filing."""
+
+    def test_the_finding_names_the_issues_that_track_it(self):
+        body = text("docs/findings/management-has-no-public-composition.md")
+        self.assertNotIn("No issue tracks it yet", body)
+        self.assertIn("#40", body)
+        self.assertIn("#44", body)
+        self.assertIn("has not happened", body)
+
+    def test_the_readme_names_the_epic_and_its_steps_and_no_trial_issue(self):
+        body = text("README.md")
+        self.assertNotIn("trial issue", body)
+        for number in ("#44", "#40", "#41", "#42", "#43"):
+            self.assertIn(number, body, number)
+        self.assertIn("Nothing has been filed in `crux-pilot` yet", body)
+
+
 class Contributing(unittest.TestCase):
     """The guide names the CI jobs and the steps that the workflows actually define."""
 
