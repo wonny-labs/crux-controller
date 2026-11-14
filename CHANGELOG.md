@@ -14,7 +14,8 @@ twice on a board (see `docs/findings/s2-first-board-run.md`); nothing else has r
 - A daily build against `crux-pilot` main (`.github/workflows/scheduled-main.yml`) reports pin
   mismatches and build failures in its job summary. It is information only: the pinned build stays
   the gate for pull requests, and the workflow publishes nothing.
-- CI builds step S0 (the skeleton), S1 (Crux threads, a queue and logging on a synthetic workload),
+- CI builds step S0 (the skeleton), S1 (Zephyr threads and a message queue in the `app/os` adapter zone, with Crux Time and Logging, on a
+  synthetic workload),
   S2 (a TCP exchange over the Crux Sockets profile) and S3 (a configuration record in a file through
   Crux File, mounted by the composition zone, on a FatFs provider for microSD) for the NXP RT1060-EVKB Rev B with the Zephyr
   baseline gate required. S3 is built and never run on a board; S2 ran twice on a board.
@@ -27,6 +28,10 @@ twice on a board (see `docs/findings/s2-first-board-run.md`); nothing else has r
 - A boundary check (`scripts/check_boundary.py`) limits what `app/src` and `workload` include, and a
   composition zone, `app/compose`, is the one place that may include `<crux/file_zephyr.h>`. See
   `docs/composition-zone.md`.
+- The workload runs its two threads and its queue through Zephyr calls in a second zone, `app/os`,
+  behind a product-owned port header of `app/src`. The boundary check fails `app/src` and `app/os`
+  on `<crux/thread.h>`, `<crux/sync.h>`, `<crux/queue.h>` and `<crux/serial.h>`. Not run on a board:
+  the S2 comparison with the earlier runs is still to do.
 - Static resource use is collected and checked against declared limits (`budgets/`), with a
   step summary per step.
 

@@ -834,6 +834,115 @@ class OsAdapterZone(unittest.TestCase):
         self.assertEqual([], run({"app/src/main.c": "#include <stdint.h>\n"}))
 
 
+class FrozenCruxHeaders(unittest.TestCase):
+    """app/src and app/os may not include the four frozen Crux headers.
+
+    OS facilities of the product use Zephyr directly in the adapter zone, so a later change must
+    not bring Crux Thread, Sync, Queue or Serial back. The other public Crux headers stay allowed,
+    and the rule does not touch the workload (which has no Crux header at all) or the composition
+    zone.
+    """
+
+    FROZEN = ("crux/thread.h", "crux/sync.h", "crux/queue.h", "crux/serial.h")
+    STILL_ALLOWED = ("crux/time.h", "crux/logging.h", "crux/status.h", "crux/file.h")
+
+    def crux_root(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        root = pathlib.Path(directory.name)
+        for name in self.FROZEN + self.STILL_ALLOWED:
+            path = root / "components" / "x" / "include" / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("")
+        return root
+
+    def test_the_frozen_set_is_the_reviewed_set(self):
+        self.assertEqual(frozenset(self.FROZEN), check_boundary.FROZEN_CRUX_HEADERS)
+
+    def test_each_frozen_header_fails_in_app_src(self):
+        for name in self.FROZEN:
+            violations = run({"app/src/workload.c": f"#include <{name}>\n"})
+            self.assertEqual([name], reasons(violations), name)
+            self.assertIn("frozen", violations[0].reason, name)
+
+    def test_each_frozen_header_fails_in_the_adapter_zone(self):
+        for name in self.FROZEN:
+            violations = run({"app/os/adapter.c": f"#include <{name}>\n"})
+            self.assertEqual([name], reasons(violations), name)
+            self.assertIn("frozen", violations[0].reason, name)
+
+    def test_each_frozen_header_fails_when_crux_publishes_it(self):
+        root = self.crux_root()
+        for name in self.FROZEN:
+            for path in ("app/src/a.c", "app/os/a.c"):
+                self.assertEqual([name], reasons(run({path: f"#include <{name}>\n"}, root)), path)
+
+    def test_the_message_names_the_header_and_the_way_out(self):
+        (violation,) = run({"app/src/a.c": "#include <crux/thread.h>\n"})
+        self.assertEqual("app/src/a.c", violation.path)
+        self.assertEqual(1, violation.line)
+        self.assertIn("frozen", violation.reason)
+        self.assertIn("app/os", violation.reason)
+
+    def test_the_other_public_headers_still_pass_in_both_trees(self):
+        text = "".join(f"#include <{name}>\n" for name in self.STILL_ALLOWED)
+        self.assertEqual([], run({"app/src/a.c": text}))
+        self.assertEqual([], run({"app/os/a.c": text}))
+        root = self.crux_root()
+        self.assertEqual([], run({"app/src/a.c": text}, root))
+        self.assertEqual([], run({"app/os/a.c": text}, root))
+
+    def test_the_hardened_scan_forms_find_a_frozen_header(self):
+        for text in (
+            "  #  include   <crux/queue.h>\n",
+            "%:include <crux/queue.h>\n",
+            "??=include <crux/queue.h>\n",
+            "#include \\\n<crux/queue.h>\n",
+            "#include_next <crux/queue.h>\n",
+            "#import <crux/queue.h>\n",
+        ):
+            for tree in ("app/src", "app/os"):
+                self.assertEqual(["crux/queue.h"], reasons(run({f"{tree}/a.c": text})), (tree, text))
+
+    def test_a_commented_frozen_include_is_ignored(self):
+        text = "/* #include <crux/thread.h> */\n// #include <crux/queue.h>\n"
+        self.assertEqual([], run({"app/src/a.c": text}))
+        self.assertEqual([], run({"app/os/a.c": text}))
+
+    def test_a_frozen_header_fails_in_a_header_file_too(self):
+        self.assertEqual(["crux/sync.h"], reasons(run({"app/src/port.h": "#include <crux/sync.h>\n"})))
+        self.assertEqual(["crux/sync.h"], reasons(run({"app/os/port.h": "#include <crux/sync.h>\n"})))
+
+    def test_only_the_two_product_trees_carry_the_rule(self):
+        denied = {r.directory: r.deny_crux for r in check_boundary.RULES}
+        self.assertEqual(check_boundary.FROZEN_CRUX_HEADERS, denied["app/src"])
+        self.assertEqual(check_boundary.FROZEN_CRUX_HEADERS, denied["app/os"])
+        self.assertEqual(frozenset(), denied["workload"])
+        self.assertEqual(frozenset(), denied["app/compose"])
+
+    def test_the_workload_keeps_its_own_message(self):
+        # The workload has no Crux header at all; the deny rule is not what stops it.
+        (violation,) = run({"workload/cycle.c": "#include <crux/thread.h>\n"})
+        self.assertEqual("Crux header in portable code", violation.reason)
+
+    def test_the_composition_zone_is_not_changed_by_the_rule(self):
+        compose = next(r for r in check_boundary.RULES if r.directory == "app/compose")
+        self.assertEqual(frozenset(), compose.deny_crux)
+        self.assertTrue(compose.allow_crux)
+
+    def test_the_command_line_reports_a_frozen_header(self):
+        repo = Repo({"app/os/adapter.c": "#include <crux/thread.h>\n"})
+        self.addCleanup(repo.close)
+        result = subprocess.run(
+            [sys.executable, str(SCRIPTS / "check_boundary.py"), "--repo", str(repo.root)],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(1, result.returncode)
+        self.assertIn("app/os/adapter.c:1", result.stdout)
+        self.assertIn("frozen", result.stdout)
+
+
 class BuildFiles(unittest.TestCase):
     """The check reads includes only, so the build files must not add include paths."""
 

@@ -17,9 +17,10 @@ typedef void (*workload_sink_t)(const workload_message_t *message);
 void workload_thread_set_sink(workload_sink_t sink);
 
 /*
- * Run the workload on Crux threads: one thread drives the cycle on the Crux monotonic clock
- * and queues a message every config->message_every cycles, another thread takes each message
- * from the queue and logs it through Crux Logging. Returns 0, or a negative crux_status_t.
+ * Run the workload on two threads that the adapter zone (app/os) creates through the port
+ * workload_os.h: one thread drives the cycle on the Crux monotonic clock and queues a message
+ * every config->message_every cycles, another thread takes each message from the queue and logs
+ * it through Crux Logging. Returns 0, or a negative crux_status_t.
  */
 int workload_thread_start(const workload_config_t *config);
 

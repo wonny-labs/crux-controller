@@ -31,6 +31,13 @@ Four trees are checked:
   three. The composition zone's list does not gain ``zephyr/kernel.h``. See
   ``docs/composition-zone.md``.
 
+``app/src`` and ``app/os`` also fail on the four frozen Crux headers, ``crux/thread.h``,
+``crux/sync.h``, ``crux/queue.h`` and ``crux/serial.h`` (``FROZEN_CRUX_HEADERS``), although they
+are public headers. The product uses Zephyr directly for threads and queues, in ``app/os`` behind a
+port header of ``app/src``, so the check keeps a later change from bringing the Crux contracts back.
+The rule is a field of the tree's ``Rule`` and does not apply to ``workload`` (which has no Crux
+header at all) or to ``app/compose``.
+
 Anything else fails: Zephyr, vendor and POSIX headers outside the profile, nested
 or unknown ``<crux/...>`` paths, and quoted headers that do not resolve inside the
 checked tree (a Crux port header reached through a private include directory is
@@ -72,6 +79,12 @@ COMPOSITION_ZEPHYR_HEADERS = frozenset({"zephyr/fs/fs.h", "zephyr/devicetree.h"}
 # this file, of tests/tooling/test_boundary.py and of that document.
 OS_ADAPTER_ZEPHYR_HEADERS = frozenset({"zephyr/kernel.h"})
 
+# The public Crux headers that the product no longer uses. Threads and queues come from Zephyr
+# directly, in app/os behind a port header of app/src (ADR-0002 of crux-pilot), so app/src and
+# app/os fail on these headers and the migration cannot be undone silently. Adding or removing a
+# name is a reviewed change of this file and of tests/tooling/test_boundary.py.
+FROZEN_CRUX_HEADERS = frozenset({"crux/thread.h", "crux/sync.h", "crux/queue.h", "crux/serial.h"})
+
 # The composition interfaces of Crux that the zone may include. A composition header is
 # <crux/NAME.h> that names a provider; Crux publishes it under components/*/ports/*/include/crux,
 # beside the public headers under components/*/include/crux. Any header of that kind is out of
@@ -96,11 +109,19 @@ class Rule:
     composition_crux: frozenset = frozenset()
     # True: a quoted include may name only a header file (suffix .h) of an extra root.
     extra_roots_headers_only: bool = False
+    # Public <crux/NAME.h> headers this tree may not include, by exact name.
+    deny_crux: frozenset = frozenset()
 
 
 RULES = (
     # The application binds the workload, so its public headers are in reach.
-    Rule("app/src", allow_sockets=True, allow_crux=True, extra_roots=("workload/include",)),
+    Rule(
+        "app/src",
+        allow_sockets=True,
+        allow_crux=True,
+        extra_roots=("workload/include",),
+        deny_crux=FROZEN_CRUX_HEADERS,
+    ),
     Rule("workload", allow_sockets=False, allow_crux=False),
     # The composition zone. Its headers of its own tree are scanned like the rest. app/src
     # is an extra root so that the zone can implement the product-owned header that app/src
@@ -127,6 +148,7 @@ RULES = (
         extra_roots=("app/src",),
         extra_roots_headers_only=True,
         zephyr_allow=OS_ADAPTER_ZEPHYR_HEADERS,
+        deny_crux=FROZEN_CRUX_HEADERS,
     ),
 )
 
@@ -239,6 +261,11 @@ def classify(include, angle, source, tree, extra_roots, rule, crux_headers, comp
     if include.startswith("crux/"):
         if not rule.allow_crux:
             return "Crux header in portable code"
+        if include in rule.deny_crux:
+            return (
+                "frozen Crux header (Thread, Sync, Queue and Serial are not used by the product): "
+                "use Zephyr directly in app/os behind a port header of app/src"
+            )
         known_composition = COMPOSITION_CRUX_HEADERS | (composition_headers or set())
         if include in known_composition:
             if include not in rule.composition_crux:
