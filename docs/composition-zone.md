@@ -35,7 +35,8 @@ carry a Zephyr or composition include back into the application.
 |---|---|---|---|---|---|---|---|
 | `app/src` (unchanged) | yes | yes | yes | no | none | yes | `workload/include` |
 | `workload` (unchanged) | yes | no | no | no | none | yes | none |
-| `app/compose` (new) | yes | no | yes | yes | the allow-list below, nothing else | yes | header files (`.h`) of `app/src` (the port header) |
+| `app/compose` | yes | no | yes | yes | the allow-list below, nothing else | yes | header files (`.h`) of `app/src` (the port header) |
+| `app/os` (the adapter zone, new) | yes | no | yes | no | `zephyr/kernel.h`, nothing else | yes | header files (`.h`) of `app/src` (the port header) |
 
 The zone fails on a Crux private or port header (`file_native.h`, a nested `<crux/ports/...>` path),
 on a Zephyr header that is not on the list, on any vendor or third-party header (`fsl_*.h`, `ff.h`,
@@ -67,7 +68,7 @@ Left off on purpose, and why:
 |---|---|
 | `zephyr/storage/disk_access.h` | `disk_access_init` only tells a missing card from a failed mount. `fs_mount` reports both, and a product that must tell them apart can ask for the header in a reviewed change. |
 | `ff.h` | The FatFs library header. Every reference composition in Crux includes it to declare a `FATFS` object. A mount that the devicetree describes as `zephyr,fstab,fatfs` makes Zephyr declare that object, so the zone does not need the header. Whether that route works for the S3 composition is a question of step S3, which records its answer in its own findings note. |
-| `zephyr/kernel.h`, `zephyr/sys/printk.h`, `zephyr/logging/log.h` | The composition returns a result code. The application logs and schedules through Crux. |
+| `zephyr/kernel.h`, `zephyr/sys/printk.h`, `zephyr/logging/log.h` | The composition returns a result code. The application logs and schedules through Crux. `zephyr/kernel.h` is allowed in the adapter zone `app/os` and stays off this list, see [The adapter zone](#the-adapter-zone). |
 | `zephyr/fs/littlefs.h`, `zephyr/fs/fs_sys.h` | Provider and file system specifics that S3 does not select. |
 | `zephyr/drivers/*`, `zephyr/net/*`, vendor `fsl_*.h` | Not part of mounting a file system. A driver or network detail in the zone would be a second product layer, not a composition. |
 
@@ -75,11 +76,59 @@ A change to the list is a change of `scripts/check_boundary.py`, of
 `tests/tooling/test_boundary.py` (`test_the_allow_list_is_the_reviewed_set` pins the set) and of this
 page, in one reviewed pull request.
 
-## What the zone does not cover
+## The adapter zone
 
-- The CMake side. The check reads includes only and does not see include paths from CMake. The zone
-  is built as its own library (`app/compose/CMakeLists.txt`) that links `crux::file_zephyr`
+`app/os` is a second zone, for the OS facilities of the product: threads, queues and sleeping.
+Crux offers these through `<crux/thread.h>`, `<crux/queue.h>` and their relatives, but a product
+adapter that needs them uses Zephyr directly, and that use has one place to live. The reason is
+that OS facilities use Zephyr directly in product adapters, while product behaviour stays plain C in
+`app/src`. The application declares a small product-owned port header in `app/src`, calls it, and
+the adapter in `app/os` implements it with Zephyr kernel calls. The link joins them; no include does.
+
+```mermaid
+flowchart LR
+    SRC["app/src<br/>product behaviour, plain C<br/>ISO C, Sockets profile, public crux/NAME.h"]
+    PORT["app/src port header<br/>product-owned, declared by the application"]
+    OS["app/os<br/>adapter zone<br/>zephyr/kernel.h only"]
+    KERNEL["Zephyr kernel<br/>threads, queues, sleeping"]
+    SRC -->|includes| PORT
+    OS -->|implements, includes| PORT
+    OS --> KERNEL
+    SRC -. "fails: zephyr/kernel.h,<br/>quoted include of an adapter header" .-> OS
+```
+
+The adapter zone may include ISO C headers, public `<crux/NAME.h>` headers, its own tree, header
+files (`.h`) of `app/src` and exactly one Zephyr header, `zephyr/kernel.h`
+(`OS_ADAPTER_ZEPHYR_HEADERS` in `scripts/check_boundary.py`, no wildcard). It fails on the Sockets
+profile and other POSIX headers, on `<crux/file_zephyr.h>` and any other composition interface, on
+every other Zephyr header (`zephyr/sys/printk.h`, `zephyr/logging/log.h`, a driver header, a
+network header), on a vendor or third-party header, and on a quoted include that does not resolve
+inside the zone or to a `.h` file of `app/src`. The scan forms and the indirect reach through an
+`app/src` header are the same as for the composition zone.
+
+`app/src`, `app/compose` and `workload` keep failing on `zephyr/kernel.h`, and a quoted include of an
+`app/os` header fails in all three, as a quoted include of a composition zone header does.
+
+Why `zephyr/kernel.h` is not on the composition zone's list: that zone exists to mount a file system
+and bind it to Crux, and `COMPOSITION_ZEPHYR_HEADERS` names only what that needs. The kernel header
+is the entry point to every kernel facility. If the composition zone could include it, a mount
+routine could grow thread and queue code that belongs in the adapter zone, and the composition zone
+would stop being a narrow composition. The two zones stay separate, each with an exact list, and a
+change to either list is a reviewed change of `scripts/check_boundary.py`, of
+`tests/tooling/test_boundary.py` (`test_the_adapter_allow_list_is_the_reviewed_set` pins the adapter
+set) and of this page, in one pull request.
+
+The same limit applies as for the composition zone: the check reads includes only, so the adapter
+zone is to be built as its own library that adds no include path to the application target. The
+tree `app/os` does not exist at this revision; the check skips a tree that is absent, so the rule
+takes effect with the first file placed there.
+
+## What the zones do not cover
+
+- The CMake side. The check reads includes only and does not see include paths from CMake. The
+  composition zone is built as its own library (`app/compose/CMakeLists.txt`) that links `crux::file_zephyr`
   privately, so the application target gets no include path from it. `tests/tooling/test_boundary.py`
   keeps checking that `app/CMakeLists.txt` adds none, and `tests/tooling/test_s3.py` checks that
-  only the zone's library links the composition interface and that the zone adds no include path.
+  only the composition zone's library links the composition interface and that the zone adds no
+  include path.
 - Whether a mount works. The check does not run anything.

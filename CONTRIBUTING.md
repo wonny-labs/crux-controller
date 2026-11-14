@@ -26,6 +26,7 @@ those interfaces shows up here and is reported to `crux-pilot` as an issue.
 | `app/src` | ISO C, the headers of the Crux Sockets profile, public `<crux/NAME.h>` headers, its own tree, `workload/include` | any Zephyr header, `<crux/file_zephyr.h>`, a header of `app/compose` |
 | `workload/` | ISO C and its own tree | Crux, Sockets profile and Zephyr headers |
 | `app/compose/` (the composition zone) | ISO C, public `<crux/NAME.h>` headers, `<crux/file_zephyr.h>`, `zephyr/fs/fs.h`, `zephyr/devicetree.h`, its own tree, header files (`.h`) of `app/src` | the Sockets profile, a Crux private or port header, any other Zephyr header, vendor and third-party headers |
+| `app/os/` (the adapter zone) | ISO C, public `<crux/NAME.h>` headers, `zephyr/kernel.h`, its own tree, header files (`.h`) of `app/src` | the Sockets profile and other POSIX headers, `<crux/file_zephyr.h>` or any composition interface, a Crux private or port header, any other Zephyr header, vendor and third-party headers |
 
 Any other include fails, and so does an include whose operand is a macro, because it cannot be checked.
 The check reads includes only, so do not add include paths in CMake: `app/CMakeLists.txt` is checked
@@ -33,7 +34,7 @@ for that.
 
 There is no exception, waiver or per-file opt-out. A boundary that a change can step over says nothing
 about what a real consumer can use, and it would hide the gap that this repository exists to find.
-To widen it (for example one more Zephyr header in the zone), change `scripts/check_boundary.py`,
+To widen it (for example one more Zephyr header in a zone), change `scripts/check_boundary.py`,
 `tests/tooling/test_boundary.py` and `docs/composition-zone.md` together in one pull request that is
 reviewed as such, and say in it why the public interface is not enough.
 

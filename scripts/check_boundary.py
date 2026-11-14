@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Fail when product source includes a header outside the public boundary.
 
-Three trees are checked:
+Four trees are checked:
 
 * ``app/src`` may include ISO C headers, the standard headers of the Crux Sockets
   profile, public ``<crux/NAME.h>`` headers, and headers of its own tree.
@@ -20,11 +20,21 @@ Three trees are checked:
   vendor or third-party header. ``app/src`` has no way into the zone: the composition
   interface and the allow-listed Zephyr headers fail there, and so does a quoted include of a
   zone header. See ``docs/composition-zone.md``.
+* ``app/os/`` is the adapter zone, where OS facilities (threads, queues, sleeping) use Zephyr
+  directly. It may include ISO C headers, public ``<crux/NAME.h>`` headers, headers of its own
+  tree, the headers of ``app/src`` (header files only: the product-owned port that ``app/src``
+  declares and the zone implements) and exactly one Zephyr header, ``zephyr/kernel.h``
+  (``OS_ADAPTER_ZEPHYR_HEADERS``). It may not include the Sockets profile or other POSIX headers,
+  the composition interface ``<crux/file_zephyr.h>`` or any other composition interface, any other
+  Zephyr header, or a vendor or third-party header. ``app/src``, ``app/compose`` and ``workload``
+  keep failing on ``zephyr/kernel.h``, and a quoted include of an adapter header fails in all
+  three. The composition zone's list does not gain ``zephyr/kernel.h``. See
+  ``docs/composition-zone.md``.
 
 Anything else fails: Zephyr, vendor and POSIX headers outside the profile, nested
 or unknown ``<crux/...>`` paths, and quoted headers that do not resolve inside the
 checked tree (a Crux port header reached through a private include directory is
-the case this catches). The check reads every file under both trees, whatever its suffix, and every
+the case this catches). The check reads every file under each tree, whatever its suffix, and every
 ``#include``, ``#include_next`` and ``#import`` directive, after joining lines that end in a
 backslash (as C joins them, with nothing in between), reading CRLF line ends, the digraph
 ``%:`` and the trigraph ``??=`` as ``#``, and removing comments. An operand that is not a literal ``<name>`` or ``"name"``
@@ -56,6 +66,11 @@ SOCKET_PROFILE = frozenset(
 # each one). There are no wildcards: a name is a header or it is not. Adding a name is a reviewed
 # change of this file, of tests/tooling/test_boundary.py and of that document.
 COMPOSITION_ZEPHYR_HEADERS = frozenset({"zephyr/fs/fs.h", "zephyr/devicetree.h"})
+
+# The adapter zone's exact allow-list of Zephyr headers (docs/composition-zone.md justifies it).
+# There are no wildcards: a name is a header or it is not. Adding a name is a reviewed change of
+# this file, of tests/tooling/test_boundary.py and of that document.
+OS_ADAPTER_ZEPHYR_HEADERS = frozenset({"zephyr/kernel.h"})
 
 # The composition interfaces of Crux that the zone may include. A composition header is
 # <crux/NAME.h> that names a provider; Crux publishes it under components/*/ports/*/include/crux,
@@ -99,6 +114,19 @@ RULES = (
         extra_roots_headers_only=True,
         zephyr_allow=COMPOSITION_ZEPHYR_HEADERS,
         composition_crux=COMPOSITION_CRUX_HEADERS,
+    ),
+    # The adapter zone. Threads, queues and sleeping use Zephyr directly here, while product
+    # behaviour stays plain C in app/src. app/src is an extra root, headers only, so that the zone
+    # can implement the product-owned port that app/src declares; that header is scanned under the
+    # rules of app/src, so it cannot carry a Zephyr include back into the application. No
+    # composition interface and no Sockets profile.
+    Rule(
+        "app/os",
+        allow_sockets=False,
+        allow_crux=True,
+        extra_roots=("app/src",),
+        extra_roots_headers_only=True,
+        zephyr_allow=OS_ADAPTER_ZEPHYR_HEADERS,
     ),
 )
 
@@ -204,7 +232,7 @@ def classify(include, angle, source, tree, extra_roots, rule, crux_headers, comp
         return None
     if include.startswith("zephyr/") or include == "zephyr.h":
         if rule.zephyr_allow:
-            return "Zephyr header that is not on the composition allow-list"
+            return "Zephyr header that is not on this zone's allow-list"
         return "Zephyr header"
     if include in ISO_C:
         return None
