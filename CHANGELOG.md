@@ -20,7 +20,7 @@ twice on a board (see `docs/findings/s2-first-board-run.md`); nothing else has r
   Crux File, mounted by the composition zone, on a FatFs provider for microSD) for the NXP RT1060-EVKB Rev B with the Zephyr
   baseline gate required. S3 is built and never run on a board; S2 ran twice on a board.
 - CI also builds step S4 (the reset cause and a single-owner watchdog through Crux System, with the
-  workload's producer thread feeding it once per cycle) on the S1 base, and the Budget job has an S4 row
+  workload's producer thread feeding it once for each pass that has cycles due) on the S1 base, and the Budget job has an S4 row
   against limits declared first. The product composes System with public means only: `<crux/system.h>`,
   the target `crux::system`, a Kconfig fragment and a devicetree alias, with no new zone and no change to
   the boundary lists. Its conservative defaults are in `docs/findings/s4-system-composition.md`. S4 is built

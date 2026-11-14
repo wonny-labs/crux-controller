@@ -111,7 +111,7 @@ health_status_t health_watchdog_timeout(uint32_t period_ms, uint32_t *timeout_ms
 
 typedef enum {
     HEALTH_FEED_IDLE,    /* not armed: no feed is wanted */
-    HEALTH_FEED_RUNNING, /* armed: one feed is wanted for each cycle */
+    HEALTH_FEED_RUNNING, /* armed: one feed is wanted for each pass that has cycles due */
     HEALTH_FEED_STOPPED, /* a feed was refused: no feed is wanted, for good */
 } health_feed_state_t;
 

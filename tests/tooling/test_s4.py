@@ -552,5 +552,78 @@ class S4Findings(unittest.TestCase):
         self.assertIn("revision: 37c92b18b44b7dfb95c2109f036f23d00f05cb4c", manifest)
 
 
+class S4StartFailureWording(unittest.TestCase):
+    """A failed start does not always mean that no watchdog runs. Crux can fail after the native
+    start was attempted, with the outcome unknown, and then WDOG1 may run unfed."""
+
+    def words(self, path):
+        return " ".join(pathlib.Path(path).read_text().split())
+
+    def test_the_glue_says_the_state_is_unknown_for_a_status_that_may_follow_an_attempt(self):
+        source = c_code(APP_SRC / "health.c")
+        self.assertIn("watchdog start failed", source)
+        self.assertIn("may be running", source)
+        self.assertIn("is not fed", source)
+        self.assertIn("may reset", source)
+        # Only these statuses mean that no watchdog was started: no device, or a refused timeout.
+        self.assertRegex(
+            source,
+            r"started == CRUX_ERR_NOT_SUPPORTED \|\| started == CRUX_ERR_OUT_OF_RANGE",
+        )
+
+    def test_the_not_started_wording_stays_for_the_cases_that_are_certain(self):
+        source = c_code(APP_SRC / "health.c")
+        self.assertEqual(3, source.count("watchdog not started"))  # allowed, policy, Crux
+
+    def test_the_three_places_name_the_three_certain_cases_and_the_unknown_one(self):
+        places = {
+            "health.h": self.words(APP_SRC / "health.h"),
+            "composition.c": self.words(APP_SRC / "composition.c"),
+            "findings": self.words(ROOT / "docs" / "findings" / "s4-system-composition.md"),
+        }
+        for name, text in places.items():
+            self.assertIn("state is unknown", text, name)
+            self.assertIn("may still reset", text, name)
+            self.assertNotRegex(text, r"workload runs without a watchdog\.? *$", name)
+
+    def test_the_findings_row_for_a_failed_start_no_longer_says_it_always_means_no_watchdog(self):
+        text = self.words(ROOT / "docs" / "findings" / "s4-system-composition.md")
+        row = re.search(r"\| A start that fails \|[^|]*\|", text)
+        self.assertIsNotNone(row)
+        self.assertNotIn("the workload runs without a watchdog", row.group(0))
+        self.assertIn("CRUX_ERR_OUT_OF_RANGE", row.group(0))
+        self.assertIn("CRUX_ERR_NOT_SUPPORTED", row.group(0))
+
+    def test_the_note_records_the_possible_reset_loop_and_the_supervision_it_needs(self):
+        text = self.words(ROOT / "docs" / "findings" / "s4-system-composition.md")
+        self.assertIn("keep resetting", text)
+        self.assertIn("supervised and time-limited", text)
+        self.assertIn("armed before workload_thread_start", text)
+
+
+class S4WordingFixes(unittest.TestCase):
+    def test_the_feed_is_once_per_pass_with_due_cycles_everywhere_it_is_described(self):
+        for path in (ROOT / "app" / "Kconfig", ROOT / "CHANGELOG.md", ROOT / "README.md"):
+            text = " ".join(path.read_text().split())
+            self.assertNotRegex(text, r"once (for each|per) (workload )?cycle", path.name)
+        self.assertIn("once for each pass that has cycles due",
+                      " ".join(kconfig_block("CRUX_CONTROLLER_S4").split()))
+
+    def test_the_findings_note_carries_no_line_counts_that_a_later_edit_makes_wrong(self):
+        text = (ROOT / "docs" / "findings" / "s4-system-composition.md").read_text()
+        self.assertNotIn("| Lines |", text)
+        self.assertNotIn("wc -l", text)
+
+    def test_the_findings_say_which_refused_feeds_fault_and_which_do_not(self):
+        text = " ".join((ROOT / "docs" / "findings" / "s4-system-composition.md").read_text().split())
+        self.assertIn("without moving the lifecycle to faulted", text)
+
+    def test_the_overlay_comment_names_only_what_was_read_at_the_pin(self):
+        text = (ROOT / "app" / "boards" / "s4.overlay").read_text()
+        self.assertNotIn("controller sample", text)
+        self.assertIn("tests/system_consumer", text)
+        self.assertIn("37c92b18", text)
+
+
 if __name__ == "__main__":
     unittest.main()

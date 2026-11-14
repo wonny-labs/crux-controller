@@ -23,7 +23,7 @@ has run on a board, and there is no release.
 | S1 | The workload on Zephyr threads and a message queue (adapter zone `app/os`), with Crux Time and Logging | yes | yes | not run |
 | S2 | A TCP exchange over the Crux Sockets profile | yes, over loopback | yes | ran twice, reproduced on one bench (link up, ping answered, one exchange echoed) |
 | S3 | A configuration record in a file through Crux File, mounted by the composition zone | yes, simulator provider on a RAM disk | yes, FatFs provider, microSD, no card used | not run |
-| S4 | The reset cause logged at boot and a watchdog fed once per workload cycle, through Crux System | yes, the boot line and a watchdog that the simulator does not have; no feed cycle | yes, WDOG1 named by a devicetree alias | not run |
+| S4 | The reset cause logged at boot and a watchdog fed once for each pass of the workload that has cycles due, through Crux System | yes, the boot line and a watchdog that the simulator does not have; no feed cycle | yes, WDOG1 named by a devicetree alias | not run |
 
 Every step is checked against its declared resource limits (`budgets/limits.json`,
 placeholders). What S3 needed from the product is recorded in `docs/findings/s3-file-composition.md` and what S4 needed in `docs/findings/s4-system-composition.md`;

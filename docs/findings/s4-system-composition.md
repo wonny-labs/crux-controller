@@ -36,16 +36,16 @@ and `system_binding.c`, Inferred). A product never includes them, and S4 does no
 
 ## What a product had to write
 
-| Item | File | Lines |
-|---|---|---|
-| The policy: cause classes and boot line level, the watchdog interval, the feed tracker | `app/src/health_policy.h`, `app/src/health_policy.c` | 146 + 171 |
-| The glue that calls Crux System and Crux Logging | `app/src/health.h`, `app/src/health.c` | 44 + 134 |
-| A cycle hook in the workload thread, and the S4 start in the composition | `app/src/workload_thread.[ch]`, `app/src/composition.c` | 19 + 12 added |
-| Kconfig option, build block, fragment and overlay | `app/Kconfig`, `app/CMakeLists.txt`, `app/conf/s4.conf`, `app/boards/s4.overlay` | 13 + 7 + 16 + 16 |
-| Tests: host, scenario, tooling | `tests/host/test_health_policy.c`, `tests/native_sim/s4/`, `tests/tooling/test_s4.py` | 335, 204, 505 |
+| Item | File |
+|---|---|
+| The policy: cause classes and boot line level, the watchdog interval, the feed tracker | `app/src/health_policy.h`, `app/src/health_policy.c` |
+| The glue that calls Crux System and Crux Logging | `app/src/health.h`, `app/src/health.c` |
+| A cycle hook in the workload thread, and the S4 start in the composition | `app/src/workload_thread.[ch]`, `app/src/composition.c` |
+| Kconfig option, build block, fragment and overlay | `app/Kconfig`, `app/CMakeLists.txt`, `app/conf/s4.conf`, `app/boards/s4.overlay` |
+| Tests: host, scenario, tooling | `tests/host/test_health_policy.c`, `tests/native_sim/s4/`, `tests/tooling/test_s4.py` |
 
-Counts are `wc -l` and `git diff` of this branch when the note was written. The composition proper is the
-fragment and the overlay: 32 lines.
+The composition proper is the fragment and the overlay, 16 lines each when this was written. Line counts of
+the rest are left out on purpose: `git diff --stat` of the pull request has them and they move with every edit.
 
 ## Friction
 
@@ -61,12 +61,16 @@ hook that does nothing, and the status `CRUX_WATCHDOG_UNAVAILABLE`. A feed cycle
 only by the Host test of the policy (feed results are injected there) and by the EVKB build. **Open:** whether
 Crux should offer a public simulated watchdog binding; this note does not file that request.
 
-### 2. A refused feed is final, and the header does not say so
+### 2. A feed that the native side refuses is final, and the header does not say so
 
-**Inferred** from `components/system/src/system.c`: after a start, a feed that returns anything other than
-`CRUX_OK` moves the lifecycle to faulted (`fault()`, line 45; the feed at line 225), and every later feed returns
-`CRUX_ERR_IO`. `<crux/system.h>` says `CRUX_OK` means native acceptance and does not say that an error is
-terminal. The product therefore reports the first refusal once and stops feeding, instead of retrying.
+**Inferred** from `components/system/src/system.c` (feed from line 225): after a successful start, a failure
+reported by the native side (the probe before the feed, or the feed itself) moves the lifecycle to faulted
+(`fault()`, line 45), and every later feed returns `CRUX_ERR_IO`. Not every error does that: a call from an
+interrupt or before the kernel runs (`CRUX_ERR_NOT_SUPPORTED`), a zero or foreign token
+(`CRUX_ERR_INVALID_ARGUMENT`) and a lock failure (`CRUX_ERR_IO`) return without moving the lifecycle to
+faulted. `<crux/system.h>` says `CRUX_OK` means native acceptance and does not say which errors are final. The
+product does not try to tell them apart: it reports the first non-OK result once and stops feeding, whatever
+its cause, instead of retrying.
 
 ### 3. The interval rules are in the port source, not in the header
 
@@ -80,7 +84,7 @@ error.
 **Inferred** from `components/system/ports/zephyr/CMakeLists.txt`: the provider stops the CMake run when
 `WATCHDOG`, `HWINFO` or `REBOOT` is off, or when another owner is on (`CRUX_CONTROLLER_M3`, `WDT_SHELL`,
 `HWINFO_SHELL`, `TASK_WDT_HW_FALLBACK`); `system_binding.c` stops the compile with `#error` when the alias
-`crux-watchdog0` is missing or its node is disabled, and a `BUILD_ASSERT` requires that node to be `wdog0`.
+`crux-watchdog0` is missing or its node is disabled, and a `BUILD_ASSERT` requires that node to be `wdog0`. At the pin the overlay lines that name the alias for this board are set by `tests/system_consumer`, `tests/m5_integrated` and `tests/zephyr/management_rt1060_compile` (read with `git show` at `37c92b18`); the sample `samples/controller/zephyr/m3_main.c` reads the alias `watchdog0` instead and is the native owner that System refuses. A later Crux revision was not read.
 These are good, early failures. The wording of the Kconfig help of `CRUX_SYSTEM` ("explicit native
 WATCHDOG/HWINFO/REBOOT composition required") is what tells a product to write them.
 
@@ -98,6 +102,14 @@ As for S3. The S4 option depends on `CRUX_CONTROLLER_S1`, `CRUX_SYSTEM`, `WATCHD
 CI job and the S4 budget row check the resolved `.config` for the step and the provider. No failure of this kind
 occurred, so the check has not been seen to fire.
 
+### 7. A possible reset loop
+
+The watchdog is armed before workload_thread_start. If the workload start fails, or the producer thread exits
+on a clock error, nothing feeds the watchdog, the board resets, and because the policy never stops the start (no
+reset cause keeps the watchdog from being armed) it would arm again and keep resetting. The same holds after
+a start that fails in the unknown state that the decisions table describes. **Open:** no board has run this. Any future board
+run must be supervised and time-limited.
+
 ## Decisions made for this step
 
 The owner has set no health or reset policy. These are conservative defaults chosen for the synthetic workload,
@@ -112,7 +124,7 @@ each pinned by a test in `tests/host/test_health_policy.c` and recorded in the p
 | Clear | the flags are cleared once, after the line was written | stops the flags from piling up |
 | Cause never stops the start | no cause keeps the product from arming the watchdog, and none puts it in a safe mode | no escalation beyond what Crux does |
 | A refused feed | reported once at error level, feeding stops, no retry and no call to `crux_system_reset()` | Crux makes the refusal final; the watchdog ends the run |
-| A start that fails | reported once, the workload runs without a watchdog | a platform without one, such as the simulator, must still run |
+| A start that fails | no watchdog runs only when the policy refuses the cycle (`CRUX_ERR_OUT_OF_RANGE`), Crux refuses the interval before any attempt (`CRUX_ERR_OUT_OF_RANGE`) or there is no device (`CRUX_ERR_NOT_SUPPORTED`); the product reports it once and the workload starts. On any other error the native start may have been attempted: the state is unknown, the product does not feed it, says so at error level, and the watchdog may still reset the board | Crux does not retry an uncertain start (`<crux/system.h>`; `system.c` lines 196 to 218 at the pin: after the attempt an error moves the lifecycle to faulted); a platform without a watchdog, such as the simulator, must still run |
 | Start order | after the storage step, before the workload threads | a slow mount cannot cost a reset |
 
 ## What this step does not show

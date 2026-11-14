@@ -102,11 +102,22 @@ int health_watchdog_start(uint32_t period_ms)
     }
     const crux_status_t started = crux_watchdog_start(timeout_ms, &state.watchdog);
 
-    if (started != CRUX_OK) {
+    if (started == CRUX_ERR_NOT_SUPPORTED || started == CRUX_ERR_OUT_OF_RANGE) {
+        /* No device, or Crux refused the interval before it touched the hardware: no watchdog
+         * runs. */
         (void)snprintf(text, sizeof text, "watchdog not started: status=%d", (int)started);
-        /* Not supported is a platform without a watchdog. Any other status can mean that the
-         * native start was attempted and its outcome is unknown, which Crux does not retry. */
         say(started == CRUX_ERR_NOT_SUPPORTED ? HEALTH_LOG_WARN : HEALTH_LOG_ERROR, text);
+        return (int)started;
+    }
+    if (started != CRUX_OK) {
+        /* Any other status can follow an attempt to start the native watchdog, which Crux does
+         * not retry and whose outcome it then cannot tell. WDOG1 may be running, nothing feeds it
+         * (the tracker was not armed), and the controller may reset. */
+        (void)snprintf(text, sizeof text,
+                       "watchdog start failed status=%d: the watchdog may be running and is not fed, "
+                       "the controller may reset",
+                       (int)started);
+        say(HEALTH_LOG_ERROR, text);
         return (int)started;
     }
     health_feed_armed(&state.feed);

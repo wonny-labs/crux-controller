@@ -49,7 +49,7 @@ config CRUX_CONTROLLER_S4
 	help
 	  At start, write one line for the reset cause through Crux Logging and clear the flags, then
 	  start the one watchdog of the boot with an interval of about ten workload cycles and feed it
-	  once for each workload cycle, from the workload's producer thread and nowhere else. The
+	  once for each pass that has cycles due, from the workload's producer thread and nowhere else. The
 	  application uses <crux/system.h> only. The native watchdog, HWINFO and reboot facilities,
 	  and the devicetree alias crux-watchdog0 (boards/s4.overlay), are what Crux System requires of
 	  the image; the product selects no Crux symbol. A platform without a watchdog, such as the
