@@ -50,6 +50,48 @@ jobs:
             echo "unexpected MISMATCH" >&2
             exit 1
           fi
+      # The Crux import is narrowed by name, so the Mbed TLS modules can be fetched without the
+      # GPL stacks that share their group. The three steps below read the resolved workspace
+      # (west list does not clone anything) and run before the control that edits west.yml.
+      - name: Mbed-only check, default workspace
+        run: |
+          west list --all -f '{name} {active}' > list-default.txt
+          cat list-default.txt
+          python crux-controller/scripts/check_mbed_only.py --mode default < list-default.txt
+      - name: Mbed-only check, group on
+        run: |
+          # The group is switched on in this runner only, and again off at the end.
+          west config --local manifest.group-filter -- +crux-secure-management
+          west list --all -f '{name} {active}' > list-mbed.txt
+          cat list-mbed.txt
+          python crux-controller/scripts/check_mbed_only.py --mode mbed < list-mbed.txt
+          west config --local -d manifest.group-filter
+      - name: Negative control, an unnarrowed import must fail
+        run: |
+          # The same manifest without the blocklist, with the group on: the wolf projects are
+          # then in the resolved manifest and the check must find them. The edit and the group
+          # setting stay in the runner and are undone at the end.
+          python - <<'PY'
+          import yaml
+
+          path = "crux-controller/west.yml"
+          data = yaml.safe_load(open(path))
+          for project in data["manifest"]["projects"]:
+              if project["name"] == "crux-pilot":
+                  project["import"] = True
+          yaml.safe_dump(data, open(path, "w"), sort_keys=False)
+          PY
+          west config --local manifest.group-filter -- +crux-secure-management
+          west list --all -f '{name} {active}' > list-negative.txt
+          set +e
+          python crux-controller/scripts/check_mbed_only.py --mode mbed < list-negative.txt > check-negative.txt 2>&1
+          status=$?
+          set -e
+          cat check-negative.txt
+          west config --local -d manifest.group-filter
+          git -C crux-controller checkout -- west.yml
+          test "$status" -eq 1
+          grep -q 'wolfssl' check-negative.txt
       - name: Negative control, a pin without a reason must fail
         run: |
           # A newer revision of littlefs than the one Crux pins, with no
