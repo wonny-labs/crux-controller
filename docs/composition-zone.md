@@ -119,9 +119,22 @@ change to either list is a reviewed change of `scripts/check_boundary.py`, of
 set) and of this page, in one pull request.
 
 The same limit applies as for the composition zone: the check reads includes only, so the adapter
-zone is to be built as its own library that adds no include path to the application target. The
-tree `app/os` does not exist at this revision; the check skips a tree that is absent, so the rule
-takes effect with the first file placed there.
+zone is built as its own library that adds no include path to the application target. The tree
+`app/os` holds one source, `workload_os_zephyr.c`, built as the library `os`
+(`app/os/CMakeLists.txt`); `tests/tooling/test_os_adapter.py` checks that the library links only
+`zephyr_interface` and the workload library and adds no include path, and that the application target
+links `os` and neither Crux Thread nor Crux Queue.
+
+### The frozen Crux headers
+
+`app/src` and `app/os` also fail on `<crux/thread.h>`, `<crux/sync.h>`, `<crux/queue.h>` and
+`<crux/serial.h>` (`FROZEN_CRUX_HEADERS` in `scripts/check_boundary.py`), although they are public
+headers, so the statements above about public `<crux/NAME.h>` headers hold for every other name. The
+product uses Zephyr directly for threads and queues, and the rule keeps a later change from bringing
+the Crux contracts back. The rule is a field of the `Rule` of each of the two trees. It does not apply
+to `workload`, which has no Crux header at all, and it does not change `app/compose`. Adding or
+removing a name is a reviewed change of the script, of `tests/tooling/test_boundary.py` and of this
+page.
 
 ## What the zones do not cover
 
