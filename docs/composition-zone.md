@@ -68,7 +68,7 @@ Left off on purpose, and why:
 |---|---|
 | `zephyr/storage/disk_access.h` | `disk_access_init` only tells a missing card from a failed mount. `fs_mount` reports both, and a product that must tell them apart can ask for the header in a reviewed change. |
 | `ff.h` | The FatFs library header. Every reference composition in Crux includes it to declare a `FATFS` object. A mount that the devicetree describes as `zephyr,fstab,fatfs` makes Zephyr declare that object, so the zone does not need the header. Whether that route works for the S3 composition is a question of step S3, which records its answer in its own findings note. |
-| `zephyr/kernel.h`, `zephyr/sys/printk.h`, `zephyr/logging/log.h` | The composition returns a result code. The application logs and schedules through Crux. `zephyr/kernel.h` is allowed in the adapter zone `app/os` and stays off this list, see [The adapter zone](#the-adapter-zone). |
+| `zephyr/kernel.h`, `zephyr/sys/printk.h`, `zephyr/logging/log.h` | The composition returns a result code. The application logs through Crux Logging and runs its threads through the adapter zone `app/os`. `zephyr/kernel.h` is allowed in the adapter zone `app/os` and stays off this list, see [The adapter zone](#the-adapter-zone). |
 | `zephyr/fs/littlefs.h`, `zephyr/fs/fs_sys.h` | Provider and file system specifics that S3 does not select. |
 | `zephyr/drivers/*`, `zephyr/net/*`, vendor `fsl_*.h` | Not part of mounting a file system. A driver or network detail in the zone would be a second product layer, not a composition. |
 
@@ -119,11 +119,12 @@ change to either list is a reviewed change of `scripts/check_boundary.py`, of
 set) and of this page, in one pull request.
 
 The same limit applies as for the composition zone: the check reads includes only, so the adapter
-zone is built as its own library that adds no include path to the application target. The tree
-`app/os` holds one source, `workload_os_zephyr.c`, built as the library `os`
-(`app/os/CMakeLists.txt`); `tests/tooling/test_os_adapter.py` checks that the library links only
-`zephyr_interface` and the workload library and adds no include path, and that the application target
-links `os` and neither Crux Thread nor Crux Queue.
+zone adds no include path to the application target. The tree `app/os` holds one source,
+`workload_os_zephyr.c`, that its `CMakeLists.txt` adds to the application target. It is not a library
+of its own: as a static library of its own it left the references to the kernel's message queue
+unresolved in the CI link of the S1 and S3 images. `tests/tooling/test_os_adapter.py` checks that the zone adds no include path
+and no library, and that the application target links neither a zone library nor Crux Thread nor Crux
+Queue.
 
 ### The frozen Crux headers
 
