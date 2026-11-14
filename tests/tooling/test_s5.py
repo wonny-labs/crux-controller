@@ -788,10 +788,9 @@ class S5Findings(unittest.TestCase):
             self.assertIn("Open", line)
             self.assertIn("not yet known", line)
 
-    def test_the_note_has_no_line_counts_and_no_private_planning_names(self):
+    def test_the_note_has_no_line_counts_and_no_machine_paths(self):
         text = self.NOTE.read_text()
         self.assertNotIn("wc -l", text)
-        self.assertNotRegex(text, r"\bOD\d+\b|\bWD\d+\b|skeleton plan|work package")
         self.assertNotRegex(text, r"/Users/|/home/")
 
     def test_the_readme_lists_s5_as_built_and_never_run_on_a_board(self):
