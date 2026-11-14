@@ -28,34 +28,48 @@ def includes(path):
 
 
 class ZoneBuildFiles(unittest.TestCase):
-    def test_the_zone_is_a_static_library_named_os_with_its_own_source(self):
-        text = code(ZONE / "CMakeLists.txt")
-        self.assertRegex(text, r"add_library\(os STATIC workload_os_zephyr\.c\)")
+    """The adapter is one source of the application target, not a library of its own.
 
-    def test_the_zone_links_only_zephyr_interface_and_the_workload_library(self):
-        # The port header includes workload.h, which the workload library exports. Nothing
-        # else is linked: no Crux target and no other include path.
-        text = code(ZONE / "CMakeLists.txt")
-        links = re.findall(r"target_link_libraries\(([^)]*)\)", text)
-        self.assertEqual(1, len(links), links)
-        self.assertEqual(["os", "PRIVATE", "zephyr_interface", "workload"], links[0].split())
+    A static library of its own is linked after the kernel archive, which left the msgq objects of
+    the kernel out of the link. A source of the application target is the shape that applications
+    use for kernel calls.
+    """
+
+    def text(self):
+        return code(ZONE / "CMakeLists.txt")
+
+    def test_the_zone_adds_its_source_to_the_application_target(self):
+        self.assertRegex(
+            self.text(),
+            r"target_sources\(app PRIVATE \$\{CMAKE_CURRENT_LIST_DIR\}/workload_os_zephyr\.c\)",
+        )
+
+    def test_the_zone_is_not_a_library(self):
+        text = self.text()
+        self.assertNotIn("add_library", text)
+        self.assertNotIn("target_link_libraries", text)
 
     def test_the_zone_links_no_crux_target(self):
-        self.assertNotIn("crux", code(ZONE / "CMakeLists.txt"))
+        self.assertNotIn("crux", self.text())
 
     def test_the_zone_adds_no_include_path(self):
-        for line in code(ZONE / "CMakeLists.txt").splitlines():
+        for line in self.text().splitlines():
             for word in ("include_directories", "-include", "-I"):
                 self.assertNotIn(word, line, line.strip())
 
     def test_the_zone_takes_sources_from_its_own_directory_only(self):
-        for line in code(ZONE / "CMakeLists.txt").splitlines():
-            if "add_library" in line or "target_sources" in line:
+        for line in self.text().splitlines():
+            if "target_sources" in line:
                 self.assertNotIn("..", line, line.strip())
 
-    def test_the_zone_keeps_the_application_warning_level(self):
-        text = code(ZONE / "CMakeLists.txt")
-        self.assertRegex(text, r"target_compile_options\(os PRIVATE -Wall -Wextra -Werror\)")
+    def test_the_zone_keeps_the_application_warning_level_for_its_source(self):
+        # The property is directory scoped, so the zone names the directory of the application
+        # target. The test scenario builds this file too and has no other flags for it.
+        self.assertRegex(
+            self.text(),
+            r"set_source_files_properties\(\$\{CMAKE_CURRENT_LIST_DIR\}/workload_os_zephyr\.c\s+"
+            r"TARGET_DIRECTORY app\s+PROPERTIES COMPILE_OPTIONS \"-Wall;-Wextra;-Werror\"\)",
+        )
 
     def test_the_zone_has_exactly_one_source_and_one_build_file(self):
         names = sorted(p.name for p in ZONE.iterdir())
@@ -71,8 +85,12 @@ class ApplicationBuildFiles(unittest.TestCase):
         self.assertRegex(text, r"add_subdirectory\(os\)")
         self.assertLess(text.index("add_subdirectory(../workload"), text.index("add_subdirectory(os)"))
 
-    def test_the_application_links_the_zone_as_a_library(self):
-        self.assertRegex(self.text(), r"target_link_libraries\(app PRIVATE[^)]*\bos\b")
+    def test_the_application_links_no_zone_library(self):
+        for links in re.findall(r"target_link_libraries\(([^)]*)\)", self.text()):
+            self.assertNotIn("os", links.split(), links)
+
+    def test_the_application_still_links_the_workload(self):
+        self.assertRegex(self.text(), r"target_link_libraries\(app PRIVATE[^)]*\bworkload\b")
 
     def test_the_application_no_longer_links_crux_thread_or_queue(self):
         text = self.text()
@@ -89,10 +107,8 @@ class ApplicationBuildFiles(unittest.TestCase):
             for target in ("crux::thread", "crux::queue", "crux::sync", "crux::serial"):
                 self.assertNotIn(target, code(path), f"{path.relative_to(ROOT)}: {target}")
 
-    def test_the_application_takes_the_zone_source_through_the_library_only(self):
-        for line in self.text().splitlines():
-            if "target_sources" in line:
-                self.assertNotIn("os/", line, line.strip())
+    def test_the_application_names_the_zone_source_only_in_the_zone(self):
+        self.assertNotIn("workload_os_zephyr", self.text())
 
 
 class Scenario(unittest.TestCase):
@@ -100,11 +116,12 @@ class Scenario(unittest.TestCase):
 
     TEXT = code(ROOT / "tests" / "native_sim" / "s1" / "CMakeLists.txt")
 
-    def test_it_builds_the_zone_library_of_the_application(self):
+    def test_it_builds_the_zone_of_the_application(self):
         self.assertRegex(self.TEXT, r"add_subdirectory\(\$\{controller_root\}/app/os os\)")
 
-    def test_it_links_the_zone_and_no_thread_or_queue_library(self):
-        self.assertRegex(self.TEXT, r"target_link_libraries\(app PRIVATE[^)]*\bos\b")
+    def test_it_links_no_zone_library_and_no_thread_or_queue_library(self):
+        for links in re.findall(r"target_link_libraries\(([^)]*)\)", self.TEXT):
+            self.assertNotIn("os", links.split(), links)
         self.assertNotIn("crux::thread", self.TEXT)
         self.assertNotIn("crux::queue", self.TEXT)
 

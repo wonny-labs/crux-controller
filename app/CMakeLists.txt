@@ -10,14 +10,14 @@ target_link_libraries(app PRIVATE crux::time)
 target_compile_options(app PRIVATE -Wall -Wextra -Werror)
 
 # Step S1 and later: the workload on Zephyr threads, a message queue and Crux Logging. Its
-# portable core is a library of this repository, and the thread and queue calls are the adapter
-# zone's library (app/os), so the application takes no include path of its own and links neither
+# portable core is a library of this repository, and the thread and queue calls are the source of
+# the adapter zone (app/os), so the application takes no include path of its own and links neither
 # Crux Thread nor Crux Queue.
 if(CONFIG_CRUX_THREAD)
     add_subdirectory(../workload workload)
     add_subdirectory(os)
     target_sources(app PRIVATE src/workload_thread.c)
-    target_link_libraries(app PRIVATE workload os crux::logging)
+    target_link_libraries(app PRIVATE workload crux::logging)
     # Step S2: the TCP exchange, through the Crux Sockets profile.
     if(CONFIG_CRUX_CONTROLLER_S2)
         target_sources(app PRIVATE src/net_client.c)
