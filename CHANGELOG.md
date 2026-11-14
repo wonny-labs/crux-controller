@@ -11,6 +11,10 @@ twice on a board (see `docs/findings/s2-first-board-run.md`); nothing else has r
 - The west manifest imports `crux-pilot` at a pinned commit (`37c92b18`, which publishes the File
   composition interface `<crux/file_zephyr.h>`) and adds `picolibc` as a test-only project. A CI job
   checks the pins with `west crux-pins` and has a negative control that must fail.
+- The `crux-pilot` import blocks wolfSSL, wolfSSH and wolfPSA by name, so enabling the Mbed TLS group
+  would fetch Mbed TLS and TF-PSA-Crypto and no GPL stack. The group stays off in every job.
+  `scripts/check_mbed_only.py` checks the resolved project list, and the `West pins` job runs it with a
+  negative control that must fail.
 - A daily build against `crux-pilot` main (`.github/workflows/scheduled-main.yml`) reports pin
   mismatches and build failures in its job summary. It is information only: the pinned build stays
   the gate for pull requests, and the workflow publishes nothing.

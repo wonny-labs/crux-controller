@@ -51,8 +51,20 @@ them, and CI would show a change in `west crux-pins` and in the lock.
 
 | Group | What it would fetch | Why it stays off |
 |---|---|---|
-| `crux-secure-management` | wolfSSL, wolfSSH and wolfPSA, which are available under GPL or commercial terms, and the Mbed TLS modules that go with them | Left off by decision: those terms are not the Apache-2.0 terms of this repository |
+| `crux-secure-management` | With the narrowed import below, the Mbed TLS modules only. In the Crux manifest the group also holds wolfSSL, wolfSSH and wolfPSA, which are available under GPL or commercial terms | Left off by decision: those terms are not the Apache-2.0 terms of this repository, and the Mbed TLS modules are not needed by any step yet |
 | `crux-reliance` | The Reliance Edge file system | Source under GPLv2, left off by the same decision |
+
+The Crux manifest puts the Mbed TLS modules (`mbedtls`, `tf-psa-crypto`) in `crux-secure-management`, the
+same group as the GPL stacks (`wolfssl`, `wolfssh`, `wolfpsa`), so enabling the group alone would fetch all
+five. `west.yml` therefore imports Crux with `name-blocklist: [wolfssl, wolfssh, wolfpsa]`. West drops those
+three projects from the resolved manifest, and `west config manifest.group-filter -- +crux-secure-management`
+then activates the Mbed pair and nothing else (`crux-reliance` stays off). The default jobs do not enable the
+group. `scripts/check_mbed_only.py` reads `west list --all -f '{name} {active}'` and fails if a wolf project is
+listed at all, if Reliance Edge is active, if the Mbed pair is active in the default workspace, or if it is not
+active with the group on. The `West pins` job runs it in both states and runs a negative control (the import
+without the blocklist, group on) that must fail. The check reads the project list and does not build anything.
+A blocklist names what is known today: when a pin moves, read the groups of the new Crux manifest for a project
+that was added, and extend the blocklist and the script together.
 
 ## Changing a pin
 
