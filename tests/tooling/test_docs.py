@@ -102,6 +102,13 @@ class Dependencies(unittest.TestCase):
                        "only active projects", "not run", "allowlist", "drops Zephyr"):
             self.assertIn(phrase, page, phrase)
 
+    def test_the_page_names_what_the_group_check_catches_and_what_was_not_run(self):
+        page = text("docs/dependencies.md")
+        self.assertIn("a project that the group would activate", page)
+        self.assertNotIn("a project that Crux adds to the group later", page)
+        self.assertIn("a `west update` with the group on was not run", page)
+        self.assertNotIn("which was not run here", page)
+
     def test_the_pinned_crux_revision_matches_the_manifest(self):
         manifest = yaml.safe_load((ROOT / "west.yml").read_text())["manifest"]
         pilot = next(p for p in manifest["projects"] if p["name"] == "crux-pilot")
@@ -116,16 +123,27 @@ class Tracking(unittest.TestCase):
     def test_the_finding_names_the_issues_that_track_it(self):
         body = text("docs/findings/management-has-no-public-composition.md")
         self.assertNotIn("No issue tracks it yet", body)
-        self.assertIn("#40", body)
-        self.assertIn("#44", body)
+        self.assertRegex(body, r"#40\b")
+        self.assertRegex(body, r"#44\b")
         self.assertIn("has not happened", body)
 
     def test_the_readme_names_the_epic_and_its_steps_and_no_trial_issue(self):
         body = text("README.md")
         self.assertNotIn("trial issue", body)
         for number in ("#44", "#40", "#41", "#42", "#43"):
-            self.assertIn(number, body, number)
+            self.assertRegex(body, re.escape(number) + r"\b", number)
         self.assertIn("Nothing has been filed in `crux-pilot` yet", body)
+
+    def test_the_readme_claims_only_the_stage_2_steps_for_the_epic(self):
+        body = text("README.md")
+        self.assertIn(
+            "Stage 2 steps and their findings are tracked in this repository's own issues: "
+            "the epic #44 and its children #40 (the management finding), #41 (S4), #42 and #43. "
+            "Earlier findings are recorded in `docs/findings/`.",
+            body,
+        )
+        self.assertNotIn("The platform questions and findings are tracked", body)
+        self.assertNotIn("Implementation is tracked in this repository's own milestones", body)
 
 
 class Contributing(unittest.TestCase):
@@ -145,6 +163,9 @@ class Contributing(unittest.TestCase):
         matrix = self.workflow("budget.yml")["jobs"]["budget"]["strategy"]["matrix"]
         return [entry["step"] for entry in matrix["include"]]
 
+    def other_job_names(self):
+        return [job["name"] for job in self.workflow("ci.yml")["jobs"].values()]
+
     def test_the_ci_row_lists_every_step_build_job(self):
         body = text("CONTRIBUTING.md")
         for step in self.build_steps():
@@ -152,7 +173,22 @@ class Contributing(unittest.TestCase):
 
     def test_the_budget_row_covers_the_steps_of_the_budget_matrix(self):
         steps = self.budget_steps()
-        self.assertIn(f"`Budget` for S0 to {steps[-1]}:", text("CONTRIBUTING.md"))
+        self.assertEqual(steps[0], "S0", "the budget matrix must start at S0")
+        last = max(steps, key=lambda step: int(step[1:]))
+        self.assertIn(f"`Budget` for S0 to {last}:", text("CONTRIBUTING.md"))
+
+    def test_the_ci_row_names_the_other_jobs_of_ci_yml(self):
+        row = next(
+            line for line in (ROOT / "CONTRIBUTING.md").read_text().splitlines()
+            if line.startswith("| `ci.yml`")
+        )
+        names = self.other_job_names()
+        for short in ("Tooling tests", "West pins", "Host tests", "S1", "Boundary check"):
+            self.assertIn(f"`{short}`", row, short)
+            self.assertTrue(
+                any(name == short or name.startswith(short + " ") for name in names),
+                f"{short} is not a job name of ci.yml",
+            )
 
     def test_the_role_section_names_the_steps_built_in_ci(self):
         last = max(self.build_steps(), key=lambda step: int(step[1:]))

@@ -28,8 +28,10 @@ int health_report_reset_cause(void);
  * of period_ms. Returns 0 when the watchdog runs and the tracker is armed.
  *
  * No watchdog runs, and the product carries on without one (health_cycle() then does nothing), in
- * three cases only: the policy refuses the cycle (CRUX_ERR_OUT_OF_RANGE), Crux refuses the interval
- * before any attempt (CRUX_ERR_OUT_OF_RANGE), or the platform has no device (CRUX_ERR_NOT_SUPPORTED).
+ * three cases of a failed start: the policy refuses the cycle (CRUX_ERR_OUT_OF_RANGE), Crux refuses
+ * the interval before any attempt (CRUX_ERR_OUT_OF_RANGE), or the platform has no device
+ * (CRUX_ERR_NOT_SUPPORTED). The reset cause policy can also refuse the start before any attempt
+ * (CRUX_ERR_INVALID_STATE); that cannot happen today, because start_watchdog is always true.
  * On any other error the native start may have been attempted: Crux does not retry it and cannot
  * tell its outcome, so the state is unknown. The product does not feed it and says so at error
  * level, and the watchdog may still reset the board. Call once, at boot, after
