@@ -96,6 +96,12 @@ class Dependencies(unittest.TestCase):
         for name in ("wolfssl", "wolfssh", "wolfpsa", "mbedtls", "tf-psa-crypto"):
             self.assertIn(f"`{name}`", page, name)
 
+    def test_the_page_states_the_proof_level_and_why_a_blocklist(self):
+        page = text("docs/dependencies.md")
+        for phrase in ("project-list level", "no job fetches or builds with the group on",
+                       "only active projects", "not run", "allowlist", "drops Zephyr"):
+            self.assertIn(phrase, page, phrase)
+
     def test_the_pinned_crux_revision_matches_the_manifest(self):
         manifest = yaml.safe_load((ROOT / "west.yml").read_text())["manifest"]
         pilot = next(p for p in manifest["projects"] if p["name"] == "crux-pilot")

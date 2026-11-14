@@ -22,8 +22,9 @@ manifest:
       # The Crux manifest puts Mbed TLS and TF-PSA-Crypto in the same optional group
       # (crux-secure-management) as wolfSSL, wolfSSH and wolfPSA, which are GPL or commercial.
       # Blocking the three wolf projects by name keeps them out of the resolved manifest, so
-      # enabling that group fetches the Mbed modules and no GPL stack. The group itself stays
-      # off. scripts/check_mbed_only.py checks this, and the West pins job runs it.
+      # enabling that group would activate the Mbed modules and no GPL stack (checked at the
+      # project-list level; no job enables the group or fetches with it on). The group itself
+      # stays off. scripts/check_mbed_only.py checks this, and the West pins job runs it.
       import:
         name-blocklist:
           - wolfssl

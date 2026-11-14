@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""Fail when the resolved west workspace could fetch a GPL stack of the Crux manifest.
+"""Fail when the resolved west workspace would activate a GPL stack of the Crux manifest.
 
 The Crux manifest puts Mbed TLS and TF-PSA-Crypto in the same optional group as wolfSSL,
 wolfSSH and wolfPSA (``crux-secure-management``). The group is off by default. A product that
-enables it would fetch all five unless its manifest narrows the Crux import. This repository
+enables it would activate (and so fetch) all five unless its manifest narrows the Crux import. This repository
 narrows the import with ``import: name-blocklist`` on the ``crux-pilot`` project, so the three
 wolf projects are not in the resolved manifest at all. This script checks that on two inputs:
 
 * ``--mode default`` reads ``west list --all -f '{name} {active}'`` of the workspace as it is
-  fetched by every job. No wolf project is listed, the Mbed pair is not active (the group is
+  used by every job. No wolf project is listed, the Mbed pair is not active (the group is
   off) and Reliance Edge (GPLv2, group ``crux-reliance``) is not active.
 * ``--mode mbed`` reads the same listing after ``crux-secure-management`` is switched on in the
   runner. No wolf project is listed, the Mbed pair is active and Reliance Edge is not active.
@@ -17,7 +17,9 @@ wolf projects are not in the resolved manifest at all. This script checks that o
 ``check_manifest`` is the static counterpart over the parsed ``west.yml``: the Crux import must
 be narrowed by name so that no wolf project passes, and no optional group is enabled. Only name
 filters are understood. The listing is the evidence, the static check is the quick guard that
-runs without west.
+runs without west. With ``--baseline`` (the default listing) in ``--mode mbed``, the projects
+that become active when the group is switched on must be exactly the Mbed pair, so a project
+that Crux adds to the group later fails the check.
 
 Exit status: 0 when the check passes, 1 when it finds a problem, 2 when the input cannot be read.
 """
@@ -72,6 +74,26 @@ def check_listing(text, mode):
     return problems
 
 
+def check_group_delta(default_text, mbed_text):
+    """Return problems when the projects that the group activates are not exactly the Mbed pair.
+
+    Compares the active projects of the group-on listing with those of the default listing. A
+    project that Crux later adds to the group shows up here even if it is not a known GPL stack.
+    """
+    active = {
+        mode: {name for name, on in parse_listing(text).items() if on}
+        for mode, text in (("default", default_text), ("mbed", mbed_text))
+    }
+    added = active["mbed"] - active["default"]
+    problems = []
+    for name in sorted(added - set(MBED_PROJECTS)):
+        problems.append(f"{name} becomes active with the Mbed TLS group on, and it is not an Mbed module")
+    for name in MBED_PROJECTS:
+        if name not in added:
+            problems.append(f"{name} does not become active with the Mbed TLS group on")
+    return problems
+
+
 def check_manifest(manifest):
     """Return a list of problems with the parsed `manifest:` mapping of west.yml."""
     problems = []
@@ -103,9 +125,17 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--mode", choices=MODES, required=True)
     parser.add_argument(
+        "--baseline",
+        help="with --mode mbed: the default listing; the projects that become active must be "
+        "exactly the Mbed pair",
+    )
+    parser.add_argument(
         "--listing", help="file with `west list --all -f '{name} {active}'`; default stdin"
     )
     args = parser.parse_args(argv)
+    if args.baseline and args.mode != "mbed":
+        print("check_mbed_only: --baseline needs --mode mbed", file=sys.stderr)
+        return 2
     try:
         if args.listing:
             with open(args.listing) as handle:
@@ -113,6 +143,9 @@ def main(argv=None):
         else:
             text = sys.stdin.read()
         problems = check_listing(text, args.mode)
+        if args.baseline:
+            with open(args.baseline) as handle:
+                problems += check_group_delta(handle.read(), text)
     except (OSError, ValueError) as error:
         print(f"check_mbed_only: {error}", file=sys.stderr)
         return 2

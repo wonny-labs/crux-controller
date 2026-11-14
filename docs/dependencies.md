@@ -55,16 +55,24 @@ them, and CI would show a change in `west crux-pins` and in the lock.
 | `crux-reliance` | The Reliance Edge file system | Source under GPLv2, left off by the same decision |
 
 The Crux manifest puts the Mbed TLS modules (`mbedtls`, `tf-psa-crypto`) in `crux-secure-management`, the
-same group as the GPL stacks (`wolfssl`, `wolfssh`, `wolfpsa`), so enabling the group alone would fetch all
-five. `west.yml` therefore imports Crux with `name-blocklist: [wolfssl, wolfssh, wolfpsa]`. West drops those
-three projects from the resolved manifest, and `west config manifest.group-filter -- +crux-secure-management`
-then activates the Mbed pair and nothing else (`crux-reliance` stays off). The default jobs do not enable the
-group. `scripts/check_mbed_only.py` reads `west list --all -f '{name} {active}'` and fails if a wolf project is
-listed at all, if Reliance Edge is active, if the Mbed pair is active in the default workspace, or if it is not
-active with the group on. The `West pins` job runs it in both states and runs a negative control (the import
-without the blocklist, group on) that must fail. The check reads the project list and does not build anything.
-A blocklist names what is known today: when a pin moves, read the groups of the new Crux manifest for a project
-that was added, and extend the blocklist and the script together.
+same group as the GPL stacks (`wolfssl`, `wolfssh`, `wolfpsa`), so enabling the group alone would activate
+all five. `west.yml` therefore imports Crux with `name-blocklist: [wolfssl, wolfssh, wolfpsa]`. West drops
+those three projects from the resolved manifest, and `west config manifest.group-filter --
++crux-secure-management` would then activate the Mbed pair and nothing else (`crux-reliance` stays off). The
+default jobs do not enable the group. `scripts/check_mbed_only.py` reads `west list --all -f '{name}
+{active}'` and fails if a wolf project is listed at all, if Reliance Edge is active, if the Mbed pair is
+active in the default workspace, or if it is not active with the group on. In the group-on state it also
+compares with the default listing: the projects that become active must be exactly the Mbed pair, so a
+project that Crux adds to the group later fails the check. The `West pins` job runs it in both states and
+runs a negative control (the import without the blocklist, group on) that must fail.
+
+The proof is at the project-list level. The only real `west update` in any job runs on the default
+workspace with the group off, and no job fetches or builds with the group on. That enabling the group would
+clone only the Mbed pair rests on west cloning only active projects, which was not run here. A build with
+the group on is not run either. A blocklist is used and not an allowlist because an allowlist drops Zephyr
+and everything it imports if `zephyr` is left out of it, while a blocklist leaves the rest of the import
+alone; the cost is that it names what is known today, so when a pin moves, read the groups of the new Crux
+manifest, which the delta check also helps to catch.
 
 ## Changing a pin
 

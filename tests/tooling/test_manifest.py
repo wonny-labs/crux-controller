@@ -24,7 +24,8 @@ class ManifestIsOptionA(unittest.TestCase):
         projects = load_manifest()["projects"]
         self.assertEqual([p["name"] for p in projects], ["crux-pilot", "picolibc"])
         # The Crux import is narrowed: the three GPL stacks are blocked by name, so enabling the
-        # Mbed TLS group fetches Mbed TLS and TF-PSA-Crypto and none of them.
+        # Mbed TLS group would activate Mbed TLS and TF-PSA-Crypto and none of them (project list
+        # only: no job fetches or builds with the group on).
         self.assertEqual(
             projects[0]["import"], {"name-blocklist": ["wolfssl", "wolfssh", "wolfpsa"]}
         )
@@ -145,7 +146,7 @@ class MbedOnlyListing(unittest.TestCase):
                 self.assertTrue(any(name in problem for problem in problems), (mode, name))
 
     def test_negative_control_unnarrowed_manifest_with_the_group_off_fails(self):
-        # The wolf projects are inactive but listed: the next group change would fetch them.
+        # The wolf projects are inactive but listed: the next group change would activate them.
         problems = check_mbed_only.check_listing(listing(False, wolf_active=False), "default")
         self.assertEqual(3, len(problems), problems)
 
@@ -163,6 +164,53 @@ class MbedOnlyListing(unittest.TestCase):
             problems = check_mbed_only.check_listing(text, mode)
             self.assertEqual(1, len(problems), (mode, problems))
             self.assertIn("reliance-edge", problems[0])
+
+    def test_the_group_adds_exactly_the_mbed_pair_to_the_active_projects(self):
+        self.assertEqual([], check_mbed_only.check_group_delta(listing(False), listing(True)))
+
+    def test_a_project_that_crux_adds_to_the_group_fails_the_delta(self):
+        # A new project in crux-secure-management would be active only with the group on.
+        extra = listing(True) + "newstack active\n"
+        problems = check_mbed_only.check_group_delta(listing(False), extra)
+        self.assertEqual(1, len(problems), problems)
+        self.assertIn("newstack", problems[0])
+        # The single-listing check does not see it: the delta is what catches it.
+        self.assertEqual([], check_mbed_only.check_listing(extra, "mbed"))
+
+    def test_an_inactive_extra_project_does_not_fail_the_delta(self):
+        extra = listing(True) + "newstack inactive\n"
+        self.assertEqual([], check_mbed_only.check_group_delta(listing(False), extra))
+
+    def test_a_missing_mbed_module_fails_the_delta(self):
+        lacking = listing(True).replace("tf-psa-crypto active\n", "")
+        problems = check_mbed_only.check_group_delta(listing(False), lacking)
+        self.assertEqual(1, len(problems), problems)
+        self.assertIn("tf-psa-crypto", problems[0])
+
+    def test_a_group_that_changes_nothing_fails_the_delta(self):
+        problems = check_mbed_only.check_group_delta(listing(True), listing(True))
+        self.assertEqual(2, len(problems), problems)
+
+    def test_command_line_baseline_adds_the_delta_check(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as directory:
+            base = pathlib.Path(directory) / "default.txt"
+            base.write_text(listing(False))
+            ok = subprocess.run(
+                [sys.executable, str(ROOT / "scripts" / "check_mbed_only.py"), "--mode", "mbed",
+                 "--baseline", str(base)], input=listing(True), capture_output=True, text=True)
+            self.assertEqual(0, ok.returncode, ok.stdout + ok.stderr)
+            bad = subprocess.run(
+                [sys.executable, str(ROOT / "scripts" / "check_mbed_only.py"), "--mode", "mbed",
+                 "--baseline", str(base)], input=listing(True) + "newstack active\n",
+                capture_output=True, text=True)
+            self.assertEqual(1, bad.returncode)
+            self.assertIn("newstack", bad.stdout)
+            wrong_mode = subprocess.run(
+                [sys.executable, str(ROOT / "scripts" / "check_mbed_only.py"), "--mode", "default",
+                 "--baseline", str(base)], input=listing(False), capture_output=True, text=True)
+            self.assertEqual(2, wrong_mode.returncode)
 
     def test_an_empty_or_unresolved_listing_does_not_pass(self):
         for text in ("", "manifest active\n", "manifest active\ncrux-pilot active\n"):
@@ -240,6 +288,9 @@ class PinsJobChecksTheResolvedWorkspace(unittest.TestCase):
             text = self.run_text(fragment)
             self.assertIn("west list --all -f '{name} {active}'", text)
             self.assertIn(f"check_mbed_only.py --mode {mode}", text)
+        # The group-on check also compares with the default listing.
+        self.assertIn("--baseline list-default.txt", self.run_text("Mbed-only check, group on"))
+        self.assertNotIn("--baseline", self.run_text("Mbed-only check, default"))
 
     def test_the_group_is_enabled_only_in_the_runner_and_switched_off_again(self):
         for fragment in ("Mbed-only check, group on", "Negative control, an unnarrowed import"):

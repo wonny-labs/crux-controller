@@ -50,9 +50,10 @@ jobs:
             echo "unexpected MISMATCH" >&2
             exit 1
           fi
-      # The Crux import is narrowed by name, so the Mbed TLS modules can be fetched without the
-      # GPL stacks that share their group. The three steps below read the resolved workspace
-      # (west list does not clone anything) and run before the control that edits west.yml.
+      # The Crux import is narrowed by name, so switching the Mbed TLS group on would activate the
+      # Mbed modules and not the GPL stacks that share their group. The three steps below read the
+      # resolved project list (west list does not clone anything; no job fetches or builds with
+      # the group on) and run before the control that edits west.yml.
       - name: Mbed-only check, default workspace
         run: |
           west list --all -f '{name} {active}' > list-default.txt
@@ -64,7 +65,7 @@ jobs:
           west config --local manifest.group-filter -- +crux-secure-management
           west list --all -f '{name} {active}' > list-mbed.txt
           cat list-mbed.txt
-          python crux-controller/scripts/check_mbed_only.py --mode mbed < list-mbed.txt
+          python crux-controller/scripts/check_mbed_only.py --mode mbed --baseline list-default.txt < list-mbed.txt
           west config --local -d manifest.group-filter
       - name: Negative control, an unnarrowed import must fail
         run: |

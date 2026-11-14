@@ -12,7 +12,8 @@ twice on a board (see `docs/findings/s2-first-board-run.md`); nothing else has r
   composition interface `<crux/file_zephyr.h>`) and adds `picolibc` as a test-only project. A CI job
   checks the pins with `west crux-pins` and has a negative control that must fail.
 - The `crux-pilot` import blocks wolfSSL, wolfSSH and wolfPSA by name, so enabling the Mbed TLS group
-  would fetch Mbed TLS and TF-PSA-Crypto and no GPL stack. The group stays off in every job.
+  would activate Mbed TLS and TF-PSA-Crypto and no GPL stack (checked on the project list; no job
+  enables the group or fetches with it on, and it stays off in every job).
   `scripts/check_mbed_only.py` checks the resolved project list, and the `West pins` job runs it with a
   negative control that must fail.
 - A daily build against `crux-pilot` main (`.github/workflows/scheduled-main.yml`) reports pin
