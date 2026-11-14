@@ -14,18 +14,19 @@
 
 #define HEALTH_TAG "system"
 
-/* The policy's copies of the reset flags must be Crux's values. */
-_Static_assert(HEALTH_CAUSE_POR == CRUX_RESET_CAUSE_POR, "POR flag");
-_Static_assert(HEALTH_CAUSE_PIN == CRUX_RESET_CAUSE_PIN, "PIN flag");
-_Static_assert(HEALTH_CAUSE_SOFTWARE == CRUX_RESET_CAUSE_SOFTWARE, "SOFTWARE flag");
-_Static_assert(HEALTH_CAUSE_WATCHDOG == CRUX_RESET_CAUSE_WATCHDOG, "WATCHDOG flag");
-_Static_assert(HEALTH_CAUSE_DEBUG == CRUX_RESET_CAUSE_DEBUG, "DEBUG flag");
-_Static_assert(HEALTH_CAUSE_CPU_LOCKUP == CRUX_RESET_CAUSE_CPU_LOCKUP, "CPU_LOCKUP flag");
-_Static_assert(HEALTH_CAUSE_HARDWARE == CRUX_RESET_CAUSE_HARDWARE, "HARDWARE flag");
-_Static_assert(HEALTH_CAUSE_SECURITY == CRUX_RESET_CAUSE_SECURITY, "SECURITY flag");
-_Static_assert(HEALTH_CAUSE_USER == CRUX_RESET_CAUSE_USER, "USER flag");
-_Static_assert(HEALTH_CAUSE_TEMPERATURE == CRUX_RESET_CAUSE_TEMPERATURE, "TEMPERATURE flag");
-_Static_assert(HEALTH_CAUSE_OTHER == CRUX_RESET_CAUSE_OTHER, "OTHER flag");
+/* The policy's copies of the reset flags must be Crux's values. Both sides are cast: the two sets
+ * are constants of different anonymous enums, and GCC rejects comparing those (-Werror=enum-compare). */
+_Static_assert((uint32_t)HEALTH_CAUSE_POR == (uint32_t)CRUX_RESET_CAUSE_POR, "POR flag");
+_Static_assert((uint32_t)HEALTH_CAUSE_PIN == (uint32_t)CRUX_RESET_CAUSE_PIN, "PIN flag");
+_Static_assert((uint32_t)HEALTH_CAUSE_SOFTWARE == (uint32_t)CRUX_RESET_CAUSE_SOFTWARE, "SOFTWARE flag");
+_Static_assert((uint32_t)HEALTH_CAUSE_WATCHDOG == (uint32_t)CRUX_RESET_CAUSE_WATCHDOG, "WATCHDOG flag");
+_Static_assert((uint32_t)HEALTH_CAUSE_DEBUG == (uint32_t)CRUX_RESET_CAUSE_DEBUG, "DEBUG flag");
+_Static_assert((uint32_t)HEALTH_CAUSE_CPU_LOCKUP == (uint32_t)CRUX_RESET_CAUSE_CPU_LOCKUP, "CPU_LOCKUP flag");
+_Static_assert((uint32_t)HEALTH_CAUSE_HARDWARE == (uint32_t)CRUX_RESET_CAUSE_HARDWARE, "HARDWARE flag");
+_Static_assert((uint32_t)HEALTH_CAUSE_SECURITY == (uint32_t)CRUX_RESET_CAUSE_SECURITY, "SECURITY flag");
+_Static_assert((uint32_t)HEALTH_CAUSE_USER == (uint32_t)CRUX_RESET_CAUSE_USER, "USER flag");
+_Static_assert((uint32_t)HEALTH_CAUSE_TEMPERATURE == (uint32_t)CRUX_RESET_CAUSE_TEMPERATURE, "TEMPERATURE flag");
+_Static_assert((uint32_t)HEALTH_CAUSE_OTHER == (uint32_t)CRUX_RESET_CAUSE_OTHER, "OTHER flag");
 
 static struct {
     crux_watchdog_t watchdog; /* valid only after crux_watchdog_start() returned CRUX_OK */

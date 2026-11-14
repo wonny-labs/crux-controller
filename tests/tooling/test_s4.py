@@ -243,11 +243,22 @@ class S4Sources(unittest.TestCase):
     def test_the_policy_flag_values_are_asserted_against_crux_at_build_time(self):
         source = c_code(self.GLUE)
         for name in self.NAMES:
+            # Both sides are cast: GCC fails the build (-Werror=enum-compare) on a comparison of
+            # constants of two different anonymous enums, which is what these two are.
             self.assertRegex(
                 source,
-                rf"_Static_assert\(\s*HEALTH_CAUSE_{name}\s*==\s*CRUX_RESET_CAUSE_{name}\b",
+                rf"_Static_assert\(\s*\(uint32_t\)HEALTH_CAUSE_{name}\s*==\s*"
+                rf"\(uint32_t\)CRUX_RESET_CAUSE_{name}\b",
                 name,
             )
+
+    def test_every_comparison_of_a_policy_flag_in_the_glue_casts_both_sides(self):
+        # -Werror=enum-compare: the policy's flags and Crux's are constants of different enums.
+        source = c_code(self.GLUE)
+        found = re.findall(r"HEALTH_CAUSE_\w+\s*==", source)
+        self.assertEqual(len(self.NAMES), len(found))
+        for statement in re.findall(r"_Static_assert\([^;]*;", source):
+            self.assertRegex(statement, r"\(uint32_t\)HEALTH_CAUSE_\w+\s*==\s*\(uint32_t\)CRUX_RESET_CAUSE_\w+")
 
     def test_the_glue_reads_logs_and_clears_the_cause_in_that_order(self):
         source = c_code(self.GLUE)
