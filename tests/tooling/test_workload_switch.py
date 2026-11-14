@@ -17,6 +17,13 @@ CONF = APP / "conf"
 PROVIDER_SYMBOLS = ("CRUX_THREAD", "CRUX_QUEUE", "CRUX_SYNC")
 
 
+def provider_option(name, prefix=""):
+    """A pattern for a provider symbol and for every option that carries its name, such as
+    CONFIG_CRUX_THREAD_STACK_BYTES. A bare word boundary after the name does not match those,
+    because the underscore is a word character."""
+    return re.compile(rf"\b{prefix}{name}(?:_\w+)?\b")
+
+
 def without_hash_comments(path):
     return "\n".join(line.split("#", 1)[0] for line in pathlib.Path(path).read_text().splitlines())
 
@@ -77,7 +84,7 @@ class ProductSymbol(unittest.TestCase):
     def test_app_kconfig_names_no_provider_symbol(self):
         text = without_hash_comments(KCONFIG)
         for name in PROVIDER_SYMBOLS:
-            self.assertIsNone(re.search(rf"\b{name}\b", text), name)
+            self.assertIsNone(provider_option(name).search(text), name)
 
     def test_the_later_steps_and_the_stack_option_depend_on_the_workload_symbol(self):
         self.assertIn("depends on CRUX_CONTROLLER_S1 && CRUX_SOCKETS && CRUX_NETIF",
@@ -122,13 +129,31 @@ class BuildFiles(unittest.TestCase):
             self.assertNotIn(f"CONFIG_{name}", text)
 
     def test_no_source_or_build_file_of_the_product_keys_on_a_provider_symbol(self):
-        paths = [p for p in APP.rglob("*") if p.is_file() and p.suffix in {".c", ".h", ".txt", ".cmake"}]
+        paths = [
+            p for p in APP.rglob("*") if p.is_file() and p.suffix in {".c", ".h", ".txt", ".cmake", ".conf"}
+        ]
         paths += [p for p in (ROOT / "workload").rglob("*") if p.is_file() and p.suffix in {".c", ".h", ".txt"}]
         paths += list((ROOT / "tests").rglob("CMakeLists.txt"))
+        paths += list((ROOT / "tests").rglob("*.conf"))
         for path in paths:
             text = c_code(path) if path.suffix in {".c", ".h"} else without_hash_comments(path)
             for name in PROVIDER_SYMBOLS:
-                self.assertIsNone(re.search(rf"\bCONFIG_{name}\b", text), f"{path.relative_to(ROOT)}: {name}")
+                match = provider_option(name, "CONFIG_").search(text)
+                self.assertIsNone(match, f"{path.relative_to(ROOT)}: {match and match.group(0)}")
+
+    def test_the_provider_pattern_matches_the_options_that_carry_a_provider_name(self):
+        pattern = provider_option("CRUX_THREAD", "CONFIG_")
+        for text in (
+            "CONFIG_CRUX_THREAD=y",
+            "CONFIG_CRUX_THREAD_STACK_BYTES=8192",
+            "#ifdef CONFIG_CRUX_THREAD_STACK_BYTES",
+            "if(CONFIG_CRUX_THREAD)",
+        ):
+            self.assertIsNotNone(pattern.search(text), text)
+        for text in ("CONFIG_CRUX_THREADX=y", "CONFIG_CRUX_CONTROLLER_S1=y", "XCONFIG_CRUX_THREAD=y"):
+            self.assertIsNone(pattern.search(text), text)
+        # The pattern of the old test, kept to show what it missed.
+        self.assertIsNone(re.search(r"\bCONFIG_CRUX_THREAD\b", "CONFIG_CRUX_THREAD_STACK_BYTES=8192"))
 
 
 class Confs(unittest.TestCase):
