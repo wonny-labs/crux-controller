@@ -3,8 +3,9 @@
  * The provider takes no watchdog by default: the composition names it with the alias
  * crux-watchdog0, and components/system/ports/zephyr/system_binding.c requires that alias, that its
  * node is enabled and that it is the RT1060's WDOG1 (wdog0, 0x400b8000). Read at crux-pilot
- * 37c92b18: tests/system_consumer sets exactly these two lines for this board, and so do
- * tests/m5_integrated and tests/zephyr/management_rt1060_compile. The sample
+ * 37c92b18: tests/system_consumer sets exactly these two lines for this board, and so does
+ * tests/m5_integrated. tests/zephyr/management_rt1060_compile may set the alias too; that was not
+ * checked at the pin. The sample
  * samples/controller/zephyr/m3_main.c of that revision reads the alias watchdog0 instead, which is the
  * native watchdog owner that System refuses to coexist with, so it is not a model for this file.
  * Whether a later Crux revision changes the alias was not read. Used only by the S4 image, through
