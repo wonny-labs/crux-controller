@@ -26,6 +26,8 @@ has run on a board, and there is no release.
 Every step is checked against its declared resource limits (`budgets/limits.json`,
 placeholders). What S3 needed from the product is recorded in `docs/findings/s3-file-composition.md`;
 what the two board runs of S2 show and do not show is recorded in `docs/findings/s2-first-board-run.md`.
+Why none of the Crux management features (HTTPS, serial and SSH command line, SFTP) is built here is
+recorded in `docs/findings/management-has-no-public-composition.md`.
 
 It is a product-shaped consumer of [Crux](https://github.com/wonny-labs/crux-pilot). It is meant to
 exercise the Crux features together in one image on the NXP RT1060-EVKB Rev B, with declared
