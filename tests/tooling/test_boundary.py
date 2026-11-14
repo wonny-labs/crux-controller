@@ -543,10 +543,10 @@ class CompositionZone(unittest.TestCase):
 
     def test_the_zone_is_listed_with_the_other_rules(self):
         directories = [rule.directory for rule in check_boundary.RULES]
-        self.assertEqual(["app/src", "workload", "app/compose"], directories)
+        self.assertEqual(["app/src", "workload", "app/compose", "app/os"], directories)
 
     def test_the_rules_of_app_src_and_the_workload_are_unchanged(self):
-        app, workload, _zone = check_boundary.RULES
+        app, workload = check_boundary.RULES[:2]
         self.assertEqual(
             (True, True, frozenset(), frozenset(), ("workload/include",)),
             (app.allow_sockets, app.allow_crux, app.zephyr_allow, app.composition_crux,
@@ -557,6 +557,281 @@ class CompositionZone(unittest.TestCase):
             (workload.allow_sockets, workload.allow_crux, workload.zephyr_allow,
              workload.composition_crux, workload.extra_roots),
         )
+
+
+class OsAdapterZone(unittest.TestCase):
+    """app/os is the adapter zone: OS facilities use Zephyr directly, product behaviour stays in app/src.
+
+    It may include ISO C headers, public <crux/NAME.h> headers, its own tree, header files of
+    app/src (the product-owned port header) and exactly one Zephyr header, zephyr/kernel.h.
+    app/src, app/compose and the workload keep failing on that header, and none of them can reach
+    a header of the adapter zone.
+    """
+
+    def crux_root(self, composition=("file_zephyr.h",), public=("file.h", "time.h")):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        root = pathlib.Path(directory.name)
+        for name in public:
+            path = root / "components" / "x" / "include" / "crux" / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("")
+        for name in composition:
+            path = root / "components" / "file" / "ports" / "zephyr" / "include" / "crux" / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("")
+        return root
+
+    def in_adapter(self, text, name="adapter.c", **kwargs):
+        return run({f"app/os/{name}": text}, **kwargs)
+
+    # What the adapter zone may include.
+
+    def test_the_adapter_may_include_zephyr_kernel(self):
+        self.assertEqual([], self.in_adapter("#include <zephyr/kernel.h>\n"))
+
+    def test_the_adapter_may_include_each_allow_listed_zephyr_header(self):
+        for name in sorted(check_boundary.OS_ADAPTER_ZEPHYR_HEADERS):
+            self.assertEqual([], self.in_adapter(f"#include <{name}>\n"), name)
+
+    def test_the_adapter_may_include_public_crux_headers_and_iso_c(self):
+        text = "#include <crux/time.h>\n#include <stdint.h>\n#include <string.h>\n"
+        self.assertEqual([], self.in_adapter(text, crux_root=self.crux_root()))
+
+    def test_the_adapter_may_include_its_own_headers(self):
+        files = {
+            "app/os/adapter.c": '#include "adapter_private.h"\n',
+            "app/os/adapter_private.h": "#include <zephyr/kernel.h>\n",
+        }
+        self.assertEqual([], run(files))
+
+    def test_the_adapter_may_include_the_product_owned_header_of_app_src(self):
+        files = {
+            "app/os/adapter.c": '#include "workload_os.h"\n#include "../src/workload_os.h"\n',
+            "app/src/workload_os.h": "#include <stdint.h>\n",
+        }
+        self.assertEqual([], run(files))
+
+    def test_the_adapter_may_include_only_header_files_of_app_src(self):
+        for name in ("main.c", "main.inc", "main.cc", "main"):
+            files = {"app/os/adapter.c": f'#include "../src/{name}"\n', f"app/src/{name}": ""}
+            self.assertEqual([f"../src/{name}"], reasons(run(files)), name)
+
+    def test_a_header_of_app_src_is_scanned_under_the_app_src_rules(self):
+        files = {
+            "app/os/adapter.c": '#include "workload_os.h"\n',
+            "app/src/workload_os.h": "#include <zephyr/kernel.h>\n",
+        }
+        self.assertEqual(["zephyr/kernel.h"], reasons(run(files)))
+
+    # What the adapter zone may not include.
+
+    def test_the_adapter_may_not_include_another_zephyr_header(self):
+        for name in (
+            "zephyr/sys/printk.h",
+            "zephyr/logging/log.h",
+            "zephyr/drivers/gpio.h",
+            "zephyr/drivers/uart.h",
+            "zephyr/net/socket.h",
+            "zephyr/fs/fs.h",
+            "zephyr/devicetree.h",
+            "zephyr/kernel/thread.h",
+            "zephyr/kernel",
+            "zephyr/kernel.h.in",
+            "zephyr/../zephyr/kernel.h",
+            "zephyr.h",
+        ):
+            self.assertEqual([name], reasons(self.in_adapter(f"#include <{name}>\n")), name)
+
+    def test_the_adapter_may_not_include_a_vendor_or_third_party_header(self):
+        for name in ("fsl_enet.h", "fsl_usdhc.h", "ff.h", "lfs.h", "wolfssl/ssl.h", "stm32_hal.h"):
+            self.assertEqual([name], reasons(self.in_adapter(f"#include <{name}>\n")), name)
+            self.assertEqual([name], reasons(self.in_adapter(f'#include "{name}"\n')), name)
+
+    def test_the_adapter_may_not_use_the_sockets_profile_or_other_posix_headers(self):
+        for name in ("sys/socket.h", "netinet/in.h", "unistd.h", "pthread.h", "sys/stat.h"):
+            self.assertEqual([name], reasons(self.in_adapter(f"#include <{name}>\n")), name)
+
+    def test_the_adapter_may_not_include_the_composition_interface(self):
+        self.assertEqual(
+            ["crux/file_zephyr.h"], reasons(self.in_adapter("#include <crux/file_zephyr.h>\n"))
+        )
+        root = self.crux_root()
+        self.assertEqual(
+            ["crux/file_zephyr.h"],
+            reasons(self.in_adapter("#include <crux/file_zephyr.h>\n", crux_root=root)),
+        )
+
+    def test_the_adapter_may_not_include_another_composition_interface(self):
+        root = self.crux_root(composition=("file_zephyr.h", "queue_linux.h"))
+        self.assertEqual(
+            ["crux/queue_linux.h"],
+            reasons(self.in_adapter("#include <crux/queue_linux.h>\n", crux_root=root)),
+        )
+
+    def test_the_adapter_may_not_include_a_crux_private_or_port_header(self):
+        for text, name in (
+            ('#include "file_native.h"\n', "file_native.h"),
+            ("#include <crux/ports/zephyr/file_native.h>\n", "crux/ports/zephyr/file_native.h"),
+        ):
+            self.assertEqual([name], reasons(self.in_adapter(text)), text)
+
+    def test_the_adapter_may_not_include_a_crux_header_that_is_not_public(self):
+        root = self.crux_root()
+        self.assertEqual(
+            ["crux/secret.h"],
+            reasons(self.in_adapter("#include <crux/secret.h>\n", crux_root=root)),
+        )
+
+    def test_the_adapter_may_not_quote_zephyr_kernel_to_dodge_the_list(self):
+        self.assertEqual(
+            ["zephyr/kernel.h"], reasons(self.in_adapter('#include "zephyr/kernel.h"\n'))
+        )
+
+    def test_the_adapter_may_not_reach_a_header_of_the_composition_zone(self):
+        files = {
+            "app/os/adapter.c": '#include "../compose/mount_private.h"\n',
+            "app/compose/mount_private.h": "#include <zephyr/fs/fs.h>\n",
+        }
+        self.assertEqual(["../compose/mount_private.h"], reasons(run(files)))
+
+    # The allow-list is exact.
+
+    def test_the_allow_list_has_no_wildcards_and_names_only_zephyr_headers(self):
+        names = check_boundary.OS_ADAPTER_ZEPHYR_HEADERS
+        self.assertIsInstance(names, frozenset)
+        for name in names:
+            self.assertRegex(name, r"^zephyr/[a-z0-9_/]+\.h$")
+            self.assertNotIn("..", name)
+            self.assertNotIn("*", name)
+
+    def test_the_adapter_allow_list_is_the_reviewed_set(self):
+        # Changing this set changes what the boundary lets through: it is a reviewed change
+        # of this test, of docs/composition-zone.md and of the pull request that justifies it.
+        self.assertEqual({"zephyr/kernel.h"}, set(check_boundary.OS_ADAPTER_ZEPHYR_HEADERS))
+
+    def test_the_adapter_rule_is_the_reviewed_rule(self):
+        adapter = next(r for r in check_boundary.RULES if r.directory == "app/os")
+        self.assertEqual(
+            (False, True, check_boundary.OS_ADAPTER_ZEPHYR_HEADERS, frozenset(),
+             ("app/src",), True),
+            (adapter.allow_sockets, adapter.allow_crux, adapter.zephyr_allow,
+             adapter.composition_crux, adapter.extra_roots, adapter.extra_roots_headers_only),
+        )
+
+    def test_the_composition_zone_keeps_its_rule_and_its_allow_list(self):
+        # zephyr/kernel.h stays off the composition zone's list.
+        compose = next(r for r in check_boundary.RULES if r.directory == "app/compose")
+        self.assertEqual(
+            {"zephyr/fs/fs.h", "zephyr/devicetree.h"}, set(compose.zephyr_allow)
+        )
+        self.assertNotIn("zephyr/kernel.h", check_boundary.COMPOSITION_ZEPHYR_HEADERS)
+        self.assertEqual(frozenset({"crux/file_zephyr.h"}), compose.composition_crux)
+        self.assertEqual(
+            ["zephyr/kernel.h"],
+            reasons(run({"app/compose/mount.c": "#include <zephyr/kernel.h>\n"})),
+        )
+
+    # The other trees keep failing on zephyr/kernel.h, and cannot reach the adapter zone.
+
+    def test_app_src_may_not_include_zephyr_kernel(self):
+        files = {"app/src/main.c": "#include <zephyr/kernel.h>\n"}
+        self.assertEqual(["zephyr/kernel.h"], reasons(run(files)))
+
+    def test_the_workload_may_not_include_zephyr_kernel(self):
+        files = {"workload/cycle.c": "#include <zephyr/kernel.h>\n"}
+        self.assertEqual(["zephyr/kernel.h"], reasons(run(files)))
+
+    def test_app_src_may_not_reach_a_header_of_the_adapter_zone(self):
+        for text in (
+            '#include "../os/adapter_private.h"\n',
+            '#include "os/adapter_private.h"\n',
+            '#include "adapter_private.h"\n',
+        ):
+            files = {
+                "app/src/main.c": text,
+                "app/os/adapter_private.h": "#include <zephyr/kernel.h>\n",
+            }
+            self.assertEqual(1, len(run(files)), text)
+
+    def test_the_composition_zone_may_not_reach_a_header_of_the_adapter_zone(self):
+        for text in (
+            '#include "../os/adapter_private.h"\n',
+            '#include "os/adapter_private.h"\n',
+            '#include "adapter_private.h"\n',
+        ):
+            files = {
+                "app/compose/mount.c": text,
+                "app/os/adapter_private.h": "#include <zephyr/kernel.h>\n",
+            }
+            self.assertEqual(1, len(run(files)), text)
+
+    def test_the_workload_may_not_reach_a_header_of_the_adapter_zone(self):
+        files = {
+            "workload/src/a.c": '#include "../../app/os/adapter_private.h"\n',
+            "app/os/adapter_private.h": "",
+        }
+        self.assertEqual(1, len(run(files)))
+
+    # Scan forms and reporting hold in the adapter zone.
+
+    def test_a_violation_in_the_adapter_names_file_and_line(self):
+        text = "#include <zephyr/kernel.h>\n#include <zephyr/sys/printk.h>\n"
+        (violation,) = self.in_adapter(text)
+        self.assertEqual("app/os/adapter.c", violation.path)
+        self.assertEqual(2, violation.line)
+
+    def test_every_file_of_the_adapter_is_scanned_whatever_its_suffix(self):
+        for name in ("a.inc", "a.inl", "a.hh", "a.def", "a.cxx", "a", "a.h"):
+            files = {f"app/os/{name}": "#include <zephyr/sys/printk.h>\n"}
+            self.assertEqual(["zephyr/sys/printk.h"], reasons(run(files)), name)
+
+    def test_the_hardened_scan_forms_hold_in_the_adapter(self):
+        for text in (
+            "#include \\\n    <zephyr/sys/printk.h>\n",
+            "#inc\\\nlude <zephyr/sys/printk.h>\n",
+            "#include <zephyr/sys/printk.h>\r\n",
+            "%:include <zephyr/sys/printk.h>\n",
+            "??=include <zephyr/sys/printk.h>\n",
+            "#include_next <zephyr/sys/printk.h>\n",
+            "#import <zephyr/sys/printk.h>\n",
+        ):
+            self.assertEqual(["zephyr/sys/printk.h"], reasons(self.in_adapter(text)), repr(text))
+
+    def test_a_macro_operand_is_a_violation_even_for_the_allowed_header(self):
+        text = "#define H <zephyr/kernel.h>\n#include H\n"
+        (violation,) = self.in_adapter(text)
+        self.assertEqual(2, violation.line)
+        self.assertIn("literal", violation.reason)
+
+    def test_a_commented_include_in_the_adapter_is_ignored(self):
+        text = "/* #include <zephyr/sys/printk.h> */\n// #include <ff.h>\n"
+        self.assertEqual([], self.in_adapter(text))
+
+    def test_the_adapter_command_line_reports_a_violation(self):
+        repo = Repo({"app/os/adapter.c": "#include <zephyr/sys/printk.h>\n"})
+        self.addCleanup(repo.close)
+        result = subprocess.run(
+            [sys.executable, str(SCRIPTS / "check_boundary.py"), "--repo", str(repo.root)],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(1, result.returncode)
+        self.assertIn("app/os/adapter.c:1", result.stdout)
+
+    def test_the_adapter_command_line_passes_for_the_one_allowed_header(self):
+        repo = Repo({"app/os/adapter.c": "#include <zephyr/kernel.h>\n"})
+        self.addCleanup(repo.close)
+        result = subprocess.run(
+            [sys.executable, str(SCRIPTS / "check_boundary.py"), "--repo", str(repo.root)],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(0, result.returncode, result.stdout)
+
+    def test_an_absent_adapter_tree_is_skipped(self):
+        # main has no app/os yet, and the check must keep passing there.
+        self.assertEqual([], run({"app/src/main.c": "#include <stdint.h>\n"}))
 
 
 class BuildFiles(unittest.TestCase):
