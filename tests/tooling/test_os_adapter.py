@@ -174,6 +174,15 @@ class AdapterSource(unittest.TestCase):
             self.assertIn(call, self.SOURCE, call)
         self.assertIn("K_THREAD_STACK_DEFINE", self.SOURCE)
 
+    def test_it_ties_the_stack_to_the_thread_provider_option_it_replaces(self):
+        # A Kconfig symbol, not a Crux header: where Crux Thread is selected, both options hold
+        # the same number, so the provider's stacks and the adapter's stacks have one size.
+        self.assertRegex(self.SOURCE, r"#ifdef CONFIG_CRUX_THREAD_STACK_BYTES")
+        self.assertRegex(
+            self.SOURCE,
+            r"BUILD_ASSERT\(WORKLOAD_OS_STACK_BYTES == CONFIG_CRUX_THREAD_STACK_BYTES",
+        )
+
     def test_it_includes_the_kernel_header_and_the_port_by_a_relative_path(self):
         found = includes(ADAPTER)
         self.assertIn("<zephyr/kernel.h>", found)

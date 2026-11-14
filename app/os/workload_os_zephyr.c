@@ -20,7 +20,10 @@
  *   stack bytes      thread_native.c:7 declares the stacks with CRUX_THREAD_STACK_BYTES, whose
  *                    default is 4096 (components/thread/src/thread_internal.h:14). This workload
  *                    takes its size from CONFIG_CRUX_CONTROLLER_WORKER_STACK, default 4096, and
- *                    the S2 image sets both options to 8192. One stack per thread.
+ *                    the S2 image sets both options to 8192. One stack per thread. The Kconfig
+ *                    option of the provider, CONFIG_CRUX_THREAD_STACK_BYTES, exists wherever
+ *                    Crux Thread is selected, as it is wherever this file is built, and a
+ *                    BUILD_ASSERT keeps the two options equal.
  *   queue depth      8 messages and an item of sizeof(workload_message_t), 8 bytes: what
  *   and item size    workload_thread.c passed to crux_queue_create before this adapter. The
  *                    provider accepts up to 16 and 64 (components/queue/src/queue.c:8-9).
@@ -64,6 +67,10 @@
 BUILD_ASSERT(CONFIG_NUM_PREEMPT_PRIORITIES > 6, "the provider needs preemptive priorities 4..6");
 BUILD_ASSERT(WORKLOAD_OS_THREAD_PRIORITY == 5, "Crux normal priority is Zephyr priority 5");
 BUILD_ASSERT(WORKLOAD_OS_STACK_DEFAULT_BYTES == 4096, "the provider's default stack is 4096 bytes");
+#ifdef CONFIG_CRUX_THREAD_STACK_BYTES
+BUILD_ASSERT(WORKLOAD_OS_STACK_BYTES == CONFIG_CRUX_THREAD_STACK_BYTES,
+             "set CONFIG_CRUX_CONTROLLER_WORKER_STACK and CONFIG_CRUX_THREAD_STACK_BYTES together");
+#endif
 BUILD_ASSERT(WORKLOAD_OS_QUEUE_DEPTH == 8, "the queue holds 8 messages");
 BUILD_ASSERT(WORKLOAD_OS_ITEM_BYTES == 8, "a queue item is a workload_message_t of 8 bytes");
 BUILD_ASSERT(WORKLOAD_OS_ITEM_BYTES % sizeof(uint32_t) == 0, "k_msgq items are 4-byte aligned");
