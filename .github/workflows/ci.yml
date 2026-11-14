@@ -167,8 +167,13 @@ jobs:
       - name: Check the resolved S1 configuration
         run: |
           build=crux-controller/build/s1/zephyr
-          for option in CONFIG_CRUX_THREAD=y CONFIG_CRUX_QUEUE=y CONFIG_CRUX_LOGGING=y; do
+          for option in CONFIG_CRUX_CONTROLLER_S1=y CONFIG_CRUX_LOGGING=y \
+              CONFIG_CRUX_CONTROLLER_WORKER_STACK=4096; do
             grep -qx "$option" "$build/.config" || { echo "missing $option" >&2; exit 1; }
+          done
+          # The product calls neither provider, so no step selects them.
+          for option in CONFIG_CRUX_THREAD=y CONFIG_CRUX_QUEUE=y; do
+            ! grep -qx "$option" "$build/.config" || { echo "unexpected $option" >&2; exit 1; }
           done
           grep -q 'zephyr,log-uart' "$build/zephyr.dts" || { echo "no log UART selection" >&2; exit 1; }
           ! grep -qx 'CONFIG_CRUX_CONTROLLER_S2=y' "$build/.config"
