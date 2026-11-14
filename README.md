@@ -6,8 +6,8 @@ composition interfaces. It may provide supporting evidence for relevant platform
 is not a mandatory exit criterion for any of them.
 
 Status: Stage 1, in progress. The repository builds in CI for the NXP RT1060-EVKB
-Rev B with the Zephyr baseline gate required: a synthetic workload on Crux threads, a
-queue and logging (step S1), a TCP exchange over the Crux Sockets profile (step S2), a
+Rev B with the Zephyr baseline gate required: a synthetic workload on Zephyr threads and a
+message queue behind an adapter zone, with Crux Time and Logging (step S1), a TCP exchange over the Crux Sockets profile (step S2), a
 configuration record kept in a file through Crux File (step S3, built and never run on a board),
 and static resource use checked against declared limits. Step S2 ran twice on a board, on
 9 and 12 November 2026: both times the Ethernet link came up without the MDIO correction that the
@@ -19,7 +19,7 @@ has run on a board, and there is no release.
 | Step | What it adds | `native_sim` scenario | RT1060-EVKB build | On a board |
 |---|---|---|---|---|
 | S0 | The clock of Crux Time | no | yes | not run |
-| S1 | The workload on Crux threads, a queue and logging | yes | yes | not run |
+| S1 | The workload on Zephyr threads and a message queue (adapter zone `app/os`), with Crux Time and Logging | yes | yes | not run |
 | S2 | A TCP exchange over the Crux Sockets profile | yes, over loopback | yes | ran twice, reproduced on one bench (link up, ping answered, one exchange echoed) |
 | S3 | A configuration record in a file through Crux File, mounted by the composition zone | yes, simulator provider on a RAM disk | yes, FatFs provider, microSD, no card used | not run |
 
