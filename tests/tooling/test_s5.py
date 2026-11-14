@@ -530,5 +530,192 @@ class S5Sources(unittest.TestCase):
                 self.assertEqual(["zephyr/net/sntp.h"], [v.include for v in found], tree)
 
 
+class S5Scenario(unittest.TestCase):
+    DIRECTORY = ROOT / "tests" / "native_sim" / "s5"
+    CASES = (
+        "first_sync", "kiss_of_death", "late_answer", "out_of_range",
+        "step_refused_then_resync", "correction_and_threshold", "stale_after_silence",
+    )
+
+    def scenarios(self):
+        return yaml.safe_load((self.DIRECTORY / "testcase.yaml").read_text())
+
+    def source(self):
+        return (self.DIRECTORY / "src" / "test_s5.c").read_text()
+
+    def test_one_scenario_per_case_on_the_64_bit_simulator(self):
+        data = self.scenarios()
+        self.assertEqual({f"controller.s5.native_sim.{case}" for case in self.CASES}, set(data["tests"]))
+        for name, test in data["tests"].items():
+            case = name.rsplit(".", 1)[1]
+            self.assertEqual(f"S5_CASE={case}", test["extra_args"], name)
+        self.assertEqual(["native_sim/native/64"], data["common"]["platform_allow"])
+        self.assertIn("s5", data["common"]["tags"])
+
+    def test_the_scenario_builds_the_applications_own_sources_and_the_real_adapter(self):
+        text = (self.DIRECTORY / "CMakeLists.txt").read_text()
+        for needle in ("${controller_root}/app/src/time_sync.c",
+                       "${controller_root}/app/src/time_sync_policy.c",
+                       "${controller_root}/app/os/time_sync_zephyr.c", "crux::time", "crux::logging"):
+            self.assertIn(needle, text, needle)
+        self.assertNotIn("add_subdirectory(${controller_root}/app/os", text)
+
+    def test_the_scenario_gives_the_settings_it_needs_through_compile_definitions(self):
+        text = " ".join((self.DIRECTORY / "CMakeLists.txt").read_text().split())
+        for needle in (
+            'CONFIG_CRUX_CONTROLLER_TIME_SERVER="127.0.0.1"', "CONFIG_CRUX_CONTROLLER_TIME_INTERVAL_S=1",
+            "CONFIG_CRUX_CONTROLLER_TIME_TIMEOUT_MS=600", "CONFIG_CRUX_CONTROLLER_TIME_STALE_AGE_S=2",
+            "CONFIG_CRUX_CONTROLLER_TIME_THRESHOLD_MS=100", "CONFIG_CRUX_CONTROLLER_TIME_MAX_STEP_MS=1000",
+            "CONFIG_CRUX_CONTROLLER_TIME_STACK=8192", "S5_CASE_${S5_CASE}=1",
+        ):
+            self.assertIn(needle, text, needle)
+        self.assertIn("FATAL_ERROR", text)
+
+    def test_the_scenario_runs_the_real_sntp_library_over_loopback_with_crux_time_and_logging(self):
+        options = conf_options(self.DIRECTORY / "prj.conf")
+        for name in ("CONFIG_SNTP", "CONFIG_NET_LOOPBACK", "CONFIG_NET_UDP", "CONFIG_NET_SOCKETS",
+                     "CONFIG_CRUX_TIME", "CONFIG_CRUX_LOGGING", "CONFIG_ZTEST"):
+            self.assertEqual("y", options.get(name), name)
+        for name in options:
+            for forbidden in ("CRUX_THREAD", "CRUX_SYNC", "CRUX_QUEUE", "CRUX_TIME_TESTING",
+                              "CRUX_TIME_RTC", "DNS_RESOLVER", "SNTP_UNCERTAINTY"):
+                self.assertNotIn(forbidden, name, name)
+
+    def test_the_scenario_reads_the_log_from_an_emulated_uart(self):
+        text = (self.DIRECTORY / "app.overlay").read_text()
+        self.assertIn('compatible = "zephyr,uart-emul"', text)
+        self.assertIn("logging_test:", text)
+
+    def test_every_case_has_a_source_section(self):
+        source = self.source()
+        for case in self.CASES:
+            self.assertIn(f"S5_CASE_{case}", source, case)
+        self.assertIn('#error "S5_CASE names no case of this test"', source)
+
+    def test_the_responder_answers_on_port_123_of_the_loopback_address_with_a_real_packet(self):
+        source = self.source()
+        for needle in ("127.0.0.1", "htons(123)", "SOCK_DGRAM", "recvfrom", "sendto",
+                       "2208988800", "request + 40", "reply + 24", "reply[1]"):
+            self.assertIn(needle, source, needle)
+
+    def test_the_cases_cover_every_answer_the_brief_names(self):
+        source = self.source()
+        for needle in ("kiss_of_death", "delay_ms", "946684799", "4102444800", "CRUX_REALTIME_SOURCE_EXTERNAL",
+                       "is_synchronized", "is_valid", "crux_realtime_get_snapshot",
+                       "action=apply-set reason=first-sync", "reason=kiss-of-death", "reason=timeout",
+                       "action=refuse-range", "action=refuse-step", "reason=resync",
+                       "reason=within-threshold", "reason=correction", "action=mark-stale"):
+            self.assertIn(needle, source, needle)
+
+    def test_the_scenario_never_sets_a_clock_itself(self):
+        code = c_code(self.DIRECTORY / "src" / "test_s5.c")
+        for forbidden in ("crux_realtime_set", "sys_clock_settime", "clock_settime", "crux_realtime_adopt"):
+            self.assertNotIn(forbidden, code, forbidden)
+
+    def test_the_source_names_the_limit_of_the_simulator_run(self):
+        text = " ".join(re.sub(r"^\s*\*", " ", self.source(), flags=re.M).split())
+        self.assertIn("a real server, a real network path and a board are not shown here", text)
+
+
+class S5Workflows(unittest.TestCase):
+    def ci(self):
+        return yaml.safe_load((WORKFLOWS / "ci.yml").read_text())
+
+    def commands(self, job):
+        return "\n".join(step.get("run", "") for step in self.ci()["jobs"][job]["steps"])
+
+    def budget_rows(self):
+        budget = yaml.safe_load((WORKFLOWS / "budget.yml").read_text())
+        return {row["step"]: row for row in budget["jobs"]["budget"]["strategy"]["matrix"]["include"]}
+
+    def test_ci_has_an_s5_job_that_builds_the_board_image_with_the_gate_required(self):
+        self.assertIn("s5", self.ci()["jobs"])
+        job = self.ci()["jobs"]["s5"]
+        self.assertEqual(BOARD, job["env"]["BOARD"])
+        self.assertTrue(job["name"].startswith("S5 build "))
+        commands = self.commands("s5")
+        self.assertIn("-DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON", commands)
+        self.assertIn("conf/s1.conf;conf/s2.conf;conf/s5.conf", commands)
+        self.assertIn("boards/s2.overlay", commands)
+        self.assertIn("build/s5", commands)
+
+    def test_the_s5_job_follows_the_s4_job_step_for_step_where_it_builds(self):
+        jobs = self.ci()["jobs"]
+        names = [step.get("name", step.get("uses", "")) for step in jobs["s5"]["steps"]]
+        s4 = [step.get("name", step.get("uses", "")) for step in jobs["s4"]["steps"]]
+        self.assertEqual([name.replace("S4", "S5") for name in s4][:5], names[:5])
+        self.assertEqual(jobs["s4"]["runs-on"], jobs["s5"]["runs-on"])
+        self.assertEqual(jobs["s4"]["env"]["SDK_VERSION"], jobs["s5"]["env"]["SDK_VERSION"])
+
+    def test_the_s5_job_checks_what_the_build_resolved(self):
+        commands = self.commands("s5")
+        for needle in (
+            "CONFIG_CRUX_CONTROLLER_S5=y", "CONFIG_CRUX_CONTROLLER_S2=y", "CONFIG_CRUX_CONTROLLER_S1=y",
+            "CONFIG_SNTP=y", "CONFIG_CRUX_TIME=y", "CONFIG_NET_UDP=y", "CONFIG_NET_IPV4=y",
+            "CONFIG_CRUX_CONTROLLER_TIME_SERVER=\"192.168.77.1\"", "CONFIG_CRUX_CONTROLLER_TIME_INTERVAL_S=600",
+            "CONFIG_CRUX_CONTROLLER_TIME_TIMEOUT_MS=3000", "CONFIG_CRUX_CONTROLLER_TIME_STALE_AGE_S=1800",
+            "CONFIG_CRUX_CONTROLLER_TIME_THRESHOLD_MS=100", "CONFIG_CRUX_CONTROLLER_TIME_MAX_STEP_MS=1000",
+            "CONFIG_CRUX_CONTROLLER_TIME_STACK=8192", "zephyr.bin",
+        ):
+            self.assertIn(needle, commands, needle)
+
+    def test_the_s5_job_checks_that_nothing_else_takes_the_clock_or_the_crux_providers(self):
+        commands = self.commands("s5")
+        for needle in (
+            "CONFIG_CRUX_TIME_RTC=y", "CONFIG_RTC=y", "CONFIG_CRUX_THREAD=y", "CONFIG_CRUX_SYNC=y",
+            "CONFIG_CRUX_QUEUE=y", "CONFIG_CRUX_CONTROLLER_S3=y", "CONFIG_CRUX_CONTROLLER_S4=y",
+            "CONFIG_SNTP_UNCERTAINTY=y",
+        ):
+            self.assertIn(needle, commands, needle)
+
+    def test_the_s5_job_checks_what_the_image_links_and_what_it_does_not(self):
+        commands = self.commands("s5")
+        for symbol in ("time_sync_init", "time_sync_poll", "time_sync_start", "time_sync_decide",
+                       "time_sync_port_query", "sntp_simple", "crux_realtime_init",
+                       "crux_realtime_set", "crux_realtime_set_synchronized",
+                       "crux_realtime_get_snapshot"):
+            self.assertIn(symbol, commands, symbol)
+        for forbidden_symbol in ("crux_realtime_adopt", "crux_realtime_invalidate", "sntp_init",
+                                 "sntp_query", "sys_clock_settime"):
+            self.assertIn(forbidden_symbol, commands, forbidden_symbol)
+        self.assertIn("arm-zephyr-eabi-nm", commands)
+
+    def test_the_s5_job_runs_no_hardware_command_and_says_nothing_ran_on_a_board(self):
+        commands = self.commands("s5")
+        for word in ("west flash", "west debug", "JLink", "pyocd", "openocd"):
+            self.assertNotIn(word, commands, word)
+        self.assertIn("No flash, reset or hardware command was run.", commands)
+
+    def test_the_native_sim_scenarios_of_s5_run_in_ci_with_the_others(self):
+        self.assertIn("tests/native_sim", self.commands("s1"))
+
+    def test_the_budget_matrix_has_an_s5_row_on_the_network_base(self):
+        rows = self.budget_rows()
+        self.assertIn("S5", rows)
+        self.assertEqual("conf/s1.conf;conf/s2.conf;conf/s5.conf", rows["S5"]["conf"])
+        self.assertEqual("boards/s2.overlay", rows["S5"]["overlay"])
+
+    def test_the_budget_row_requires_the_step_and_the_library_to_be_built(self):
+        require = self.budget_rows()["S5"]["require"].split()
+        for option in ("CONFIG_CRUX_CONTROLLER_S5=y", "CONFIG_SNTP=y", "CONFIG_CRUX_CONTROLLER_S2=y"):
+            self.assertIn(option, require, option)
+
+    def test_the_budget_rows_of_the_other_steps_are_unchanged(self):
+        rows = self.budget_rows()
+        self.assertEqual(["S0", "S1", "S2", "S3", "S4", "S5"], sorted(rows))
+        self.assertEqual(("", "", ""), (rows["S0"]["conf"], rows["S0"]["overlay"], rows["S0"]["require"]))
+        self.assertEqual("conf/s1.conf", rows["S1"]["conf"])
+        self.assertEqual("conf/s1.conf;conf/s2.conf", rows["S2"]["conf"])
+        self.assertEqual("conf/s1.conf;conf/s3.conf", rows["S3"]["conf"])
+        self.assertEqual("conf/s1.conf;conf/s4.conf", rows["S4"]["conf"])
+        self.assertEqual("CONFIG_CRUX_CONTROLLER_S4=y CONFIG_CRUX_SYSTEM=y", rows["S4"]["require"])
+
+    def test_no_workflow_uploads_an_artifact_and_the_new_job_asks_for_no_write_permission(self):
+        for path in sorted(WORKFLOWS.glob("*.yml")):
+            self.assertNotIn("upload-artifact", path.read_text(), path.name)
+        self.assertEqual({"contents": "read"}, self.ci()["permissions"])
+        self.assertNotIn("permissions", self.ci()["jobs"]["s5"])
+
+
 if __name__ == "__main__":
     unittest.main()
