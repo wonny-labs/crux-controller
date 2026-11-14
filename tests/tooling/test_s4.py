@@ -619,17 +619,16 @@ class S4WordingFixes(unittest.TestCase):
         self.assertNotRegex(text, r"\d+ lines each")
         self.assertIn("The composition proper is the fragment and the overlay.", text)
 
-    def test_the_third_place_that_may_set_the_alias_is_marked_as_not_checked(self):
+    def test_the_third_place_that_sets_the_alias_is_named_with_its_file_and_line(self):
         lines = (ROOT / "app" / "boards" / "s4.overlay").read_text().splitlines()
         overlay = " ".join(" ".join(line.strip().lstrip("/*").strip() for line in lines).split())
         note = " ".join((ROOT / "docs" / "findings" / "s4-system-composition.md").read_text().split())
         for name, text in (("overlay", overlay), ("findings", note)):
             self.assertIn("tests/zephyr/management_rt1060_compile", text, name)
-            self.assertRegex(
-                text, r"tests/zephyr/management_rt1060_compile[^.]*(was|were) not checked", name)
-            self.assertNotRegex(
-                text, r"and so does tests/m5_integrated and tests/zephyr/management_rt1060_compile",
-                name)
+            self.assertIn("target.overlay:3", text, name)
+            self.assertNotIn("not checked at the pin", text, name)
+            self.assertNotIn("may be a third place", text, name)
+            self.assertNotIn("may set the alias too", text, name)
 
     def test_the_header_names_the_refused_start_of_the_reset_cause_policy(self):
         lines = (APP_SRC / "health.h").read_text().splitlines()

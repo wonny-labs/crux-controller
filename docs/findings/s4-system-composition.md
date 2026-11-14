@@ -84,7 +84,7 @@ error.
 **Inferred** from `components/system/ports/zephyr/CMakeLists.txt`: the provider stops the CMake run when
 `WATCHDOG`, `HWINFO` or `REBOOT` is off, or when another owner is on (`CRUX_CONTROLLER_M3`, `WDT_SHELL`,
 `HWINFO_SHELL`, `TASK_WDT_HW_FALLBACK`); `system_binding.c` stops the compile with `#error` when the alias
-`crux-watchdog0` is missing or its node is disabled, and a `BUILD_ASSERT` requires that node to be `wdog0`. At the pin the overlay lines that name the alias for this board are set by `tests/system_consumer` and `tests/m5_integrated` (read with `git show` at `37c92b18`). `tests/zephyr/management_rt1060_compile` may be a third place that sets it; that was not checked at the pin. The sample `samples/controller/zephyr/m3_main.c` reads the alias `watchdog0` instead and is the native owner that System refuses. A later Crux revision was not read.
+`crux-watchdog0` is missing or its node is disabled, and a `BUILD_ASSERT` requires that node to be `wdog0`. At the pin the overlay lines that name the alias for this board are set by `tests/system_consumer`, `tests/m5_integrated` and `tests/zephyr/management_rt1060_compile` (read with `git show` at `37c92b18`; for the last one, `target.overlay:3`). The sample `samples/controller/zephyr/m3_main.c` reads the alias `watchdog0` instead and is the native owner that System refuses. A later Crux revision was not read.
 These are good, early failures. The wording of the Kconfig help of `CRUX_SYSTEM` ("explicit native
 WATCHDOG/HWINFO/REBOOT composition required") is what tells a product to write them.
 
