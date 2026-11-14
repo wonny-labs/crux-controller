@@ -1,7 +1,8 @@
 # West manifest of crux-controller. This repository is the manifest repository
 # and Crux (crux-pilot) is imported at a pinned commit (west's T2 topology). No optional
-# group is enabled in Stage 1. The one other project is picolibc, a test-only libc for the
-# native_sim scenario of step S2 (see the comment on the project).
+# group is enabled in Stage 1. The Crux import is narrowed by name (see the comment on the
+# project). The one other project is picolibc, a test-only libc for the native_sim scenario of
+# step S2 (see the comment on the project).
 manifest:
   version: "1.2"
 
@@ -18,7 +19,16 @@ manifest:
       # composition interface <crux/file_zephyr.h> (crux-pilot PR 346). No Crux tag
       # exists yet, so this is a commit, not a tag.
       revision: 37c92b18b44b7dfb95c2109f036f23d00f05cb4c
-      import: true
+      # The Crux manifest puts Mbed TLS and TF-PSA-Crypto in the same optional group
+      # (crux-secure-management) as wolfSSL, wolfSSH and wolfPSA, which are GPL or commercial.
+      # Blocking the three wolf projects by name keeps them out of the resolved manifest, so
+      # enabling that group fetches the Mbed modules and no GPL stack. The group itself stays
+      # off. scripts/check_mbed_only.py checks this, and the West pins job runs it.
+      import:
+        name-blocklist:
+          - wolfssl
+          - wolfssh
+          - wolfpsa
 
     # Test-only. The native_sim scenario of S2 needs an embedded libc, because the native
     # libc of native_sim would bypass Zephyr's socket providers, and Crux's manifest does not
