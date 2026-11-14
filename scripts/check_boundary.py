@@ -23,12 +23,14 @@ Four trees are checked:
 * ``app/os/`` is the adapter zone, where OS facilities (threads, queues, sleeping) use Zephyr
   directly. It may include ISO C headers, public ``<crux/NAME.h>`` headers, headers of its own
   tree, the headers of ``app/src`` (header files only: the product-owned port that ``app/src``
-  declares and the zone implements) and exactly one Zephyr header, ``zephyr/kernel.h``
-  (``OS_ADAPTER_ZEPHYR_HEADERS``). It may not include the Sockets profile or other POSIX headers,
-  the composition interface ``<crux/file_zephyr.h>`` or any other composition interface, any other
-  Zephyr header, or a vendor or third-party header. ``app/src``, ``app/compose`` and ``workload``
-  keep failing on ``zephyr/kernel.h``, and a quoted include of an adapter header fails in all
-  three. The composition zone's list does not gain ``zephyr/kernel.h``. See
+  declares and the zone implements) and exactly two Zephyr headers, ``zephyr/kernel.h`` and
+  ``zephyr/net/sntp.h`` (``OS_ADAPTER_ZEPHYR_HEADERS``). The SNTP header is allowed for the
+  library's string-based query, so the zone includes no socket header itself. It may not
+  include the Sockets profile or other POSIX headers, the composition interface
+  ``<crux/file_zephyr.h>`` or any other composition interface, any other Zephyr header (the
+  Zephyr socket headers included), or a vendor or third-party header. ``app/src``, ``app/compose``
+  and ``workload`` keep failing on both Zephyr headers, and a quoted include of an adapter header
+  fails in all three. The composition zone's list gains neither header. See
   ``docs/composition-zone.md``.
 
 ``app/src`` and ``app/os`` also fail on the four frozen Crux headers, ``crux/thread.h``,
@@ -77,7 +79,7 @@ COMPOSITION_ZEPHYR_HEADERS = frozenset({"zephyr/fs/fs.h", "zephyr/devicetree.h"}
 # The adapter zone's exact allow-list of Zephyr headers (docs/composition-zone.md justifies it).
 # There are no wildcards: a name is a header or it is not. Adding a name is a reviewed change of
 # this file, of tests/tooling/test_boundary.py and of that document.
-OS_ADAPTER_ZEPHYR_HEADERS = frozenset({"zephyr/kernel.h"})
+OS_ADAPTER_ZEPHYR_HEADERS = frozenset({"zephyr/kernel.h", "zephyr/net/sntp.h"})
 
 # The public Crux headers that the product no longer uses. Threads and queues come from Zephyr
 # directly, in app/os behind a port header of app/src (ADR-0002 of crux-pilot), so app/src and
