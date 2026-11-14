@@ -68,7 +68,8 @@ class S4Limits(unittest.TestCase):
 
     def test_the_s4_row_equals_the_s3_row_and_no_other_row_changed(self):
         rows = self.limits()["min_free_percent"]
-        self.assertEqual(["S0", "S1", "S2", "S3", "S4"], sorted(rows))
+        # Step S5 later added its own row, which test_s5.py pins.
+        self.assertEqual(["S0", "S1", "S2", "S3", "S4", "S5"], sorted(rows))
         for step in ("S0", "S1", "S2", "S3"):
             self.assertEqual(rows["S3"], rows[step], step)
         self.assertEqual(rows["S3"], rows["S4"])
