@@ -404,5 +404,102 @@ class S4Scenario(unittest.TestCase):
         self.assertIn("test_the_workload_logs_one_line_per_message", source)
 
 
+class S4Workflows(unittest.TestCase):
+    def ci(self):
+        return yaml.safe_load((WORKFLOWS / "ci.yml").read_text())
+
+    def commands(self, job):
+        return "\n".join(step.get("run", "") for step in self.ci()["jobs"][job]["steps"])
+
+    def budget_rows(self):
+        budget = yaml.safe_load((WORKFLOWS / "budget.yml").read_text())
+        return {row["step"]: row for row in budget["jobs"]["budget"]["strategy"]["matrix"]["include"]}
+
+    def test_ci_has_an_s4_job_that_builds_the_board_image_with_the_gate_required(self):
+        self.assertIn("s4", self.ci()["jobs"])
+        job = self.ci()["jobs"]["s4"]
+        self.assertEqual(BOARD, job["env"]["BOARD"])
+        commands = self.commands("s4")
+        self.assertIn("-DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON", commands)
+        self.assertIn("conf/s1.conf;conf/s4.conf", commands)
+        self.assertIn("boards/s4.overlay", commands)
+        self.assertIn("build/s4", commands)
+
+    def test_the_s4_job_follows_the_s3_job_step_for_step_where_it_builds(self):
+        jobs = self.ci()["jobs"]
+        names = [step.get("name", step.get("uses", "")) for step in jobs["s4"]["steps"]]
+        s3 = [step.get("name", step.get("uses", "")) for step in jobs["s3"]["steps"]]
+        self.assertEqual(
+            [name.replace("S3", "S4") for name in s3][:-1], names[: len(s3) - 1],
+        )
+        self.assertEqual(jobs["s3"]["runs-on"], jobs["s4"]["runs-on"])
+        self.assertEqual(jobs["s3"]["env"]["SDK_VERSION"], jobs["s4"]["env"]["SDK_VERSION"])
+
+    def test_the_s4_job_checks_what_the_build_resolved(self):
+        commands = self.commands("s4")
+        for needle in (
+            "CONFIG_CRUX_CONTROLLER_S4=y", "CONFIG_CRUX_SYSTEM=y", "CONFIG_WATCHDOG=y",
+            "CONFIG_HWINFO=y", "CONFIG_REBOOT=y", "crux-watchdog0", "wdog0", "zephyr.bin",
+        ):
+            self.assertIn(needle, commands, needle)
+
+    def test_the_s4_job_checks_that_no_other_owner_and_no_crux_thread_provider_is_on(self):
+        commands = self.commands("s4")
+        for needle in (
+            "CONFIG_TASK_WDT=y", "CONFIG_WDT_SHELL=y", "CONFIG_HWINFO_SHELL=y",
+            "CONFIG_CRUX_CONTROLLER_M3=y", "CONFIG_CRUX_THREAD=y", "CONFIG_CRUX_SYNC=y",
+            "CONFIG_CRUX_QUEUE=y",
+        ):
+            self.assertIn(needle, commands, needle)
+
+    def test_the_s4_job_checks_what_the_image_links(self):
+        commands = self.commands("s4")
+        for symbol in ("health_report_reset_cause", "health_watchdog_start", "health_cycle",
+                       "health_feed_result", "crux_watchdog_start", "crux_watchdog_feed",
+                       "crux_system_reset_cause_get", "crux_system_reset_cause_clear"):
+            self.assertIn(symbol, commands, symbol)
+        self.assertIn("arm-zephyr-eabi-nm", commands)
+
+    def test_the_s4_job_runs_no_hardware_command_and_says_nothing_ran_on_a_board(self):
+        commands = self.commands("s4")
+        for word in ("west flash", "west debug", "JLink", "pyocd", "openocd"):
+            self.assertNotIn(word, commands, word)
+        self.assertIn("No flash, reset or hardware command was run.", commands)
+
+    def test_the_native_sim_scenarios_of_s4_run_in_ci_with_the_others(self):
+        self.assertIn("tests/native_sim", self.commands("s1"))
+        self.assertIn("native_sim/native/64", self.commands("s1"))
+
+    def test_the_budget_matrix_has_an_s4_row_on_the_s1_base(self):
+        rows = self.budget_rows()
+        self.assertIn("S4", rows)
+        self.assertEqual("conf/s1.conf;conf/s4.conf", rows["S4"]["conf"])
+        self.assertEqual("boards/s4.overlay", rows["S4"]["overlay"])
+
+    def test_the_budget_row_requires_the_step_and_the_provider_to_be_built(self):
+        require = self.budget_rows()["S4"]["require"].split()
+        self.assertIn("CONFIG_CRUX_CONTROLLER_S4=y", require)
+        self.assertIn("CONFIG_CRUX_SYSTEM=y", require)
+
+    def test_the_budget_rows_of_the_other_steps_are_unchanged(self):
+        rows = self.budget_rows()
+        self.assertEqual(["S0", "S1", "S2", "S3", "S4"], sorted(rows))
+        self.assertEqual(("", "", ""), (rows["S0"]["conf"], rows["S0"]["overlay"], rows["S0"]["require"]))
+        self.assertEqual("conf/s1.conf", rows["S1"]["conf"])
+        self.assertEqual("conf/s1.conf;conf/s2.conf", rows["S2"]["conf"])
+        self.assertEqual("boards/s2.overlay", rows["S2"]["overlay"])
+        self.assertEqual("conf/s1.conf;conf/s3.conf", rows["S3"]["conf"])
+        self.assertEqual("boards/s3.overlay", rows["S3"]["overlay"])
+        self.assertEqual("CONFIG_CRUX_CONTROLLER_S3=y CONFIG_CRUX_FILE_FATFS_RT1060=y",
+                         rows["S3"]["require"])
+
+    def test_no_workflow_uploads_an_artifact_and_the_new_job_asks_for_no_write_permission(self):
+        for path in sorted(WORKFLOWS.glob("*.yml")):
+            text = path.read_text()
+            self.assertNotIn("upload-artifact", text, path.name)
+        self.assertEqual({"contents": "read"}, self.ci()["permissions"])
+        self.assertNotIn("permissions", self.ci()["jobs"]["s4"])
+
+
 if __name__ == "__main__":
     unittest.main()

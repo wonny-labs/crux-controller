@@ -350,6 +350,103 @@ jobs:
             ! grep -qE " [Tt] ${symbol}$" symbols.txt || { echo "linked: $symbol" >&2; exit 1; }
           done
 
+  s4:
+    name: S4 build (RT1060-EVKB, System)
+    runs-on: ubuntu-24.04
+    env:
+      BOARD: mimxrt1060_evk@B//qspi
+      SDK_VERSION: "1.0.1"
+      ZEPHYR_SDK_INSTALL_DIR: ${{ github.workspace }}/sdk/zephyr-sdk-1.0.1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: crux-controller
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install host packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential ca-certificates device-tree-compiler file gperf git \
+            libmagic1 pkg-config wget xz-utils
+      - name: Install pinned build tools
+        run: python -m pip install cmake==3.28.4 ninja==1.11.1 west==1.4.0
+      - name: Fetch the workspace
+        run: |
+          west init -l crux-controller
+          west update
+          python -m pip install -r zephyr/scripts/requirements-base.txt
+      - name: Restore the Zephyr SDK
+        id: sdk_cache
+        uses: actions/cache@v4
+        with:
+          path: sdk
+          key: zephyr-sdk-${{ env.SDK_VERSION }}-arm-zephyr-eabi
+      - name: Install the Zephyr SDK
+        if: steps.sdk_cache.outputs.cache-hit != 'true'
+        working-directory: zephyr
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          west sdk install --version "$SDK_VERSION" --install-base "$GITHUB_WORKSPACE/sdk" \
+            --gnu-toolchains arm-zephyr-eabi --personal-access-token "$GH_TOKEN"
+      - name: Cross-build S4 with the baseline gate required
+        env:
+          ZEPHYR_BASE: ${{ github.workspace }}/zephyr
+        run: |
+          west build -p always -b '${{ env.BOARD }}' -d crux-controller/build/s4 \
+            crux-controller/app -- -DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON \
+            "-DEXTRA_CONF_FILE=conf/s1.conf;conf/s4.conf" \
+            "-DEXTRA_DTC_OVERLAY_FILE=boards/s4.overlay"
+      - name: Check the outputs exist
+        run: |
+          for output in zephyr.bin zephyr.meta; do
+            test -f "crux-controller/build/s4/zephyr/$output" || {
+              echo "missing $output" >&2
+              exit 1
+            }
+          done
+          echo "Built S4 for $BOARD. No flash, reset or hardware command was run."
+      - name: Check the resolved S4 configuration and devicetree
+        run: |
+          build=crux-controller/build/s4/zephyr
+          # An unmet Kconfig dependency only warns and a missing overlay entry would not stop
+          # the build before the provider checks it, so check what the build resolved, not what
+          # the command line asked for.
+          for option in CONFIG_CRUX_CONTROLLER_S4=y CONFIG_CRUX_SYSTEM=y CONFIG_WATCHDOG=y \
+              CONFIG_HWINFO=y CONFIG_REBOOT=y; do
+            grep -qxF "$option" "$build/.config" || { echo "missing $option" >&2; exit 1; }
+          done
+          # Crux System refuses another owner of the watchdog or of the reset cause, and the
+          # product selects no Crux Thread, Sync or Queue provider.
+          for option in CONFIG_TASK_WDT=y CONFIG_TASK_WDT_HW_FALLBACK=y CONFIG_WDT_SHELL=y \
+              CONFIG_HWINFO_SHELL=y CONFIG_CRUX_CONTROLLER_M3=y CONFIG_CRUX_THREAD=y \
+              CONFIG_CRUX_SYNC=y CONFIG_CRUX_QUEUE=y; do
+            ! grep -qxF "$option" "$build/.config" || { echo "unexpected $option" >&2; exit 1; }
+          done
+          grep -Eq 'crux-watchdog0 = &?wdog0' "$build/zephyr.dts" || {
+            echo "the S4 overlay did not set the crux-watchdog0 alias" >&2
+            grep -n 'crux-watchdog0' "$build/zephyr.dts" >&2 || true
+            exit 1
+          }
+          awk '/wdog0: /,/};/' "$build/zephyr.dts" | grep -q 'status = "okay"' || {
+            echo "the WDOG1 node (wdog0) is not enabled in the devicetree" >&2
+            awk '/wdog0: /,/};/' "$build/zephyr.dts" >&2 || true
+            exit 1
+          }
+      - name: Check what the image links
+        run: |
+          nm=$(find "$ZEPHYR_SDK_INSTALL_DIR" -name 'arm-zephyr-eabi-nm' -type f | head -n 1)
+          test -n "$nm" || { echo "no nm in the SDK" >&2; exit 1; }
+          "$nm" crux-controller/build/s4/zephyr/zephyr.elf > symbols.txt
+          # The policy, the glue and the public System calls that it makes are linked.
+          for symbol in health_report_reset_cause health_watchdog_start health_cycle \
+              health_feed_result health_watchdog_timeout crux_watchdog_start crux_watchdog_feed \
+              crux_system_reset_cause_get crux_system_reset_cause_clear; do
+            grep -qE " [Tt] ${symbol}$" symbols.txt || { echo "not linked: $symbol" >&2; exit 1; }
+          done
+
   boundary:
     name: Boundary check
     runs-on: ubuntu-24.04
