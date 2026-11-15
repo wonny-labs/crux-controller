@@ -38,7 +38,7 @@ lists S4 among the epic's children, so S4 is a Stage 2 step. Nothing places S5 i
 text names no stage, and it arrived with
 [wonny-labs/crux-controller#50](https://github.com/wonny-labs/crux-controller/pull/50). The comment at
 `west.yml` line 18 ("chosen for Stage 1") is historical. One use differs from the rest:
-`docs/findings/file-binding-has-no-public-header.md` (lines 3 and 21) says S3 "is not built in Stage 1",
+`docs/findings/file-binding-has-no-public-header.md` (line 21) says S3 "is not built in Stage 1",
 a note from before S3 was built. Treat the stage number as a label of when something was planned, not
 as a property of the code. One other use is unrelated: `docs/findings/s2-first-board-run.md` says "an
 earlier platform stage", which means a phase of Crux, not of this repository.

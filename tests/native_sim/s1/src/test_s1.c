@@ -6,6 +6,7 @@
 #include <zephyr/device.h>
 #include <zephyr/drivers/serial/uart_emul.h>
 #include <zephyr/kernel.h>
+#include <zephyr/logging/log_ctrl.h>
 #include <zephyr/ztest.h>
 
 #include "workload.h"
@@ -24,7 +25,9 @@ ZTEST(s1, test_the_workload_logs_one_line_per_message)
     zassert_equal(0, workload_thread_start(&config));
     k_msleep(150);
     zassert_equal(0, workload_thread_stop());
-    k_msleep(200); /* let the deferred log thread drain */
+    /* The deferred log thread may still hold messages; log_flush() wakes it and returns when every
+     * message is written, which a fixed sleep cannot promise. */
+    log_flush();
 
     length = uart_emul_get_tx_data(LOG_UART, (uint8_t *)captured, sizeof captured - 1);
     captured[length] = '\0';

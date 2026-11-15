@@ -26,7 +26,7 @@ _Static_assert(TIME_SYNC_MIN_UNIX_SECONDS == CRUX_TIME_MIN_UNIX_SECONDS, "range 
 _Static_assert(TIME_SYNC_MAX_UNIX_SECONDS_EXCLUSIVE == CRUX_TIME_MAX_UNIX_SECONDS_EXCLUSIVE,
                "range end");
 
-/* The settings must make sense together: a build that breaks one of these does not link. */
+/* The settings must make sense together: a build that breaks one of these fails to compile. */
 _Static_assert(CONFIG_CRUX_CONTROLLER_TIME_THRESHOLD_MS <= CONFIG_CRUX_CONTROLLER_TIME_MAX_STEP_MS,
                "the correction threshold must not exceed the maximum step");
 _Static_assert(CONFIG_CRUX_CONTROLLER_TIME_STALE_AGE_S > CONFIG_CRUX_CONTROLLER_TIME_INTERVAL_S,
@@ -111,8 +111,9 @@ void time_sync_poll(void)
                              (uint32_t)CONFIG_CRUX_CONTROLLER_TIME_TIMEOUT_MS, &sample);
 
     /* The snapshot and the age are read after the query, so that the clock is compared at the
-     * time the answer is used. A snapshot that cannot be read counts as a clock that is not valid,
-     * which lets the answer through if it is in range. */
+     * time the answer is used. A snapshot that cannot be read is a failed round: the policy sets
+     * nothing, because it has no clock to compare the answer with. A snapshot that was read and
+     * reports no time is a clock that is not valid, and an in-range answer sets it. */
     crux_realtime_snapshot_t snapshot = {0};
     const crux_status_t snapshot_status = crux_realtime_get_snapshot(&snapshot);
     const bool have_snapshot = snapshot_status == CRUX_OK && snapshot.is_valid;
@@ -124,6 +125,7 @@ void time_sync_poll(void)
     const time_sync_input_t input = {
         .result = result,
         .sample = sample,
+        .clock_unreadable = snapshot_status != CRUX_OK,
         .time_valid = have_snapshot,
         .time_synchronized = have_snapshot && snapshot.is_synchronized,
         .now = {.seconds = snapshot.timestamp.seconds, .nanoseconds = snapshot.timestamp.nanoseconds},

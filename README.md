@@ -2,11 +2,12 @@
 
 Crux Controller is an Apache-2.0 reference consumer firmware of
 [Crux](https://github.com/wonny-labs/crux-pilot), an embedded software platform, for the NXP
-RT1060-EVKB Rev B on the Zephyr RTOS. It is built as a product on top of Crux's public interfaces, one
-small step at a time, S0 to S5: S0 is the clock of Crux Time, S1 adds a small synthetic workload on Zephyr
-threads, and each later step adds one capability that uses a Crux component (a TCP exchange, a
-configuration file, a watchdog, a clock set from the network). Each step has its own build and resource
-budget, and each step after S0 has its own tests. It is not a product and has no real control logic.
+RT1060-EVKB Rev B on the Zephyr RTOS. It is built the way a product is built, on top of Crux's public
+interfaces and one small step at a time, S0 to S5: S0 is the clock of Crux Time, S1 adds a small synthetic
+workload on Zephyr threads, and each later step adds one capability that uses a Crux component (a TCP
+exchange, a configuration file, a watchdog, a clock set from the network). Each step has its own build and
+resource budget, and each step after S0 has its own tests. It is not a product and has no real control
+logic.
 
 Crux Controller is the official reference consumer firmware for ongoing integration,
 evaluation and regression testing of Crux Platform capabilities through public and approved

@@ -564,10 +564,12 @@ jobs:
           done
           # Nothing else may own the clock or the time source: no RTC adapter of Crux Time, no
           # uncertainty option of the SNTP library (it changes the time that the library reports),
-          # no other step, and no Crux Thread, Sync or Queue provider.
+          # none of the network configuration library's own SNTP clock setters (a second writer of
+          # the clock), no other step, and no Crux Thread, Sync or Queue provider.
           for option in CONFIG_CRUX_TIME_RTC=y CONFIG_SNTP_UNCERTAINTY=y CONFIG_CRUX_CONTROLLER_S3=y \
               CONFIG_CRUX_CONTROLLER_S4=y CONFIG_CRUX_CONTROLLER_M3=y CONFIG_CRUX_THREAD=y \
-              CONFIG_CRUX_SYNC=y CONFIG_CRUX_QUEUE=y; do
+              CONFIG_CRUX_SYNC=y CONFIG_CRUX_QUEUE=y CONFIG_NET_CONFIG_CLOCK_SNTP_INIT=y \
+              CONFIG_NET_CONFIG_SNTP_INIT_RESYNC=y; do
             ! grep -qxF "$option" "$build/.config" || { echo "unexpected $option" >&2; exit 1; }
           done
       - name: Check what the image links

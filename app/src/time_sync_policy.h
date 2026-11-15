@@ -17,10 +17,15 @@
  * The rules, in the order that time_sync_decide() applies them:
  *
  *   1. An answer that failed, timed out or was a kiss-o'-death never sets the clock. An answer that
- *      is outside [2000-01-01, 2100-01-01) or not a normalised time is refused. Each of these counts
- *      as a failure: when Crux is synchronised and the last good answer is older than the stale
- *      limit (strictly), the time is marked no longer synchronised. That happens once, because the
- *      next call finds Crux unsynchronised.
+ *      is outside [2000-01-01, 2100-01-01) or not a normalised time is refused. An answer that
+ *      arrives when the Crux Time snapshot could not be read is not applied either, because the
+ *      clock cannot be compared. Each of these counts as a failure: when Crux is synchronised (or,
+ *      for an unreadable snapshot, may be) and the last good answer is older than the stale limit
+ *      (strictly), the time is marked no longer synchronised. For a failed query or a refused
+ *      answer that happens once, because the next call finds Crux unsynchronised. For an
+ *      unreadable snapshot the flags are not known and the age is not refreshed, so the mark is
+ *      asked for again on every failed round over the limit while the read keeps failing: Crux
+ *      accepts it for a valid clock and refuses it for one that is not valid.
  *   2. While Crux time is not valid, or not synchronised (boot, stale, lost), any in-range answer
  *      is applied. The clock is not compared with it.
  *   3. While Crux time is synchronised, the difference d = answer - clock decides:
@@ -67,6 +72,9 @@ typedef struct {
 typedef struct {
     time_sync_sample_result_t result;
     time_sync_instant_t sample; /* the answer; read only when result is OK */
+    /* The Crux Time snapshot could not be read at all (the read returned an error). Not the same
+     * as time_valid being false, which is a snapshot that was read and reports no time. */
+    bool clock_unreadable;
     bool time_valid;            /* from the Crux Time snapshot: a time has been established */
     bool time_synchronized;     /* from the Crux Time snapshot: currently reported synchronised */
     time_sync_instant_t now;    /* the Crux realtime; read only when time_valid */
@@ -96,6 +104,7 @@ typedef enum {
     TIME_SYNC_REASON_TIMEOUT,
     TIME_SYNC_REASON_KISS_OF_DEATH,
     TIME_SYNC_REASON_ERROR,
+    TIME_SYNC_REASON_CLOCK_UNREADABLE, /* the Crux Time snapshot could not be read */
     TIME_SYNC_REASON_BAD_INPUT,      /* a NULL argument, an unknown result or unusable limits */
 } time_sync_reason_t;
 

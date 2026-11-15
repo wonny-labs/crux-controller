@@ -37,14 +37,18 @@ static time_sync_decision_t decision_of(time_sync_action_t action, time_sync_rea
  * A failure, or an answer that was refused for its range. It never sets. A synchronised clock whose
  * last good answer is older than the limit is marked stale instead of being left to claim a
  * synchronisation that nothing confirms; Crux refuses that call for a time that is not valid.
+ * When the snapshot could not be read the flags are not known, so only the age counts; if the time
+ * turns out not to be valid, Crux refuses the call and the glue logs it.
  */
 static time_sync_decision_t failure(const time_sync_input_t *input, const time_sync_limits_t *limits,
                                     time_sync_action_t action, time_sync_reason_t reason)
 {
     time_sync_decision_t decision = decision_of(action, reason);
 
-    if (input->time_valid && input->time_synchronized &&
-        input->seconds_since_good > limits->stale_age_s) {
+    const bool may_be_synchronised =
+        input->clock_unreadable || (input->time_valid && input->time_synchronized);
+
+    if (may_be_synchronised && input->seconds_since_good > limits->stale_age_s) {
         decision.action = TIME_SYNC_MARK_STALE;
         decision.clear_synchronized = true;
     }
@@ -70,6 +74,11 @@ time_sync_decision_t time_sync_decide(const time_sync_input_t *input, const time
     }
     if (!time_sync_instant_in_range(input->sample)) {
         return failure(input, limits, TIME_SYNC_REFUSE_RANGE, TIME_SYNC_REASON_OUT_OF_RANGE);
+    }
+    /* A snapshot that could not be read gives nothing to compare with, and no ground to treat the
+     * clock as not valid: the round fails and sets nothing. */
+    if (input->clock_unreadable) {
+        return failure(input, limits, TIME_SYNC_NO_ACTION, TIME_SYNC_REASON_CLOCK_UNREADABLE);
     }
     /* A clock that is not valid, not synchronised, or reads outside the range (it cannot be
      * compared) takes any in-range answer. */
@@ -153,6 +162,8 @@ const char *time_sync_reason_name(time_sync_reason_t reason)
         return "kiss-of-death";
     case TIME_SYNC_REASON_ERROR:
         return "error";
+    case TIME_SYNC_REASON_CLOCK_UNREADABLE:
+        return "clock-unreadable";
     case TIME_SYNC_REASON_BAD_INPUT:
         return "bad-input";
     default:
