@@ -299,6 +299,33 @@ static void an_unreadable_clock_counts_towards_staleness_like_any_failure(void)
     CHECK(time_sync_decision_level(decision) == TIME_SYNC_LOG_WARN);
 }
 
+static void a_failed_query_with_an_unreadable_clock_marks_stale_after_the_limit_and_keeps_its_reason(void)
+{
+    const struct {
+        time_sync_sample_result_t result;
+        time_sync_reason_t reason;
+    } cases[] = {
+        {TIME_SYNC_SAMPLE_TIMEOUT, TIME_SYNC_REASON_TIMEOUT},
+        {TIME_SYNC_SAMPLE_ERROR, TIME_SYNC_REASON_ERROR},
+    };
+
+    for (size_t i = 0; i < sizeof cases / sizeof cases[0]; i++) {
+        time_sync_input_t input = {
+            .result = cases[i].result,
+            .clock_unreadable = true,
+            .seconds_since_good = 1801u,
+        };
+        const time_sync_decision_t decision = decide(&input);
+
+        CHECK(decision.action == TIME_SYNC_MARK_STALE);
+        CHECK(decision.reason == cases[i].reason); /* the query failed first: its reason stays */
+        CHECK(decision.clear_synchronized);
+        CHECK(!decision.refresh_good);
+        /* The age is not refreshed, so the mark is asked for again while the read keeps failing. */
+        CHECK(decide(&input).action == TIME_SYNC_MARK_STALE);
+    }
+}
+
 static void an_unreadable_clock_does_not_change_the_reason_of_a_failed_query_or_a_bad_answer(void)
 {
     time_sync_input_t input = {.result = TIME_SYNC_SAMPLE_TIMEOUT, .clock_unreadable = true};
@@ -732,6 +759,7 @@ int main(void)
     stale_is_marked_only_while_the_time_is_valid_and_synchronised();
     an_unreadable_clock_is_a_failed_round_and_never_sets();
     an_unreadable_clock_counts_towards_staleness_like_any_failure();
+    a_failed_query_with_an_unreadable_clock_marks_stale_after_the_limit_and_keeps_its_reason();
     an_unreadable_clock_does_not_change_the_reason_of_a_failed_query_or_a_bad_answer();
     an_answer_out_of_range_never_sets_in_any_state();
     an_answer_out_of_range_counts_as_a_failure_for_staleness();
