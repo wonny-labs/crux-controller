@@ -5,6 +5,8 @@ promises no dates and no features. "Not yet possible" does not mean "planned": t
 covers most of these says "Not decided and not scheduled: whether and when any of this is built here."
 Status can go stale, so check the README, the changelog and the open pull requests, and read the
 [architecture](architecture.md) and the [glossary](glossary.md) for the terms.
+To see the tests run without a board, read [try-on-native-sim.md](try-on-native-sim.md). An outline of how a
+board bring-up would go, not yet run for this controller, is in [board-bring-up.md](board-bring-up.md).
 
 ## Short version
 

@@ -2,7 +2,9 @@
 
 This page explains how the repository is built, for a reader who has not seen Crux or this
 repository before. Terms in italics on first use are defined in the [glossary](glossary.md). What
-exists and what does not is in the [roadmap](roadmap.md). The rules for changing things are in
+exists and what does not is in the [roadmap](roadmap.md). How to run the tests without a board is in
+[try-on-native-sim.md](try-on-native-sim.md), and an outline of a board bring-up is in
+[board-bring-up.md](board-bring-up.md). The rules for changing things are in
 [CONTRIBUTING.md](../CONTRIBUTING.md).
 
 ## What the controller is and does
@@ -172,7 +174,7 @@ Top-level directories and files:
 | `scripts/` | `check_boundary.py` (the include check) and `check_mbed_only.py` (checks that the Crux import cannot activate the GPL stacks). |
 | `budgets/` | `limits.json` (declared minimum free percent per memory region and step), `collect.py` (reads a build log into a measurement), `check.py` (compares a measurement with the limits). |
 | `release/` | The release bundle tools: `assemble_bundle.py`, `check_bundle.py`, `rebuild_compare.py`, `parse_spdx.py` and `release-manifest.schema.json`. Hashes and identities only; no image is ever published. |
-| `docs/` | This documentation: [architecture.md](architecture.md), [glossary.md](glossary.md), [adding-a-step.md](adding-a-step.md), [roadmap.md](roadmap.md), [composition-zone.md](composition-zone.md), [dependencies.md](dependencies.md) and `findings/`. |
+| `docs/` | This documentation: [architecture.md](architecture.md), [glossary.md](glossary.md), [adding-a-step.md](adding-a-step.md), [roadmap.md](roadmap.md), [try-on-native-sim.md](try-on-native-sim.md), [board-bring-up.md](board-bring-up.md), [composition-zone.md](composition-zone.md), [dependencies.md](dependencies.md) and `findings/`. |
 | `.github/workflows/` | `ci.yml` (tooling tests, west pins, host tests, the step builds and the boundary check), `budget.yml`, `rebuild.yml`, `release.yml`, `scheduled-main.yml`. |
 | `west.yml` | The west manifest and the pin. |
 | `README.md`, `CONTRIBUTING.md`, `CHANGELOG.md`, `RELEASE.md`, `SECURITY.md`, `LICENSE`, `CODEOWNERS` | Role and status, contribution rules, changes, release flow, vulnerability reporting, licence, ownership. |
