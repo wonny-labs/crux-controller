@@ -71,9 +71,10 @@ class ZoneBuildFiles(unittest.TestCase):
             r"TARGET_DIRECTORY app\s+PROPERTIES COMPILE_OPTIONS \"-Wall;-Wextra;-Werror\"\)",
         )
 
-    def test_the_zone_has_exactly_one_source_and_one_build_file(self):
+    def test_the_zone_has_exactly_two_sources_and_one_build_file(self):
+        # Step S5 added the SNTP adapter as the second source; test_s5.py pins it.
         names = sorted(p.name for p in ZONE.iterdir())
-        self.assertEqual(["CMakeLists.txt", "workload_os_zephyr.c"], names)
+        self.assertEqual(["CMakeLists.txt", "time_sync_zephyr.c", "workload_os_zephyr.c"], names)
 
 
 class ApplicationBuildFiles(unittest.TestCase):

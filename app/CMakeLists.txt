@@ -38,4 +38,11 @@ if(CONFIG_CRUX_CONTROLLER_S1)
         target_sources(app PRIVATE src/health.c src/health_policy.c)
         target_link_libraries(app PRIVATE crux::system)
     endif()
+    # Step S5: the realtime clock of Crux Time, set from an SNTP server. The policy and the glue are
+    # sources of the application. The glue calls the Crux Time authority, whose header is in the
+    # include directory that crux::time gives, and the SNTP library is called by the adapter zone
+    # (app/os), so no zone, library or include path is added here.
+    if(CONFIG_CRUX_CONTROLLER_S5)
+        target_sources(app PRIVATE src/time_sync.c src/time_sync_policy.c)
+    endif()
 endif()

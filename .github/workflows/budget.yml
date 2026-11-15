@@ -48,6 +48,12 @@ jobs:
             conf: "conf/s1.conf;conf/s4.conf"
             overlay: "boards/s4.overlay"
             require: "CONFIG_CRUX_CONTROLLER_S4=y CONFIG_CRUX_SYSTEM=y"
+          # S5 is built on the network of S2, with the SNTP library. Its fragment would build
+          # silently without the step if a Kconfig dependency were unmet, so the build is checked.
+          - step: S5
+            conf: "conf/s1.conf;conf/s2.conf;conf/s5.conf"
+            overlay: "boards/s2.overlay"
+            require: "CONFIG_CRUX_CONTROLLER_S5=y CONFIG_CRUX_CONTROLLER_S2=y CONFIG_SNTP=y"
     env:
       BOARD: mimxrt1060_evk@B//qspi
       SDK_VERSION: "1.0.1"
