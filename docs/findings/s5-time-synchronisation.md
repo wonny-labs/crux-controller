@@ -87,7 +87,7 @@ range, documented in `app/Kconfig` and fixed by the resolved-configuration check
 |---|---|---|---|
 | Server (`CRUX_CONTROLLER_TIME_SERVER`) | `192.168.77.1`, the peer of S2 | an IPv4 address, optionally `:port` | the image has no DNS resolver, so a host name does not resolve |
 | Interval (`CRUX_CONTROLLER_TIME_INTERVAL_S`) | 600 s | 16 to 86400 | one query every ten minutes; RFC 4330 asks for no more than one in 15 seconds |
-| Query timeout (`CRUX_CONTROLLER_TIME_TIMEOUT_MS`) | 3000 ms | 100 to 30000 | the library resends with a growing wait until it is over; a build check keeps it below the interval |
+| Query timeout (`CRUX_CONTROLLER_TIME_TIMEOUT_MS`) | 3000 ms | 100 to 30000 | the library resends with a growing wait and checks the deadline only between rounds, so a query can run past it (see below); a build check keeps the value below the interval |
 | Stale age (`CRUX_CONTROLLER_TIME_STALE_AGE_S`) | 1800 s | 60 to 604800 | three intervals without a confirming answer; a build check keeps it above the interval |
 | Correction threshold (`CRUX_CONTROLLER_TIME_THRESHOLD_MS`) | 100 ms | 1 to 10000 | a difference below it is left alone, so that a good server does not cause a write every round |
 | Maximum step (`CRUX_CONTROLLER_TIME_MAX_STEP_MS`) | 1000 ms | 1 to 3600000 | a build check keeps it at or above the threshold |
@@ -153,7 +153,13 @@ The composition proper is the fragment, the glue and the adapter. Line counts ar
 **Inferred** from `subsys/net/lib/sntp/sntp.c`: a stratum of zero returns `-EBUSY`, an answer to another request
 returns `-ERANGE`, a wrong mode or a zero transmit time `-EINVAL`, a short packet `-EMSGSIZE`, no answer in time
 `-ETIMEDOUT`. `sntp_simple()` keeps asking with a growing wait (100, 200, 400, 800, then 1000 ms) until its timeout is
-over, skips an answer to an earlier request and returns the last result. The adapter maps `-ETIMEDOUT` to a timeout,
+over, skips an answer to an earlier request and returns the last result. It checks the deadline between rounds,
+not inside one, so a query can run past the configured timeout by up to the wait of one round (1000 ms at most) and
+longer while it is skipping answers to earlier requests. The timeout is therefore a lower bound on how long a
+failing query takes. The stale mark is judged when a failed round ends, so the 1800 s boundary depends on how long
+each query ran as well as on the interval: it is not a fixed time after the last good answer. Read in
+`sntp_simple.c` at `v4.4.0` in the local clone (**Inferred**, not run on its own here); the file is not among the
+paths that differ at the pinned `v4.4.2`. The adapter maps `-ETIMEDOUT` to a timeout,
 `-EBUSY` to a kiss-o'-death and everything else to an error. The meaning of `-EBUSY` is the library's, not a promise
 of its header. **Open:** the cases `-ERANGE`, `-EINVAL` and `-EMSGSIZE` are not shown by a scenario.
 

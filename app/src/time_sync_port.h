@@ -22,7 +22,8 @@ typedef enum {
 } time_sync_port_status_t;
 
 /*
- * Ask the server for the time and wait at most timeout_ms for the answer. The server is the text
+ * Ask the server for the time and wait about timeout_ms for the answer: the Zephyr query checks its
+ * deadline between rounds, so a call can run past it by up to one round's wait. The server is the text
  * that Zephyr's string-based query takes, an IPv4 address with an optional ":port" (port 123 when
  * there is none). Blocks the caller. On TIME_SYNC_SAMPLE_OK, *sample holds the time of the answer;
  * otherwise *sample is not changed. The result names the failure: no answer in time, a

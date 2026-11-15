@@ -98,8 +98,12 @@ config CRUX_CONTROLLER_TIME_TIMEOUT_MS
 	range 100 30000
 	depends on CRUX_CONTROLLER_S5
 	help
-	  The Zephyr library resends the request with a growing wait until this time is over, so a
-	  query can take about this long. It must be shorter than the interval.
+	  The Zephyr library resends the request with a growing wait and checks this time only
+	  between two rounds, so a query can run past it: by up to the wait of one round (1000 ms at
+	  most), and longer while it skips answers to earlier requests. The setting is a lower bound
+	  on how long a failing query takes, not an upper one. It must be shorter than the interval.
+	  The stale age below is judged when a failed round ends, so the moment a clock is marked
+	  not synchronised depends on how long each query ran, as well as on the interval.
 
 config CRUX_CONTROLLER_TIME_STALE_AGE_S
 	int "Seconds after which an unconfirmed synchronised clock is marked not synchronised"
