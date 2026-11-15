@@ -3,10 +3,10 @@
 Crux Controller is an Apache-2.0 reference consumer firmware of
 [Crux](https://github.com/wonny-labs/crux-pilot), an embedded software platform, for the NXP
 RT1060-EVKB Rev B on the Zephyr RTOS. It is built as a product on top of Crux's public interfaces, one
-small step at a time, S0 to S5: a small synthetic workload runs on Zephyr threads, and each later step
-adds one capability that uses a Crux component (a TCP exchange, a configuration file, a watchdog, a clock
-set from the network). Each step has its own build, tests and resource budget. It is not a product and
-has no real control logic.
+small step at a time, S0 to S5: S0 is the clock of Crux Time, S1 adds a small synthetic workload on Zephyr
+threads, and each later step adds one capability that uses a Crux component (a TCP exchange, a
+configuration file, a watchdog, a clock set from the network). Each step has its own build and resource
+budget, and each step after S0 has its own tests. It is not a product and has no real control logic.
 
 Crux Controller is the official reference consumer firmware for ongoing integration,
 evaluation and regression testing of Crux Platform capabilities through public and approved
@@ -100,8 +100,8 @@ says what each pinned project is for and under which licence it states it is dis
 
 ## How it is tracked
 
-In this repository's documents, Stage 1 means the work up to step S3 and Stage 2 the steps from S4 on;
-the stage is a planning label, not a property of the code (see the [glossary](docs/glossary.md)).
+These documents call S3 a Stage 1 step and S4 a Stage 2 step; they do not place S5. The stage is a
+planning label, not a property of the code.
 Stage 2 steps and their findings are tracked in this repository's own issues: the epic #44 and its
 children #40 (the management finding), #41 (S4), #42 and #43. Earlier findings are recorded in
 `docs/findings/`. Step S5 arrived with

@@ -30,16 +30,18 @@ adding one is in [adding-a-step.md](adding-a-step.md).
 a job (`ci.yml`, `budget.yml`). In `RELEASE.md` the table "Step, Tool, What fails the run" lists the
 actions of the release dry run. The context says which one is meant.
 
-**Stage.** A phase of the repository's own work, larger than a step. The documents define it only by use.
-`README.md` says that Stage 1 means the work up to step S3 and Stage 2 the steps from S4 on, and that
-"Stage 2 steps and their findings" are tracked in the repository's own issues under an epic. This
-matches `docs/findings/management-has-no-public-composition.md`, which says it was "recorded after
-Stage 1 step S3", and the comments in `west.yml`, which write "Stage 1". The README's status line no
-longer carries a stage number, and its tracking paragraph does not say which issue tracks S5; S5 arrived
-with [wonny-labs/crux-controller#50](https://github.com/wonny-labs/crux-controller/pull/50). Treat the
-stage number as a label of when something was planned, not as a property of the code. One other use is
-unrelated: `docs/findings/s2-first-board-run.md` says "an earlier platform stage", which means a phase
-of Crux, not of this repository.
+**Stage.** A phase of the repository's own work, larger than a step. The documents never define it;
+this entry records how they use it. `docs/findings/management-has-no-public-composition.md` says it was
+"recorded after Stage 1 step S3", so S3 is a Stage 1 step. The tracking paragraph of `README.md` says
+that "Stage 2 steps and their findings" are tracked in the repository's own issues under an epic, and
+lists S4 among the epic's children, so S4 is a Stage 2 step. Nothing places S5 in a stage: its README
+text names no stage, and it arrived with
+[wonny-labs/crux-controller#50](https://github.com/wonny-labs/crux-controller/pull/50). The comment at
+`west.yml` line 18 ("chosen for Stage 1") is historical. One use differs from the rest:
+`docs/findings/file-binding-has-no-public-header.md` (lines 3 and 21) says S3 "is not built in Stage 1",
+a note from before S3 was built. Treat the stage number as a label of when something was planned, not
+as a property of the code. One other use is unrelated: `docs/findings/s2-first-board-run.md` says "an
+earlier platform stage", which means a phase of Crux, not of this repository.
 
 ## Boundary and zones
 
@@ -140,8 +142,11 @@ was not read for this page.
 These are recorded, not fixed here, because the files involved belong to other changes or are kept as
 written.
 
-- Step and stage: the README defines the two stages as above, but `west.yml` still writes "Stage 1" in
-  comments for a pin that serves all six steps.
+- Step and stage, as above: no document defines the stages, S5 is in none, and
+  `docs/findings/file-binding-has-no-public-header.md` line 21 says S3 "is not built in Stage 1", a note
+  kept as written from before S3 was built, while the management finding calls S3 a
+  Stage 1 step. The comment at `west.yml` line 18 says the pin was chosen "for Stage 1"; it is historical,
+  and the pin serves all six steps.
 - `app/conf/s3.conf` line 3 and `app/conf/s4.conf` line 3 say that S3 and S4 are built on S1 without the
   other steps. That agrees with `app/Kconfig`, which says that S2, S3 and S4 build on S1 and S5 on S2.
 - The CI job named `S1 (native_sim and RT1060-EVKB)` (`ci.yml` line 147) also runs the `native_sim`
