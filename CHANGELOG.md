@@ -34,9 +34,10 @@ twice on a board (see `docs/findings/s2-first-board-run.md`); nothing else has r
   job has an S5 row against limits declared first. A low-priority thread queries one IPv4 server through the
   Zephyr SNTP library (called only in the adapter zone `app/os`, with `sntp_simple()`), and the product's
   policy (`app/src/time_sync_policy.c`, plain C) decides what an answer may do: it never sets for a failed,
-  kiss-o'-death or out-of-range answer, sets any in-range answer while the clock is not synchronised, corrects a
-  synchronised clock from the threshold up to the maximum step, and refuses a larger step once and marks
-  synchronisation lost. A clock that nothing confirms for the stale age is marked not synchronised. The glue
+  kiss-o'-death or out-of-range answer or when the clock snapshot cannot be read, sets any in-range answer while
+  the clock is not synchronised, corrects a synchronised clock from the threshold up to the maximum step, and
+  refuses a larger step once and marks synchronisation lost. A synchronised clock is marked not synchronised when
+  its last confirming answer is older than the stale age (strictly), judged on a failed round. The glue
   `app/src/time_sync.c` is the only caller of the Crux Time authority. SNTP here is unauthenticated, the clock
   is stepped and not slewed, nothing persists time, and S5 is built and never run on a board. Defaults and
   limits are in `docs/findings/s5-time-synchronisation.md`.

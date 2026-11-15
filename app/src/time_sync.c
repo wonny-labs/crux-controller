@@ -26,7 +26,7 @@ _Static_assert(TIME_SYNC_MIN_UNIX_SECONDS == CRUX_TIME_MIN_UNIX_SECONDS, "range 
 _Static_assert(TIME_SYNC_MAX_UNIX_SECONDS_EXCLUSIVE == CRUX_TIME_MAX_UNIX_SECONDS_EXCLUSIVE,
                "range end");
 
-/* The settings must make sense together: a build that breaks one of these does not link. */
+/* The settings must make sense together: a build that breaks one of these fails to compile. */
 _Static_assert(CONFIG_CRUX_CONTROLLER_TIME_THRESHOLD_MS <= CONFIG_CRUX_CONTROLLER_TIME_MAX_STEP_MS,
                "the correction threshold must not exceed the maximum step");
 _Static_assert(CONFIG_CRUX_CONTROLLER_TIME_STALE_AGE_S > CONFIG_CRUX_CONTROLLER_TIME_INTERVAL_S,

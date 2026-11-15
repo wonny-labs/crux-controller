@@ -124,10 +124,14 @@ that moves. They are met as follows.
 
 ## The events and the wall clock
 
-**Inferred** from `components/security_event` at the pin (`security_event.h`, `security_event_drain.c`): a Crux security
-event stores a monotonic time (`uptime_ms`) and a sequence number when it is recorded, and the drain computes the wall
-time later, with a Time snapshot taken at read. So the wall time of an event that was emitted before the first set, or
-across a step of the clock, is either missing (the clock is not set then, `CRUX_SECURITY_EVENT_CLOCK_NONE`) or
+**Inferred** from `components/security_event` at the pin (`security_event.h`, `security_event.c`,
+`security_event_drain.c`): a Crux security event stores a monotonic time (`uptime_ms`) and a sequence number when it
+is recorded, and does not store a wall time. The wall time is derived in `security_event.c`
+(`crux_security_event_clock_fill`) when the event is drained or read: the current Crux Time snapshot minus the age
+of the event, which is the monotonic time now less the stored `uptime_ms`. So an event that was recorded before the
+first set and is drained after it gets a wall time worked back from the new clock. The wall time is missing (no
+`wall=` field, `CRUX_SECURITY_EVENT_CLOCK_NONE`) only while the time is not valid at the drain. An event drained
+across a step of the clock is derived from the clock as it is at the drain, so the wall times of older events are
 shifted by the step, while `seq` and `up` stay correct. No step of this product emits security events yet; the effect
 applies from the step that does. A step of the realtime clock does not touch the monotonic clock: `sys_clock_settime`
 only changes the realtime offset (`lib/os/clock.c`, **Inferred**), so kernel timeouts and sleeps are not disturbed.
