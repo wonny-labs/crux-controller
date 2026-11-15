@@ -88,10 +88,12 @@ class TidyCriteria(unittest.TestCase):
         match = re.search(r"(?m)^HeaderFilterRegex: '(.*)'$", self.text)
         self.assertIsNotNone(match, "no HeaderFilterRegex")
         pattern = re.compile(match.group(1))
+        self.assertEqual(r".*/(workload|app|tests)/.*", match.group(1))
         for path in ("/w/repo/workload/include/workload.h", "/w/repo/app/src/net_client.h",
                      "/w/repo/tests/host/test_workload.c"):
             self.assertTrue(pattern.fullmatch(path), path)
-        for path in ("/w/crux/components/time/include/crux/time.h",
+        for path in ("/w/crux/components/time/include/crux/time.h", "/w/myapp/include/x.h",
+                     "/w/contests/include/x.h",
                      "/w/zephyr/include/zephyr/kernel.h", "/usr/include/stdio.h"):
             self.assertFalse(pattern.fullmatch(path), path)
 
@@ -99,6 +101,15 @@ class TidyCriteria(unittest.TestCase):
         lines = self.text.splitlines()
         index = next(i for i, line in enumerate(lines) if line.startswith("HeaderFilterRegex"))
         self.assertTrue(lines[index - 1].startswith("#"), "no comment above HeaderFilterRegex")
+
+
+# Git quotes a non-ASCII path in `ls-files` output unless it is given -z. These settings make the
+# default explicit, so the tests do not depend on the core.quotePath of the machine that runs them.
+QUOTED_PATHS = {
+    "GIT_CONFIG_COUNT": "1",
+    "GIT_CONFIG_KEY_0": "core.quotePath",
+    "GIT_CONFIG_VALUE_0": "true",
+}
 
 
 def git(repo, *args):
@@ -129,7 +140,7 @@ class Fixture:
         self.formatter.chmod(self.formatter.stat().st_mode | stat.S_IEXEC)
 
     def run(self, script):
-        env = dict(os.environ, CLANG_FORMAT=str(self.formatter))
+        env = dict(os.environ, CLANG_FORMAT=str(self.formatter), **QUOTED_PATHS)
         return subprocess.run(
             ["bash", str(SCRIPTS / script)], cwd=self.root, env=env, capture_output=True, text=True
         )
@@ -174,6 +185,13 @@ class FormatScript(unittest.TestCase):
         checked = sorted(pathlib.Path(a).relative_to(fixture.root.resolve()).as_posix()
                          for a in fixture.arguments() if a.endswith((".c", ".h")))
         self.assertEqual(sorted(name for name in files if name.endswith((".c", ".h"))), checked)
+
+    def test_a_file_with_a_non_ascii_name_is_checked(self):
+        fixture = self.fixture({"app/src/a.c": "int a;\n", "app/src/\u00e4.c": "int b;\n"})
+        result = fixture.run("check-format.sh")
+        self.assertEqual(0, result.returncode, result.stderr)
+        names = [pathlib.Path(a).name for a in fixture.arguments() if a.endswith(".c")]
+        self.assertEqual(["a.c", "\u00e4.c"], sorted(names))
 
     def test_a_new_file_is_checked_without_a_change_to_the_script(self):
         fixture = self.fixture({"app/src/old.c": "int a;\n"})
@@ -233,8 +251,8 @@ class Tree:
         )
         self.tidy.chmod(self.tidy.stat().st_mode | stat.S_IEXEC)
 
-    def run(self, *extra):
-        env = dict(os.environ, CLANG_TIDY=str(self.tidy))
+    def run(self, *extra, env=None):
+        env = dict(os.environ, CLANG_TIDY=str(self.tidy), **QUOTED_PATHS, **(env or {}))
         return subprocess.run(
             [sys.executable, str(SCRIPTS / "analyze_host.py"), "--compile-commands",
              str(self.database), *extra],
@@ -296,6 +314,12 @@ class NotAnalysed(unittest.TestCase):
         analysed = analyze_host.database_sources(fixture.database, fixture.root)
         self.assertEqual([], analyze_host.not_analysed(tracked, analysed))
 
+    def test_a_source_with_a_non_ascii_name_is_listed_by_its_real_path(self):
+        fixture = tree(self, ["app/src/a.c", "app/src/\u00e4.c"], ["../../app/src/a.c"])
+        result = fixture.run()
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertIn("  app/src/\u00e4.c", result.stdout.splitlines())
+
     def test_a_new_untracked_source_is_listed_too(self):
         fixture = tree(self, ["app/src/a.c"], ["../../app/src/a.c"])
         (fixture.root / "app/src/new.c").write_text("int n;\n")
@@ -356,6 +380,26 @@ class AnalyzeScript(unittest.TestCase):
         result = fixture.run()
         self.assertNotEqual(0, result.returncode)
         self.assertIn("no source", result.stderr)
+        self.assertIn("app/src/a.c", result.stdout, "the not-analysed list is still printed")
+
+    def test_a_failed_configure_still_prints_the_list_and_fails(self):
+        fixture = tree(self, ["app/src/a.c", "app/os/z.c"], ["../../app/src/a.c"])
+        bin_dir = fixture.root.parent / "bin"
+        bin_dir.mkdir()
+        cmake = bin_dir / "cmake"
+        cmake.write_text("#!/bin/sh\necho 'configure failed' >&2\nexit 1\n")
+        cmake.chmod(cmake.stat().st_mode | stat.S_IEXEC)
+        env = {"PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}"}
+        result = subprocess.run(
+            [sys.executable, str(SCRIPTS / "analyze_host.py")], cwd=fixture.root,
+            env=dict(os.environ, CLANG_TIDY=str(fixture.tidy), **QUOTED_PATHS, **env),
+            capture_output=True, text=True,
+        )
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("configure", result.stderr)
+        self.assertIn("Not analysed (2 ", result.stdout)
+        self.assertIn("app/os/z.c", result.stdout)
+        self.assertEqual([], fixture.tidy_files())
 
 
 class CiJob(unittest.TestCase):

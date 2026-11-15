@@ -33,11 +33,13 @@ def repo_root():
 def tracked_sources(root):
     """Every C and C++ source that git lists, tracked or new but not ignored, that exists."""
     out = subprocess.run(
-        ["git", "-C", str(root), "ls-files", "--cached", "--others", "--exclude-standard",
+        ["git", "-C", str(root), "ls-files", "-z", "--cached", "--others", "--exclude-standard",
          "--", *SOURCE_PATTERNS],
-        check=True, capture_output=True, text=True,
+        check=True, capture_output=True,
     )
-    paths = (root / line for line in out.stdout.splitlines() if line)
+    # -z keeps a path with a non-ASCII character as it is. Without it git quotes the path.
+    names = (os.fsdecode(name) for name in out.stdout.split(b"\0") if name)
+    paths = (root / name for name in names)
     return sorted({path for path in paths if path.is_file()})
 
 
@@ -85,13 +87,29 @@ def check_tool(tool):
 
 
 def configure(root, build_dir):
-    """Configure the host tests, without building them, to get their compile database."""
-    subprocess.run(
-        ["cmake", "-S", str(root / "tests/host"), "-B", str(build_dir), "-G", "Ninja",
-         "-DWORKLOAD_SANITIZE=OFF", "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"],
-        check=True,
-    )
+    """Configure the host tests, without building them, to get their compile database.
+
+    Returns the database path, or None when the configure step fails.
+    """
+    command = ["cmake", "-S", str(root / "tests/host"), "-B", str(build_dir), "-G", "Ninja",
+               "-DWORKLOAD_SANITIZE=OFF", "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"]
+    try:
+        status = subprocess.run(command).returncode
+    except OSError as error:
+        print(f"analyze_host: cannot run cmake: {error}", file=sys.stderr)
+        return None
+    if status != 0:
+        print(f"analyze_host: the cmake configure of tests/host failed (exit status {status}).",
+              file=sys.stderr)
+        return None
     return build_dir / "compile_commands.json"
+
+
+def report_not_analysed(root, analysed):
+    missing = not_analysed(tracked_sources(root), analysed)
+    print(f"\nNot analysed ({len(missing)} tracked sources are not in the compile database):")
+    for path in missing:
+        print(f"  {path.relative_to(root).as_posix()}")
 
 
 def main(argv=None):
@@ -111,19 +129,23 @@ def main(argv=None):
         database = args.compile_commands.resolve()
     else:
         database = configure(root, (args.build_dir or root / "build" / "analyze").resolve())
+    # Without a usable database nothing is analysed, which is a failure. The list still shows
+    # that every source was skipped.
+    if database is None:
+        report_not_analysed(root, [])
+        return 1
     sources = database_sources(database, root)
     if not sources:
-        sys.exit(f"analyze_host: no source of this repository in {database}.")
+        print(f"analyze_host: no source of this repository in {database}.", file=sys.stderr)
+        report_not_analysed(root, [])
+        return 1
 
     print(f"analyze_host: clang-tidy {version}, {len(sources)} sources from {database}", flush=True)
     command = [tool, "-p", str(database.parent), "--quiet"]
     command += [f"--extra-arg={arg}" for arg in args.extra_arg]
     status = subprocess.run(command + [str(path) for path in sources]).returncode
 
-    missing = not_analysed(tracked_sources(root), sources)
-    print(f"\nNot analysed ({len(missing)} tracked sources are not in the compile database):")
-    for path in missing:
-        print(f"  {path.relative_to(root).as_posix()}")
+    report_not_analysed(root, sources)
     print(f"analyze_host: clang-tidy exit status {status}", flush=True)
     return 1 if status else 0
 

@@ -26,12 +26,13 @@ case "$version_line" in
 esac
 
 sources=()
-while IFS= read -r source; do
+# -z keeps a path with a non-ASCII character as it is. Without it git quotes the path.
+while IFS= read -r -d '' source; do
     # Git still lists the old path of a deleted file until the deletion is staged.
     if [[ -f "$repo/$source" ]]; then
         sources+=("$repo/$source")
     fi
-done < <(git -C "$repo" ls-files --cached --others --exclude-standard -- '*.c' '*.h' '*.cpp' '*.hpp')
+done < <(git -C "$repo" ls-files -z --cached --others --exclude-standard -- '*.c' '*.h' '*.cpp' '*.hpp')
 
 if ((${#sources[@]} == 0)); then
     printf 'check-format: no C or C++ files found.\n' >&2

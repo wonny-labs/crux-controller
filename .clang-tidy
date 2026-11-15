@@ -10,7 +10,8 @@ Checks: >-
   portability-*,
   readability-identifier-naming
 WarningsAsErrors: '*'
-# Report findings in headers of this repository only: workload, app and tests. Headers of Crux,
-# Zephyr and the C library are not this repository's code, and their findings are not fixed here.
-HeaderFilterRegex: '.*(workload|app|tests)/.*'
+# Report findings in headers of this repository only: the directories workload, app and tests at
+# any depth of the path. Headers of Crux, Zephyr and the C library are not this repository's code,
+# and their findings are not fixed here.
+HeaderFilterRegex: '.*/(workload|app|tests)/.*'
 FormatStyle: file
