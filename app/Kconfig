@@ -56,6 +56,85 @@ config CRUX_CONTROLLER_S4
 	  native_sim simulator, reports it as not supported and the workload runs without one. A missed
 	  feed ends in the watchdog's own reset; the product adds none. Built and never run on a board.
 
+config CRUX_CONTROLLER_S5
+	bool "Step S5: set the Crux Time realtime clock from an SNTP server"
+	depends on CRUX_CONTROLLER_S2 && CRUX_TIME && SNTP && NET_UDP && NET_IPV4
+	help
+	  Query one SNTP server at a fixed interval, from a low-priority thread, and use the answer to
+	  set the Crux Time realtime clock (source EXTERNAL, synchronised) through the Crux Time
+	  authority, <crux/time_authority.h>. The product's policy decides what an answer may do. Any
+	  in-range answer sets a clock that is not valid or not synchronised. A synchronised clock
+	  leaves a small difference alone, sets a difference up to the maximum step, and refuses a
+	  larger one and marks synchronisation lost. A failed, timed-out or kiss-o'-death answer, or one
+	  outside 2000-01-01 to 2100-01-01, never sets, and a clock that nothing confirms for the stale
+	  age is marked not synchronised. The step is a jump of the realtime clock, not a slew. SNTP
+	  here is unauthenticated: a server, or anything on the path, that answers with a time in range
+	  can move the clock. The time is not persisted: there is no RTC, and after a reset it is not
+	  valid until the first answer. The server is an IPv4 address because the image has no DNS
+	  resolver. Built on the S2 network. Built and never run on a board.
+
+config CRUX_CONTROLLER_TIME_SERVER
+	string "IPv4 address of the SNTP server"
+	default "192.168.77.1"
+	depends on CRUX_CONTROLLER_S5
+	help
+	  An IPv4 address in dotted form, optionally followed by a colon and a port (123 otherwise).
+	  The image has no DNS resolver, so a host name does not resolve.
+
+config CRUX_CONTROLLER_TIME_INTERVAL_S
+	int "Seconds between two queries"
+	default 600
+	range 16 86400
+	depends on CRUX_CONTROLLER_S5
+	help
+	  The thread queries once, shortly after start, and then waits this long after each query. The
+	  lower bound keeps clear of RFC 4330, which asks for no more than one query in 15 seconds.
+
+config CRUX_CONTROLLER_TIME_TIMEOUT_MS
+	int "Milliseconds to wait for the answer to one query"
+	default 3000
+	range 100 30000
+	depends on CRUX_CONTROLLER_S5
+	help
+	  The Zephyr library resends the request with a growing wait until this time is over, so a
+	  query can take about this long. It must be shorter than the interval.
+
+config CRUX_CONTROLLER_TIME_STALE_AGE_S
+	int "Seconds after which an unconfirmed synchronised clock is marked not synchronised"
+	default 1800
+	range 60 604800
+	depends on CRUX_CONTROLLER_S5
+	help
+	  Counted from the last answer that set the clock or agreed with it, strictly: an age equal
+	  to this value is not stale yet. It must be longer than the interval.
+
+config CRUX_CONTROLLER_TIME_THRESHOLD_MS
+	int "Milliseconds below which a difference from a synchronised clock is left alone"
+	default 100
+	range 1 10000
+	depends on CRUX_CONTROLLER_S5
+	help
+	  A difference of exactly this size is corrected. It must not exceed the maximum step.
+
+config CRUX_CONTROLLER_TIME_MAX_STEP_MS
+	int "Milliseconds above which a difference from a synchronised clock is refused"
+	default 1000
+	range 1 3600000
+	depends on CRUX_CONTROLLER_S5
+	help
+	  A difference of exactly this size is still corrected. A larger one is refused once and marks
+	  synchronisation lost, so that the next in-range answer sets the clock whatever it says. The
+	  limit therefore guards against one wrong answer, not against a server that keeps giving one.
+
+config CRUX_CONTROLLER_TIME_STACK
+	int "Stack bytes of the time synchronisation thread"
+	default 8192
+	range 2048 65536
+	depends on CRUX_CONTROLLER_S5
+	help
+	  A starting value, not measured: it is the 8192 bytes that the S2 consumer thread uses for the
+	  same reach into the network stack. Stack use of this thread has not been measured.
+
 config CRUX_CONTROLLER_WORKER_STACK
 	int "Stack bytes of each workload thread"
 	default 4096

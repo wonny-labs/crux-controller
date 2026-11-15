@@ -68,7 +68,8 @@ class S4Limits(unittest.TestCase):
 
     def test_the_s4_row_equals_the_s3_row_and_no_other_row_changed(self):
         rows = self.limits()["min_free_percent"]
-        self.assertEqual(["S0", "S1", "S2", "S3", "S4"], sorted(rows))
+        # Step S5 later added its own row, which test_s5.py pins.
+        self.assertEqual(["S0", "S1", "S2", "S3", "S4", "S5"], sorted(rows))
         for step in ("S0", "S1", "S2", "S3"):
             self.assertEqual(rows["S3"], rows[step], step)
         self.assertEqual(rows["S3"], rows["S4"])
@@ -231,7 +232,7 @@ class S4Sources(unittest.TestCase):
     def test_the_glue_and_its_header_pass_the_boundary_check_against_a_crux_that_publishes_system(self):
         with tempfile.TemporaryDirectory() as directory:
             crux = pathlib.Path(directory)
-            for name in ("system.h", "logging.h", "status.h", "time.h", "file.h"):
+            for name in ("system.h", "logging.h", "status.h", "time.h", "time_authority.h", "file.h"):
                 header = crux / "components" / "x" / "include" / "crux" / name
                 header.parent.mkdir(parents=True, exist_ok=True)
                 header.write_text("")
@@ -497,7 +498,8 @@ class S4Workflows(unittest.TestCase):
 
     def test_the_budget_rows_of_the_other_steps_are_unchanged(self):
         rows = self.budget_rows()
-        self.assertEqual(["S0", "S1", "S2", "S3", "S4"], sorted(rows))
+        # Step S5 later added its own row, which test_s5.py pins.
+        self.assertEqual(["S0", "S1", "S2", "S3", "S4", "S5"], sorted(rows))
         self.assertEqual(("", "", ""), (rows["S0"]["conf"], rows["S0"]["overlay"], rows["S0"]["require"]))
         self.assertEqual("conf/s1.conf", rows["S1"]["conf"])
         self.assertEqual("conf/s1.conf;conf/s2.conf", rows["S2"]["conf"])

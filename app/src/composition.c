@@ -19,6 +19,10 @@
 #include "health.h"
 #endif
 
+#ifdef CONFIG_CRUX_CONTROLLER_S5
+#include "time_sync.h"
+#endif
+
 #ifdef CONFIG_CRUX_CONTROLLER_S2
 #include <stdio.h>
 
@@ -100,6 +104,12 @@ int composition_start(void)
 #endif
 #ifdef CONFIG_CRUX_CONTROLLER_S2
     workload_thread_set_sink(exchange_with_peer);
+#endif
+#ifdef CONFIG_CRUX_CONTROLLER_S5
+    /* S5: set the Crux Time realtime clock from an SNTP server, from a low-priority thread. The
+     * thread is the only writer of the clock. A start that fails is reported by time_sync.c and
+     * leaves the product without time synchronisation; the workload starts either way. */
+    (void)time_sync_start();
 #endif
     return workload_thread_start(&config);
 #else
