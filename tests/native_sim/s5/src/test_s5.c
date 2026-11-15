@@ -152,17 +152,17 @@ static void stop_responder(void)
 {
     responder_stop = true;
     zassert_equal(0, k_thread_join(&responder_thread, K_SECONDS(5)));
-    /* Zephyr's own call: the POSIX close() is declared only when CONFIG_POSIX_API is on, which
-     * this image does not set. */
+    /* Zephyr's own call: the POSIX close() is declared in <unistd.h>, which this file does not
+     * include, and zsock_close() closes a socket descriptor without it. */
     zassert_equal(0, zsock_close(responder_socket));
     responder_socket = -1;
 }
 
 /* Everything that Crux Logging wrote to the emulated UART so far. The log thread has the lowest
- * priority, and once it has started it waits up to a second for more messages before it writes (the
- * default of CONFIG_LOG_PROCESS_THREAD_SLEEP_MS). A fixed sleep is therefore not enough: a message
- * that was logged less than a second ago may still be queued. log_flush() wakes the thread and
- * returns when every message is written. */
+ * priority and runs when its sleep period is over (CONFIG_LOG_PROCESS_THREAD_SLEEP_MS, 1000 ms by
+ * default) or when enough messages are buffered (CONFIG_LOG_PROCESS_TRIGGER_THRESHOLD, 10 by
+ * default). A fixed sleep is therefore not enough: a message that was logged less than a second ago
+ * may still be queued. log_flush() wakes the thread and returns when every message is written. */
 static const char *log_text(void)
 {
     log_flush();

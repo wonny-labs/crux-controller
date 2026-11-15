@@ -20,9 +20,11 @@
  *   - It returns 0 with ts filled, or a negative errno: -ETIMEDOUT when no answer arrived in time;
  *     -EBUSY for a kiss-o'-death answer (stratum 0); -EINVAL for a wrong mode, a zero transmit
  *     time or a transmit time before 1970; -ERANGE for an originate time that is not the request's
- *     (a late answer to an earlier request is skipped); -EMSGSIZE for a short packet; and the
- *     errno of a failed socket, connect or send. Every code other than -ETIMEDOUT and -EBUSY is
- *     reported as an error here.
+ *     (a late answer to an earlier request: from the second round on the library skips such
+ *     answers and keeps waiting for the current one, so -ERANGE is returned only when the first
+ *     answer is already a stale one); -EMSGSIZE for a short packet; and the errno of a failed
+ *     socket, connect or send. Every code other than -ETIMEDOUT and -EBUSY is reported as an
+ *     error here.
  *   - ts.seconds counts from 1970-01-01 and ts.fraction in units of 2^-32 s (the uncertainty
  *     option, which would change both, is not selected). The policy converts them.
  *
