@@ -48,13 +48,21 @@ python -m unittest discover -s tests/tooling -v
 python scripts/check_boundary.py
 ```
 
+The format check and the static analysis run locally with the pinned tools, from the repository root:
+
+```bash
+python3 -m pip install clang-format==18.1.8
+scripts/check-format.sh
+CLANG_TIDY=clang-tidy-18 python3 scripts/analyze_host.py
+```
+
 The Zephyr builds and the Twister runs happen in CI only. This repository describes no local Zephyr
 build, so a change to `app/`, `conf`, overlays or `tests/native_sim` takes its evidence from CI, and
 the pull request says so. CI is configured in `.github/workflows/`:
 
 | Workflow | Jobs | When |
 |---|---|---|
-| `ci.yml` | `Tooling tests`, `West pins`, `Host tests` (sanitizer off and on), `S1` (Twister on `native_sim` for the scenarios in `tests/native_sim`, then the RT1060-EVKB build), `S2 build`, `S3 build`, `S4 build`, `S5 build`, `S0 build`, `Boundary check` (names shortened) | pull requests and pushes to `main` |
+| `ci.yml` | `Tooling tests`, `West pins`, `Host tests` (sanitizer off and on), `S1` (Twister on `native_sim` for the scenarios in `tests/native_sim`, then the RT1060-EVKB build), `S2 build`, `S3 build`, `S4 build`, `S5 build`, `S0 build`, `Boundary check`, `Static analysis` (clang-format 18.1.8 over every tracked C file with `scripts/check-format.sh`, then clang-tidy 18 over the host-built sources with `scripts/analyze_host.py`, which prints the list of tracked sources not analysed; any difference or finding fails the job) (names shortened) | pull requests and pushes to `main` |
 | `budget.yml` | `Budget` for S0 to S5: static resource use against `budgets/limits.json` | pull requests and pushes to `main` |
 | `rebuild.yml` | builds S2 twice at different paths and compares `zephyr.bin` and `firmware_identity` | by hand, and pull requests that change the workflow or `release/` |
 | `release.yml` | dry run of the release flow, publishes nothing | by hand, and pull requests that change the workflow, `release/` or `west.yml` |
