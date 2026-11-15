@@ -2,6 +2,16 @@
 
 Status: recorded after Stage 1 step S3. In this repository it is tracked by issue #40 (closed) and the epic #44. Filing it in `crux-pilot` needs the owner's approval and has not happened, and this repository has created no issue there.
 
+## State at the pin
+
+This finding was read against `crux-pilot` revision `a72032b2f29c8c4579de8de07a43b40f19bb9516`. The
+revision that `west.yml` pins is `37c92b18b44b7dfb95c2109f036f23d00f05cb4c`, which the Evidence section
+below describes as 61 commits earlier, and the finding states that the pinned commit "was not re-read".
+It has not been re-read at the current pin since. Crux keeps changing, and its public headers,
+composition interfaces and targets may have moved since this note was written; this repository has not
+checked. Read the finding again against the revision you build with before anyone relies on it. The body
+below is unchanged.
+
 ## Finding
 
 Crux has code for HTTPS web management, a command line over serial, the command line over SSH, SFTP, accounts and sessions (Access), the credential store and the management services. At `crux-pilot` revision `a72032b2f29c8c4579de8de07a43b40f19bb9516` it has no public product composition for them. A product that keeps to public headers and public targets, which is what this repository's boundary check enforces, cannot compose them. Nothing described here has run on a board.
