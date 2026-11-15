@@ -42,10 +42,11 @@ class ManifestIsOptionA(unittest.TestCase):
 
     def test_crux_pilot_is_pinned_to_the_approved_commit(self):
         # Moving the pin is a reviewed change of this test and of west.yml together.
-        # The owner approved this commit on 8 November 2026: it publishes the
-        # composition interface <crux/file_zephyr.h> (crux-pilot PR 346).
+        # The owner approved this commit on 14 November 2026: it adds the public management
+        # headers and the simulated native_sim watchdog, and it does not contain the move of
+        # the crypto modules to the Zephyr v4.4-branch revisions.
         revision = load_manifest()["projects"][0]["revision"]
-        self.assertEqual(revision, "37c92b18b44b7dfb95c2109f036f23d00f05cb4c")
+        self.assertEqual(revision, "dfd3ad7d4380b06a47d8c8b5b9f0ce46fbba0576")
 
     def test_manifest_has_no_tag_pin(self):
         revision = str(load_manifest()["projects"][0]["revision"])
