@@ -18,17 +18,17 @@
  *
  *   1. An answer that failed, timed out or was a kiss-o'-death never sets the clock. An answer that
  *      is outside [2000-01-01, 2100-01-01) or not a normalised time is refused. Each of these
- * counts as a failure: when Crux is synchronised and the last good answer is older than the stale
- *      limit (strictly), the time is marked no longer synchronised. That happens once, because the
- *      next call finds Crux unsynchronised.
+ *      counts as a failure: when Crux is synchronised and the last good answer is older than the
+ *      stale limit (strictly), the time is marked no longer synchronised. That happens once,
+ *      because the next call finds Crux unsynchronised.
  *   2. While Crux time is not valid, or not synchronised (boot, stale, lost), any in-range answer
  *      is applied. The clock is not compared with it.
  *   3. While Crux time is synchronised, the difference d = answer - clock decides:
  *        |d| below the correction threshold   no action; the answer confirms the clock
  *        |d| from the threshold up to and including the maximum step   the clock is set
- *        |d| above the maximum step           the answer is refused and synchronisation is marked
- *                                              lost, so that the next in-range answer applies by
- * rule 2
+ *        |d| above the maximum step           the answer is refused and synchronisation is
+ *                                              marked lost, so that the next in-range answer
+ *                                              applies by rule 2
  *
  * Nothing here persists time: after a reset the time is not valid until the first answer.
  */
@@ -147,8 +147,8 @@ typedef enum {
  * every failure and the stale mark. */
 time_sync_log_level_t time_sync_decision_level(time_sync_decision_t decision);
 
-/* The action, or the reason, as lower-case words with hyphens. An unknown value reads as "unknown".
- */
+/* The action, or the reason, as lower-case words with hyphens. An unknown value reads as
+ * "unknown". */
 const char *time_sync_action_name(time_sync_action_t action);
 const char *time_sync_reason_name(time_sync_reason_t reason);
 

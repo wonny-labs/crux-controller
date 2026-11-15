@@ -101,8 +101,8 @@ time_sync_port_status_t time_sync_port_start(void (*entry)(void))
         return TIME_SYNC_PORT_ERROR;
     }
     thread_entry = entry;
-    /* A thread that is created cannot fail to be: k_thread_create returns the thread it was given.
-     */
+    /* A thread that is created cannot fail to be: k_thread_create returns the thread it was
+     * given. */
     (void)k_thread_create(&time_sync_thread, time_sync_stack,
                           K_THREAD_STACK_SIZEOF(time_sync_stack), time_sync_thread_run, NULL, NULL,
                           NULL, TIME_SYNC_THREAD_PRIORITY, 0, K_NO_WAIT);

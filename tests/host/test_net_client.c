@@ -133,8 +133,8 @@ static int exchange_with(peer_mode_t mode)
 
 int main(void)
 {
-    /* The Sockets profile requires a Linux executable to ignore SIGPIPE before it uses the profile.
-     */
+    /* The Sockets profile requires a Linux executable to ignore SIGPIPE before it uses the
+     * profile. */
     struct sigaction ignore;
 
     memset(&ignore, 0, sizeof ignore);

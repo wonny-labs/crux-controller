@@ -260,8 +260,8 @@ ZTEST(s5, test_a_kiss_of_death_never_sets_the_clock)
 
 #elif defined(S5_CASE_late_answer)
 
-/* An answer that arrives after the timeout sets nothing. The library has closed its socket by then.
- */
+/* An answer that arrives after the timeout sets nothing. The library has closed its socket by
+ * then. */
 ZTEST(s5, test_an_answer_after_the_timeout_never_sets_the_clock)
 {
     const answer_t list[] = {{.unix_seconds = T0, .fraction = 0u, .delay_ms = 2000}};
@@ -288,8 +288,8 @@ ZTEST(s5, test_an_answer_after_the_timeout_never_sets_the_clock)
 
 #elif defined(S5_CASE_out_of_range)
 
-/* An answer before 2000-01-01 and one at 2100-01-01 are both refused, and neither sets the clock.
- */
+/* An answer before 2000-01-01 and one at 2100-01-01 are both refused, and neither sets the
+ * clock. */
 ZTEST(s5, test_an_answer_outside_the_supported_range_never_sets_the_clock)
 {
     const answer_t list[] = {
@@ -357,8 +357,8 @@ ZTEST(s5, test_a_large_step_is_refused_once_and_the_next_answer_synchronises_aga
 
 #elif defined(S5_CASE_correction_and_threshold)
 
-/* A difference of about 50 ms from a synchronised clock is left alone; one of about 500 ms is set.
- */
+/* A difference of about 50 ms from a synchronised clock is left alone; one of about 500 ms is
+ * set. */
 ZTEST(s5, test_a_small_difference_is_left_alone_and_a_medium_one_is_corrected)
 {
     const answer_t list[] = {
