@@ -6,9 +6,9 @@
 
 enum {
     NET_CLIENT_OK = 0,
-    NET_CLIENT_ERR_SOCKET = -1,   /* no socket, or the peer address is not an IPv4 address */
-    NET_CLIENT_ERR_CONNECT = -2,  /* the connection failed */
-    NET_CLIENT_ERR_TIMEOUT = -3,  /* the exchange did not finish within its deadline */
+    NET_CLIENT_ERR_SOCKET = -1,  /* no socket, or the peer address is not an IPv4 address */
+    NET_CLIENT_ERR_CONNECT = -2, /* the connection failed */
+    NET_CLIENT_ERR_TIMEOUT = -3, /* the exchange did not finish within its deadline */
     NET_CLIENT_ERR_SEND = -4,
     NET_CLIENT_ERR_RECEIVE = -5,  /* a receive error or an early end of stream */
     NET_CLIENT_ERR_PROTOCOL = -6, /* the reply is not the message that was sent */

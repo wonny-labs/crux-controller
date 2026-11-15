@@ -1,10 +1,10 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
-/* Runs the application's own time_sync.c, time_sync_policy.c and time_sync_zephyr.c on the real Crux
- * Time provider and Zephyr's real SNTP library, over the loopback interface of native_sim, against
- * a UDP responder of this test. The responder answers on port 123 of 127.0.0.1 with a real SNTP
- * packet whose time, delay and kind each case chooses. The test reads the Crux Time snapshot and
- * the log, and never sets a clock itself: only the glue does. One case per image, chosen by
+/* Runs the application's own time_sync.c, time_sync_policy.c and time_sync_zephyr.c on the real
+ * Crux Time provider and Zephyr's real SNTP library, over the loopback interface of native_sim,
+ * against a UDP responder of this test. The responder answers on port 123 of 127.0.0.1 with a real
+ * SNTP packet whose time, delay and kind each case chooses. The test reads the Crux Time snapshot
+ * and the log, and never sets a clock itself: only the glue does. One case per image, chosen by
  * S5_CASE, because Crux Time keeps its state for the whole run.
  *
  * What this scenario shows is the glue, the adapter and the library working together on one
@@ -231,7 +231,8 @@ ZTEST(s5, test_the_first_answer_sets_the_clock_synchronised_from_an_external_sou
     stop_responder();
     const char *log = log_text();
 
-    zassert_equal(1u, occurrences(log, "time: sync action=apply-set reason=first-sync"), "in: %s", log);
+    zassert_equal(1u, occurrences(log, "time: sync action=apply-set reason=first-sync"), "in: %s",
+                  log);
     zassert_equal(1, requests_seen, "the library sent more than one request");
 }
 
@@ -252,13 +253,15 @@ ZTEST(s5, test_a_kiss_of_death_never_sets_the_clock)
     stop_responder();
     const char *log = log_text();
 
-    zassert_equal(1u, occurrences(log, "time: sync action=no-action reason=kiss-of-death"), "in: %s", log);
+    zassert_equal(1u, occurrences(log, "time: sync action=no-action reason=kiss-of-death"),
+                  "in: %s", log);
     zassert_is_null(strstr(log, "apply-set"), "a set was reported in: %s", log);
 }
 
 #elif defined(S5_CASE_late_answer)
 
-/* An answer that arrives after the timeout sets nothing. The library has closed its socket by then. */
+/* An answer that arrives after the timeout sets nothing. The library has closed its socket by then.
+ */
 ZTEST(s5, test_an_answer_after_the_timeout_never_sets_the_clock)
 {
     const answer_t list[] = {{.unix_seconds = T0, .fraction = 0u, .delay_ms = 2000}};
@@ -278,13 +281,15 @@ ZTEST(s5, test_an_answer_after_the_timeout_never_sets_the_clock)
     stop_responder();
     const char *log = log_text();
 
-    zassert_equal(1u, occurrences(log, "time: sync action=no-action reason=timeout"), "in: %s", log);
+    zassert_equal(1u, occurrences(log, "time: sync action=no-action reason=timeout"), "in: %s",
+                  log);
     zassert_is_null(strstr(log, "apply-set"), "a set was reported in: %s", log);
 }
 
 #elif defined(S5_CASE_out_of_range)
 
-/* An answer before 2000-01-01 and one at 2100-01-01 are both refused, and neither sets the clock. */
+/* An answer before 2000-01-01 and one at 2100-01-01 are both refused, and neither sets the clock.
+ */
 ZTEST(s5, test_an_answer_outside_the_supported_range_never_sets_the_clock)
 {
     const answer_t list[] = {
@@ -304,7 +309,8 @@ ZTEST(s5, test_an_answer_outside_the_supported_range_never_sets_the_clock)
     stop_responder();
     const char *log = log_text();
 
-    zassert_equal(2u, occurrences(log, "time: sync action=refuse-range reason=out-of-range"), "in: %s", log);
+    zassert_equal(2u, occurrences(log, "time: sync action=refuse-range reason=out-of-range"),
+                  "in: %s", log);
     zassert_is_null(strstr(log, "apply-set"), "a set was reported in: %s", log);
 }
 
@@ -342,14 +348,17 @@ ZTEST(s5, test_a_large_step_is_refused_once_and_the_next_answer_synchronises_aga
     stop_responder();
     const char *log = log_text();
 
-    zassert_equal(1u, occurrences(log, "time: sync action=apply-set reason=first-sync"), "in: %s", log);
-    zassert_equal(1u, occurrences(log, "time: sync action=refuse-step reason=step-too-large"), "in: %s", log);
+    zassert_equal(1u, occurrences(log, "time: sync action=apply-set reason=first-sync"), "in: %s",
+                  log);
+    zassert_equal(1u, occurrences(log, "time: sync action=refuse-step reason=step-too-large"),
+                  "in: %s", log);
     zassert_equal(1u, occurrences(log, "time: sync action=apply-set reason=resync"), "in: %s", log);
 }
 
 #elif defined(S5_CASE_correction_and_threshold)
 
-/* A difference of about 50 ms from a synchronised clock is left alone; one of about 500 ms is set. */
+/* A difference of about 50 ms from a synchronised clock is left alone; one of about 500 ms is set.
+ */
 ZTEST(s5, test_a_small_difference_is_left_alone_and_a_medium_one_is_corrected)
 {
     const answer_t list[] = {
@@ -367,7 +376,8 @@ ZTEST(s5, test_a_small_difference_is_left_alone_and_a_medium_one_is_corrected)
 
     zassert_true(now.is_synchronized);
     /* Left alone: the clock only moved on by the little time that passed, not by 50 ms. */
-    zassert_true(total_ns(now.timestamp) - first < 40000000, "the clock was set by the small answer");
+    zassert_true(total_ns(now.timestamp) - first < 40000000,
+                 "the clock was set by the small answer");
 
     time_sync_poll();
     now = snapshot();
@@ -377,8 +387,10 @@ ZTEST(s5, test_a_small_difference_is_left_alone_and_a_medium_one_is_corrected)
     stop_responder();
     const char *log = log_text();
 
-    zassert_equal(1u, occurrences(log, "time: sync action=no-action reason=within-threshold"), "in: %s", log);
-    zassert_equal(1u, occurrences(log, "time: sync action=apply-set reason=correction"), "in: %s", log);
+    zassert_equal(1u, occurrences(log, "time: sync action=no-action reason=within-threshold"),
+                  "in: %s", log);
+    zassert_equal(1u, occurrences(log, "time: sync action=apply-set reason=correction"), "in: %s",
+                  log);
     zassert_equal(2u, occurrences(log, "action=apply-set"), "in: %s", log);
 }
 
@@ -408,8 +420,10 @@ ZTEST(s5, test_a_synchronised_clock_goes_stale_once_when_no_answer_confirms_it)
     stop_responder();
     const char *log = log_text();
 
-    zassert_equal(1u, occurrences(log, "time: sync action=mark-stale reason=timeout"), "in: %s", log);
-    zassert_equal(1u, occurrences(log, "time: sync action=no-action reason=timeout"), "in: %s", log);
+    zassert_equal(1u, occurrences(log, "time: sync action=mark-stale reason=timeout"), "in: %s",
+                  log);
+    zassert_equal(1u, occurrences(log, "time: sync action=no-action reason=timeout"), "in: %s",
+                  log);
 }
 
 #else

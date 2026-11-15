@@ -94,7 +94,8 @@ typedef struct {
 workload_status_t workload_message_encode(const workload_message_t *message, uint8_t *buffer,
                                           size_t capacity, size_t *length);
 
-/** Read one message. The input must be exactly WORKLOAD_MESSAGE_SIZE bytes. On failure *message is untouched. */
+/** Read one message. The input must be exactly WORKLOAD_MESSAGE_SIZE bytes. On failure *message is
+ * untouched. */
 workload_status_t workload_message_decode(const uint8_t *buffer, size_t length,
                                           workload_message_t *message);
 

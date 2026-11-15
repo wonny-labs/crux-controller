@@ -118,7 +118,8 @@ static void every_sntp_fraction_in_a_sweep_stays_below_a_second_and_never_decrea
     uint32_t previous = 0u;
 
     for (uint64_t fraction = 0; fraction <= UINT32_MAX; fraction += 65537u) {
-        const uint32_t nanoseconds = time_sync_instant_from_sntp(T0, (uint32_t)fraction).nanoseconds;
+        const uint32_t nanoseconds =
+            time_sync_instant_from_sntp(T0, (uint32_t)fraction).nanoseconds;
 
         CHECK(nanoseconds < 1000000000u);
         CHECK(nanoseconds >= previous);
@@ -496,7 +497,8 @@ static void names_and_levels_are_stable_words(void)
     CHECK(strcmp(time_sync_action_name((time_sync_action_t)99), "unknown") == 0);
     CHECK(strcmp(time_sync_reason_name(TIME_SYNC_REASON_FIRST_SYNC), "first-sync") == 0);
     CHECK(strcmp(time_sync_reason_name(TIME_SYNC_REASON_RESYNC), "resync") == 0);
-    CHECK(strcmp(time_sync_reason_name(TIME_SYNC_REASON_WITHIN_THRESHOLD), "within-threshold") == 0);
+    CHECK(strcmp(time_sync_reason_name(TIME_SYNC_REASON_WITHIN_THRESHOLD), "within-threshold") ==
+          0);
     CHECK(strcmp(time_sync_reason_name(TIME_SYNC_REASON_CORRECTION), "correction") == 0);
     CHECK(strcmp(time_sync_reason_name(TIME_SYNC_REASON_STEP_TOO_LARGE), "step-too-large") == 0);
     CHECK(strcmp(time_sync_reason_name(TIME_SYNC_REASON_OUT_OF_RANGE), "out-of-range") == 0);

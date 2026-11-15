@@ -191,7 +191,8 @@ ZTEST(s3, test_a_file_that_is_not_a_record_is_a_format_error)
     write_raw("hello", 5);
     zassert_equal(config_store_load(&out), CONFIG_STORE_ERR_FORMAT);
     write_raw("WCR1\0\0\0\x64\0\0\0\x0a\0", 13);
-    zassert_equal(config_store_load(&out), CONFIG_STORE_ERR_FORMAT, "a longer file is not a record");
+    zassert_equal(config_store_load(&out), CONFIG_STORE_ERR_FORMAT,
+                  "a longer file is not a record");
     zassert_equal(out.period_ms, 1u);
 }
 

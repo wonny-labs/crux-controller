@@ -38,8 +38,9 @@ static time_sync_decision_t decision_of(time_sync_action_t action, time_sync_rea
  * last good answer is older than the limit is marked stale instead of being left to claim a
  * synchronisation that nothing confirms; Crux refuses that call for a time that is not valid.
  */
-static time_sync_decision_t failure(const time_sync_input_t *input, const time_sync_limits_t *limits,
-                                    time_sync_action_t action, time_sync_reason_t reason)
+static time_sync_decision_t failure(const time_sync_input_t *input,
+                                    const time_sync_limits_t *limits, time_sync_action_t action,
+                                    time_sync_reason_t reason)
 {
     time_sync_decision_t decision = decision_of(action, reason);
 
@@ -51,7 +52,8 @@ static time_sync_decision_t failure(const time_sync_input_t *input, const time_s
     return decision;
 }
 
-time_sync_decision_t time_sync_decide(const time_sync_input_t *input, const time_sync_limits_t *limits)
+time_sync_decision_t time_sync_decide(const time_sync_input_t *input,
+                                      const time_sync_limits_t *limits)
 {
     if (input == NULL || limits == NULL || limits->threshold_ms > limits->max_step_ms) {
         return decision_of(TIME_SYNC_NO_ACTION, TIME_SYNC_REASON_BAD_INPUT);
@@ -73,7 +75,8 @@ time_sync_decision_t time_sync_decide(const time_sync_input_t *input, const time
     }
     /* A clock that is not valid, not synchronised, or reads outside the range (it cannot be
      * compared) takes any in-range answer. */
-    if (!input->time_valid || !input->time_synchronized || !time_sync_instant_in_range(input->now)) {
+    if (!input->time_valid || !input->time_synchronized ||
+        !time_sync_instant_in_range(input->now)) {
         time_sync_decision_t decision =
             decision_of(TIME_SYNC_APPLY_SET,
                         input->time_valid ? TIME_SYNC_REASON_RESYNC : TIME_SYNC_REASON_FIRST_SYNC);

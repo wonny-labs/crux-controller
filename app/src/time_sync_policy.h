@@ -17,8 +17,8 @@
  * The rules, in the order that time_sync_decide() applies them:
  *
  *   1. An answer that failed, timed out or was a kiss-o'-death never sets the clock. An answer that
- *      is outside [2000-01-01, 2100-01-01) or not a normalised time is refused. Each of these counts
- *      as a failure: when Crux is synchronised and the last good answer is older than the stale
+ *      is outside [2000-01-01, 2100-01-01) or not a normalised time is refused. Each of these
+ * counts as a failure: when Crux is synchronised and the last good answer is older than the stale
  *      limit (strictly), the time is marked no longer synchronised. That happens once, because the
  *      next call finds Crux unsynchronised.
  *   2. While Crux time is not valid, or not synchronised (boot, stale, lost), any in-range answer
@@ -27,7 +27,8 @@
  *        |d| below the correction threshold   no action; the answer confirms the clock
  *        |d| from the threshold up to and including the maximum step   the clock is set
  *        |d| above the maximum step           the answer is refused and synchronisation is marked
- *                                              lost, so that the next in-range answer applies by rule 2
+ *                                              lost, so that the next in-range answer applies by
+ * rule 2
  *
  * Nothing here persists time: after a reset the time is not valid until the first answer.
  */
@@ -78,25 +79,25 @@ typedef struct {
 } time_sync_input_t;
 
 typedef enum {
-    TIME_SYNC_NO_ACTION = 0,  /* leave the clock and the flags as they are */
-    TIME_SYNC_APPLY_SET,      /* set the clock with source EXTERNAL, synchronised */
-    TIME_SYNC_REFUSE_RANGE,   /* the answer is outside the supported range */
-    TIME_SYNC_REFUSE_STEP,    /* the answer is too far from a synchronised clock */
-    TIME_SYNC_MARK_STALE,     /* no good answer for too long: no longer synchronised */
+    TIME_SYNC_NO_ACTION = 0, /* leave the clock and the flags as they are */
+    TIME_SYNC_APPLY_SET,     /* set the clock with source EXTERNAL, synchronised */
+    TIME_SYNC_REFUSE_RANGE,  /* the answer is outside the supported range */
+    TIME_SYNC_REFUSE_STEP,   /* the answer is too far from a synchronised clock */
+    TIME_SYNC_MARK_STALE,    /* no good answer for too long: no longer synchronised */
 } time_sync_action_t;
 
 /* Why. For a failure it names the failure, also when the action is MARK_STALE. */
 typedef enum {
     TIME_SYNC_REASON_FIRST_SYNC = 0, /* no valid time yet: any in-range answer is applied */
-    TIME_SYNC_REASON_RESYNC,         /* valid but not synchronised: any in-range answer is applied */
+    TIME_SYNC_REASON_RESYNC, /* valid but not synchronised: any in-range answer is applied */
     TIME_SYNC_REASON_WITHIN_THRESHOLD,
-    TIME_SYNC_REASON_CORRECTION,     /* between the threshold and the maximum step */
+    TIME_SYNC_REASON_CORRECTION, /* between the threshold and the maximum step */
     TIME_SYNC_REASON_STEP_TOO_LARGE,
     TIME_SYNC_REASON_OUT_OF_RANGE,
     TIME_SYNC_REASON_TIMEOUT,
     TIME_SYNC_REASON_KISS_OF_DEATH,
     TIME_SYNC_REASON_ERROR,
-    TIME_SYNC_REASON_BAD_INPUT,      /* a NULL argument, an unknown result or unusable limits */
+    TIME_SYNC_REASON_BAD_INPUT, /* a NULL argument, an unknown result or unusable limits */
 } time_sync_reason_t;
 
 typedef struct {
@@ -127,7 +128,8 @@ time_sync_instant_t time_sync_instant_from_sntp(uint64_t seconds, uint32_t fract
  * result code that is not one of the four, or limits with threshold_ms above max_step_ms give
  * NO_ACTION with the reason BAD_INPUT.
  */
-time_sync_decision_t time_sync_decide(const time_sync_input_t *input, const time_sync_limits_t *limits);
+time_sync_decision_t time_sync_decide(const time_sync_input_t *input,
+                                      const time_sync_limits_t *limits);
 
 typedef enum {
     TIME_SYNC_LOG_INFO,
@@ -138,7 +140,8 @@ typedef enum {
  * every failure and the stale mark. */
 time_sync_log_level_t time_sync_decision_level(time_sync_decision_t decision);
 
-/* The action, or the reason, as lower-case words with hyphens. An unknown value reads as "unknown". */
+/* The action, or the reason, as lower-case words with hyphens. An unknown value reads as "unknown".
+ */
 const char *time_sync_action_name(time_sync_action_t action);
 const char *time_sync_reason_name(time_sync_reason_t reason);
 

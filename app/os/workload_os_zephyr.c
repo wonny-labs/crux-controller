@@ -52,7 +52,7 @@
 /* The Crux provider's priority mapping and the level this workload asked for (see above). */
 #define WORKLOAD_OS_PROVIDER_PRIORITY_BASE 6
 #define WORKLOAD_OS_PROVIDER_PRIORITY_NORMAL 1
-#define WORKLOAD_OS_THREAD_PRIORITY \
+#define WORKLOAD_OS_THREAD_PRIORITY                                                                \
     (WORKLOAD_OS_PROVIDER_PRIORITY_BASE - WORKLOAD_OS_PROVIDER_PRIORITY_NORMAL)
 
 #define WORKLOAD_OS_STACK_DEFAULT_BYTES 4096
@@ -81,8 +81,8 @@ static struct k_thread producer_thread;
 static struct k_thread consumer_thread;
 
 static struct k_msgq queue;
-static char __aligned(sizeof(uint32_t))
-    queue_buffer[WORKLOAD_OS_QUEUE_DEPTH * sizeof(workload_message_t)];
+static char
+    __aligned(sizeof(uint32_t)) queue_buffer[WORKLOAD_OS_QUEUE_DEPTH * sizeof(workload_message_t)];
 
 static void (*producer_entry)(void);
 static void (*consumer_entry)(void);

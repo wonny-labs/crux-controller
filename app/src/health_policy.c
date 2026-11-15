@@ -63,16 +63,11 @@ health_status_t health_cause_text(uint32_t causes, char *buffer, size_t capacity
         uint32_t flag;
         const char *name;
     } names[] = {
-        {HEALTH_CAUSE_POR, "POR"},
-        {HEALTH_CAUSE_PIN, "PIN"},
-        {HEALTH_CAUSE_SOFTWARE, "SOFTWARE"},
-        {HEALTH_CAUSE_WATCHDOG, "WATCHDOG"},
-        {HEALTH_CAUSE_DEBUG, "DEBUG"},
-        {HEALTH_CAUSE_CPU_LOCKUP, "CPU_LOCKUP"},
-        {HEALTH_CAUSE_HARDWARE, "HARDWARE"},
-        {HEALTH_CAUSE_SECURITY, "SECURITY"},
-        {HEALTH_CAUSE_USER, "USER"},
-        {HEALTH_CAUSE_TEMPERATURE, "TEMPERATURE"},
+        {HEALTH_CAUSE_POR, "POR"},           {HEALTH_CAUSE_PIN, "PIN"},
+        {HEALTH_CAUSE_SOFTWARE, "SOFTWARE"}, {HEALTH_CAUSE_WATCHDOG, "WATCHDOG"},
+        {HEALTH_CAUSE_DEBUG, "DEBUG"},       {HEALTH_CAUSE_CPU_LOCKUP, "CPU_LOCKUP"},
+        {HEALTH_CAUSE_HARDWARE, "HARDWARE"}, {HEALTH_CAUSE_SECURITY, "SECURITY"},
+        {HEALTH_CAUSE_USER, "USER"},         {HEALTH_CAUSE_TEMPERATURE, "TEMPERATURE"},
         {HEALTH_CAUSE_OTHER, "OTHER"},
     };
     size_t length = 0;

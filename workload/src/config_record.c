@@ -65,7 +65,8 @@ workload_status_t workload_config_decode(const uint8_t *buffer, size_t length,
     if (buffer == NULL || config == NULL) {
         return WORKLOAD_ERR_RANGE;
     }
-    if (length != WORKLOAD_CONFIG_RECORD_SIZE || memcmp(buffer, record_tag, sizeof record_tag) != 0) {
+    if (length != WORKLOAD_CONFIG_RECORD_SIZE ||
+        memcmp(buffer, record_tag, sizeof record_tag) != 0) {
         return WORKLOAD_ERR_FORMAT;
     }
     decoded.period_ms = get_u32(buffer + 4);

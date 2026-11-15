@@ -72,7 +72,8 @@ ZTEST(s1, test_the_cycle_hook_runs_about_once_per_cycle_and_stops_with_the_workl
 
     const unsigned int after_stop = hook_calls;
 
-    zassert_true(after_stop >= 5, "the hook ran only %u times in 250 ms of 10 ms cycles", after_stop);
+    zassert_true(after_stop >= 5, "the hook ran only %u times in 250 ms of 10 ms cycles",
+                 after_stop);
     zassert_true(after_stop <= 26, "the hook ran %u times, more than once per cycle", after_stop);
     k_msleep(100);
     zassert_equal(after_stop, hook_calls, "the hook ran after the workload was stopped");

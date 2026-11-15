@@ -91,7 +91,8 @@ static void producer_main(void)
             if (number % state.config.message_every != 0u) {
                 continue;
             }
-            const workload_message_t message = {.cycle = number, .value = WORKLOAD_VALUE_OF(number)};
+            const workload_message_t message = {.cycle = number,
+                                                .value = WORKLOAD_VALUE_OF(number)};
 
             if (workload_os_queue_send(&message) != WORKLOAD_OS_OK) {
                 (void)crux_log_write(CRUX_LOG_WARN, "workload", "queue full, message dropped");

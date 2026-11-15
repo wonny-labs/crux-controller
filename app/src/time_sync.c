@@ -31,7 +31,8 @@ _Static_assert(CONFIG_CRUX_CONTROLLER_TIME_THRESHOLD_MS <= CONFIG_CRUX_CONTROLLE
                "the correction threshold must not exceed the maximum step");
 _Static_assert(CONFIG_CRUX_CONTROLLER_TIME_STALE_AGE_S > CONFIG_CRUX_CONTROLLER_TIME_INTERVAL_S,
                "the stale age must be longer than the interval, or the time would always be stale");
-_Static_assert(CONFIG_CRUX_CONTROLLER_TIME_TIMEOUT_MS < CONFIG_CRUX_CONTROLLER_TIME_INTERVAL_S * 1000,
+_Static_assert(CONFIG_CRUX_CONTROLLER_TIME_TIMEOUT_MS <
+                   CONFIG_CRUX_CONTROLLER_TIME_INTERVAL_S * 1000,
                "a query must be over before the next one is due");
 
 static const time_sync_limits_t limits = {
@@ -118,15 +119,15 @@ void time_sync_poll(void)
     const bool have_snapshot = snapshot_status == CRUX_OK && snapshot.is_valid;
     crux_monotonic_time_t now_monotonic = {0};
     const bool have_monotonic = crux_monotonic_now(&now_monotonic) == CRUX_OK;
-    const uint32_t age_s =
-        have_monotonic ? seconds_between(state.last_good, now_monotonic) : 0u;
+    const uint32_t age_s = have_monotonic ? seconds_between(state.last_good, now_monotonic) : 0u;
 
     const time_sync_input_t input = {
         .result = result,
         .sample = sample,
         .time_valid = have_snapshot,
         .time_synchronized = have_snapshot && snapshot.is_synchronized,
-        .now = {.seconds = snapshot.timestamp.seconds, .nanoseconds = snapshot.timestamp.nanoseconds},
+        .now = {.seconds = snapshot.timestamp.seconds,
+                .nanoseconds = snapshot.timestamp.nanoseconds},
         .seconds_since_good = age_s,
     };
     const time_sync_decision_t decision = time_sync_decide(&input, &limits);
@@ -135,7 +136,8 @@ void time_sync_poll(void)
     crux_status_t clear_status = CRUX_OK;
 
     if (decision.action == TIME_SYNC_APPLY_SET) {
-        const crux_realtime_t value = {.seconds = sample.seconds, .nanoseconds = sample.nanoseconds};
+        const crux_realtime_t value = {.seconds = sample.seconds,
+                                       .nanoseconds = sample.nanoseconds};
 
         /* The one write of the product. Source EXTERNAL is the only one that may carry
          * synchronised = true. */

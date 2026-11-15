@@ -38,8 +38,12 @@ static void flag_values_are_the_documented_bits(void)
 
 static void causes_that_someone_asked_for_are_normal(void)
 {
-    const uint32_t normal[] = {HEALTH_CAUSE_POR,      HEALTH_CAUSE_PIN,  HEALTH_CAUSE_SOFTWARE,
-                               HEALTH_CAUSE_DEBUG,    HEALTH_CAUSE_USER, HEALTH_CAUSE_HARDWARE,
+    const uint32_t normal[] = {HEALTH_CAUSE_POR,
+                               HEALTH_CAUSE_PIN,
+                               HEALTH_CAUSE_SOFTWARE,
+                               HEALTH_CAUSE_DEBUG,
+                               HEALTH_CAUSE_USER,
+                               HEALTH_CAUSE_HARDWARE,
                                HEALTH_CAUSE_POR | HEALTH_CAUSE_PIN};
 
     for (size_t i = 0; i < sizeof normal / sizeof normal[0]; i++) {

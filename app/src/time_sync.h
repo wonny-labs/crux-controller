@@ -3,8 +3,8 @@
 #define TIME_SYNC_H
 
 /*
- * Step S5: set the realtime clock of Crux Time from an SNTP server. This is the one file pair of the
- * product that calls the Crux Time authority (<crux/time_authority.h>), and nothing else in the
+ * Step S5: set the realtime clock of Crux Time from an SNTP server. This is the one file pair of
+ * the product that calls the Crux Time authority (<crux/time_authority.h>), and nothing else in the
  * image sets the native clock: Crux Time takes its authority calls and the native setters outside
  * Crux are not synchronised with it. What the product decides is in time_sync_policy.h, and the
  * query and the thread are behind the port time_sync_port.h.
