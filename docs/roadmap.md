@@ -1,6 +1,6 @@
 # Roadmap and status
 
-This page says honestly what exists, what is in review and what cannot be done yet and why. It
+This page says honestly what exists, what has run on a board and what cannot be done yet and why. It
 promises no dates and no features. "Not yet possible" does not mean "planned": the finding that
 covers most of these says "Not decided and not scheduled: whether and when any of this is built here."
 Status can go stale, so check the README, the changelog and the open pull requests, and read the
@@ -8,10 +8,12 @@ Status can go stale, so check the README, the changelog and the open pull reques
 
 ## Short version
 
-- Five steps, S0 to S4, are on `main`. CI builds them for the NXP RT1060-EVKB Rev B and runs
-  `native_sim` scenarios for S1 to S4. This page does not claim a current CI result; look at the checks of
+- Six steps, S0 to S5, are on `main`. CI builds them for the NXP RT1060-EVKB Rev B and runs
+  `native_sim` scenarios for S1 to S5. This page does not claim a current CI result; look at the checks of
   the commit you care about.
-- A sixth step, S5 (time synchronisation over SNTP), is a Draft pull request that is not merged.
+- S5 (the Crux Time realtime clock set from an SNTP server) arrived with
+  [wonny-labs/crux-controller#50](https://github.com/wonny-labs/crux-controller/pull/50). It was never run
+  on a board.
 - **Nothing here has run on a physical board except what
   [docs/findings/s2-first-board-run.md](findings/s2-first-board-run.md) records**: the S2 image, twice, on
   one bench. See [What has run on a board](#what-has-run-on-a-board) for the exact scope.
@@ -28,33 +30,52 @@ Status can go stale, so check the README, the changelog and the open pull reques
 | S2 | Each message is also sent to a TCP peer over the Crux Sockets profile | A `native_sim` scenario over loopback (it needs the test-only `picolibc` project), host tests of the exchange against a loopback peer, a CI build for the board. It is the only image that has run on a board. |
 | S3 | The configuration record is kept in a file through Crux File, mounted by the composition zone | A `native_sim` scenario with the simulator provider on a RAM disk, and a CI build for the board with the FatFs provider on microSD. No card was used. |
 | S4 | The reset cause is logged at boot, and a watchdog is fed once for each pass of the workload that has cycles due, through Crux System | A `native_sim` scenario that shows the boot line and an unavailable watchdog (the simulator has none, so no feed cycle), host tests of the policy, and a CI build for the board with WDOG1 named by a devicetree alias. |
+| S5 | The Crux Time realtime clock is set from an SNTP server on the S2 network, by a low-priority thread, and a product policy decides what an answer may do | `native_sim` scenarios with a UDP responder on loopback, in seven cases (each case is its own image), host tests of the policy, and a CI build for the board on the S2 base. No board run. |
+
+On the S4 row: A simulated watchdog exists in Crux at revision 35431b1e, after this repository's pin, so
+the feed-cycle scenario becomes possible once the pin is moved; nothing is decided or scheduled.
 
 Around the steps:
 
 - The boundary check (`scripts/check_boundary.py`) and two zones, `app/os` and `app/compose`.
-  `zephyr/net/sntp.h` is on the adapter zone's allow-list, and no source includes it yet.
-- Declared resource limits for S0 to S4 (`budgets/limits.json`), which are placeholders, checked in CI
+  `zephyr/net/sntp.h` is on the adapter zone's allow-list, and one source includes it:
+  `app/os/time_sync_zephyr.c` (step S5).
+- Declared resource limits for S0 to S5 (`budgets/limits.json`), which are placeholders, checked in CI
   against static size only. Stack use, heap use and timing are not measured.
 - Release tooling and a dry run that publishes nothing, a rebuild comparison at another path, and a daily
   build against the current `crux-pilot` main that is information only.
-- Findings in `docs/findings/`: the File binding (closed upstream since), step S3, step S4, the S2 board
+- Findings in `docs/findings/`: the File binding (closed upstream since), step S3, step S4, step S5, the S2 board
   runs and the management features.
 
 The README table is the maintained summary of the steps and says, per step, whether it ran on a board.
 
-## In review
+## Step S5 in more detail
 
-**Step S5, time synchronisation over SNTP, is Draft pull request
-[wonny-labs/crux-controller#50](https://github.com/wonny-labs/crux-controller/pull/50). It is not merged
-and nothing in this repository's `main` depends on it.** As the pull request describes it, S5 would set the
-realtime clock of Crux Time from an SNTP server on the S2 network, using the Zephyr SNTP library from
-the adapter zone, with a product policy that decides what an answer may do. That is the pull request's own
-description. It can change before it merges, and it is a proposal until then. Its description says that
-no board run is part of it; the state of its checks is on the pull request, not on this page.
+S5 was added by [wonny-labs/crux-controller#50](https://github.com/wonny-labs/crux-controller/pull/50),
+which is merged; the pull request that put `zephyr/net/sntp.h` on the adapter zone's allow-list,
+[wonny-labs/crux-controller#49](https://github.com/wonny-labs/crux-controller/pull/49), is merged too. What
+the code on `main` does, read from `app/Kconfig`, `app/src/time_sync*.c` and `app/os/time_sync_zephyr.c`:
 
-The pull request that put `zephyr/net/sntp.h` on the adapter zone's allow-list,
-[wonny-labs/crux-controller#49](https://github.com/wonny-labs/crux-controller/pull/49), is merged. That
-changed a rule only. No SNTP code is on `main`.
+- A low-priority thread (Zephyr priority 10) waits five seconds after start, then queries one IPv4 SNTP
+  server and repeats after each interval. The defaults are the server `192.168.77.1` (the S2 peer), 600
+  seconds between queries and a 3000 ms timeout for one query.
+- The application's policy decides what an answer may do. It never sets the clock for a failed,
+  kiss-o'-death or out-of-range answer. It sets any in-range answer while the clock is not synchronised, and
+  corrects a synchronised clock for a difference from 100 ms up to 1000 ms. A larger difference is refused
+  once and marks synchronisation lost. A clock that no answer has confirmed for 1800 seconds is marked not
+  synchronised.
+- The one caller of the Crux Time authority is `app/src/time_sync.c`. The Zephyr SNTP library is called only
+  in the adapter zone, through `sntp_simple()`.
+- Limits, as `docs/findings/s5-time-synchronisation.md` and the `app/Kconfig` help text state them: SNTP
+  here is unauthenticated, so a server or anything on the path that answers with an in-range time can move
+  the clock; the clock is stepped, not slewed; nothing persists time, so it is not valid after a reset
+  until the first answer; the server must be an IPv4 address because the image has no DNS resolver; stack
+  use of the thread and query timing are not measured.
+
+The findings note labels its own results. When it was written, its seven `native_sim` cases, its Zephyr
+build and its budget numbers were still open, to be recorded by CI. This page does not state a result for
+them: look at the checks of the commit you care about. **S5 was never run on a board**, and the only board
+run of this repository is the S2 one below.
 
 ## What has run on a board
 
@@ -80,7 +101,7 @@ bench are evidence collection, not qualification." Its "Not shown" list, kept as
 - "Anything about the S3 image, microSD, or the release bundle: they did not run."
 
 Beyond that note, the README and the S4 note record that S3 and S4 are built and never run on a board,
-and no S0, S1-only or S4 image has run. The S2 image contains the S1 workload, so the workload lines of S1
+and no S0, S1-only, S4 or S5 image has run. The S2 image contains the S1 workload, so the workload lines of S1
 appeared in that capture; the S1 row of the README, "not run", most likely refers to S1 as an image of its own (that is this page's reading of the README, not something the README says). No
 release exists, so no released image has run anywhere. A green `native_sim` run is not a board run and a
 CI build is not a board run.
@@ -121,7 +142,7 @@ tracked in this repository's own issues, with the epic
 
 - A release, a tag or a published image. The release flow runs only as a dry run, and images are never
   published, only hashes.
-- A board run of S0, of S1 alone, of S3 or of S4, and any run after a cold power cycle.
+- A board run of S0, of S1 alone, of S3, of S4 or of S5, and any run after a cold power cycle.
 - Run-time measurement: the budget job measures static size only.
 - A firmware image, `.elf` or `.map` in the repository, a bundle or a CI artifact: this is a rule, not a
   gap.

@@ -1,8 +1,9 @@
 # Adding a step
 
 This is a recipe for adding a *step* to the firmware, worked through with step S4 (Crux System: the
-reset cause and a watchdog) because it is the most recent step on `main` and the smallest one that
-touches every part. Every file named here exists on `main`. The commits are the ones that added S4
+reset cause and a watchdog) because it is the smallest step that touches every part. Step S5 (SNTP time
+synchronisation) is newer and follows the same order, with differences that the section
+[What S5 did differently](#what-s5-did-differently) lists. Every file named here exists on `main`. The commits are the ones that added S4
 (`git log --oneline` shows them; the hashes are given so that you can run `git show` on each). Read the
 [architecture](architecture.md) and the [glossary](glossary.md) first if the terms are new, and
 [CONTRIBUTING.md](../CONTRIBUTING.md) for the rules that apply to every change.
@@ -31,8 +32,8 @@ Answer these before writing any file. S4's answers are in brackets.
 2. Does the application need anything that `app/src` may not include? If the answer is a Zephyr header, a
    composition interface or a provider name, the step needs a zone entry. (No: the driver, HWINFO and
    reboot calls are inside Crux's own binding. S3 did need the composition zone, S1 the adapter zone.)
-3. Which step does it build on? Every step so far depends on S1. (S1; not S2 or S3, so the S4 image has no
-   network and no file system.)
+3. Which step does it build on? Every step so far depends on S1, and S5 depends on S2. (S1; not S2 or S3,
+   so the S4 image has no network and no file system.)
 4. Which Crux pieces does the image have to provide, as Kconfig and devicetree? (Three native
    facilities, `WATCHDOG`, `HWINFO` and `REBOOT`, and the devicetree alias `crux-watchdog0`.)
 5. Is there product logic that can be plain C? Put it in its own file so that a host test can run it. (The
@@ -66,10 +67,11 @@ step with no row, and the file's own comment says a change to it is a reviewed c
 another step's limit in the same pull request to make a build pass. Write `S4Limits` first; it was red
 (3 failures and 1 error) before the row existed.
 
-Known catch: `test_s4.py` pins the exact list of rows (`["S0", "S1", "S2", "S3", "S4"]` in
-`test_the_s4_row_equals_the_s3_row_and_no_other_row_changed` and again in
-`test_the_budget_rows_of_the_other_steps_are_unchanged`). The next step has to extend those two lists, and
-should say so in its pull request.
+Known catch: the tooling tests of earlier steps pin the exact list of rows. `test_s4.py` pinned
+`["S0", "S1", "S2", "S3", "S4"]` in `test_the_s4_row_equals_the_s3_row_and_no_other_row_changed` and again in
+`test_the_budget_rows_of_the_other_steps_are_unchanged`; on `main` those lists now read `["S0"` to `"S5"]`,
+because S5 extended them (a comment in `test_s4.py` says so), and `test_s5.py` pins the same list. The next
+step has to extend them again, and should say so in its pull request.
 
 ### 2. The policy as plain C
 
@@ -184,6 +186,31 @@ uploads an artifact. No job flashes, resets or runs anything on a board.
   against the workflows: the role section says "Steps S0 to S<n> are built in CI", the `ci.yml` row
   names `S<n> build`, and the `budget.yml` row says `` `Budget` for S0 to S<n>: ``.
 
+## What S5 did differently
+
+S5 was added after S4, in the same order of work. Read from `app/Kconfig`, `app/CMakeLists.txt`,
+`app/os/CMakeLists.txt` and the files named below, these are the differences that matter to the next step:
+
+- **It builds on S2, not only S1.** `CRUX_CONTROLLER_S5` depends on `CRUX_CONTROLLER_S2`, `CRUX_TIME`,
+  `SNTP`, `NET_UDP` and `NET_IPV4`. Its CI build uses `conf/s1.conf;conf/s2.conf;conf/s5.conf` and
+  `boards/s2.overlay`, and the Budget row says the same.
+- **It uses an existing zone entry.** `zephyr/net/sntp.h` had been allowed in `app/os` by a separate
+  reviewed pull request ([wonny-labs/crux-controller#49](https://github.com/wonny-labs/crux-controller/pull/49))
+  before S5, as the ground rules above ask. The adapter zone gained a second source,
+  `app/os/time_sync_zephyr.c`, which `app/os/CMakeLists.txt` builds only when S5 is on.
+- **Three files instead of two for the logic.** The plain-C policy is `app/src/time_sync_policy.[ch]`, the
+  glue that calls the Crux Time authority is `app/src/time_sync.[ch]`, and the port that the glue calls is
+  `app/src/time_sync_port.h`, implemented by the adapter. The policy has a host test
+  (`tests/host/test_time_sync_policy.c`).
+- **The scenario compiles the product's own glue, policy and adapter** against the real Crux Time provider
+  and Zephyr's SNTP library, with a UDP responder on the loopback interface. It uses one image per case
+  (`S5_CASE`, seven cases in `tests/native_sim/s5/testcase.yaml`).
+- **The CI build job checks more.** `.github/workflows/ci.yml` job `s5` also checks that no RTC adapter
+  (`CONFIG_CRUX_TIME_RTC`) and no SNTP uncertainty option are on, and that the glue, the policy and the
+  adapter are linked.
+- **The findings note** is `docs/findings/s5-time-synchronisation.md`. Its results table marks the CI
+  results as open, to be recorded where CI runs them.
+
 ## 3. Checks before the pull request, and what to write in it
 
 Run the tooling tests and the boundary check locally, and the host tests if you have CMake and a C
@@ -212,7 +239,7 @@ Use this at the end. `<n>` is the step number.
       include path.
 - [ ] `app/src/composition.c` starts the step, at a position that is argued in a comment.
 - [ ] `tests/native_sim/s<n>/` has a `testcase.yaml` with `platform_allow: native_sim/native/64`.
-- [ ] `tests/tooling/test_s<n>.py` exists, and the exact row lists of `test_s4.py` are extended.
+- [ ] `tests/tooling/test_s<n>.py` exists, and the exact row lists of `test_s4.py` and `test_s5.py` are extended.
 - [ ] `ci.yml` has the job `s<n>`, named `S<n> build (...)`; `budget.yml` has the row.
 - [ ] The findings note, the README row, the changelog entry and the three statements of
       `CONTRIBUTING.md` are updated.

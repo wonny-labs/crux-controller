@@ -21,7 +21,8 @@ producer counts cycles (every 100 ms by default) and queues one numbered message
 and a consumer takes each message off a queue and writes it to the log on a UART. Later *steps* add one
 capability each, chosen at build time with a Kconfig option: send each message to a TCP peer (S2), keep
 the workload's configuration record in a file on a microSD volume (S3), report the reset cause at
-boot and feed a hardware watchdog (S4). Each step has its own build, its own tests and its own
+boot and feed a hardware watchdog (S4), and set the Crux Time realtime clock from an SNTP server over the S2
+network (S5). Each step has its own build, its own tests and its own
 resource budget. Nothing else runs on the board, and little of it has run on a board at all; see the
 [roadmap](roadmap.md).
 
@@ -57,7 +58,7 @@ the linker, and no `#include` crosses the line the other way.
 |---|---|---|---|
 | `workload/` | The portable core of the workload: configuration record, periodic cycle, message wire form. Built for the image and for the host tests. | ISO C and its own tree | any Crux, Sockets profile or Zephyr header |
 | `app/src` | The application: composition, thread glue, and the code of each step. Plain C. | ISO C, the Sockets profile headers, public `<crux/NAME.h>` headers except the frozen four, its own tree, `workload/include` | any Zephyr header, the *frozen headers*, `<crux/file_zephyr.h>`, a quoted include of a header of a zone |
-| `app/os` | The adapter zone. The one place that creates threads, queues messages and sleeps, with Zephyr kernel calls. | ISO C, public `<crux/NAME.h>` headers except the frozen four, `zephyr/kernel.h`, `zephyr/net/sntp.h`, its own tree, header files (`.h`) of `app/src` | the Sockets profile and other POSIX headers, any composition interface, every other Zephyr header, vendor headers, the frozen four |
+| `app/os` | The adapter zone. The one place that creates threads, queues messages and sleeps, with Zephyr kernel calls, and the one place that queries an SNTP server (S5). | ISO C, public `<crux/NAME.h>` headers except the frozen four, `zephyr/kernel.h`, `zephyr/net/sntp.h`, its own tree, header files (`.h`) of `app/src` | the Sockets profile and other POSIX headers, any composition interface, every other Zephyr header, vendor headers, the frozen four |
 | `app/compose` | The composition zone. The one place that mounts a file system and binds it to Crux File. | ISO C, public `<crux/NAME.h>` headers, `<crux/file_zephyr.h>`, `zephyr/fs/fs.h`, `zephyr/devicetree.h`, its own tree, header files (`.h`) of `app/src` | the Sockets profile, Crux private or port headers, every other Zephyr header, vendor headers |
 
 Points that the table cannot carry:
@@ -71,8 +72,12 @@ Points that the table cannot carry:
   `scripts/check_boundary.py` are sets of names with no wildcards. Changing one is a change of the script,
   of `tests/tooling/test_boundary.py` and of [composition-zone.md](composition-zone.md) in one reviewed
   pull request.
-- **`zephyr/net/sntp.h` is allowed in `app/os` on `main`, and no source includes it yet.** The entry
-  was added ahead of the code that needs it. See the roadmap for the pull request that would use it.
+- **`zephyr/net/sntp.h` is allowed in `app/os`, and one source includes it:
+  `app/os/time_sync_zephyr.c` (S5).** That file calls the Zephyr SNTP library's string-based
+  `sntp_simple()` and nothing else of it, so it includes no socket header. The entry was added in
+  [wonny-labs/crux-controller#49](https://github.com/wonny-labs/crux-controller/pull/49) ahead of the code
+  that needed it, which arrived with
+  [wonny-labs/crux-controller#50](https://github.com/wonny-labs/crux-controller/pull/50).
 - **The frozen-header rule covers `app/src` and `app/os`.** `<crux/thread.h>`, `<crux/sync.h>`,
   `<crux/queue.h>` and `<crux/serial.h>` are public Crux headers, and the product still does not use them:
   threads and queues come from Zephyr in `app/os`. The check keeps that from being undone silently. The
@@ -80,8 +85,9 @@ Points that the table cannot carry:
 - **The check reads includes only.** It cannot see include paths that CMake adds, so no build file here
   adds one, and `tests/tooling` checks that. An include whose operand is a macro fails, because it cannot
   be checked.
-- **Inside the checked trees.** `app/os` holds one source, `workload_os_zephyr.c`, that is part of the
-  application target and not a library of its own. `app/compose` is a static library, the only target
+- **Inside the checked trees.** `app/os` holds two sources, `workload_os_zephyr.c` (every step) and
+  `time_sync_zephyr.c` (S5 only, added to the build by `app/os/CMakeLists.txt` when
+  `CONFIG_CRUX_CONTROLLER_S5` is on). Both are part of the application target and not a library of their own. `app/compose` is a static library, the only target
   that links `crux::file_zephyr`.
 
 ## How Crux is consumed
@@ -104,7 +110,7 @@ Points that the table cannot carry:
 
   | Crux piece | Header or target | Step | Used from |
   |---|---|---|---|
-  | Time | `crux::time`, `<crux/time.h>`, `<crux/status.h>` | S0 and later | `app/src/composition.c`, `app/src/workload_thread.c` |
+  | Time | `crux::time`, `<crux/time.h>`, `<crux/status.h>`; S5 also `<crux/time_authority.h>`, which `crux::time` provides | S0 and later; S5 sets the realtime clock | `app/src/composition.c`, `app/src/workload_thread.c`; S5: `app/src/time_sync.c`, the one file that calls the Time authority |
   | Logging | `crux::logging`, `<crux/logging.h>` | S1 and later | `app/src/workload_thread.c` and the step code |
   | Sockets profile and network interface | `crux::sockets`, `crux::netif`, POSIX socket headers | S2 | `app/src/net_client.c` |
   | File | `crux::file`, `<crux/file.h>` in the application; `crux::file_zephyr` and `<crux/file_zephyr.h>` in the composition zone only | S3 | `app/src/config_store.c`, `app/compose/storage_mount.c` |
@@ -128,13 +134,17 @@ Points that the table cannot carry:
    workload cycles, and registers a cycle hook. It runs after the storage step so that a slow mount
    cannot cost a reset.
 4. S2: registers a sink so that each logged message is also sent to the TCP peer.
-5. S1: starts the two workload threads through the port `app/src/workload_os.h`.
+5. S5: calls `time_sync_start()`, which prepares the realtime provider of Crux Time and starts the
+   time synchronisation thread through the port `app/src/time_sync_port.h`. A failure is logged and the
+   workload starts either way. S5 depends on S2 in Kconfig.
+6. S1: starts the two workload threads through the port `app/src/workload_os.h`.
 
 | Thread | Created by | Zephyr priority | Stack | What it does |
 |---|---|---|---|---|
 | main | Zephyr | not set by this repository | 4096 bytes (`CONFIG_MAIN_STACK_SIZE` in `app/conf/s1.conf`) | Runs `composition_start()`, then ends. |
 | producer | `app/os`, through `workload_os_start()` | 5 | `CONFIG_CRUX_CONTROLLER_WORKER_STACK`: 4096 bytes by default, 8192 in S2 | Counts cycles on the Crux monotonic clock, sleeping in slices of at most 50 ms. For each pass with cycles due it calls the cycle hook (S4 feeds the watchdog here), then queues a message for every `message_every`-th cycle. |
 | consumer | `app/os` | 5 | the same size | Waits on the queue for up to 50 ms, logs `cycle=<n> value=<v>` under the tag `workload`, then calls the sink (S2 does its TCP exchange here, on this thread). |
+| time synchronisation (S5 only) | `app/os`, through `time_sync_port_start()` | 10 | `CONFIG_CRUX_CONTROLLER_TIME_STACK`: 8192 bytes by default | Waits 5 seconds, then queries the SNTP server once and again after every `CONFIG_CRUX_CONTROLLER_TIME_INTERVAL_S` seconds (600 by default); the policy decides whether the answer sets the Crux Time realtime clock. |
 | log processing | Zephyr, deferred logging | 14 | 2048 bytes | Writes the log lines to LPUART1 at 115200 baud. |
 
 Priority numbers are Zephyr's, where a lower number is a higher priority, so the workload threads
@@ -143,8 +153,9 @@ first. The queue is a Zephyr `k_msgq` of 8 messages of 8 bytes. When it is full 
 warning and drops the message. The default configuration is a 100 ms period and a message every 10
 cycles, so about one message per second. The watchdog is hardware (WDOG1 on this board), not a thread,
 and only the producer feeds it. The numbers come from `app/os/workload_os_zephyr.c`,
-`app/conf/s1.conf`, `app/src/workload_thread.c` and `workload/include/workload.h`. The stack sizes are
-declared values; stack use has not been measured.
+`app/conf/s1.conf`, `app/src/workload_thread.c`, `workload/include/workload.h`, `app/os/time_sync_zephyr.c`
+and `app/Kconfig`. The stack sizes are declared values; stack use has not been measured, and the S5 thread's
+priority and stack are starting values.
 
 On `native_sim` the scenarios in `tests/native_sim` are Zephyr ztest applications that compile chosen
 sources of `app/` and `workload/`. They do not boot the `app/` image.
@@ -157,7 +168,7 @@ Top-level directories and files:
 |---|---|
 | `app/` | The Zephyr application, described below. |
 | `workload/` | The portable workload core (`include/workload.h`, `src/config_record.c`, `src/cycle.c`, `src/message.c`) and its `CMakeLists.txt`. |
-| `tests/` | `host/` (C tests that run on the build host), `native_sim/` (one Zephyr test application per step, S1 to S4), `tooling/` (Python tests of the scripts, workflows, documents and build files). |
+| `tests/` | `host/` (C tests that run on the build host), `native_sim/` (one Zephyr test application per step, S1 to S5), `tooling/` (Python tests of the scripts, workflows, documents and build files). |
 | `scripts/` | `check_boundary.py` (the include check) and `check_mbed_only.py` (checks that the Crux import cannot activate the GPL stacks). |
 | `budgets/` | `limits.json` (declared minimum free percent per memory region and step), `collect.py` (reads a build log into a measurement), `check.py` (compares a measurement with the limits). |
 | `release/` | The release bundle tools: `assemble_bundle.py`, `check_bundle.py`, `rebuild_compare.py`, `parse_spdx.py` and `release-manifest.schema.json`. Hashes and identities only; no image is ever published. |
@@ -170,8 +181,8 @@ Inside `app/`:
 
 | Path | What it holds |
 |---|---|
-| `CMakeLists.txt`, `Kconfig`, `prj.conf` | The build, the product's Kconfig options (`CRUX_CONTROLLER_S1` to `S4`, the peer address and port, the worker stack size) and the base configuration shared by every step. |
-| `conf/s1.conf` to `s4.conf` | One Kconfig fragment per step. S2, S3 and S4 are each built on top of `s1.conf` (CI never combines two of them). |
+| `CMakeLists.txt`, `Kconfig`, `prj.conf` | The build, the product's Kconfig options (`CRUX_CONTROLLER_S1` to `S5`, the peer address and port, the `CRUX_CONTROLLER_TIME_*` settings of S5, the worker stack size) and the base configuration shared by every step. |
+| `conf/s1.conf` to `s5.conf` | One Kconfig fragment per step. S2, S3 and S4 are each built on top of `s1.conf`, and S5 on `s1.conf` and `s2.conf` (CI never combines S2, S3 and S4 with each other). |
 | `boards/` | Devicetree overlays. `mimxrt1060_evk_mimxrt1062_qspi.overlay` sets LPUART1 as the log UART and is not passed on any CI command line (Zephyr applies a board-named overlay automatically); `s2.overlay`, `s3.overlay`, `s4.overlay` are passed by CI for their step. |
 | `src/main.c`, `composition.[ch]` | `main()` and the code that starts what the build selected. |
 | `src/workload_thread.[ch]` | The two workload threads' logic, the sink and the cycle hook. |
@@ -179,7 +190,8 @@ Inside `app/`:
 | `src/net_client.[ch]` | S2: one TCP exchange over the Sockets profile. |
 | `src/config_store.[ch]`, `src/storage_port.h` | S3: the configuration record in the file `config.rec`, and the port to the composition zone. |
 | `src/health.[ch]`, `src/health_policy.[ch]` | S4: the glue that calls Crux System and Logging, and the policy as plain C. |
-| `os/` | The adapter zone: `workload_os_zephyr.c` and its `CMakeLists.txt`. |
+| `src/time_sync.[ch]`, `src/time_sync_policy.[ch]`, `src/time_sync_port.h` | S5: the glue that reads a Crux Time snapshot and calls the Time authority, the policy as plain C, and the port to the adapter zone. |
+| `os/` | The adapter zone: `workload_os_zephyr.c`, `time_sync_zephyr.c` (S5) and their `CMakeLists.txt`. |
 | `compose/` | The composition zone: `storage_mount.c` and its `CMakeLists.txt`. |
 
 The documents under `docs/findings/` record what each step or question taught. Each statement in them

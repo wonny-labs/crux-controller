@@ -6,9 +6,9 @@ the terms are new to you.
 
 ## Steps and stages
 
-**Step.** A numbered increment of what the firmware does, written S0 to S4 on `main`. Each step after S0
-has a Kconfig option (`CRUX_CONTROLLER_S1` to `CRUX_CONTROLLER_S4` in `app/Kconfig`), a configuration
-fragment (`app/conf/s1.conf` to `s4.conf`), a CI build job (the S1 job is named `S1 (native_sim and RT1060-EVKB)`), its own row in the `Budget` matrix and
+**Step.** A numbered increment of what the firmware does, written S0 to S5 on `main`. Each step after S0
+has a Kconfig option (`CRUX_CONTROLLER_S1` to `CRUX_CONTROLLER_S5` in `app/Kconfig`), a configuration
+fragment (`app/conf/s1.conf` to `s5.conf`), a CI build job (the S1 job is named `S1 (native_sim and RT1060-EVKB)`), its own row in the `Budget` matrix and
 in `budgets/limits.json`, and a row in the README table.
 
 | Step | What it adds |
@@ -18,10 +18,12 @@ in `budgets/limits.json`, and a row in the README table.
 | S2 | Each workload message is also sent to a TCP peer over the Crux Sockets profile. |
 | S3 | The workload's configuration record is kept in a file through Crux File, on a microSD volume mounted by the composition zone. |
 | S4 | The reset cause is logged at boot and a watchdog is fed once for each pass of the workload that has cycles due, through Crux System. |
+| S5 | The Crux Time realtime clock is set from an SNTP server on the S2 network, with a product policy for what an answer may do. |
 
-S2, S3 and S4 each depend on S1 in Kconfig and are built on top of `conf/s1.conf`. "Build on" in the
-repository therefore means "depends on S1". CI builds each as a separate image and never builds two
-of them together. A step that is still in review is listed in [roadmap.md](roadmap.md), and the procedure for
+S2, S3 and S4 each depend on S1 in Kconfig and are built on top of `conf/s1.conf`. S5 depends on S2
+(and so on S1) and is built on `conf/s1.conf;conf/s2.conf;conf/s5.conf`. "Build on" in the
+repository therefore means "depends on" a lower step. CI builds each as a separate image and never builds
+two of them together. What each step has and has not run is in [roadmap.md](roadmap.md), and the procedure for
 adding one is in [adding-a-step.md](adding-a-step.md).
 
 "Step" has two other meanings that share the word. In a GitHub Actions workflow a step is one entry of
@@ -34,7 +36,8 @@ their findings" are tracked in the repository's own issues. `docs/findings/manag
 says it was "recorded after Stage 1 step S3", and `west.yml` and `app/Kconfig` write "Stage 1" in comments.
 Read together, Stage 1 covers S0 to S3 and the steps tracked under the Stage 2 epic start with S4. The
 README itself places S4 in both: its status sentence is headed "Stage 1" and lists S4, and its tracking
-paragraph calls S4 a Stage 2 step. Treat the stage number as a label of when something was planned, not
+paragraph calls S4 a Stage 2 step. Its status sentence lists S5 too, and its tracking paragraph does not
+say which issue tracks S5. Treat the stage number as a label of when something was planned, not
 as a property of the code. One other use is unrelated: `docs/findings/s2-first-board-run.md` says "an
 earlier platform stage", which means a phase of Crux, not of this repository.
 
@@ -44,10 +47,11 @@ earlier platform stage", which means a phase of Crux, not of this repository.
 job `Boundary check`. There is no exception, waiver or per-file opt-out.
 
 **Adapter zone.** The directory `app/os`. The one place that creates threads, queues messages and
-sleeps, using Zephyr kernel calls directly. It implements the port header `app/src/workload_os.h`. It may
+sleeps, using Zephyr kernel calls directly, and queries an SNTP server for S5. It implements the port headers
+`app/src/workload_os.h` and `app/src/time_sync_port.h`. It may
 include exactly two Zephyr headers, `zephyr/kernel.h` and `zephyr/net/sntp.h` (`OS_ADAPTER_ZEPHYR_HEADERS`
-in `scripts/check_boundary.py`), and no Sockets profile, POSIX or composition header. On `main`
-nothing includes the SNTP header yet. See [composition-zone.md](composition-zone.md).
+in `scripts/check_boundary.py`), and no Sockets profile, POSIX or composition header. Of its two sources,
+`app/os/time_sync_zephyr.c` (S5) includes the SNTP header. See [composition-zone.md](composition-zone.md).
 
 **Composition zone.** The directory `app/compose`. The one place that mounts a file system and binds it
 to Crux File with the composition interface `<crux/file_zephyr.h>`. It may include two Zephyr headers,
@@ -62,7 +66,7 @@ under `components/*/ports/*/include/crux/`, apart from the public headers. `app/
 not include one.
 
 **Port header.** A header in `app/src` that the application declares and a zone implements:
-`workload_os.h` (implemented in `app/os`) and `storage_port.h` (implemented in `app/compose`). It includes
+`workload_os.h` and `time_sync_port.h` (both implemented in `app/os`) and `storage_port.h` (implemented in `app/compose`). It includes
 ISO C only, so it stays inside the rules of `app/src`. The application calls it; the linker joins the
 two sides.
 
@@ -118,15 +122,17 @@ that board string; reading `@B` as revision B is the reader's inference and is n
 "EVKB build" in this repository means a cross-compile in CI. It never means a run.
 
 **Scenario.** One Zephyr test application under `tests/native_sim/sN`, with a `testcase.yaml` for
-Twister. S3 and S4 select one case per image through a build variable (`S3_CASE`, `S4_CASE`), because
-File can be bound and the watchdog started once per boot.
+Twister. S3, S4 and S5 select one case per image through a build variable (`S3_CASE`, `S4_CASE`,
+`S5_CASE`), because File can be bound and the watchdog started once per boot, and because the S5 test's
+CMake file notes that Crux Time keeps its state for the whole run.
 
 ## Time
 
 **Time Authority.** Used once, in [composition-zone.md](composition-zone.md), where it is the reason
 Crux provides no SNTP client: Crux's Time contract "designates the product as the owner of the Time
 Authority", so the product chooses the time source. This repository does not define the term beyond
-that sentence and no code on `main` acts as a Time Authority. What the Crux Time contract says exactly
+that sentence. In code, `app/src/time_sync.c` (S5) is the one file that calls the Crux Time authority
+(`<crux/time_authority.h>`, with `crux_realtime_set()`). What the Crux Time contract says exactly
 was not read for this page.
 
 ## Inconsistencies in the repository's wording
@@ -134,12 +140,12 @@ was not read for this page.
 These are recorded, not fixed here, because the files involved belong to other changes or are kept as
 written.
 
-- Step and stage, as above: S4 is called both a Stage 1 and a Stage 2 step (`README.md` lines 8 to 12
-  and 61 to 62).
-- `app/Kconfig` line 13 says "Steps S2 and S3 build on this one" and leaves out S4. `app/conf/s3.conf`
+- Step and stage, as above: S4 is called both a Stage 1 and a Stage 2 step (`README.md` line 12
+  and lines 63 and 64).
+- `app/Kconfig` line 13 says "Steps S2 and S3 build on this one" and leaves out S4 and S5. `app/conf/s3.conf`
   line 3 and `app/conf/s4.conf` line 3 say that S3 and S4 are built on S1 without the other steps.
 - `app/Kconfig` line 22 says the S2 exchange "is built and never run in Stage 1 CI", which is stale: the
   `native_sim` scenario of S2 does run in CI, and `docs/findings/s2-first-board-run.md` records two board
   runs of the S2 image (board runs are not CI).
 - The CI job named `S1 (native_sim and RT1060-EVKB)` (`ci.yml` line 147) also runs the `native_sim`
-  scenarios of S2, S3 and S4, because it runs every scenario under `tests/native_sim`.
+  scenarios of S2, S3, S4 and S5, because it runs every scenario under `tests/native_sim`.
