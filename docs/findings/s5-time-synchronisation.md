@@ -110,7 +110,7 @@ Other choices, each recorded in the code:
 ## Duties from the Crux Time contract and the platform consult
 
 `<crux/time_authority.h>` says that applications own stale-callback and source policy. Crux Pilot was asked (2026-11-14,
-read by that session on its main branch) whether a product thread may call `crux_realtime_set`. The answer, stated
+answer read on the Crux main branch at that revision) whether a product thread may call `crux_realtime_set`. The answer, stated
 here as a consult result and not as a Crux decision: no objection, and four duties for the product: staleness is the
 product's, a write failure has to be handled, there is one writer of the native clock, and events carry a wall time
 that moves. They are met as follows.
