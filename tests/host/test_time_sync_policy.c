@@ -102,15 +102,27 @@ static void the_range_check_has_exact_boundaries(void)
 static void an_sntp_fraction_becomes_nanoseconds_below_a_second_rounding_down(void)
 {
     /* The Zephyr fraction counts 2^-32 s. */
-    CHECK(time_sync_instant_from_sntp(T0, 0u).nanoseconds == 0u);
-    CHECK(time_sync_instant_from_sntp(T0, 0x80000000u).nanoseconds == 500000000u);
-    CHECK(time_sync_instant_from_sntp(T0, 0x40000000u).nanoseconds == 250000000u);
-    CHECK(time_sync_instant_from_sntp(T0, 0xFFFFFFFFu).nanoseconds == 999999999u);
+    CHECK(time_sync_instant_from_sntp((time_sync_sntp_answer_t){.seconds = T0, .fraction = 0u})
+              .nanoseconds == 0u);
+    CHECK(time_sync_instant_from_sntp(
+              (time_sync_sntp_answer_t){.seconds = T0, .fraction = 0x80000000u})
+              .nanoseconds == 500000000u);
+    CHECK(time_sync_instant_from_sntp(
+              (time_sync_sntp_answer_t){.seconds = T0, .fraction = 0x40000000u})
+              .nanoseconds == 250000000u);
+    CHECK(time_sync_instant_from_sntp(
+              (time_sync_sntp_answer_t){.seconds = T0, .fraction = 0xFFFFFFFFu})
+              .nanoseconds == 999999999u);
     /* One tick is 0.2328 ns: it rounds down to 0, and 5 ticks to 1 ns. */
-    CHECK(time_sync_instant_from_sntp(T0, 1u).nanoseconds == 0u);
-    CHECK(time_sync_instant_from_sntp(T0, 4u).nanoseconds == 0u);
-    CHECK(time_sync_instant_from_sntp(T0, 5u).nanoseconds == 1u);
-    CHECK(time_sync_instant_from_sntp(T0, 0x00000001u).seconds == T0);
+    CHECK(time_sync_instant_from_sntp((time_sync_sntp_answer_t){.seconds = T0, .fraction = 1u})
+              .nanoseconds == 0u);
+    CHECK(time_sync_instant_from_sntp((time_sync_sntp_answer_t){.seconds = T0, .fraction = 4u})
+              .nanoseconds == 0u);
+    CHECK(time_sync_instant_from_sntp((time_sync_sntp_answer_t){.seconds = T0, .fraction = 5u})
+              .nanoseconds == 1u);
+    CHECK(time_sync_instant_from_sntp(
+              (time_sync_sntp_answer_t){.seconds = T0, .fraction = 0x00000001u})
+              .seconds == T0);
 }
 
 static void every_sntp_fraction_in_a_sweep_stays_below_a_second_and_never_decreases(void)
@@ -119,7 +131,9 @@ static void every_sntp_fraction_in_a_sweep_stays_below_a_second_and_never_decrea
 
     for (uint64_t fraction = 0; fraction <= UINT32_MAX; fraction += 65537u) {
         const uint32_t nanoseconds =
-            time_sync_instant_from_sntp(T0, (uint32_t)fraction).nanoseconds;
+            time_sync_instant_from_sntp(
+                (time_sync_sntp_answer_t){.seconds = T0, .fraction = (uint32_t)fraction})
+                .nanoseconds;
 
         CHECK(nanoseconds < 1000000000u);
         CHECK(nanoseconds >= previous);
@@ -129,14 +143,21 @@ static void every_sntp_fraction_in_a_sweep_stays_below_a_second_and_never_decrea
 
 static void sntp_seconds_beyond_the_signed_range_are_clamped_and_then_refused(void)
 {
-    const time_sync_instant_t huge = time_sync_instant_from_sntp(UINT64_MAX, 0u);
+    const time_sync_instant_t huge = time_sync_instant_from_sntp(
+        (time_sync_sntp_answer_t){.seconds = UINT64_MAX, .fraction = 0u});
 
     CHECK(huge.seconds == INT64_MAX);
     CHECK(!time_sync_instant_in_range(huge));
-    CHECK(time_sync_instant_from_sntp((uint64_t)INT64_MAX, 0u).seconds == INT64_MAX);
-    CHECK(time_sync_instant_from_sntp(UINT64_C(946684800), 0u).seconds == INT64_C(946684800));
-    CHECK(time_sync_instant_in_range(time_sync_instant_from_sntp(UINT64_C(946684800), 0u)));
-    CHECK(!time_sync_instant_in_range(time_sync_instant_from_sntp(UINT64_C(946684799), 0u)));
+    CHECK(time_sync_instant_from_sntp(
+              (time_sync_sntp_answer_t){.seconds = (uint64_t)INT64_MAX, .fraction = 0u})
+              .seconds == INT64_MAX);
+    CHECK(time_sync_instant_from_sntp(
+              (time_sync_sntp_answer_t){.seconds = UINT64_C(946684800), .fraction = 0u})
+              .seconds == INT64_C(946684800));
+    CHECK(time_sync_instant_in_range(time_sync_instant_from_sntp(
+        (time_sync_sntp_answer_t){.seconds = UINT64_C(946684800), .fraction = 0u})));
+    CHECK(!time_sync_instant_in_range(time_sync_instant_from_sntp(
+        (time_sync_sntp_answer_t){.seconds = UINT64_C(946684799), .fraction = 0u})));
 }
 
 /* Rule 1: a failed, kiss-o'-death or timed-out answer never sets. */
@@ -482,6 +503,7 @@ static void a_limit_pair_that_makes_no_sense_changes_nothing(void)
     CHECK(decision.action == TIME_SYNC_NO_ACTION);
     CHECK(decision.reason == TIME_SYNC_REASON_BAD_INPUT);
     /* An unknown result code never sets either. */
+    // NOLINTNEXTLINE(clang-analyzer-optin.core.EnumCastOutOfRange): deliberate out-of-range value
     input.result = (time_sync_sample_result_t)99;
     CHECK(decide(&input).action == TIME_SYNC_NO_ACTION);
     CHECK(decide(&input).reason == TIME_SYNC_REASON_BAD_INPUT);
@@ -494,6 +516,7 @@ static void names_and_levels_are_stable_words(void)
     CHECK(strcmp(time_sync_action_name(TIME_SYNC_REFUSE_RANGE), "refuse-range") == 0);
     CHECK(strcmp(time_sync_action_name(TIME_SYNC_REFUSE_STEP), "refuse-step") == 0);
     CHECK(strcmp(time_sync_action_name(TIME_SYNC_MARK_STALE), "mark-stale") == 0);
+    // NOLINTNEXTLINE(clang-analyzer-optin.core.EnumCastOutOfRange): deliberate out-of-range value
     CHECK(strcmp(time_sync_action_name((time_sync_action_t)99), "unknown") == 0);
     CHECK(strcmp(time_sync_reason_name(TIME_SYNC_REASON_FIRST_SYNC), "first-sync") == 0);
     CHECK(strcmp(time_sync_reason_name(TIME_SYNC_REASON_RESYNC), "resync") == 0);
@@ -506,6 +529,7 @@ static void names_and_levels_are_stable_words(void)
     CHECK(strcmp(time_sync_reason_name(TIME_SYNC_REASON_KISS_OF_DEATH), "kiss-of-death") == 0);
     CHECK(strcmp(time_sync_reason_name(TIME_SYNC_REASON_ERROR), "error") == 0);
     CHECK(strcmp(time_sync_reason_name(TIME_SYNC_REASON_BAD_INPUT), "bad-input") == 0);
+    // NOLINTNEXTLINE(clang-analyzer-optin.core.EnumCastOutOfRange): deliberate out-of-range value
     CHECK(strcmp(time_sync_reason_name((time_sync_reason_t)99), "unknown") == 0);
 }
 

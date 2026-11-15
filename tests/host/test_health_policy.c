@@ -108,6 +108,7 @@ static void class_names_are_stable_words(void)
     CHECK(strcmp(health_class_name(HEALTH_CLASS_WATCHDOG), "watchdog") == 0);
     CHECK(strcmp(health_class_name(HEALTH_CLASS_FAULT), "fault") == 0);
     CHECK(strcmp(health_class_name(HEALTH_CLASS_UNKNOWN), "unknown") == 0);
+    // NOLINTNEXTLINE(clang-analyzer-optin.core.EnumCastOutOfRange): deliberate out-of-range value
     CHECK(strcmp(health_class_name((health_cause_class_t)99), "unknown") == 0);
 }
 

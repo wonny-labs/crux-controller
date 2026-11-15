@@ -16,6 +16,14 @@
 
 enum { DEADLINE_MS = 2000 };
 
+/* The socket of one exchange and the deadline of the whole exchange. They travel together so that
+ * every wait is measured against the same deadline and a call cannot mix up its numeric arguments.
+ */
+struct exchange_link {
+    int descriptor;
+    int64_t deadline_ms;
+};
+
 static int64_t monotonic_ms(void)
 {
     struct timespec now;
@@ -28,16 +36,16 @@ static int64_t monotonic_ms(void)
 
 /* Wait until the descriptor is ready for the events, or the overall deadline passes. Poll
  * only says that an operation can be tried. An error or hang-up is left to that operation. */
-static int wait_ready(int descriptor, short events, int64_t deadline_ms)
+static int wait_ready(const struct exchange_link *link, short events)
 {
     for (;;) {
         const int64_t now = monotonic_ms();
 
-        if (now < 0 || now >= deadline_ms) {
+        if (now < 0 || now >= link->deadline_ms) {
             return NET_CLIENT_ERR_TIMEOUT;
         }
-        struct pollfd entry = {.fd = descriptor, .events = events, .revents = 0};
-        const int ready = poll(&entry, 1, (int)(deadline_ms - now));
+        struct pollfd entry = {.fd = link->descriptor, .events = events, .revents = 0};
+        const int ready = poll(&entry, 1, (int)(link->deadline_ms - now));
 
         if (ready > 0) {
             return NET_CLIENT_OK;
@@ -48,7 +56,7 @@ static int wait_ready(int descriptor, short events, int64_t deadline_ms)
     }
 }
 
-static int connect_peer(int descriptor, int64_t deadline_ms)
+static int connect_peer(const struct exchange_link *link)
 {
     struct sockaddr_in peer;
 
@@ -58,13 +66,13 @@ static int connect_peer(int descriptor, int64_t deadline_ms)
     if (inet_pton(AF_INET, CONFIG_CRUX_CONTROLLER_PEER_ADDRESS, &peer.sin_addr) != 1) {
         return NET_CLIENT_ERR_SOCKET;
     }
-    if (connect(descriptor, (const struct sockaddr *)&peer, sizeof peer) == 0) {
+    if (connect(link->descriptor, (const struct sockaddr *)&peer, sizeof peer) == 0) {
         return NET_CLIENT_OK;
     }
     if (errno != EINPROGRESS) {
         return NET_CLIENT_ERR_CONNECT;
     }
-    const int ready = wait_ready(descriptor, POLLOUT, deadline_ms);
+    const int ready = wait_ready(link, POLLOUT);
 
     if (ready != NET_CLIENT_OK) {
         return ready;
@@ -72,23 +80,24 @@ static int connect_peer(int descriptor, int64_t deadline_ms)
     int outcome = 0;
     socklen_t length = sizeof outcome;
 
-    if (getsockopt(descriptor, SOL_SOCKET, SO_ERROR, &outcome, &length) != 0 || outcome != 0) {
+    if (getsockopt(link->descriptor, SOL_SOCKET, SO_ERROR, &outcome, &length) != 0 ||
+        outcome != 0) {
         return NET_CLIENT_ERR_CONNECT;
     }
     return NET_CLIENT_OK;
 }
 
-static int send_all(int descriptor, const uint8_t *data, size_t length, int64_t deadline_ms)
+static int send_all(const struct exchange_link *link, const uint8_t *data, size_t length)
 {
     size_t sent = 0;
 
     while (sent < length) {
-        const int ready = wait_ready(descriptor, POLLOUT, deadline_ms);
+        const int ready = wait_ready(link, POLLOUT);
 
         if (ready != NET_CLIENT_OK) {
             return ready;
         }
-        const ssize_t count = send(descriptor, data + sent, length - sent, 0);
+        const ssize_t count = send(link->descriptor, data + sent, length - sent, 0);
 
         if (count > 0) {
             sent += (size_t)count;
@@ -99,23 +108,22 @@ static int send_all(int descriptor, const uint8_t *data, size_t length, int64_t 
     return NET_CLIENT_OK;
 }
 
-static int receive_all(int descriptor, uint8_t *data, size_t length, int64_t deadline_ms)
+static int receive_all(const struct exchange_link *link, uint8_t *data, size_t length)
 {
     size_t received = 0;
 
     while (received < length) {
-        const int ready = wait_ready(descriptor, POLLIN, deadline_ms);
+        const int ready = wait_ready(link, POLLIN);
 
         if (ready != NET_CLIENT_OK) {
             return ready;
         }
-        const ssize_t count = recv(descriptor, data + received, length - received, 0);
+        const ssize_t count = recv(link->descriptor, data + received, length - received, 0);
 
         if (count > 0) {
             received += (size_t)count;
-        } else if (count == 0) {
-            return NET_CLIENT_ERR_RECEIVE; /* the peer closed early */
-        } else if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR) {
+        } else if (count == 0 || (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR)) {
+            /* The peer closed early, or the receive failed. errno is read only when count < 0. */
             return NET_CLIENT_ERR_RECEIVE;
         }
     }
@@ -136,28 +144,30 @@ int net_client_exchange(const workload_message_t *message)
     if (start < 0) {
         return NET_CLIENT_ERR_TIMEOUT;
     }
-    const int64_t deadline_ms = start + DEADLINE_MS;
-    const int descriptor = socket(AF_INET, SOCK_STREAM, 0);
+    const struct exchange_link link = {
+        .descriptor = socket(AF_INET, SOCK_STREAM, 0),
+        .deadline_ms = start + DEADLINE_MS,
+    };
 
-    if (descriptor < 0) {
+    if (link.descriptor < 0) {
         return NET_CLIENT_ERR_SOCKET;
     }
     int result = NET_CLIENT_ERR_SOCKET;
-    const int flags = fcntl(descriptor, F_GETFL);
+    const int flags = fcntl(link.descriptor, F_GETFL);
 
-    if (flags >= 0 && fcntl(descriptor, F_SETFL, flags | O_NONBLOCK) == 0) {
-        result = connect_peer(descriptor, deadline_ms);
+    if (flags >= 0 && fcntl(link.descriptor, F_SETFL, flags | O_NONBLOCK) == 0) {
+        result = connect_peer(&link);
         if (result == NET_CLIENT_OK) {
-            result = send_all(descriptor, request, length, deadline_ms);
+            result = send_all(&link, request, length);
         }
         if (result == NET_CLIENT_OK) {
-            result = receive_all(descriptor, reply, sizeof reply, deadline_ms);
+            result = receive_all(&link, reply, sizeof reply);
         }
         if (result == NET_CLIENT_OK && memcmp(request, reply, sizeof request) != 0) {
             result = NET_CLIENT_ERR_PROTOCOL;
         }
     }
     /* Close once. A failure here does not change the outcome of the exchange. */
-    (void)close(descriptor);
+    (void)close(link.descriptor);
     return result;
 }

@@ -16,13 +16,13 @@ bool time_sync_instant_in_range(time_sync_instant_t instant)
            instant.nanoseconds < (uint32_t)NS_PER_SECOND;
 }
 
-time_sync_instant_t time_sync_instant_from_sntp(uint64_t seconds, uint32_t fraction)
+time_sync_instant_t time_sync_instant_from_sntp(time_sync_sntp_answer_t answer)
 {
     time_sync_instant_t instant;
 
-    instant.seconds = seconds > (uint64_t)INT64_MAX ? INT64_MAX : (int64_t)seconds;
+    instant.seconds = answer.seconds > (uint64_t)INT64_MAX ? INT64_MAX : (int64_t)answer.seconds;
     /* fraction / 2^32 s in nanoseconds: at most (2^32 - 1) * 10^9 / 2^32, below 10^9. */
-    instant.nanoseconds = (uint32_t)(((uint64_t)fraction * (uint64_t)NS_PER_SECOND) >> 32);
+    instant.nanoseconds = (uint32_t)(((uint64_t)answer.fraction * (uint64_t)NS_PER_SECOND) >> 32);
     return instant;
 }
 

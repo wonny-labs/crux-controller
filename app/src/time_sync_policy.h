@@ -116,12 +116,19 @@ typedef struct {
  * nanoseconds is below one second. */
 bool time_sync_instant_in_range(time_sync_instant_t instant);
 
+/* An SNTP answer as the Zephyr library reports it (struct sntp_time). The two numbers are fields
+ * of one type so that a call cannot swap them. */
+typedef struct {
+    uint64_t seconds;  /* since the Unix epoch */
+    uint32_t fraction; /* in units of 2^-32 s */
+} time_sync_sntp_answer_t;
+
 /*
  * The instant for an SNTP answer of the Zephyr library: seconds since the Unix epoch and a fraction
  * counted in units of 2^-32 s. The fraction is converted to nanoseconds, rounded down, so it never
  * reaches a whole second. Seconds above INT64_MAX become INT64_MAX, which is out of range.
  */
-time_sync_instant_t time_sync_instant_from_sntp(uint64_t seconds, uint32_t fraction);
+time_sync_instant_t time_sync_instant_from_sntp(time_sync_sntp_answer_t answer);
 
 /*
  * Decide what to do with one query result. Pure: it reads only its arguments. A NULL argument, a

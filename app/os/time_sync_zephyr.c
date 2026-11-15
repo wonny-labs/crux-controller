@@ -69,7 +69,8 @@ time_sync_sample_result_t time_sync_port_query(const char *server, uint32_t time
     const int result = sntp_simple(server, timeout_ms, &answer);
 
     if (result == 0) {
-        *sample = time_sync_instant_from_sntp(answer.seconds, answer.fraction);
+        *sample = time_sync_instant_from_sntp(
+            (time_sync_sntp_answer_t){.seconds = answer.seconds, .fraction = answer.fraction});
         return TIME_SYNC_SAMPLE_OK;
     }
     if (result == -ETIMEDOUT) {
