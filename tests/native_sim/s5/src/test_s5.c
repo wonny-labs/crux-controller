@@ -26,6 +26,7 @@
 #include <zephyr/device.h>
 #include <zephyr/drivers/serial/uart_emul.h>
 #include <zephyr/kernel.h>
+#include <zephyr/logging/log_ctrl.h>
 #include <zephyr/net/socket.h>
 #include <zephyr/ztest.h>
 
@@ -157,10 +158,14 @@ static void stop_responder(void)
     responder_socket = -1;
 }
 
-/* Everything that Crux Logging wrote to the emulated UART so far. */
+/* Everything that Crux Logging wrote to the emulated UART so far. The log thread has the lowest
+ * priority, and once it has started it waits up to a second for more messages before it writes (the
+ * default of CONFIG_LOG_PROCESS_THREAD_SLEEP_MS). A fixed sleep is therefore not enough: a message
+ * that was logged less than a second ago may still be queued. log_flush() wakes the thread and
+ * returns when every message is written. */
 static const char *log_text(void)
 {
-    k_msleep(200); /* let the deferred log thread drain */
+    log_flush();
     const size_t length = uart_emul_get_tx_data(LOG_UART, (uint8_t *)captured, sizeof captured - 1);
 
     captured[length] = '\0';
