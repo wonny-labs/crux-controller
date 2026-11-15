@@ -1,0 +1,16 @@
+# Keep the C17 enum ABI and explicitly length-checked C library calls; these two
+# generic checks flag the language/library form rather than a project defect.
+Checks: >-
+  -*,
+  bugprone-*,
+  clang-analyzer-*,
+  -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,
+  performance-*,
+  -performance-enum-size,
+  portability-*,
+  readability-identifier-naming
+WarningsAsErrors: '*'
+# Report findings in headers of this repository only: workload, app and tests. Headers of Crux,
+# Zephyr and the C library are not this repository's code, and their findings are not fixed here.
+HeaderFilterRegex: '.*(workload|app|tests)/.*'
+FormatStyle: file
