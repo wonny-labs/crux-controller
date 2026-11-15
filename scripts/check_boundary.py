@@ -10,15 +10,15 @@ Four trees are checked:
   own tree, and nothing else.
 * ``app/compose/`` is the composition zone, the one place that mounts a file system and
   binds it to Crux. It may include ISO C headers, public ``<crux/NAME.h>`` headers, the
-  composition interface ``<crux/file_zephyr.h>``, the explicit allow-list of Zephyr headers
-  in ``COMPOSITION_ZEPHYR_HEADERS``, headers of its own tree and the headers of ``app/src``
+  composition interfaces ``<crux/file_zephyr.h>`` and ``<crux/web_zephyr.h>`` (``COMPOSITION_CRUX_HEADERS``),
+  the explicit allow-list of Zephyr headers in ``COMPOSITION_ZEPHYR_HEADERS``, headers of its own tree and the headers of ``app/src``
   (header files only: the product-owned header that ``app/src`` declares and the zone
   implements). Such a header is scanned under the ``app/src`` rules, so a Sockets profile header
   or a ``workload`` header that it includes reaches the zone indirectly; the zone's own
   includes are what the rule restricts. It may not
   include the Sockets profile, a Crux private or port header, any other Zephyr header or a
   vendor or third-party header. ``app/src`` has no way into the zone: the composition
-  interface and the allow-listed Zephyr headers fail there, and so does a quoted include of a
+  interfaces and the allow-listed Zephyr headers fail there, and so does a quoted include of a
   zone header. See ``docs/composition-zone.md``.
 * ``app/os/`` is the adapter zone, where OS facilities (threads, queues, sleeping) use Zephyr
   directly. It may include ISO C headers, public ``<crux/NAME.h>`` headers, headers of its own
@@ -74,7 +74,9 @@ SOCKET_PROFILE = frozenset(
 # The composition zone's exact allow-list of Zephyr headers (docs/composition-zone.md justifies
 # each one). There are no wildcards: a name is a header or it is not. Adding a name is a reviewed
 # change of this file, of tests/tooling/test_boundary.py and of that document.
-COMPOSITION_ZEPHYR_HEADERS = frozenset({"zephyr/fs/fs.h", "zephyr/devicetree.h"})
+COMPOSITION_ZEPHYR_HEADERS = frozenset(
+    {"zephyr/fs/fs.h", "zephyr/devicetree.h", "zephyr/net/tls_credentials.h"}
+)
 
 # The adapter zone's exact allow-list of Zephyr headers (docs/composition-zone.md justifies it).
 # There are no wildcards: a name is a header or it is not. Adding a name is a reviewed change of
@@ -90,8 +92,11 @@ FROZEN_CRUX_HEADERS = frozenset({"crux/thread.h", "crux/sync.h", "crux/queue.h",
 # The composition interfaces of Crux that the zone may include. A composition header is
 # <crux/NAME.h> that names a provider; Crux publishes it under components/*/ports/*/include/crux,
 # beside the public headers under components/*/include/crux. Any header of that kind is out of
-# reach of app/src and of the workload, whether or not it is listed here.
-COMPOSITION_CRUX_HEADERS = frozenset({"crux/file_zephyr.h"})
+# reach of app/src and of the workload, whether or not it is listed here. A name listed here is
+# denied outside the zone by name even without --crux-root, when the check cannot see which
+# headers Crux publishes as composition interfaces: file_zephyr.h binds the File root and
+# web_zephyr.h binds the Web server for the HTTPS management composition.
+COMPOSITION_CRUX_HEADERS = frozenset({"crux/file_zephyr.h", "crux/web_zephyr.h"})
 
 CRUX_PUBLIC = re.compile(r"^crux/[A-Za-z0-9_]+\.h$")
 DIRECTIVE = re.compile(r"^[ \t\f\v]*#[ \t\f\v]*(include_next|include|import)\b(.*)$", re.DOTALL)
