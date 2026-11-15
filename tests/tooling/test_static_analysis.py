@@ -11,6 +11,8 @@ import sys
 import tempfile
 import unittest
 
+import yaml
+
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 SCRIPTS = ROOT / "scripts"
 sys.path.insert(0, str(SCRIPTS))
@@ -18,6 +20,7 @@ sys.path.insert(0, str(SCRIPTS))
 import analyze_host  # noqa: E402
 
 CLANG_FORMAT_VERSION = "18.1.8"
+CLANG_TIDY_PACKAGE = "clang-tidy-18=1:18.1.3-1ubuntu1"
 
 
 def read(name):
@@ -353,6 +356,53 @@ class AnalyzeScript(unittest.TestCase):
         result = fixture.run()
         self.assertNotEqual(0, result.returncode)
         self.assertIn("no source", result.stderr)
+
+
+class CiJob(unittest.TestCase):
+    """The workflow runs both checks in one job, with pinned tools, and a finding fails it."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.workflow = yaml.safe_load(read(".github/workflows/ci.yml"))
+        cls.matches = [job for job in cls.workflow["jobs"].values()
+                       if job.get("name") == "Static analysis"]
+
+    def job(self):
+        self.assertEqual(1, len(self.matches), "ci.yml must have one job named Static analysis")
+        return self.matches[0]
+
+    def commands(self):
+        return "\n".join(step.get("run", "") for step in self.job()["steps"])
+
+    def test_the_job_runs_on_the_runner_of_the_other_jobs(self):
+        self.assertEqual("ubuntu-24.04", self.job()["runs-on"])
+
+    def test_it_checks_out_with_the_pinned_actions_of_the_other_jobs(self):
+        uses = [step.get("uses") for step in self.job()["steps"] if "uses" in step]
+        self.assertEqual(["actions/checkout@v4", "actions/setup-python@v5"], uses)
+
+    def test_the_format_tool_is_installed_at_the_pinned_version(self):
+        self.assertIn(f"pip install clang-format=={CLANG_FORMAT_VERSION}", self.commands())
+
+    def test_clang_tidy_is_installed_at_the_pinned_package_version(self):
+        self.assertIn(f"apt-get install -y {CLANG_TIDY_PACKAGE}", self.commands())
+
+    def test_both_scripts_run_in_the_job(self):
+        commands = self.commands()
+        self.assertIn("scripts/check-format.sh", commands)
+        self.assertIn("scripts/analyze_host.py", commands)
+
+    def test_a_finding_fails_the_job(self):
+        job = self.job()
+        self.assertNotIn("continue-on-error", job)
+        for step in job["steps"]:
+            self.assertNotIn("continue-on-error", step)
+            self.assertNotRegex(step.get("run", ""), r"\|\|\s*true")
+
+    def test_the_job_does_not_add_permissions_or_upload_anything(self):
+        job = self.job()
+        self.assertNotIn("permissions", job)
+        self.assertNotIn("actions/upload-artifact", read(".github/workflows/ci.yml"))
 
 
 if __name__ == "__main__":
