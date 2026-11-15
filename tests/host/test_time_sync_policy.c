@@ -244,6 +244,72 @@ static void stale_is_marked_only_while_the_time_is_valid_and_synchronised(void)
     CHECK(decide(&input).action == TIME_SYNC_NO_ACTION);
 }
 
+static void an_unreadable_clock_is_a_failed_round_and_never_sets(void)
+{
+    /* The glue gives time_valid = false when the snapshot read failed, as it did before. The
+     * answer must not be taken for a first sync then: the clock could not be compared. */
+    time_sync_input_t input = {
+        .result = TIME_SYNC_SAMPLE_OK,
+        .sample = at(T0 + 5, 0),
+        .clock_unreadable = true,
+        .seconds_since_good = 0u,
+    };
+    time_sync_decision_t decision = decide(&input);
+
+    CHECK(decision.action == TIME_SYNC_NO_ACTION);
+    CHECK(decision.reason == TIME_SYNC_REASON_CLOCK_UNREADABLE);
+    CHECK(!decision.clear_synchronized);
+    CHECK(!decision.refresh_good);
+    CHECK(decision.delta_ns == 0);
+    CHECK(time_sync_decision_level(decision) == TIME_SYNC_LOG_WARN);
+
+    /* The same answer with a snapshot that was read and reports no time is still a first sync. */
+    input.clock_unreadable = false;
+    decision = decide(&input);
+    CHECK(decision.action == TIME_SYNC_APPLY_SET);
+    CHECK(decision.reason == TIME_SYNC_REASON_FIRST_SYNC);
+
+    /* A far answer is not applied either, whatever the report says about the flags. */
+    input = synchronised_with(after(at(T0, 0), 5 * SEC));
+    input.clock_unreadable = true;
+    input.time_valid = false;
+    input.time_synchronized = false;
+    CHECK(decide(&input).action == TIME_SYNC_NO_ACTION);
+    CHECK(decide(&input).reason == TIME_SYNC_REASON_CLOCK_UNREADABLE);
+}
+
+static void an_unreadable_clock_counts_towards_staleness_like_any_failure(void)
+{
+    time_sync_input_t input = {
+        .result = TIME_SYNC_SAMPLE_OK,
+        .sample = at(T0, 0),
+        .clock_unreadable = true,
+        .seconds_since_good = 1800u, /* exactly at the limit */
+    };
+    time_sync_decision_t decision = decide(&input);
+
+    CHECK(decision.action == TIME_SYNC_NO_ACTION);
+    CHECK(!decision.clear_synchronized);
+    input.seconds_since_good = 1801u;
+    decision = decide(&input);
+    CHECK(decision.action == TIME_SYNC_MARK_STALE);
+    CHECK(decision.reason == TIME_SYNC_REASON_CLOCK_UNREADABLE);
+    CHECK(decision.clear_synchronized);
+    CHECK(!decision.refresh_good);
+    CHECK(time_sync_decision_level(decision) == TIME_SYNC_LOG_WARN);
+}
+
+static void an_unreadable_clock_does_not_change_the_reason_of_a_failed_query_or_a_bad_answer(void)
+{
+    time_sync_input_t input = {.result = TIME_SYNC_SAMPLE_TIMEOUT, .clock_unreadable = true};
+
+    CHECK(decide(&input).reason == TIME_SYNC_REASON_TIMEOUT);
+    input.result = TIME_SYNC_SAMPLE_OK;
+    input.sample = at(0, 0);
+    CHECK(decide(&input).action == TIME_SYNC_REFUSE_RANGE);
+    CHECK(decide(&input).reason == TIME_SYNC_REASON_OUT_OF_RANGE);
+}
+
 /* Rule 1: an answer outside [2000-01-01, 2100-01-01) never sets, and counts as a failure. */
 static void an_answer_out_of_range_never_sets_in_any_state(void)
 {
@@ -503,6 +569,7 @@ static void names_and_levels_are_stable_words(void)
     CHECK(strcmp(time_sync_reason_name(TIME_SYNC_REASON_TIMEOUT), "timeout") == 0);
     CHECK(strcmp(time_sync_reason_name(TIME_SYNC_REASON_KISS_OF_DEATH), "kiss-of-death") == 0);
     CHECK(strcmp(time_sync_reason_name(TIME_SYNC_REASON_ERROR), "error") == 0);
+    CHECK(strcmp(time_sync_reason_name(TIME_SYNC_REASON_CLOCK_UNREADABLE), "clock-unreadable") == 0);
     CHECK(strcmp(time_sync_reason_name(TIME_SYNC_REASON_BAD_INPUT), "bad-input") == 0);
     CHECK(strcmp(time_sync_reason_name((time_sync_reason_t)99), "unknown") == 0);
 }
@@ -663,6 +730,9 @@ int main(void)
     every_kind_of_failure_can_make_the_time_stale();
     the_stale_limit_is_the_one_that_was_passed_in();
     stale_is_marked_only_while_the_time_is_valid_and_synchronised();
+    an_unreadable_clock_is_a_failed_round_and_never_sets();
+    an_unreadable_clock_counts_towards_staleness_like_any_failure();
+    an_unreadable_clock_does_not_change_the_reason_of_a_failed_query_or_a_bad_answer();
     an_answer_out_of_range_never_sets_in_any_state();
     an_answer_out_of_range_counts_as_a_failure_for_staleness();
     the_first_answer_after_boot_is_applied_whatever_the_clock_says();

@@ -27,7 +27,7 @@ step. The product adds no Crux interface and selects no Crux symbol.
 | What | Result | Label | Source |
 |---|---|---|---|
 | Tooling tests (limits row, policy files, configuration, build files, glue, port, adapter, scenario files, CI jobs, this note) | all pass; the S5 tests were written first and were red before each change | Measured | `python -m unittest discover -s tests/tooling`, run by the author |
-| Host test of the policy | 131395 checks, 0 failures, also built with the address and undefined-behaviour sanitizers; five boundary mutations of the policy (the two limit comparisons, the stale comparison, the end of the range, the fraction shift) each failed it | Measured | compiled with the host `cc` (clang, `-std=c17 -Wall -Wextra -Wpedantic -Werror`) and run by the author; the Host tests job runs the same file through CMake |
+| Host test of the policy | 131416 checks, 0 failures, also built with the address and undefined-behaviour sanitizers; five boundary mutations of the policy (the two limit comparisons, the stale comparison, the end of the range, the fraction shift) each failed it (the mutation runs were made before the unreadable-snapshot case was added and were not repeated) | Measured | compiled with the host `cc` (clang, `-std=c17 -Wall -Wextra -Wpedantic -Werror`) and run by the author; the Host tests job runs the same file through CMake |
 | Boundary check against the pinned Crux headers | passes with the S5 files in the tree | Measured | `scripts/check_boundary.py --crux-root <the pinned tree, exported with git archive>`, run by the author |
 | The glue against the real pinned Crux headers | compiles with `-Wall -Wextra -Wpedantic -Werror -Wdouble-promotion -Werror=enum-compare`; run against a fake Crux Time and a fake port in a throwaway harness outside the repository it set, confirmed, corrected, refused, marked stale and re-synchronised as the policy table says, and reported a failed native write | Measured | host `cc` with the `components/*/include` directories of the pin; not a Zephyr build, and the fake is the author's reading of the header |
 | The adapter | passes `-fsyntax-only -Werror` against stand-in declarations of the two Zephyr headers; this checks the C and not the Zephyr types | Measured | host `cc`; **Open** until the CI build |
@@ -46,7 +46,8 @@ good answer and the limits, and carries out what it returns.
 |---|---|---|
 | The query failed, timed out or the server sent a kiss-o'-death | none; never sets | `error`, `timeout`, `kiss-of-death` |
 | The answer is outside 2000-01-01 to 2100-01-01, or its fraction is not below one second | refused; never sets | `out-of-range` |
-| Either of the two rows above, while the clock is valid and synchronised and the last good answer is older than the stale age (strictly) | the clock is marked not synchronised; the call is `crux_realtime_set_synchronized(false)` | the reason of the failure; the action reads `mark-stale` |
+| The Crux Time snapshot could not be read (the read returned an error) | none; never sets, even for an in-range answer, because the clock cannot be compared; counted as a failed round, logged as a warning | `clock-unreadable` |
+| Any of the rows above, while the clock is valid and synchronised (or, for an unreadable snapshot, may be) and the last good answer is older than the stale age (strictly) | the clock is marked not synchronised; the call is `crux_realtime_set_synchronized(false)` | the reason of the failure; the action reads `mark-stale` |
 | The clock is not valid (boot, or after a failed write) and an in-range answer arrives | set, source EXTERNAL, synchronised | `first-sync` |
 | The clock is valid but not synchronised (stale, or lost after a refused step) and an in-range answer arrives | set, source EXTERNAL, synchronised, whatever the difference | `resync` |
 | Synchronised, and the difference from the answer is below the correction threshold | none; the answer confirms the clock | `within-threshold` |
@@ -57,6 +58,10 @@ How the rules read:
 
 - In short: a failed query at boot sets nothing, the clock stays not valid, and the same holds for every answer that
   is not an in-range answer, whatever the state.
+- A snapshot that was read and reports no time is a clock that is not valid, and an in-range answer sets it (`first-sync`).
+  A snapshot whose read failed is different: nothing is known about the clock, so the round fails like a failed query.
+  Only the age decides the stale mark then; if the clock turns out not to be valid, Crux refuses the clear call and the
+  glue logs its status.
 - A failed or refused answer counts as a failure, and a clock that was synchronised and has had no confirming
   answer for longer than the stale age (strictly: an age equal to the limit is not stale) is marked not
   synchronised once. The next round finds Crux not synchronised, so it is not marked again. It stays valid and
