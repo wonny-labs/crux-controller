@@ -21,8 +21,11 @@
  *      arrives when the Crux Time snapshot could not be read is not applied either, because the
  *      clock cannot be compared. Each of these counts as a failure: when Crux is synchronised (or,
  *      for an unreadable snapshot, may be) and the last good answer is older than the stale limit
- *      (strictly), the time is marked no longer synchronised. That happens once, because the next
- *      call finds Crux unsynchronised.
+ *      (strictly), the time is marked no longer synchronised. For a failed query or a refused
+ *      answer that happens once, because the next call finds Crux unsynchronised. For an
+ *      unreadable snapshot the flags are not known and the age is not refreshed, so the mark is
+ *      asked for again on every failed round over the limit while the read keeps failing: Crux
+ *      accepts it for a valid clock and refuses it for one that is not valid.
  *   2. While Crux time is not valid, or not synchronised (boot, stale, lost), any in-range answer
  *      is applied. The clock is not compared with it.
  *   3. While Crux time is synchronised, the difference d = answer - clock decides:

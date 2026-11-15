@@ -27,7 +27,7 @@ step. The product adds no Crux interface and selects no Crux symbol.
 | What | Result | Label | Source |
 |---|---|---|---|
 | Tooling tests (limits row, policy files, configuration, build files, glue, port, adapter, scenario files, CI jobs, this note) | all pass; the S5 tests were written first and were red before each change | Measured | `python -m unittest discover -s tests/tooling`, run by the author |
-| Host test of the policy | 131416 checks, 0 failures, also built with the address and undefined-behaviour sanitizers; five boundary mutations of the policy (the two limit comparisons, the stale comparison, the end of the range, the fraction shift) each failed it (the mutation runs were made before the unreadable-snapshot case was added and were not repeated) | Measured | compiled with the host `cc` (clang, `-std=c17 -Wall -Wextra -Wpedantic -Werror`) and run by the author; the Host tests job runs the same file through CMake |
+| Host test of the policy | 131426 checks, 0 failures, also built with the address and undefined-behaviour sanitizers; five boundary mutations of the policy (the two limit comparisons, the stale comparison, the end of the range, the fraction shift) each failed it (the mutation runs were made before the unreadable-snapshot case was added and were not repeated) | Measured | compiled with the host `cc` (clang, `-std=c17 -Wall -Wextra -Wpedantic -Werror`) and run by the author; the Host tests job runs the same file through CMake |
 | Boundary check against the pinned Crux headers | passes with the S5 files in the tree | Measured | `scripts/check_boundary.py --crux-root <the pinned tree, exported with git archive>`, run by the author |
 | The glue against the real pinned Crux headers | compiles with `-Wall -Wextra -Wpedantic -Werror -Wdouble-promotion -Werror=enum-compare`; run against a fake Crux Time and a fake port in a throwaway harness outside the repository it set, confirmed, corrected, refused, marked stale and re-synchronised as the policy table says, and reported a failed native write | Measured | host `cc` with the `components/*/include` directories of the pin; not a Zephyr build, and the fake is the author's reading of the header |
 | The adapter | passes `-fsyntax-only -Werror` against stand-in declarations of the two Zephyr headers; this checks the C and not the Zephyr types | Measured | host `cc`; **Open** until the CI build |
@@ -65,7 +65,9 @@ How the rules read:
 - A failed or refused answer counts as a failure, and a clock that was synchronised and has had no confirming
   answer for longer than the stale age (strictly: an age equal to the limit is not stale) is marked not
   synchronised once. The next round finds Crux not synchronised, so it is not marked again. It stays valid and
-  keeps its source.
+  keeps its source. For a snapshot that could not be read the mark repeats on each failed round while the read keeps
+  failing: Crux accepts the mark for a valid clock and refuses it (`NO_DATA`) for one that is not valid, and the glue
+  logs the refusal.
 - A clock that is not synchronised takes any in-range answer, the first after boot or after the stale mark or after
   a refused step. This is rule 2 of the policy header. When a step is refused, synchronisation is lost: that is how
   the next in-range answer is applied. The consequence is stated in the limitations below: the maximum step stops a
@@ -104,13 +106,16 @@ Other choices, each recorded in the code:
   for one UDP socket next to the TCP exchange.
 - The staleness age counts from the start of the service until the first good answer, so a clock cannot be marked stale
   before it was ever synchronised (it is not synchronised then, and the mark applies only to a synchronised clock).
+  For a snapshot that could not be read the flags are unknown, so the mark is asked for on each failed round while the
+  age is over the limit and the read keeps failing; Crux refuses it (`NO_DATA`) for a clock that is not valid, and the
+  glue logs the refusal.
 - One log line per round, tag `time`: information for a clock that was set, confirmed or re-synchronised, a warning for
   every failure, refusal and stale mark, an error for a failed native write.
 
 ## Duties from the Crux Time contract and the platform consult
 
 `<crux/time_authority.h>` says that applications own stale-callback and source policy. Crux Pilot was asked (2026-11-14,
-answer read on the Crux main branch at that revision) whether a product thread may call `crux_realtime_set`. The answer, stated
+answer read on the Crux main branch, not at the pin) whether a product thread may call `crux_realtime_set`. The answer, stated
 here as a consult result and not as a Crux decision: no objection, and four duties for the product: staleness is the
 product's, a write failure has to be handled, there is one writer of the native clock, and events carry a wall time
 that moves. They are met as follows.
@@ -130,7 +135,9 @@ is recorded, and does not store a wall time. The wall time is derived in `securi
 (`crux_security_event_clock_fill`) when the event is drained or read: the current Crux Time snapshot minus the age
 of the event, which is the monotonic time now less the stored `uptime_ms`. So an event that was recorded before the
 first set and is drained after it gets a wall time worked back from the new clock. The wall time is missing (no
-`wall=` field, `CRUX_SECURITY_EVENT_CLOCK_NONE`) only while the time is not valid at the drain. An event drained
+`wall=` field, `CRUX_SECURITY_EVENT_CLOCK_NONE`) for example while the time is not valid at the drain; the current
+Crux also leaves it missing when the record has no uptime or a clock read fails (read on the current Crux main, not at
+the pin). An event drained
 across a step of the clock is derived from the clock as it is at the drain, so the wall times of older events are
 shifted by the step, while `seq` and `up` stay correct. No step of this product emits security events yet; the effect
 applies from the step that does. A step of the realtime clock does not touch the monotonic clock: `sys_clock_settime`
@@ -156,16 +163,23 @@ The composition proper is the fragment, the glue and the adapter. Line counts ar
 
 **Inferred** from `subsys/net/lib/sntp/sntp.c`: a stratum of zero returns `-EBUSY`, an answer to another request
 returns `-ERANGE`, a wrong mode or a zero transmit time `-EINVAL`, a short packet `-EMSGSIZE`, no answer in time
-`-ETIMEDOUT`. `sntp_simple()` keeps asking with a growing wait (100, 200, 400, 800, then 1000 ms) until its timeout is
-over, skips an answer to an earlier request and returns the last result. It checks the deadline between rounds,
-not inside one, so a query can run past the configured timeout by up to the wait of one round (1000 ms at most) and
-longer while it is skipping answers to earlier requests. The timeout is therefore a lower bound on how long a
-failing query takes. The stale mark is judged when a failed round ends, so the 1800 s boundary depends on how long
-each query ran as well as on the interval: it is not a fixed time after the last good answer. Read in
-`sntp_simple.c` at `v4.4.0` in the local clone (**Inferred**, not run on its own here); the file is not among the
-paths that differ at the pinned `v4.4.2`. The adapter maps `-ETIMEDOUT` to a timeout,
+`-ETIMEDOUT`. `sntp_simple()` keeps asking with a growing wait (100, 200, 400, 800, then 1600 ms: the wait doubles
+while it is below 1000 ms, so 800 becomes 1600 and stays) until its timeout is over, skips an answer to an earlier
+request and returns the last result. It checks the deadline between rounds, not inside one, so a query that gets no
+answer can run past the configured timeout by up to the wait of one round (1600 ms at most) or longer while it is
+skipping answers to earlier requests. With the default of 3000 ms the fifth round starts at 1500 ms and the query ends
+near 3100 ms. The timeout is a lower bound only for a query that gets no answer at all: a kiss-o'-death answer
+(`-EBUSY`), `-EINVAL`, `-EMSGSIZE` or an error of the socket, connect or send ends the call at once, and once a stale
+answer has been skipped in the second round or later the call stops after that round, possibly early (a stale answer
+late in round two followed by a 200 ms inner wait that times out returns `-ETIMEDOUT` near 500 ms). The stale mark is
+judged when a failed round ends, so the 1800 s boundary depends on how long each query ran as well as on the interval:
+it is not a fixed time after the last good answer. Read in `sntp_simple.c` and `sntp.c` at `v4.4.0` in the local clone
+(**Inferred**, not run on its own here); the files are not among the paths that differ at the pinned `v4.4.2`. The adapter maps `-ETIMEDOUT` to a timeout,
 `-EBUSY` to a kiss-o'-death and everything else to an error. The meaning of `-EBUSY` is the library's, not a promise
-of its header. **Open:** the cases `-ERANGE`, `-EINVAL` and `-EMSGSIZE` are not shown by a scenario.
+of its header. **Open:** the cases `-ERANGE`, `-EINVAL` and `-EMSGSIZE` are not shown by a scenario. **Open:** after
+it has skipped a stale answer, `sntp_simple.c` compares `res != ETIMEDOUT` with the positive constant, while the
+value is negative, so the test is always true and the call stops after that round (as read at `v4.4.0`, not reported
+upstream).
 
 ### 2. `sntp_simple()` keeps one static structure, so one thread may call it
 
