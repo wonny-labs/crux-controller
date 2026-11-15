@@ -22,11 +22,11 @@
 #include <stdint.h>
 #include <string.h>
 #include <sys/socket.h>
-#include <unistd.h>
 
 #include <zephyr/device.h>
 #include <zephyr/drivers/serial/uart_emul.h>
 #include <zephyr/kernel.h>
+#include <zephyr/net/socket.h>
 #include <zephyr/ztest.h>
 
 #include <crux/status.h>
@@ -151,7 +151,9 @@ static void stop_responder(void)
 {
     responder_stop = true;
     zassert_equal(0, k_thread_join(&responder_thread, K_SECONDS(5)));
-    close(responder_socket);
+    /* Zephyr's own call: the POSIX close() is declared only when CONFIG_POSIX_API is on, which
+     * this image does not set. */
+    zassert_equal(0, zsock_close(responder_socket));
     responder_socket = -1;
 }
 
