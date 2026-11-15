@@ -563,9 +563,9 @@ class OsAdapterZone(unittest.TestCase):
     """app/os is the adapter zone: OS facilities use Zephyr directly, product behaviour stays in app/src.
 
     It may include ISO C headers, public <crux/NAME.h> headers, its own tree, header files of
-    app/src (the product-owned port header) and exactly one Zephyr header, zephyr/kernel.h.
-    app/src, app/compose and the workload keep failing on that header, and none of them can reach
-    a header of the adapter zone.
+    app/src (the product-owned port header) and exactly two Zephyr headers, zephyr/kernel.h and
+    zephyr/net/sntp.h. app/src, app/compose and the workload keep failing on those headers, and
+    none of them can reach a header of the adapter zone.
     """
 
     def crux_root(self, composition=("file_zephyr.h",), public=("file.h", "time.h")):
@@ -589,6 +589,43 @@ class OsAdapterZone(unittest.TestCase):
 
     def test_the_adapter_may_include_zephyr_kernel(self):
         self.assertEqual([], self.in_adapter("#include <zephyr/kernel.h>\n"))
+
+    def test_the_adapter_may_include_the_zephyr_sntp_header(self):
+        # The SNTP library header is the second entry of the adapter allow-list. The adapter uses
+        # its string-based query, so it includes no socket type or socket header itself.
+        self.assertEqual([], self.in_adapter("#include <zephyr/net/sntp.h>\n"))
+        self.assertEqual([], self.in_adapter("#include <zephyr/kernel.h>\n#include <zephyr/net/sntp.h>\n"))
+        self.assertEqual([], self.in_adapter("#include <zephyr/net/sntp.h>\n", name="sntp_private.h"))
+
+    def test_the_zephyr_sntp_header_still_fails_outside_the_adapter(self):
+        for tree in ("app/src", "app/compose", "workload"):
+            files = {f"{tree}/x.c": "#include <zephyr/net/sntp.h>\n"}
+            self.assertEqual(["zephyr/net/sntp.h"], reasons(run(files)), tree)
+
+    def test_the_adapter_still_fails_on_socket_headers_next_to_the_sntp_header(self):
+        for name in (
+            "zephyr/net/socket.h",
+            "zephyr/net/socket_types.h",
+            "sys/socket.h",
+            "netinet/in.h",
+            "arpa/inet.h",
+            "poll.h",
+            "fcntl.h",
+            "unistd.h",
+        ):
+            text = f"#include <zephyr/net/sntp.h>\n#include <{name}>\n"
+            self.assertEqual([name], reasons(self.in_adapter(text)), name)
+
+    def test_the_adapter_still_fails_on_another_zephyr_net_header(self):
+        for name in (
+            "zephyr/net/net_if.h",
+            "zephyr/net/net_ip.h",
+            "zephyr/net/sntp",
+            "zephyr/net/sntp.h.in",
+            "zephyr/net/sntp_client.h",
+            "zephyr/net/../net/sntp.h",
+        ):
+            self.assertEqual([name], reasons(self.in_adapter(f"#include <{name}>\n")), name)
 
     def test_the_adapter_may_include_each_allow_listed_zephyr_header(self):
         for name in sorted(check_boundary.OS_ADAPTER_ZEPHYR_HEADERS):
@@ -708,10 +745,17 @@ class OsAdapterZone(unittest.TestCase):
     def test_the_adapter_allow_list_is_the_reviewed_set(self):
         # Changing this set changes what the boundary lets through: it is a reviewed change
         # of this test, of docs/composition-zone.md and of the pull request that justifies it.
-        self.assertEqual({"zephyr/kernel.h"}, set(check_boundary.OS_ADAPTER_ZEPHYR_HEADERS))
+        self.assertEqual(
+            {"zephyr/kernel.h", "zephyr/net/sntp.h"}, set(check_boundary.OS_ADAPTER_ZEPHYR_HEADERS)
+        )
 
     def test_the_adapter_rule_is_the_reviewed_rule(self):
         adapter = next(r for r in check_boundary.RULES if r.directory == "app/os")
+        # The rule allows the SNTP header and no socket header: sockets stay off for the zone.
+        self.assertEqual(
+            frozenset({"zephyr/kernel.h", "zephyr/net/sntp.h"}), adapter.zephyr_allow
+        )
+        self.assertFalse(adapter.allow_sockets)
         self.assertEqual(
             (False, True, check_boundary.OS_ADAPTER_ZEPHYR_HEADERS, frozenset(),
              ("app/src",), True),
