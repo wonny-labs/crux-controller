@@ -665,6 +665,8 @@ class S5Workflows(unittest.TestCase):
             "CONFIG_CRUX_TIME_RTC=y", "CONFIG_CRUX_THREAD=y", "CONFIG_CRUX_SYNC=y",
             "CONFIG_CRUX_QUEUE=y", "CONFIG_CRUX_CONTROLLER_S3=y", "CONFIG_CRUX_CONTROLLER_S4=y",
             "CONFIG_SNTP_UNCERTAINTY=y",
+            # Zephyr's own SNTP clock setters would give the clock a second writer.
+            "CONFIG_NET_CONFIG_CLOCK_SNTP_INIT=y", "CONFIG_NET_CONFIG_SNTP_INIT_RESYNC=y",
         ):
             self.assertIn(needle, commands, needle)
 
