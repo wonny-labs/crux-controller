@@ -10,8 +10,8 @@ config CRUX_CONTROLLER_S1
 	help
 	  Run the workload: a producer and a consumer thread joined by one message queue, created by
 	  the adapter zone app/os with Zephyr kernel calls, reading Crux Time and reporting through
-	  Crux Logging. Steps S2 and S3 build on this one. The product uses no Crux Thread, Sync or
-	  Queue provider, so none is selected for it.
+	  Crux Logging. Steps S2, S3 and S4 build on this one, and S5 builds on S2. The product uses no
+	  Crux Thread, Sync or Queue provider, so none is selected for it.
 
 config CRUX_CONTROLLER_S2
 	bool "Step S2: send each workload message to a TCP peer"
@@ -19,7 +19,8 @@ config CRUX_CONTROLLER_S2
 	help
 	  After a message is logged, open a TCP connection to the peer, send the message
 	  and expect the same eight bytes back. The Sockets profile of Crux defines the
-	  calls that are used. The exchange is built and never run in Stage 1 CI.
+	  calls that are used. The native_sim scenario of the step runs in CI over loopback, and the
+	  image ran twice on a board (docs/findings/s2-first-board-run.md).
 
 config CRUX_CONTROLLER_PEER_ADDRESS
 	string "IPv4 address of the TCP peer"
@@ -41,7 +42,8 @@ config CRUX_CONTROLLER_S3
 	  the file config.rec and use it, or save the default record when none exists. The image
 	  creates no directory and never formats a volume: the directory "files" must already
 	  exist on the card, and a card without it leaves the default configuration in use, as
-	  does a volume that does not mount. Built and never run in Stage 1 CI.
+	  does a volume that does not mount. The image is built for the board and never run on one;
+	  the native_sim scenario uses a RAM disk, and no card was used.
 
 config CRUX_CONTROLLER_S4
 	bool "Step S4: report the reset cause and feed a watchdog from the workload cycle"
