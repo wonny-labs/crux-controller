@@ -172,7 +172,7 @@ Inside `app/`:
 |---|---|
 | `CMakeLists.txt`, `Kconfig`, `prj.conf` | The build, the product's Kconfig options (`CRUX_CONTROLLER_S1` to `S4`, the peer address and port, the worker stack size) and the base configuration shared by every step. |
 | `conf/s1.conf` to `s4.conf` | One Kconfig fragment per step. S2, S3 and S4 are each built on top of `s1.conf` (CI never combines two of them). |
-| `boards/` | Devicetree overlays. `mimxrt1060_evk_mimxrt1062_qspi.overlay` sets LPUART1 as the log UART and is not passed on any CI command line; `s2.overlay`, `s3.overlay`, `s4.overlay` are passed by CI for their step. |
+| `boards/` | Devicetree overlays. `mimxrt1060_evk_mimxrt1062_qspi.overlay` sets LPUART1 as the log UART and is not passed on any CI command line (Zephyr applies a board-named overlay automatically); `s2.overlay`, `s3.overlay`, `s4.overlay` are passed by CI for their step. |
 | `src/main.c`, `composition.[ch]` | `main()` and the code that starts what the build selected. |
 | `src/workload_thread.[ch]` | The two workload threads' logic, the sink and the cycle hook. |
 | `src/workload_os.h` | The port to the adapter zone. |

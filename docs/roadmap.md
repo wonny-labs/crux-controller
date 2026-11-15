@@ -81,7 +81,7 @@ bench are evidence collection, not qualification." Its "Not shown" list, kept as
 
 Beyond that note, the README and the S4 note record that S3 and S4 are built and never run on a board,
 and no S0, S1-only or S4 image has run. The S2 image contains the S1 workload, so the workload lines of S1
-appeared in that capture; the S1 row of the README, "not run", refers to S1 as an image of its own. No
+appeared in that capture; the S1 row of the README, "not run", most likely refers to S1 as an image of its own (that is this page's reading of the README, not something the README says). No
 release exists, so no released image has run anywhere. A green `native_sim` run is not a board run and a
 CI build is not a board run.
 
@@ -96,7 +96,7 @@ blocked until Crux offers a public way, and nothing here will widen the check to
 
 | Feature | What blocks it, as recorded | Open before it could be built |
 |---|---|---|
-| HTTPS | No public composition: the web start function and the certificate start function are in private headers, and the web adapter's include directory is offered only through an interface target that is marked "only for a composition". Licensing: Mbed TLS and TF-PSA-Crypto are stated as Apache-2.0 OR GPL-2.0-or-later, which fits this Apache-2.0 repository under the Apache option, but Crux puts them in one optional group with the wolf projects (GPL or commercial), and this repository's import blocks those three by name. The Wolf profile also needs a Zephyr patch whose terms are unconfirmed, so it cannot be used here. | Certificate handling, the interface a listener binds, and what management load does to the control cycle. |
+| HTTPS | Mostly as the finding records (the name blocklist is from `west.yml`, and the finding says that narrowing "has not been tried"). No public composition: the web start function and the certificate start function are in private headers, and the web adapter's include directory is offered only through an interface target that is marked "only for a composition". Licensing: Mbed TLS and TF-PSA-Crypto are stated as Apache-2.0 OR GPL-2.0-or-later, which fits this Apache-2.0 repository under the Apache option, but Crux puts them in one optional group with the wolf projects (GPL or commercial), and this repository's import blocks those three by name. The Wolf profile also needs a Zephyr patch whose terms are unconfirmed, so it cannot be used here. | Certificate handling, the interface a listener binds, and what management load does to the control cycle. |
 | Web page | The same as HTTPS. The finding speaks of "HTTPS web management" as one feature, and records no separate blocker for a page. | The same. |
 | Serial command line | No public composition. Crux builds a command-line directory under a Kconfig option, but the finding reports that Crux's readiness document calls that directory compile evidence that links none of its code into an image. Licence is clear (Crux code under Apache-2.0). | A public composition, then an owner decision. |
 | SSH command line | SSH is private to Crux, with no public header and no `crux::` target. It needs wolfSSH, wolfSSL and wolfPSA, which are GPL-3.0-or-later or commercial, and they stay off in default CI and in releases. | The licence question, which is not decided. |

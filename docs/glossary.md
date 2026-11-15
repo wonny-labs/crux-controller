@@ -8,7 +8,7 @@ the terms are new to you.
 
 **Step.** A numbered increment of what the firmware does, written S0 to S4 on `main`. Each step after S0
 has a Kconfig option (`CRUX_CONTROLLER_S1` to `CRUX_CONTROLLER_S4` in `app/Kconfig`), a configuration
-fragment (`app/conf/s1.conf` to `s4.conf`), its own CI build job, its own row in the `Budget` matrix and
+fragment (`app/conf/s1.conf` to `s4.conf`), a CI build job (the S1 job is named `S1 (native_sim and RT1060-EVKB)`), its own row in the `Budget` matrix and
 in `budgets/limits.json`, and a row in the README table.
 
 | Step | What it adds |
@@ -75,7 +75,8 @@ word "frozen" belongs to this repository's rule. It does not describe a state of
 (`SOCKET_PROFILE` in `scripts/check_boundary.py`: `sys/socket.h`, `netinet/in.h`, `arpa/inet.h`,
 `poll.h`, `fcntl.h`, `unistd.h`, `errno.h`, `time.h`). `app/src` may include them, and S2's
 `net_client.c` does. The Crux targets are `crux::sockets` and `crux::netif`. `app/os`, `app/compose`
-and `workload/` fail on them.
+and `workload/` fail on the ones that are not ISO C headers. `errno.h` and `time.h` are also ISO C headers,
+so they are allowed in every tree (`app/os/workload_os_zephyr.c` includes `<errno.h>`).
 
 **Workload.** The synthetic program the firmware runs: a validated configuration record, a periodic
 cycle that catches up after a stall, and an eight-byte message. The portable part is the directory
@@ -111,8 +112,8 @@ that compiles chosen sources of `app/` and `workload/`; none boots the board ima
 pass is not evidence about the board: for example the simulator has no watchdog, so S4's feed cycle
 cannot be shown there.
 
-**EVKB.** Short for the board the repository targets, written "NXP RT1060-EVKB Rev B" in prose and in
-CI job names. CI passes it to `west build` as `mimxrt1060_evk@B//qspi`. The repository does not explain
+**EVKB.** Short for the board the repository targets, written "NXP RT1060-EVKB Rev B" in prose and
+"RT1060-EVKB" in CI job names. CI passes it to `west build` as `mimxrt1060_evk@B//qspi`. The repository does not explain
 that board string; reading `@B` as revision B is the reader's inference and is not verified here. An
 "EVKB build" in this repository means a cross-compile in CI. It never means a run.
 
@@ -137,7 +138,8 @@ written.
   and 61 to 62).
 - `app/Kconfig` line 13 says "Steps S2 and S3 build on this one" and leaves out S4. `app/conf/s3.conf`
   line 3 and `app/conf/s4.conf` line 3 say that S3 and S4 are built on S1 without the other steps.
-- `app/Kconfig` line 22 says the S2 exchange "is built and never run in Stage 1 CI", while the README and
-  `docs/findings/s2-first-board-run.md` record two board runs of the S2 image.
+- `app/Kconfig` line 22 says the S2 exchange "is built and never run in Stage 1 CI", which is stale: the
+  `native_sim` scenario of S2 does run in CI, and `docs/findings/s2-first-board-run.md` records two board
+  runs of the S2 image (board runs are not CI).
 - The CI job named `S1 (native_sim and RT1060-EVKB)` (`ci.yml` line 147) also runs the `native_sim`
   scenarios of S2, S3 and S4, because it runs every scenario under `tests/native_sim`.

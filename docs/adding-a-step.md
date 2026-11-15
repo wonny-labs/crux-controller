@@ -94,7 +94,7 @@ Use `-DWORKLOAD_SANITIZE=OFF` for the other half. Skip this step if the step has
   fragment, not the option, turns the Crux symbol on.
 - **Fragment.** `app/conf/s4.conf` turns on `CONFIG_CRUX_CONTROLLER_S4=y`, `CONFIG_CRUX_SYSTEM=y` and the
   three native facilities. Its comments say what Crux requires of the image and what it refuses (another
-  owner of the watchdog), with the revision they were read at.
+  owner of the watchdog), at "the pinned revision"; the hash itself is in `app/boards/s4.overlay`.
 - **Overlay.** `app/boards/s4.overlay` sets the alias `crux-watchdog0` to `&wdog0` and enables the node. An
   overlay is configuration, not code, and CI passes it with `EXTRA_DTC_OVERLAY_FILE`.
 - **Build block.** In `app/CMakeLists.txt`, inside `if(CONFIG_CRUX_CONTROLLER_S1)`:
@@ -207,7 +207,7 @@ Use this at the end. `<n>` is the step number.
 - [ ] `budgets/limits.json` has the row `S<n>`, added before any job names it.
 - [ ] `app/Kconfig` has `CRUX_CONTROLLER_S<n>`, depending on the base step and selecting nothing.
 - [ ] `app/conf/s<n>.conf` and, if needed, `app/boards/s<n>.overlay` exist, with comments naming the
-      Crux revision they were read at.
+      Crux revision they were read at (S4's `s4.conf` says "the pinned revision" and its overlay names the hash).
 - [ ] `app/CMakeLists.txt` has the block inside the `CONFIG_CRUX_CONTROLLER_S1` condition and adds no
       include path.
 - [ ] `app/src/composition.c` starts the step, at a position that is argued in a comment.
