@@ -16,13 +16,13 @@ bool time_sync_instant_in_range(time_sync_instant_t instant)
            instant.nanoseconds < (uint32_t)NS_PER_SECOND;
 }
 
-time_sync_instant_t time_sync_instant_from_sntp(uint64_t seconds, uint32_t fraction)
+time_sync_instant_t time_sync_instant_from_sntp(time_sync_sntp_answer_t answer)
 {
     time_sync_instant_t instant;
 
-    instant.seconds = seconds > (uint64_t)INT64_MAX ? INT64_MAX : (int64_t)seconds;
+    instant.seconds = answer.seconds > (uint64_t)INT64_MAX ? INT64_MAX : (int64_t)answer.seconds;
     /* fraction / 2^32 s in nanoseconds: at most (2^32 - 1) * 10^9 / 2^32, below 10^9. */
-    instant.nanoseconds = (uint32_t)(((uint64_t)fraction * (uint64_t)NS_PER_SECOND) >> 32);
+    instant.nanoseconds = (uint32_t)(((uint64_t)answer.fraction * (uint64_t)NS_PER_SECOND) >> 32);
     return instant;
 }
 
@@ -40,8 +40,9 @@ static time_sync_decision_t decision_of(time_sync_action_t action, time_sync_rea
  * When the snapshot could not be read the flags are not known, so only the age counts; if the time
  * turns out not to be valid, Crux refuses the call and the glue logs it.
  */
-static time_sync_decision_t failure(const time_sync_input_t *input, const time_sync_limits_t *limits,
-                                    time_sync_action_t action, time_sync_reason_t reason)
+static time_sync_decision_t failure(const time_sync_input_t *input,
+                                    const time_sync_limits_t *limits, time_sync_action_t action,
+                                    time_sync_reason_t reason)
 {
     time_sync_decision_t decision = decision_of(action, reason);
 
@@ -55,7 +56,8 @@ static time_sync_decision_t failure(const time_sync_input_t *input, const time_s
     return decision;
 }
 
-time_sync_decision_t time_sync_decide(const time_sync_input_t *input, const time_sync_limits_t *limits)
+time_sync_decision_t time_sync_decide(const time_sync_input_t *input,
+                                      const time_sync_limits_t *limits)
 {
     if (input == NULL || limits == NULL || limits->threshold_ms > limits->max_step_ms) {
         return decision_of(TIME_SYNC_NO_ACTION, TIME_SYNC_REASON_BAD_INPUT);
@@ -82,7 +84,8 @@ time_sync_decision_t time_sync_decide(const time_sync_input_t *input, const time
     }
     /* A clock that is not valid, not synchronised, or reads outside the range (it cannot be
      * compared) takes any in-range answer. */
-    if (!input->time_valid || !input->time_synchronized || !time_sync_instant_in_range(input->now)) {
+    if (!input->time_valid || !input->time_synchronized ||
+        !time_sync_instant_in_range(input->now)) {
         time_sync_decision_t decision =
             decision_of(TIME_SYNC_APPLY_SET,
                         input->time_valid ? TIME_SYNC_REASON_RESYNC : TIME_SYNC_REASON_FIRST_SYNC);

@@ -13,7 +13,7 @@ typedef enum {
     CONFIG_STORE_ERR_NOT_FOUND = -2, /* no record was saved */
     CONFIG_STORE_ERR_FORMAT = -3,    /* the file is not a valid record */
     CONFIG_STORE_ERR_IO = -4,        /* File reported another error, or a short write */
-    CONFIG_STORE_ERR_RANGE = -5,     /* the record handed to save is not valid; nothing was written */
+    CONFIG_STORE_ERR_RANGE = -5, /* the record handed to save is not valid; nothing was written */
 } config_store_status_t;
 
 /*

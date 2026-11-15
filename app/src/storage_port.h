@@ -22,10 +22,10 @@
 
 typedef enum {
     STORAGE_PORT_OK = 0,
-    STORAGE_PORT_ERR_MOUNT = -1,           /* the volume did not mount */
-    STORAGE_PORT_ERR_FORMAT = -2,          /* the volume could not be formatted, or this image cannot */
-    STORAGE_PORT_ERR_LAYOUT = -3,          /* the directory that File uses could not be created */
-    STORAGE_PORT_ERR_BIND = -4,            /* File refused the directory (absent, not a directory) */
+    STORAGE_PORT_ERR_MOUNT = -1,  /* the volume did not mount */
+    STORAGE_PORT_ERR_FORMAT = -2, /* the volume could not be formatted, or this image cannot */
+    STORAGE_PORT_ERR_LAYOUT = -3, /* the directory that File uses could not be created */
+    STORAGE_PORT_ERR_BIND = -4,   /* File refused the directory (absent, not a directory) */
     STORAGE_PORT_ERR_ALREADY_MOUNTED = -5, /* the volume is already mounted */
     STORAGE_PORT_ERR_ALREADY_BOUND = -6,   /* File is already bound; there is no rebind */
 } storage_port_status_t;

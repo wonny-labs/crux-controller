@@ -10,8 +10,9 @@
  *
  * The workload runs two threads, a producer and a consumer, that are joined by one queue of
  * messages. The adapter fixes the depth of the queue and the sizes of the stacks. The port owns one
- * of each; there is no handle. Calls are made from thread context. The order is: start, then any number of the other calls, then both joins,
- * then release. After release the port can be started again.
+ * of each; there is no handle. Calls are made from thread context. The order is: start, then any
+ * number of the other calls, then both joins, then release. After release the port can be started
+ * again.
  */
 
 #include <stdint.h>

@@ -63,7 +63,8 @@ ZTEST(s4, test_the_boot_line_names_the_reset_cause_once_and_the_flags_are_cleare
     const char *log = log_text();
 
     zassert_equal(occurrences(log, "system: reset cause="), 1u, "not one cause line in: %s", log);
-    zassert_not_null(strstr(log, "system: reset cause=POR class=normal"), "no POR line in: %s", log);
+    zassert_not_null(strstr(log, "system: reset cause=POR class=normal"), "no POR line in: %s",
+                     log);
     zassert_is_null(strstr(log, "not cleared"), "the clear was refused: %s", log);
 
     zassert_equal(crux_system_reset_cause_get(&cause), CRUX_OK);

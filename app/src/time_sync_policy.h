@@ -31,8 +31,9 @@
  *   3. While Crux time is synchronised, the difference d = answer - clock decides:
  *        |d| below the correction threshold   no action; the answer confirms the clock
  *        |d| from the threshold up to and including the maximum step   the clock is set
- *        |d| above the maximum step           the answer is refused and synchronisation is marked
- *                                              lost, so that the next in-range answer applies by rule 2
+ *        |d| above the maximum step           the answer is refused and synchronisation is
+ *                                              marked lost, so that the next in-range answer
+ *                                              applies by rule 2
  *
  * Nothing here persists time: after a reset the time is not valid until the first answer.
  */
@@ -75,9 +76,9 @@ typedef struct {
     /* The Crux Time snapshot could not be read at all (the read returned an error). Not the same
      * as time_valid being false, which is a snapshot that was read and reports no time. */
     bool clock_unreadable;
-    bool time_valid;            /* from the Crux Time snapshot: a time has been established */
-    bool time_synchronized;     /* from the Crux Time snapshot: currently reported synchronised */
-    time_sync_instant_t now;    /* the Crux realtime; read only when time_valid */
+    bool time_valid;         /* from the Crux Time snapshot: a time has been established */
+    bool time_synchronized;  /* from the Crux Time snapshot: currently reported synchronised */
+    time_sync_instant_t now; /* the Crux realtime; read only when time_valid */
     /*
      * Seconds since the last good answer, or since the service started when there was none. A
      * good answer is one that set the clock or agreed with it, see refresh_good below.
@@ -86,26 +87,26 @@ typedef struct {
 } time_sync_input_t;
 
 typedef enum {
-    TIME_SYNC_NO_ACTION = 0,  /* leave the clock and the flags as they are */
-    TIME_SYNC_APPLY_SET,      /* set the clock with source EXTERNAL, synchronised */
-    TIME_SYNC_REFUSE_RANGE,   /* the answer is outside the supported range */
-    TIME_SYNC_REFUSE_STEP,    /* the answer is too far from a synchronised clock */
-    TIME_SYNC_MARK_STALE,     /* no good answer for too long: no longer synchronised */
+    TIME_SYNC_NO_ACTION = 0, /* leave the clock and the flags as they are */
+    TIME_SYNC_APPLY_SET,     /* set the clock with source EXTERNAL, synchronised */
+    TIME_SYNC_REFUSE_RANGE,  /* the answer is outside the supported range */
+    TIME_SYNC_REFUSE_STEP,   /* the answer is too far from a synchronised clock */
+    TIME_SYNC_MARK_STALE,    /* no good answer for too long: no longer synchronised */
 } time_sync_action_t;
 
 /* Why. For a failure it names the failure, also when the action is MARK_STALE. */
 typedef enum {
     TIME_SYNC_REASON_FIRST_SYNC = 0, /* no valid time yet: any in-range answer is applied */
-    TIME_SYNC_REASON_RESYNC,         /* valid but not synchronised: any in-range answer is applied */
+    TIME_SYNC_REASON_RESYNC, /* valid but not synchronised: any in-range answer is applied */
     TIME_SYNC_REASON_WITHIN_THRESHOLD,
-    TIME_SYNC_REASON_CORRECTION,     /* between the threshold and the maximum step */
+    TIME_SYNC_REASON_CORRECTION, /* between the threshold and the maximum step */
     TIME_SYNC_REASON_STEP_TOO_LARGE,
     TIME_SYNC_REASON_OUT_OF_RANGE,
     TIME_SYNC_REASON_TIMEOUT,
     TIME_SYNC_REASON_KISS_OF_DEATH,
     TIME_SYNC_REASON_ERROR,
     TIME_SYNC_REASON_CLOCK_UNREADABLE, /* the Crux Time snapshot could not be read */
-    TIME_SYNC_REASON_BAD_INPUT,      /* a NULL argument, an unknown result or unusable limits */
+    TIME_SYNC_REASON_BAD_INPUT,        /* a NULL argument, an unknown result or unusable limits */
 } time_sync_reason_t;
 
 typedef struct {
@@ -124,19 +125,27 @@ typedef struct {
  * nanoseconds is below one second. */
 bool time_sync_instant_in_range(time_sync_instant_t instant);
 
+/* An SNTP answer as the Zephyr library reports it (struct sntp_time). The two numbers are fields
+ * of one type so that a call cannot swap them. */
+typedef struct {
+    uint64_t seconds;  /* since the Unix epoch */
+    uint32_t fraction; /* in units of 2^-32 s */
+} time_sync_sntp_answer_t;
+
 /*
  * The instant for an SNTP answer of the Zephyr library: seconds since the Unix epoch and a fraction
  * counted in units of 2^-32 s. The fraction is converted to nanoseconds, rounded down, so it never
  * reaches a whole second. Seconds above INT64_MAX become INT64_MAX, which is out of range.
  */
-time_sync_instant_t time_sync_instant_from_sntp(uint64_t seconds, uint32_t fraction);
+time_sync_instant_t time_sync_instant_from_sntp(time_sync_sntp_answer_t answer);
 
 /*
  * Decide what to do with one query result. Pure: it reads only its arguments. A NULL argument, a
  * result code that is not one of the four, or limits with threshold_ms above max_step_ms give
  * NO_ACTION with the reason BAD_INPUT.
  */
-time_sync_decision_t time_sync_decide(const time_sync_input_t *input, const time_sync_limits_t *limits);
+time_sync_decision_t time_sync_decide(const time_sync_input_t *input,
+                                      const time_sync_limits_t *limits);
 
 typedef enum {
     TIME_SYNC_LOG_INFO,
@@ -147,7 +156,8 @@ typedef enum {
  * every failure and the stale mark. */
 time_sync_log_level_t time_sync_decision_level(time_sync_decision_t decision);
 
-/* The action, or the reason, as lower-case words with hyphens. An unknown value reads as "unknown". */
+/* The action, or the reason, as lower-case words with hyphens. An unknown value reads as
+ * "unknown". */
 const char *time_sync_action_name(time_sync_action_t action);
 const char *time_sync_reason_name(time_sync_reason_t reason);
 

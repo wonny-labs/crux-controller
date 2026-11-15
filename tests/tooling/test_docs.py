@@ -184,12 +184,28 @@ class Contributing(unittest.TestCase):
             if line.startswith("| `ci.yml`")
         )
         names = self.other_job_names()
-        for short in ("Tooling tests", "West pins", "Host tests", "S1", "Boundary check"):
+        for short in (
+            "Tooling tests", "West pins", "Host tests", "S1", "Boundary check", "Static analysis",
+        ):
             self.assertIn(f"`{short}`", row, short)
             self.assertTrue(
                 any(name == short or name.startswith(short + " ") for name in names),
                 f"{short} is not a job name of ci.yml",
             )
+
+    def test_the_ci_row_and_the_local_commands_name_the_static_analysis_scripts(self):
+        lines = (ROOT / "CONTRIBUTING.md").read_text().splitlines()
+        row = next(line for line in lines if line.startswith("| `ci.yml`"))
+        for script in ("scripts/check-format.sh", "scripts/analyze_host.py"):
+            self.assertTrue((ROOT / script).is_file(), script)
+            self.assertIn(f"`{script}`", row, script)
+            # The local commands are lines of a code block, apart from the table row.
+            self.assertTrue(
+                any(script in line and not line.startswith("|") for line in lines), script
+            )
+        self.assertIn("clang-format 18.1.8", row)
+        self.assertIn("clang-tidy 18", row)
+        self.assertIn("not analysed", row)
 
     def test_the_role_section_names_the_steps_built_in_ci(self):
         last = max(self.build_steps(), key=lambda step: int(step[1:]))

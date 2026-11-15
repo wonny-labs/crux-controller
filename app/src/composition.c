@@ -81,8 +81,8 @@ int composition_start(void)
         return clock;
     }
 #ifdef CONFIG_CRUX_CONTROLLER_S1
-    /* S1: the workload runs on Zephyr threads behind the product-owned port (the Zephyr calls are in
-     * app/os) and reports through Crux Logging. */
+    /* S1: the workload runs on Zephyr threads behind the product-owned port (the Zephyr calls are
+     * in app/os) and reports through Crux Logging. */
     workload_config_t config;
 
     if (workload_config_default(&config) != WORKLOAD_OK) {

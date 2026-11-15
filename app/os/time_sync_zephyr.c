@@ -73,7 +73,8 @@ time_sync_sample_result_t time_sync_port_query(const char *server, uint32_t time
     const int result = sntp_simple(server, timeout_ms, &answer);
 
     if (result == 0) {
-        *sample = time_sync_instant_from_sntp(answer.seconds, answer.fraction);
+        *sample = time_sync_instant_from_sntp(
+            (time_sync_sntp_answer_t){.seconds = answer.seconds, .fraction = answer.fraction});
         return TIME_SYNC_SAMPLE_OK;
     }
     if (result == -ETIMEDOUT) {
@@ -104,10 +105,11 @@ time_sync_port_status_t time_sync_port_start(void (*entry)(void))
         return TIME_SYNC_PORT_ERROR;
     }
     thread_entry = entry;
-    /* A thread that is created cannot fail to be: k_thread_create returns the thread it was given. */
-    (void)k_thread_create(&time_sync_thread, time_sync_stack, K_THREAD_STACK_SIZEOF(time_sync_stack),
-                          time_sync_thread_run, NULL, NULL, NULL, TIME_SYNC_THREAD_PRIORITY, 0,
-                          K_NO_WAIT);
+    /* A thread that is created cannot fail to be: k_thread_create returns the thread it was
+     * given. */
+    (void)k_thread_create(&time_sync_thread, time_sync_stack,
+                          K_THREAD_STACK_SIZEOF(time_sync_stack), time_sync_thread_run, NULL, NULL,
+                          NULL, TIME_SYNC_THREAD_PRIORITY, 0, K_NO_WAIT);
     started = true;
     return TIME_SYNC_PORT_OK;
 }
