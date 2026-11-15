@@ -22,8 +22,8 @@ in `budgets/limits.json`, and a row in the README table.
 
 S2, S3 and S4 each depend on S1 in Kconfig and are built on top of `conf/s1.conf`. S5 depends on S2
 (and so on S1) and is built on `conf/s1.conf;conf/s2.conf;conf/s5.conf`. "Build on" in the
-repository therefore means "depends on" a lower step. CI builds each as a separate image and never builds
-two of them together. What each step has and has not run is in [roadmap.md](roadmap.md), and the procedure for
+repository therefore means "depends on" a lower step. CI builds each step as its own image and never
+combines S2, S3 and S4; the S5 image is built on S2 (and so on S1). What each step has and has not run is in [roadmap.md](roadmap.md), and the procedure for
 adding one is in [adding-a-step.md](adding-a-step.md).
 
 "Step" has two other meanings that share the word. In a GitHub Actions workflow a step is one entry of

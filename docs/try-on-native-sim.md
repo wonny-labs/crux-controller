@@ -92,7 +92,7 @@ The scenarios that this command finds, by their ids in the `testcase.yaml` files
 | S5 | `controller.s5.native_sim.first_sync`, `.kiss_of_death`, `.late_answer`, `.out_of_range`, `.step_refused_then_resync`, `.correction_and_threshold`, `.stale_after_silence` |
 
 S3, S4 and S5 build one image per case (a build variable such as `S5_CASE`), so one `west twister` run builds
-one image per row of the table. What a scenario can and cannot show is stated in its findings note and in the
+one image per Twister id in the table. What a scenario can and cannot show is stated in its findings note and in the
 header of its test source; for example, the simulator has no watchdog, so S4's scenario shows no feed cycle.
 
 What a passing run looks like: no file in the repository states what a passing Twister run prints, so this
@@ -101,7 +101,7 @@ read the checks of a commit on GitHub for the real outcome.
 
 ## Run the host tests
 
-These are plain C tests of the portable core and of the policy code, built with CMake on the build host.
+These are plain C tests of the portable core, the S2 exchange and the policy code, built with CMake on the build host.
 They need no Zephyr. The `Host tests` job runs them twice, once with the sanitizers off and once on. The
 commands, copied from `ci.yml` with the matrix value filled in (`OFF`, then `ON`):
 
@@ -117,7 +117,8 @@ cmake --build build/host
 ctest --test-dir build/host --output-on-failure
 ```
 
-The second run reuses the build directory of the first; whether to delete it between runs is not stated
+In these two commands the second run reuses the build directory of the first (in CI each matrix leg
+starts on a fresh runner); whether to delete it between runs is not stated
 anywhere in the repository. These commands run from the repository root (the `Host tests` job checks the
 repository out without a separate path). The host tests are `tests/host/test_workload.c`,
 `test_net_client.c`, `test_health_policy.c` and `test_time_sync_policy.c`. Each of the four ends by printing

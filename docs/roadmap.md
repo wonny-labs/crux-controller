@@ -34,8 +34,8 @@ board bring-up would go, not yet run for this controller, is in [board-bring-up.
 | S4 | The reset cause is logged at boot, and a watchdog is fed once for each pass of the workload that has cycles due, through Crux System | A `native_sim` scenario that shows the boot line and an unavailable watchdog (the simulator has none, so no feed cycle), host tests of the policy, and a CI build for the board with WDOG1 named by a devicetree alias. |
 | S5 | The Crux Time realtime clock is set from an SNTP server on the S2 network, by a low-priority thread, and a product policy decides what an answer may do | `native_sim` scenarios with a UDP responder on loopback, in seven cases (each case is its own image), host tests of the policy, and a CI build for the board on the S2 base. No board run. |
 
-On the S4 row: A simulated watchdog exists in Crux at revision 35431b1e, after this repository's pin, so
-the feed-cycle scenario becomes possible once the pin is moved; nothing is decided or scheduled.
+On the S4 row: a simulated watchdog exists in Crux at revision 35431b1e, which is after this repository's
+pin. Whether the S4 scenario could use it has not been checked, and nothing is decided or scheduled.
 
 Around the steps:
 
@@ -64,8 +64,8 @@ the code on `main` does, read from `app/Kconfig`, `app/src/time_sync*.c` and `ap
 - The application's policy decides what an answer may do. It never sets the clock for a failed,
   kiss-o'-death or out-of-range answer. It sets any in-range answer while the clock is not synchronised, and
   corrects a synchronised clock for a difference from 100 ms up to 1000 ms. A larger difference is refused
-  once and marks synchronisation lost. A clock that no answer has confirmed for 1800 seconds is marked not
-  synchronised.
+  once and marks synchronisation lost. When a round fails or is out of range and the clock is synchronised, it is marked
+  not synchronised if more than 1800 seconds have passed since the last good answer.
 - The one caller of the Crux Time authority is `app/src/time_sync.c`. The Zephyr SNTP library is called only
   in the adapter zone, through `sntp_simple()`.
 - Limits, as `docs/findings/s5-time-synchronisation.md` and the `app/Kconfig` help text state them: SNTP

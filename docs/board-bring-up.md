@@ -8,9 +8,9 @@ that is not written out in this repository. Read the [roadmap](roadmap.md) for w
 [glossary](glossary.md) for the terms.
 
 **Authorisation.** Physical programming, reset and any other operation on the board need the project
-owner's explicit authorisation for each session, a verified target, probe and flash configuration, and a
+owner's explicit authorisation for each task (for example one run of one image), a verified target, probe and flash configuration, and a
 safe setup. Nothing on this page grants that authorisation, and an earlier approval does not carry over to a
-new session. If the authorisation is missing or unclear, stop before touching the board.
+new task. If the authorisation is missing or unclear, stop before touching the board.
 
 Where this page states a fact, it names the file it comes from. Where it proposes something, it says
 "proposed". The commands that program the board are not in this repository and are not given here.
@@ -21,12 +21,12 @@ Where this page states a fact, it names the file it comes from. Where it propose
 |---|---|
 | The board | NXP RT1060-EVKB Rev B. CI builds for `mimxrt1060_evk@B//qspi`. |
 | Power | Not recorded in this repository. |
-| Board settings (boot switches, jumpers) | Not recorded in this repository. Check the board documentation, and write the settings down in the run record before the first write. |
+| Board settings (boot switches, jumpers) | Not recorded in this repository. Check the board documentation. Proposed: write the settings down in the run record before the first write. |
 | USB debug connection | The S2 runs programmed and reset the board through a probe and read the log from a UART. The S1 base image writes the log to LPUART1 at 115200 baud (`app/boards/mimxrt1060_evk_mimxrt1062_qspi.overlay`). Which cable and adapter carry that UART is not recorded here. |
 | Ethernet link | A cable from the board to the host peer. The S2 image has a static address and no DHCP client. |
 | A host peer | A host with the address `192.168.77.1` on a `/24` network, able to listen on TCP port `42420` and echo what it receives. The board's address is `192.168.77.2` (`app/conf/s2.conf`, `app/Kconfig`, `docs/findings/s2-first-board-run.md`). |
 | The programming and capture tools | Not in this repository. The S2 runs used the `crux-pilot` target test driver at revision `3b2dce56` (merged by wonny-labs/crux-pilot#352 and wonny-labs/crux-pilot#353), with a raw passive UART capture of 180 seconds. |
-| The accepted normal image | The image that was on the board before and that is put back afterwards. The S2 note records its SHA-256 and size. Have it available before you start. |
+| The accepted normal image | The image that was on the board before and that is put back afterwards. The S2 note records its SHA-256 and size. Proposed: have it available before you start. |
 | A written run record | The S2 note names what each run kept: host command output, probe logs, the raw capture and the peer record. They are kept privately, and the note says so. |
 
 ## The order of a bring-up
@@ -65,7 +65,7 @@ that does not show that is a reason to stop (see [Stop conditions](#stop-conditi
    capture before the load only if you accept that its first lines belong to the previous image (the S2 note,
    friction 2). Should show, from the S2 note: lines of the S2 image with Zephyr's `[hh:mm:ss.mmm,uuu]`
    timestamps, `workload:` lines `cycle=10` to `cycle=1750` in steps of 10 (the first at about 4.8 seconds
-   of uptime in both runs), and `net:` lines. With no peer listening, `net: exchange failed cycle=<n>
+   of uptime in run 2, which says this was as in run 1), and `net:` lines. With no peer listening, `net: exchange failed cycle=<n>
    result=-2` is the expected line, one per message; the S2 image logs no link line.
 
 5. **Check the link and ping from the host.** Should show, from the S2 note: the host adapter's interface
@@ -122,7 +122,7 @@ comes from.
 
 | Source | Stop when |
 |---|---|
-| Proposed | There is no explicit authorisation for the current session, or it does not cover the step. |
+| Proposed | There is no explicit authorisation for the current task, or it does not cover the step. |
 | Proposed | The target, probe or flash configuration is not what was verified, or you are unsure which board or probe is attached. |
 | Proposed | The hash of the image to be programmed is not the approved one. |
 | S2 note, identify step | The board's current image does not match the accepted normal image, or the read-back does not say `Verify successful.`. |
