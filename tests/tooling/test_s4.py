@@ -552,9 +552,9 @@ class S4Findings(unittest.TestCase):
     def test_the_changelog_names_s4(self):
         self.assertIn("S4", (ROOT / "CHANGELOG.md").read_text())
 
-    def test_the_pin_has_not_moved(self):
+    def test_the_manifest_pins_the_approved_commit(self):
         manifest = (ROOT / "west.yml").read_text()
-        self.assertIn("revision: 37c92b18b44b7dfb95c2109f036f23d00f05cb4c", manifest)
+        self.assertIn("revision: dfd3ad7d4380b06a47d8c8b5b9f0ce46fbba0576", manifest)
 
 
 class S4StartFailureWording(unittest.TestCase):

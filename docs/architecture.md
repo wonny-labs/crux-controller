@@ -95,7 +95,7 @@ Points that the table cannot carry:
 ## How Crux is consumed
 
 - **Manifest.** `west.yml` makes this repository the west manifest repository. It imports `crux-pilot`
-  at a pinned full commit, `37c92b18b44b7dfb95c2109f036f23d00f05cb4c`, never a branch or tag, and adds one
+  at a pinned full commit, `dfd3ad7d4380b06a47d8c8b5b9f0ce46fbba0576`, never a branch or tag, and adds one
   test-only project, `picolibc`, for the `native_sim` scenario of S2. Crux's own manifest brings Zephyr and
   the Zephyr modules, so this repository does not name them. The import blocks the three GPL or commercial
   projects (`wolfssl`, `wolfssh`, `wolfpsa`) by name; the optional Crux groups stay off. Details and

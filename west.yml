@@ -15,10 +15,12 @@ manifest:
   projects:
     - name: crux-pilot
       remote: crux
-      # Commit of crux-pilot origin/main chosen for Stage 1. It publishes the File
-      # composition interface <crux/file_zephyr.h> (crux-pilot PR 346). No Crux tag
+      # Commit of crux-pilot origin/main, approved on 14 November 2026. It publishes the File
+      # composition interface <crux/file_zephyr.h> (crux-pilot PR 346), the public
+      # management headers and the simulated native_sim System watchdog. The move of the
+      # crypto modules to the Zephyr v4.4-branch revisions is not in it. No Crux tag
       # exists yet, so this is a commit, not a tag.
-      revision: 37c92b18b44b7dfb95c2109f036f23d00f05cb4c
+      revision: dfd3ad7d4380b06a47d8c8b5b9f0ce46fbba0576
       # The Crux manifest puts Mbed TLS and TF-PSA-Crypto in the same optional group
       # (crux-secure-management) as wolfSSL, wolfSSH and wolfPSA, which are GPL or commercial.
       # Blocking the three wolf projects by name keeps them out of the resolved manifest, so
