@@ -2,7 +2,8 @@
 
 Status: a rule of the boundary check. Step S3 (File) is its first user: `app/compose/storage_mount.c`
 implements the port `app/src/storage_port.h`. The check skips a tree that is absent, so an image
-without the zone has no zone to check.
+without the zone has no zone to check. The zone also admits the headers that the HTTPS management
+interface (Mbed profile) needs, see [The web composition](#the-web-composition).
 
 ## Why a zone
 
@@ -11,13 +12,14 @@ CMake target `crux::file_zephyr` (crux-pilot PR 346, `docs/file-composition-inte
 repository). It names a provider on purpose and it is for the code that also mounts the file
 system. Application code stays on `<crux/file.h>`. A boundary that lets `app/src` include the
 interface would let the application name a provider, and a boundary without any way to include it
-would leave File unusable. So the include is allowed in one directory and nowhere else.
+would leave File unusable. So the include is allowed in one directory and nowhere else. The Web
+composition interface `<crux/web_zephyr.h>` follows the same rule.
 
 ```mermaid
 flowchart LR
     SRC["app/src<br/>application code<br/>ISO C, Sockets profile, public crux/NAME.h"]
     PORT["app/src/storage_port.h<br/>product-owned header<br/>declared by the application"]
-    ZONE["app/compose<br/>composition zone<br/>crux/file_zephyr.h + two Zephyr headers"]
+    ZONE["app/compose<br/>composition zone<br/>crux/file_zephyr.h, crux/web_zephyr.h<br/>+ three Zephyr headers"]
     CRUX["crux::file_zephyr<br/>Zephyr fs and devicetree"]
     SRC -->|includes| PORT
     ZONE -->|implements, includes| PORT
@@ -31,11 +33,11 @@ carry a Zephyr or composition include back into the application.
 
 ## The rules
 
-| Tree | ISO C | Sockets profile | Public `<crux/NAME.h>` | `<crux/file_zephyr.h>` | Zephyr headers | Own tree | Other trees |
+| Tree | ISO C | Sockets profile | Public `<crux/NAME.h>` | Composition interfaces (`<crux/file_zephyr.h>`, `<crux/web_zephyr.h>`) | Zephyr headers | Own tree | Other trees |
 |---|---|---|---|---|---|---|---|
 | `app/src` (unchanged) | yes | yes | yes | no | none | yes | `workload/include` |
 | `workload` (unchanged) | yes | no | no | no | none | yes | none |
-| `app/compose` | yes | no | yes | yes | the allow-list below, nothing else | yes | header files (`.h`) of `app/src` (the port header) |
+| `app/compose` | yes | no | yes | exactly those two (`COMPOSITION_CRUX_HEADERS`) | the allow-list below, nothing else | yes | header files (`.h`) of `app/src` (the port header) |
 | `app/os` (the adapter zone, new) | yes | no | yes | no | `zephyr/kernel.h` and `zephyr/net/sntp.h`, nothing else | yes | header files (`.h`) of `app/src` (the port header) |
 
 The zone fails on a Crux private or port header (`file_native.h`, a nested `<crux/ports/...>` path),
@@ -46,11 +48,16 @@ whatever its suffix, `#include`, `#include_next` and `#import`, continued lines,
 trigraph, comments removed, and a macro operand is a violation.
 
 Without `--crux-root` any `<crux/NAME.h>` passes the shape test, as it does for `app/src`, and the
-composition interface is denied outside the zone by name; with it (CI always passes it), a
-`<crux/NAME.h>` that is not a header Crux publishes fails, including `<crux/file_native.h>`.
-Against a `crux-pilot` checkout, `<crux/file_zephyr.h>` must be a header that Crux
-publishes under `components/*/ports/*/include/crux/`, and any header found there is a composition
-interface that `app/src` and the workload cannot include, whether or not this file names it.
+two composition interfaces are denied outside the zone by name (`COMPOSITION_CRUX_HEADERS`); with
+it (CI always passes it), a `<crux/NAME.h>` that is not a header Crux publishes fails, including
+`<crux/file_native.h>`. Against a `crux-pilot` checkout, `<crux/file_zephyr.h>` and
+`<crux/web_zephyr.h>` must be headers that Crux publishes under
+`components/*/ports/*/include/crux/`, and any header found there is a composition interface that
+`app/src` and the workload cannot include, whether or not this file names it. Any other composition
+interface that Crux publishes stays out of the zone until a reviewed change lists it. The other Web
+headers (`<crux/web.h>`, `<crux/web_session.h>`, `<crux/web_management.h>`) and
+`<crux/tls_certificate.h>` are ordinary public headers and keep the rule of every public
+`<crux/NAME.h>` header.
 
 ## The allow-list of Zephyr headers
 
@@ -61,6 +68,7 @@ wildcards. A header is on it only if mounting a file system and binding it needs
 |---|---|
 | `zephyr/fs/fs.h` | The mount API: `struct fs_mount_t`, `fs_mount`, `fs_unmount`, `fs_mkfs`, `fs_mkdir`, and `FS_FSTAB_DECLARE_ENTRY` and `FS_FSTAB_ENTRY`, which take a mount described in the devicetree as a `zephyr,fstab,...` node. Mounting is the one thing Crux does not do for a product. |
 | `zephyr/devicetree.h` | `DT_NODELABEL` and the other node-identifier macros that name the fstab node and read its `mount-point` and `disk-name`. `zephyr/fs/fs.h` does not include it (at the pinned Zephyr, `fs.h` includes only `sys/types.h`, `zephyr/sys/dlist.h` and `zephyr/fs/fs_interface.h`), yet its `FS_FSTAB_*` macros expand `DT_*` macros. The zone must include this header itself. |
+| `zephyr/net/tls_credentials.h` | The TLS credential store, for the HTTPS management composition (see below). The zone registers the server certificate and key under the security tag that the Web composition names, and the Crux Web interface does not do that for a product. |
 
 Left off on purpose, and why:
 
@@ -70,11 +78,32 @@ Left off on purpose, and why:
 | `ff.h` | The FatFs library header. Every reference composition in Crux includes it to declare a `FATFS` object. A mount that the devicetree describes as `zephyr,fstab,fatfs` makes Zephyr declare that object, so the zone does not need the header. Whether that route works for the S3 composition is a question of step S3, which records its answer in its own findings note. |
 | `zephyr/kernel.h`, `zephyr/sys/printk.h`, `zephyr/logging/log.h` | The composition returns a result code. The application logs through Crux Logging and runs its threads through the adapter zone `app/os`. `zephyr/kernel.h` is allowed in the adapter zone `app/os` and stays off this list, see [The adapter zone](#the-adapter-zone). `zephyr/net/sntp.h` is also allowed only in the adapter zone `app/os` and stays off this list, see [The adapter zone](#the-adapter-zone). |
 | `zephyr/fs/littlefs.h`, `zephyr/fs/fs_sys.h` | Provider and file system specifics that S3 does not select. |
-| `zephyr/drivers/*`, `zephyr/net/*`, vendor `fsl_*.h` | Not part of mounting a file system. A driver or network detail in the zone would be a second product layer, not a composition. |
+| `zephyr/drivers/*`, other `zephyr/net/*` headers (`zephyr/net/socket.h`, `zephyr/net/http/*`, `zephyr/net/net_if.h` and the rest), vendor `fsl_*.h` | Not part of binding a file system or the web server. A driver or network detail in the zone would be a second product layer, not a composition. `zephyr/net/tls_credentials.h` is the one network header on the list. |
 
 A change to the list is a change of `scripts/check_boundary.py`, of
 `tests/tooling/test_boundary.py` (`test_the_allow_list_is_the_reviewed_set` pins the set) and of this
 page, in one reviewed pull request.
+
+## The web composition
+
+The HTTPS management interface (Mbed profile) is composed in `app/compose`, as File is, because
+Crux publishes its binding to the Zephyr HTTP server as a composition interface:
+`<crux/web_zephyr.h>` with the CMake target `crux::web_zephyr`. It declares `crux_web_start()`,
+which binds the web core to Zephyr's HTTP server, its sockets and the TLS security tag, so only the
+platform composition of a product calls it. That is the same reason as for `<crux/file_zephyr.h>`,
+and the same rule follows: the include is allowed in `app/compose` and fails in `app/src`, `app/os`
+and `workload`, with or without `--crux-root`.
+
+The zone also needs `zephyr/net/tls_credentials.h`. Crux expects the product to register the TLS
+material under the security tag before it calls `crux_web_start()`, and the credential store is
+Zephyr's. The public Crux headers do not wrap it, so the zone includes the Zephyr header itself.
+
+Nothing else widens. The zone still fails on every other Zephyr header, on the Sockets profile, on
+Crux private or port headers and on any other composition interface. The portable Web headers
+(`<crux/web.h>`, `<crux/web_session.h>`, `<crux/web_management.h>`) and `<crux/tls_certificate.h>`
+were allowed before and are unchanged. `app/src`, `app/os` and `workload` fail on both new headers.
+This change allows the two includes and nothing more. A composition source that uses them is a
+separate change.
 
 ## The adapter zone
 

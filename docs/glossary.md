@@ -56,14 +56,16 @@ in `scripts/check_boundary.py`), and no Sockets profile, POSIX or composition he
 `app/os/time_sync_zephyr.c` (S5) includes the SNTP header. See [composition-zone.md](composition-zone.md).
 
 **Composition zone.** The directory `app/compose`. The one place that mounts a file system and binds it
-to Crux File with the composition interface `<crux/file_zephyr.h>`. It may include two Zephyr headers,
-`zephyr/fs/fs.h` and `zephyr/devicetree.h`. It implements the port header `app/src/storage_port.h`.
+to Crux File with the composition interface `<crux/file_zephyr.h>`, and the place for the Web
+composition interface `<crux/web_zephyr.h>`. It may include three Zephyr headers,
+`zephyr/fs/fs.h`, `zephyr/devicetree.h` and `zephyr/net/tls_credentials.h`. It implements the port header `app/src/storage_port.h`.
 "Composition" in this repository's documents means product code that joins Crux components to the
 board and the OS; the Crux definition itself was not read for this page. Do not confuse
 `app/src/composition.c`, which starts the steps, with the zone.
 
 **Composition interface.** A Crux header that names a provider and is meant for composition code only,
-for example `<crux/file_zephyr.h>` with the CMake target `crux::file_zephyr`. Crux publishes these
+for example `<crux/file_zephyr.h>` with the CMake target `crux::file_zephyr`, or `<crux/web_zephyr.h>`
+with `crux::web_zephyr`. Crux publishes these
 under `components/*/ports/*/include/crux/`, apart from the public headers. `app/src` and `workload/` may
 not include one.
 

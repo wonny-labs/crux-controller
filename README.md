@@ -86,8 +86,8 @@ creates threads, queues messages and sleeps, and it calls Zephyr directly: besid
 `<crux/NAME.h>` headers (except the frozen four), its own tree and the headers of `app/src`, it may
 include exactly two Zephyr headers, `zephyr/kernel.h` and `zephyr/net/sntp.h`. The composition zone
 `app/compose` is the one place that mounts a file system and binds it to Crux with the composition
-interface `<crux/file_zephyr.h>` and a short allow-list of Zephyr headers; `app/src` reaches either
-zone only through a product-owned port header that it declares itself. See
+interfaces `<crux/file_zephyr.h>` and `<crux/web_zephyr.h>` and a short allow-list of Zephyr
+headers; `app/src` reaches either zone only through a product-owned port header that it declares itself. See
 [docs/architecture.md](docs/architecture.md) for a table of the four trees and
 [docs/composition-zone.md](docs/composition-zone.md) for the allow-lists and the reason for each entry.
 
