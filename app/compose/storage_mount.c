@@ -3,7 +3,7 @@
 /*
  * The composition zone of step S3: the one place that mounts a file system and binds it to Crux
  * File. It implements the port that app/src declares, with the composition interface that Crux
- * publishes for this (<crux/file_zephyr.h>) and the two Zephyr headers on the allow-list of
+ * publishes for this (<crux/file_zephyr.h>) and the Zephyr headers on the zone's allow-list in
  * docs/composition-zone.md. The volume is the devicetree entry labelled controller_storage, a
  * "zephyr,fstab,fatfs" node, so Zephyr itself declares the file system object and this file needs
  * no vendor or file system library header.
