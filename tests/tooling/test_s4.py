@@ -339,12 +339,16 @@ class S4Sources(unittest.TestCase):
 
     def test_the_zone_allow_lists_are_unchanged_by_this_step(self):
         # Step S4 left every zone list as it was. The adapter zone list later grew by
-        # zephyr/net/sntp.h in its own reviewed boundary change, and this pin follows it.
-        self.assertEqual(frozenset({"zephyr/fs/fs.h", "zephyr/devicetree.h"}),
-                         check_boundary.COMPOSITION_ZEPHYR_HEADERS)
+        # zephyr/net/sntp.h in its own reviewed boundary change, and the composition zone's
+        # lists grew by crux/web_zephyr.h and zephyr/net/tls_credentials.h in another. This pin
+        # follows both.
+        self.assertEqual(
+            frozenset({"zephyr/fs/fs.h", "zephyr/devicetree.h", "zephyr/net/tls_credentials.h"}),
+            check_boundary.COMPOSITION_ZEPHYR_HEADERS)
         self.assertEqual(frozenset({"zephyr/kernel.h", "zephyr/net/sntp.h"}),
                          check_boundary.OS_ADAPTER_ZEPHYR_HEADERS)
-        self.assertEqual(frozenset({"crux/file_zephyr.h"}), check_boundary.COMPOSITION_CRUX_HEADERS)
+        self.assertEqual(frozenset({"crux/file_zephyr.h", "crux/web_zephyr.h"}),
+                         check_boundary.COMPOSITION_CRUX_HEADERS)
         self.assertEqual(
             frozenset({"crux/thread.h", "crux/sync.h", "crux/queue.h", "crux/serial.h"}),
             check_boundary.FROZEN_CRUX_HEADERS,

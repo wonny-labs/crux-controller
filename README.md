@@ -86,9 +86,9 @@ own tree. `workload` includes ISO C and its own tree. The adapter zone `app/os` 
 creates threads, queues messages and sleeps, and it calls Zephyr directly: besides ISO C, public
 `<crux/NAME.h>` headers (except the frozen four), its own tree and the headers of `app/src`, it may
 include exactly two Zephyr headers, `zephyr/kernel.h` and `zephyr/net/sntp.h`. The composition zone
-`app/compose` is the one place that mounts a file system and binds it to Crux with the composition
-interface `<crux/file_zephyr.h>` and a short allow-list of Zephyr headers; `app/src` reaches either
-zone only through a product-owned port header that it declares itself. See
+`app/compose` is the one place that mounts a file system and binds it to Crux with
+`<crux/file_zephyr.h>`; it may also include the Web composition interface `<crux/web_zephyr.h>`, and
+it has a short allow-list of Zephyr headers; `app/src` reaches either zone only through a product-owned port header that it declares itself. See
 [docs/architecture.md](docs/architecture.md) for a table of the four trees and
 [docs/composition-zone.md](docs/composition-zone.md) for the allow-lists and the reason for each entry.
 

@@ -515,8 +515,9 @@ class S5Sources(unittest.TestCase):
     def test_the_zone_allow_lists_are_unchanged_by_this_step(self):
         self.assertEqual(frozenset({"zephyr/kernel.h", "zephyr/net/sntp.h"}),
                          check_boundary.OS_ADAPTER_ZEPHYR_HEADERS)
-        self.assertEqual(frozenset({"zephyr/fs/fs.h", "zephyr/devicetree.h"}),
-                         check_boundary.COMPOSITION_ZEPHYR_HEADERS)
+        self.assertEqual(
+            frozenset({"zephyr/fs/fs.h", "zephyr/devicetree.h", "zephyr/net/tls_credentials.h"}),
+            check_boundary.COMPOSITION_ZEPHYR_HEADERS)
         self.assertEqual(["app/src", "workload", "app/compose", "app/os"],
                          [rule.directory for rule in check_boundary.RULES])
 

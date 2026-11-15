@@ -395,7 +395,7 @@ class CompositionZone(unittest.TestCase):
         # Changing this set changes what the boundary lets through: it is a reviewed change
         # of this test, of docs/composition-zone.md and of the pull request that justifies it.
         self.assertEqual(
-            {"zephyr/fs/fs.h", "zephyr/devicetree.h"},
+            {"zephyr/fs/fs.h", "zephyr/devicetree.h", "zephyr/net/tls_credentials.h"},
             set(check_boundary.COMPOSITION_ZEPHYR_HEADERS),
         )
 
@@ -435,10 +435,110 @@ class CompositionZone(unittest.TestCase):
             reasons(self.in_zone("#include <crux/queue_linux.h>\n", crux_root=root)),
         )
 
-    def test_the_composition_allow_list_names_only_file_zephyr(self):
+    def test_the_composition_allow_list_is_the_reviewed_set(self):
         self.assertEqual(
-            {"crux/file_zephyr.h"}, set(check_boundary.COMPOSITION_CRUX_HEADERS)
+            {"crux/file_zephyr.h", "crux/web_zephyr.h"},
+            set(check_boundary.COMPOSITION_CRUX_HEADERS),
         )
+
+    # The HTTPS management composition: <crux/web_zephyr.h> and <zephyr/net/tls_credentials.h>.
+
+    WEB_ZEPHYR = "crux/web_zephyr.h"
+    TLS_CREDENTIALS = "zephyr/net/tls_credentials.h"
+
+    def web_root(self):
+        return self.crux_root(
+            composition=("file_zephyr.h", "web_zephyr.h"),
+            public=("file.h", "time.h", "web.h", "web_session.h", "web_management.h",
+                    "tls_certificate.h"),
+        )
+
+    def test_the_zone_may_include_the_web_composition_interface(self):
+        self.assertEqual([], self.in_zone(f"#include <{self.WEB_ZEPHYR}>\n"))
+        self.assertEqual(
+            [], self.in_zone(f"#include <{self.WEB_ZEPHYR}>\n", crux_root=self.web_root())
+        )
+
+    def test_the_zone_may_include_the_tls_credentials_header(self):
+        self.assertEqual([], self.in_zone(f"#include <{self.TLS_CREDENTIALS}>\n"))
+        self.assertEqual(
+            [], self.in_zone(f"#include <{self.TLS_CREDENTIALS}>\n", crux_root=self.web_root())
+        )
+
+    def test_the_zone_may_not_include_the_web_interface_crux_does_not_publish(self):
+        root = self.crux_root()  # publishes file_zephyr.h only
+        self.assertEqual(
+            [self.WEB_ZEPHYR],
+            reasons(self.in_zone(f"#include <{self.WEB_ZEPHYR}>\n", crux_root=root)),
+        )
+
+    def test_app_src_may_not_include_either_header(self):
+        for root in (None, self.web_root()):
+            for name in (self.WEB_ZEPHYR, self.TLS_CREDENTIALS):
+                files = {"app/src/main.c": f"#include <{name}>\n"}
+                self.assertEqual([name], reasons(run(files, crux_root=root)), (name, root))
+
+    def test_the_adapter_zone_may_not_include_either_header(self):
+        for root in (None, self.web_root()):
+            for name in (self.WEB_ZEPHYR, self.TLS_CREDENTIALS):
+                files = {"app/os/adapter.c": f"#include <{name}>\n"}
+                self.assertEqual([name], reasons(run(files, crux_root=root)), (name, root))
+
+    def test_the_workload_may_not_include_either_header(self):
+        for root in (None, self.web_root()):
+            for name in (self.WEB_ZEPHYR, self.TLS_CREDENTIALS):
+                files = {"workload/cycle.c": f"#include <{name}>\n"}
+                self.assertEqual([name], reasons(run(files, crux_root=root)), (name, root))
+
+    def test_the_web_interface_fails_outside_the_zone_by_name_without_a_crux_root(self):
+        # Without --crux-root the shape test cannot tell a composition interface from a public
+        # header, so the name decides. This is the case that a local run without a Crux
+        # checkout depends on.
+        (violation,) = run({"app/src/main.c": f"#include <{self.WEB_ZEPHYR}>\n"})
+        self.assertEqual("composition interface, for the composition zone only", violation.reason)
+
+    def test_the_quoted_form_of_either_header_fails_in_the_zone(self):
+        for name in (self.WEB_ZEPHYR, self.TLS_CREDENTIALS):
+            self.assertEqual([name], reasons(self.in_zone(f'#include "{name}"\n')), name)
+
+    def test_the_zone_still_may_not_include_other_zephyr_net_headers(self):
+        for name in (
+            "zephyr/net/socket.h",
+            "zephyr/net/net_if.h",
+            "zephyr/net/http/server.h",
+            "zephyr/net/tls_credentials",
+            "zephyr/net/tls_credentials.h.in",
+            "zephyr/net/../kernel.h",
+        ):
+            self.assertEqual([name], reasons(self.in_zone(f"#include <{name}>\n")), name)
+
+    def test_the_other_web_headers_are_ordinary_public_headers(self):
+        # Only crux/web_zephyr.h became composition-only. The portable web headers keep the
+        # rule of every public <crux/NAME.h> header: allowed in app/src, app/os and the zone,
+        # and not in the workload.
+        root = self.web_root()
+        for name in ("crux/web.h", "crux/web_session.h", "crux/web_management.h",
+                     "crux/tls_certificate.h"):
+            for tree in ("app/src/a.c", "app/os/a.c", "app/compose/a.c"):
+                self.assertEqual([], run({tree: f"#include <{name}>\n"}, crux_root=root), name)
+            self.assertEqual(
+                [name], reasons(run({"workload/a.c": f"#include <{name}>\n"}, crux_root=root))
+            )
+
+    def test_the_file_interface_and_the_frozen_headers_keep_their_rules(self):
+        root = self.web_root()
+        self.assertEqual(
+            [], self.in_zone("#include <crux/file_zephyr.h>\n", crux_root=root)
+        )
+        for tree in ("app/src/a.c", "app/os/a.c", "workload/a.c"):
+            self.assertEqual(
+                ["crux/file_zephyr.h"],
+                reasons(run({tree: "#include <crux/file_zephyr.h>\n"}, crux_root=root)),
+            )
+        for name in sorted(check_boundary.FROZEN_CRUX_HEADERS):
+            for tree in ("app/src/a.c", "app/os/a.c"):
+                self.assertEqual([name], reasons(run({tree: f"#include <{name}>\n"})), name)
+            self.assertEqual([], self.in_zone(f"#include <{name}>\n"), name)
 
     # app/src and the workload keep their rules.
 
@@ -767,10 +867,13 @@ class OsAdapterZone(unittest.TestCase):
         # zephyr/kernel.h stays off the composition zone's list.
         compose = next(r for r in check_boundary.RULES if r.directory == "app/compose")
         self.assertEqual(
-            {"zephyr/fs/fs.h", "zephyr/devicetree.h"}, set(compose.zephyr_allow)
+            {"zephyr/fs/fs.h", "zephyr/devicetree.h", "zephyr/net/tls_credentials.h"},
+            set(compose.zephyr_allow),
         )
         self.assertNotIn("zephyr/kernel.h", check_boundary.COMPOSITION_ZEPHYR_HEADERS)
-        self.assertEqual(frozenset({"crux/file_zephyr.h"}), compose.composition_crux)
+        self.assertEqual(
+            frozenset({"crux/file_zephyr.h", "crux/web_zephyr.h"}), compose.composition_crux
+        )
         self.assertEqual(
             ["zephyr/kernel.h"],
             reasons(run({"app/compose/mount.c": "#include <zephyr/kernel.h>\n"})),
