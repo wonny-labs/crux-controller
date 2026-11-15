@@ -174,7 +174,7 @@ answer has been skipped in the second round or later the call stops after that r
 late in round two followed by a 200 ms inner wait that times out returns `-ETIMEDOUT` near 500 ms). The stale mark is
 judged when a failed round ends, so the 1800 s boundary depends on how long each query ran as well as on the interval:
 it is not a fixed time after the last good answer. Read in `sntp_simple.c` and `sntp.c` at `v4.4.0` in the local clone
-(**Inferred**, not run on its own here); the files are not among the paths that differ at the pinned `v4.4.2`. The adapter maps `-ETIMEDOUT` to a timeout,
+(**Inferred**, not run on its own here); `sntp_simple.c` is not among the paths that differ at the pinned `v4.4.2`, and `sntp.c` differs only in `sntp_close_async()`, which this step does not call (checked with `git diff --stat v4.4.0 v4.4.2` on those paths). The adapter maps `-ETIMEDOUT` to a timeout,
 `-EBUSY` to a kiss-o'-death and everything else to an error. The meaning of `-EBUSY` is the library's, not a promise
 of its header. **Open:** the cases `-ERANGE`, `-EINVAL` and `-EMSGSIZE` are not shown by a scenario. **Open:** after
 it has skipped a stale answer, `sntp_simple.c` compares `res != ETIMEDOUT` with the positive constant, while the
