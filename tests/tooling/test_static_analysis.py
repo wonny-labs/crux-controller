@@ -1,16 +1,22 @@
 """Checks of the format and static-analysis setup: the criteria files, the two scripts and the CI
 job that runs them. The criteria are the ones that the Crux repository applies to its own code."""
 
+import json
 import os
 import pathlib
 import re
 import stat
 import subprocess
+import sys
 import tempfile
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 SCRIPTS = ROOT / "scripts"
+sys.path.insert(0, str(SCRIPTS))
+
+import analyze_host  # noqa: E402
+
 CLANG_FORMAT_VERSION = "18.1.8"
 
 
@@ -189,6 +195,164 @@ class FormatScript(unittest.TestCase):
         self.assertIn(CLANG_FORMAT_VERSION, result.stderr)
         self.assertIn("17.0.6", result.stderr)
         self.assertEqual([], fixture.arguments(), "the formatter must not run on a wrong version")
+
+
+class Tree:
+    """A throwaway git repository with a compile database and a stand-in clang-tidy."""
+
+    def __init__(self, tracked, analysed, tidy_version="18.1.3", tidy_status=0):
+        self._dir = tempfile.TemporaryDirectory()
+        base = pathlib.Path(self._dir.name).resolve()
+        self.root = base / "repo"
+        self.build = self.root / "build" / "analyze"
+        self.build.mkdir(parents=True)
+        git(self.root, "init", "-q")
+        for name in tracked:
+            path = self.root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("int x;\n")
+        git(self.root, "add", "-A")
+        # An "@" in a database entry stands for the root of the repository, to write an absolute path.
+        database = [
+            {"directory": str(self.build), "command": "cc -c x", "file": name.replace("@", str(self.root))}
+            for name in analysed
+        ]
+        self.database = self.build / "compile_commands.json"
+        self.database.write_text(json.dumps(database))
+        self.log = base / "tidy-arguments.txt"
+        self.tidy = base / "fake-clang-tidy"
+        self.tidy.write_text(
+            "#!/bin/sh\n"
+            f'if [ "$1" = "--version" ]; then echo "LLVM version {tidy_version}"; exit 0; fi\n'
+            f'printf \'%s\\n\' "$@" > "{self.log}"\n'
+            "echo 'tidy ran'\n"
+            f"exit {tidy_status}\n"
+        )
+        self.tidy.chmod(self.tidy.stat().st_mode | stat.S_IEXEC)
+
+    def run(self, *extra):
+        env = dict(os.environ, CLANG_TIDY=str(self.tidy))
+        return subprocess.run(
+            [sys.executable, str(SCRIPTS / "analyze_host.py"), "--compile-commands",
+             str(self.database), *extra],
+            cwd=self.root, env=env, capture_output=True, text=True,
+        )
+
+    def tidy_files(self):
+        arguments = self.log.read_text().splitlines() if self.log.exists() else []
+        return sorted(pathlib.Path(a).relative_to(self.root).as_posix()
+                      for a in arguments if a.endswith((".c", ".cpp")))
+
+    def close(self):
+        self._dir.cleanup()
+
+
+def tree(case, tracked, analysed, **kwargs):
+    fixture = Tree(tracked, analysed, **kwargs)
+    case.addCleanup(fixture.close)
+    return fixture
+
+
+class CompileDatabase(unittest.TestCase):
+    def test_the_files_come_from_the_database_resolved_against_their_directory(self):
+        fixture = tree(self, ["app/src/a.c", "workload/src/b.c"],
+                       ["../../app/src/a.c", "@/workload/src/b.c"])
+        found = analyze_host.database_sources(fixture.database, fixture.root)
+        self.assertEqual([fixture.root / "app/src/a.c", fixture.root / "workload/src/b.c"], found)
+
+    def test_files_outside_the_repository_and_in_the_build_directory_are_dropped(self):
+        fixture = tree(self, ["app/src/a.c"], ["../../app/src/a.c", "/usr/include/x.c",
+                                                "generated.c", "../../build/analyze/gen.c"])
+        found = analyze_host.database_sources(fixture.database, fixture.root)
+        self.assertEqual([fixture.root / "app/src/a.c"], found)
+
+    def test_a_file_listed_twice_is_listed_once(self):
+        fixture = tree(self, ["app/src/a.c"], ["../../app/src/a.c", "../../app/src/a.c"])
+        self.assertEqual([fixture.root / "app/src/a.c"],
+                         analyze_host.database_sources(fixture.database, fixture.root))
+
+
+class NotAnalysed(unittest.TestCase):
+    def test_every_tracked_source_outside_the_database_is_listed(self):
+        fixture = tree(
+            self,
+            ["app/src/a.c", "app/os/z.c", "tests/native_sim/s1/src/t.c", "app/src/a.h", "README.md"],
+            ["../../app/src/a.c"],
+        )
+        tracked = analyze_host.tracked_sources(fixture.root)
+        analysed = analyze_host.database_sources(fixture.database, fixture.root)
+        self.assertEqual(
+            ["app/os/z.c", "tests/native_sim/s1/src/t.c"],
+            [p.relative_to(fixture.root).as_posix()
+             for p in analyze_host.not_analysed(tracked, analysed)],
+        )
+
+    def test_nothing_is_left_when_every_source_is_in_the_database(self):
+        fixture = tree(self, ["app/src/a.c"], ["../../app/src/a.c"])
+        tracked = analyze_host.tracked_sources(fixture.root)
+        analysed = analyze_host.database_sources(fixture.database, fixture.root)
+        self.assertEqual([], analyze_host.not_analysed(tracked, analysed))
+
+    def test_a_new_untracked_source_is_listed_too(self):
+        fixture = tree(self, ["app/src/a.c"], ["../../app/src/a.c"])
+        (fixture.root / "app/src/new.c").write_text("int n;\n")
+        listed = analyze_host.tracked_sources(fixture.root)
+        self.assertIn(fixture.root / "app/src/new.c", listed)
+
+
+class AnalyzeScript(unittest.TestCase):
+    def setUp(self):
+        self.text = read("scripts/analyze_host.py")
+
+    def test_the_configure_command_exports_the_compile_database_of_the_host_tests(self):
+        for fragment in ("tests/host", "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON", "-DWORKLOAD_SANITIZE=OFF"):
+            self.assertIn(fragment, self.text)
+
+    def test_there_is_no_hand_written_list_of_sources(self):
+        self.assertNotRegex(self.text, r"\b(app|workload)/(src|os|compose)\b")
+        self.assertNotRegex(self.text, r"\b\w+\.c\b")
+
+    def test_only_the_files_of_the_database_go_to_clang_tidy(self):
+        fixture = tree(self, ["app/src/a.c", "workload/src/b.c", "app/os/z.c"],
+                       ["../../app/src/a.c", "../../workload/src/b.c"])
+        result = fixture.run()
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertEqual(["app/src/a.c", "workload/src/b.c"], fixture.tidy_files())
+        arguments = fixture.log.read_text().splitlines()
+        self.assertEqual(str(fixture.build), arguments[arguments.index("-p") + 1])
+
+    def test_the_not_analysed_list_is_printed_last_and_names_every_missing_source(self):
+        fixture = tree(self, ["app/src/a.c", "app/os/z.c", "tests/native_sim/s1/src/t.c"],
+                       ["../../app/src/a.c"])
+        result = fixture.run()
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        output = result.stdout
+        self.assertLess(output.index("tidy ran"), output.index("Not analysed"))
+        tail = output[output.index("Not analysed"):]
+        self.assertIn("2 ", tail.splitlines()[0])
+        self.assertIn("app/os/z.c", tail)
+        self.assertIn("tests/native_sim/s1/src/t.c", tail)
+        self.assertNotIn("app/src/a.c", tail)
+
+    def test_a_finding_fails_the_script_and_the_list_is_still_printed(self):
+        fixture = tree(self, ["app/src/a.c", "app/os/z.c"], ["../../app/src/a.c"], tidy_status=1)
+        result = fixture.run()
+        self.assertEqual(1, result.returncode)
+        self.assertIn("app/os/z.c", result.stdout)
+
+    def test_another_clang_tidy_major_version_fails_with_a_clear_message(self):
+        fixture = tree(self, ["app/src/a.c"], ["../../app/src/a.c"], tidy_version="17.0.6")
+        result = fixture.run()
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("18", result.stderr)
+        self.assertIn("17.0.6", result.stderr)
+        self.assertEqual([], fixture.tidy_files())
+
+    def test_an_empty_database_fails_instead_of_analysing_nothing(self):
+        fixture = tree(self, ["app/src/a.c"], [])
+        result = fixture.run()
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("no source", result.stderr)
 
 
 if __name__ == "__main__":
