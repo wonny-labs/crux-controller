@@ -7,7 +7,10 @@ Status: recorded after Stage 1 step S3. In this repository it is tracked by issu
 This finding was read against `crux-pilot` revision `a72032b2f29c8c4579de8de07a43b40f19bb9516`. The
 revision that `west.yml` pins is `37c92b18b44b7dfb95c2109f036f23d00f05cb4c`, which the Evidence section
 below describes as 61 commits earlier, and the finding states that the pinned commit "was not re-read".
-It has not been re-read at the current pin since. Crux keeps changing, and its public headers,
+It has not been re-read at the current pin since. Update, 15 November 2026: the pin has since moved to
+`dfd3ad7d4380b06a47d8c8b5b9f0ce46fbba0576`, which adds public management headers, so the revision named
+above is the one that was pinned when this section was written. The finding has not been re-read at the
+new pin either. Crux keeps changing, and its public headers,
 composition interfaces and targets may have moved since this note was written; this repository has not
 checked. Read the finding again against the revision you build with before anyone relies on it. The body
 below is unchanged.

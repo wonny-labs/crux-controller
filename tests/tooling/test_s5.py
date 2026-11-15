@@ -598,7 +598,7 @@ class S5Scenario(unittest.TestCase):
                        "2208988800", "request + 40", "reply + 24", "reply[1]"):
             self.assertIn(needle, source, needle)
 
-    def test_the_cases_cover_every_answer_the_brief_names(self):
+    def test_the_cases_cover_every_answer_kind(self):
         source = self.source()
         for needle in ("kiss_of_death", "delay_ms", "946684799", "4102444800", "CRUX_REALTIME_SOURCE_EXTERNAL",
                        "is_synchronized", "is_valid", "crux_realtime_get_snapshot",
@@ -665,6 +665,8 @@ class S5Workflows(unittest.TestCase):
             "CONFIG_CRUX_TIME_RTC=y", "CONFIG_CRUX_THREAD=y", "CONFIG_CRUX_SYNC=y",
             "CONFIG_CRUX_QUEUE=y", "CONFIG_CRUX_CONTROLLER_S3=y", "CONFIG_CRUX_CONTROLLER_S4=y",
             "CONFIG_SNTP_UNCERTAINTY=y",
+            # Zephyr's own SNTP clock setters would give the clock a second writer.
+            "CONFIG_NET_CONFIG_CLOCK_SNTP_INIT=y", "CONFIG_NET_CONFIG_SNTP_INIT_RESYNC=y",
         ):
             self.assertIn(needle, commands, needle)
 
@@ -821,9 +823,9 @@ class S5Findings(unittest.TestCase):
         adapter = (APP_OS / "workload_os_zephyr.c").read_text()
         self.assertNotIn("which no source includes yet", adapter)
 
-    def test_the_pin_has_not_moved(self):
+    def test_the_manifest_pins_the_approved_commit(self):
         manifest = (ROOT / "west.yml").read_text()
-        self.assertIn("revision: 37c92b18b44b7dfb95c2109f036f23d00f05cb4c", manifest)
+        self.assertIn("revision: dfd3ad7d4380b06a47d8c8b5b9f0ce46fbba0576", manifest)
 
 
 if __name__ == "__main__":

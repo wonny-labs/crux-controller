@@ -59,7 +59,7 @@ class Promises(unittest.TestCase):
         body = text("RELEASE.md")
         self.assertIn("never published", body)
         self.assertIn("approval", body)
-        self.assertIn("37c92b18", body)
+        self.assertIn("dfd3ad7d", body)
         self.assertIn("docs/product-composition.md", body)
 
 
@@ -83,10 +83,11 @@ class Dependencies(unittest.TestCase):
             self.assertIn(name, rows)
             self.assertIsNotNone(rows[name], f"{name} has no 40-digit revision in its row")
 
-    def test_the_two_groups_that_stay_off_are_named(self):
+    def test_the_groups_that_stay_off_are_named(self):
         page = text("docs/dependencies.md")
         self.assertIn("`crux-secure-management`", page)
         self.assertIn("`crux-reliance`", page)
+        self.assertIn("`crux-boot`", page)
 
     def test_the_page_documents_how_the_crux_import_is_narrowed(self):
         page = text("docs/dependencies.md")

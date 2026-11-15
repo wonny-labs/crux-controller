@@ -8,9 +8,15 @@ twice on a board (see `docs/findings/s2-first-board-run.md`); nothing else has r
 
 ### Build and manifest
 
-- The west manifest imports `crux-pilot` at a pinned commit (`37c92b18`, which publishes the File
+- The west manifest imports `crux-pilot` at a pinned commit (`dfd3ad7d`, which publishes the File
   composition interface `<crux/file_zephyr.h>`) and adds `picolibc` as a test-only project. A CI job
   checks the pins with `west crux-pins` and has a negative control that must fail.
+- The `crux-pilot` pin moved from `37c92b18` to `dfd3ad7d`, which adds the public management headers
+  and the simulated `native_sim` System watchdog. The move of the crypto modules to the Zephyr
+  v4.4-branch revisions is not included. The Zephyr revision (v4.4.2) and the verified baseline are
+  unchanged. The new Crux manifest adds one optional group, `crux-boot` (MCUboot), which stays off. No
+  controller code adopts the new headers yet. The S2 firmware hash and the budget tables are in the
+  pull request, because they come from CI.
 - The `crux-pilot` import blocks wolfSSL, wolfSSH and wolfPSA by name, so enabling the Mbed TLS group
   would activate Mbed TLS and TF-PSA-Crypto and no GPL stack (checked on the project list; no job
   enables the group or fetches with it on, and it stays off in every job).
@@ -34,9 +40,10 @@ twice on a board (see `docs/findings/s2-first-board-run.md`); nothing else has r
   job has an S5 row against limits declared first. A low-priority thread queries one IPv4 server through the
   Zephyr SNTP library (called only in the adapter zone `app/os`, with `sntp_simple()`), and the product's
   policy (`app/src/time_sync_policy.c`, plain C) decides what an answer may do: it never sets for a failed,
-  kiss-o'-death or out-of-range answer, sets any in-range answer while the clock is not synchronised, corrects a
-  synchronised clock from the threshold up to the maximum step, and refuses a larger step once and marks
-  synchronisation lost. A clock that nothing confirms for the stale age is marked not synchronised. The glue
+  kiss-o'-death or out-of-range answer or when the clock snapshot cannot be read, sets any in-range answer while
+  the clock is not synchronised, corrects a synchronised clock from the threshold up to the maximum step, and
+  refuses a larger step once and marks synchronisation lost. A synchronised clock is marked not synchronised when
+  its last confirming answer is older than the stale age (strictly), judged on a failed round. The glue
   `app/src/time_sync.c` is the only caller of the Crux Time authority. SNTP here is unauthenticated, the clock
   is stepped and not slewed, nothing persists time, and S5 is built and never run on a board. Defaults and
   limits are in `docs/findings/s5-time-synchronisation.md`.
