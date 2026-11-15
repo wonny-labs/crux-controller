@@ -598,7 +598,7 @@ class S5Scenario(unittest.TestCase):
                        "2208988800", "request + 40", "reply + 24", "reply[1]"):
             self.assertIn(needle, source, needle)
 
-    def test_the_cases_cover_every_answer_the_brief_names(self):
+    def test_the_cases_cover_every_answer_kind(self):
         source = self.source()
         for needle in ("kiss_of_death", "delay_ms", "946684799", "4102444800", "CRUX_REALTIME_SOURCE_EXTERNAL",
                        "is_synchronized", "is_valid", "crux_realtime_get_snapshot",
