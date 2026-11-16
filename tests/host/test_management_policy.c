@@ -178,6 +178,75 @@ static void the_boundaries_of_each_part_are_exact(void)
     CHECK(!management_address_valid("255.255.255.2555"));
 }
 
+static void the_parser_gives_the_four_octets_of_each_valid_text(void)
+{
+    static const struct {
+        const char *text;
+        uint8_t octets[4];
+    } cases[] = {
+        {"0.0.0.0", {0, 0, 0, 0}},
+        {"255.255.255.255", {255, 255, 255, 255}},
+        {"192.168.77.2", {192, 168, 77, 2}},
+        {"127.0.0.1", {127, 0, 0, 1}},
+        {"1.2.3.4", {1, 2, 3, 4}},
+        {"100.200.250.9", {100, 200, 250, 9}},
+    };
+
+    for (size_t i = 0; i < sizeof cases / sizeof cases[0]; i++) {
+        uint8_t octets[4] = {0xAA, 0xAA, 0xAA, 0xAA};
+
+        CHECK(management_address_parse(cases[i].text, octets));
+        CHECK(memcmp(octets, cases[i].octets, sizeof octets) == 0);
+    }
+}
+
+static void the_parser_refuses_what_the_validator_refuses_and_leaves_the_octets_alone(void)
+{
+    for (size_t i = 0; i < sizeof invalid_text / sizeof invalid_text[0]; i++) {
+        uint8_t octets[4] = {0xAA, 0xBB, 0xCC, 0xDD};
+        const uint8_t before[4] = {0xAA, 0xBB, 0xCC, 0xDD};
+
+        CHECK(!management_address_parse(invalid_text[i], octets));
+        CHECK(memcmp(octets, before, sizeof octets) == 0);
+    }
+}
+
+static void the_parser_and_the_validator_agree_on_every_text_of_both_tables(void)
+{
+    for (size_t i = 0; i < sizeof valid_text / sizeof valid_text[0]; i++) {
+        uint8_t octets[4];
+
+        CHECK(management_address_parse(valid_text[i], octets) ==
+              management_address_valid(valid_text[i]));
+    }
+    for (size_t i = 0; i < sizeof invalid_text / sizeof invalid_text[0]; i++) {
+        uint8_t octets[4];
+
+        CHECK(management_address_parse(invalid_text[i], octets) ==
+              management_address_valid(invalid_text[i]));
+    }
+}
+
+static void the_parser_refuses_a_null_text_and_a_null_destination(void)
+{
+    uint8_t octets[4] = {1, 2, 3, 4};
+
+    CHECK(!management_address_parse(NULL, octets));
+    CHECK(octets[0] == 1u && octets[3] == 4u);
+    CHECK(!management_address_parse("1.2.3.4", NULL));
+}
+
+static void the_parser_stops_at_the_first_nul(void)
+{
+    const char with_tail[] = "1.2.3.4\0junk";
+    const char cut_short[] = "1.2.3\0.4";
+    uint8_t octets[4] = {0, 0, 0, 0};
+
+    CHECK(management_address_parse(with_tail, octets));
+    CHECK(octets[0] == 1u && octets[1] == 2u && octets[2] == 3u && octets[3] == 4u);
+    CHECK(!management_address_parse(cut_short, octets));
+}
+
 /* Copies of the limits that crux_access_init() enforces (crux/access.h at the pinned revision). */
 #define ACCESS_NAME_MAX 31u       /* CRUX_ACCESS_NAME_SIZE (32) without the terminator. */
 #define ACCESS_PERMISSION_MAX 63u /* CRUX_ACCESS_PERMISSION_MAX. */
@@ -402,6 +471,11 @@ int main(void)
     no_text_at_all_is_refused();
     the_text_ends_at_the_first_nul_and_nothing_after_it_counts();
     the_boundaries_of_each_part_are_exact();
+    the_parser_gives_the_four_octets_of_each_valid_text();
+    the_parser_refuses_what_the_validator_refuses_and_leaves_the_octets_alone();
+    the_parser_and_the_validator_agree_on_every_text_of_both_tables();
+    the_parser_refuses_a_null_text_and_a_null_destination();
+    the_parser_stops_at_the_first_nul();
     the_policy_has_exactly_an_administrator_and_a_read_only_role();
     the_administrator_holds_exactly_manage_status_read_and_config_save();
     the_read_only_role_holds_status_read_and_nothing_else();

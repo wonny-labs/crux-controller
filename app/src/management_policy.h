@@ -87,6 +87,14 @@ typedef struct {
  */
 bool management_address_valid(const char *text);
 
+/*
+ * The same check, and on success the four parts of the address in order, so that a composition can
+ * name the address in a certificate without a parser of its own or a Zephyr header. The octets are
+ * written only when the text is valid, and are left as they were otherwise. A null text or a null
+ * destination is refused.
+ */
+bool management_address_parse(const char *text, uint8_t octets[4]);
+
 /* The product's policy: the administrator role and the read-only role, and the session limits. */
 const management_policy_t *management_policy_get(void);
 

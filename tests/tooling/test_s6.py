@@ -111,9 +111,17 @@ class S6Validator(unittest.TestCase):
 
     def test_the_host_test_covers_the_public_functions_and_the_port_header(self):
         source = (ROOT / "tests" / "host" / "test_management_policy.c").read_text()
-        for needle in ("management_address_valid", "management_policy_valid",
-                       "management_version_valid", "management_port.h"):
+        for needle in ("management_address_valid", "management_address_parse",
+                       "management_policy_valid", "management_version_valid", "management_port.h"):
             self.assertIn(needle, source, needle)
+
+    def test_the_parser_is_declared_with_the_octets_and_defined_beside_the_validator(self):
+        header = c_code(APP_SRC / "management_policy.h")
+        source = c_code(APP_SRC / "management_policy.c")
+        self.assertRegex(header, r"bool management_address_parse\(const char \*text, uint8_t octets\[4\]\);")
+        self.assertRegex(source, r"bool management_address_parse\(const char \*text, uint8_t octets\[4\]\)")
+        # One rule, not two: the validator calls the parser, so they cannot drift apart.
+        self.assertRegex(source, r"management_address_valid\(const char \*text\)\s*\{[^}]*management_address_parse\(")
 
 
 class S6Policy(unittest.TestCase):
