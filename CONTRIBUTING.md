@@ -12,7 +12,7 @@ those interfaces shows up here and is reported to `crux-pilot` as an issue.
 - It is not a product, not Crux, and it adds no Crux public interface.
 - It may provide supporting evidence for a Crux milestone. It is never a mandatory exit criterion of one.
 - It is not evidence for any Crux security claim. That evidence lives in `crux-pilot`.
-- Its workload is synthetic and written for this repository. Steps S0 to S5 are built in CI. Step S2 has
+- Its workload is synthetic and written for this repository. Steps S0 to S6 are built in CI. Step S2 has
   run on a board (twice, on one bench; see `docs/findings/s2-first-board-run.md`) and nothing else
   has, and a change must not claim otherwise.
 
@@ -29,8 +29,8 @@ those interfaces shows up here and is reported to `crux-pilot` as an issue.
 | `app/os/` (the adapter zone) | ISO C, public `<crux/NAME.h>` headers except the frozen four, `zephyr/kernel.h`, `zephyr/net/sntp.h`, its own tree, header files (`.h`) of `app/src` | the Sockets profile and other POSIX headers, `<crux/thread.h>`, `<crux/sync.h>`, `<crux/queue.h>`, `<crux/serial.h>`, `<crux/file_zephyr.h>`, `<crux/web_zephyr.h>` or any composition interface, a Crux private or port header, any other Zephyr header, vendor and third-party headers |
 
 Any other include fails, and so does an include whose operand is a macro, because it cannot be checked.
-The check reads includes only, so do not add include paths in CMake: `app/CMakeLists.txt` is checked
-for that.
+The check reads includes only, so do not add include paths in CMake: `app/CMakeLists.txt`,
+`app/management/management.cmake` and `app/management/entropy.cmake` are checked for that.
 
 There is no exception, waiver or per-file opt-out. A boundary that a change can step over says nothing
 about what a real consumer can use, and it would hide the gap that this repository exists to find.
@@ -62,8 +62,8 @@ the pull request says so. CI is configured in `.github/workflows/`:
 
 | Workflow | Jobs | When |
 |---|---|---|
-| `ci.yml` | `Tooling tests`, `West pins`, `Host tests` (sanitizer off and on), `S1` (Twister on `native_sim` for the scenarios in `tests/native_sim`, then the RT1060-EVKB build), `S2 build`, `S3 build`, `S4 build`, `S5 build`, `S0 build`, `Boundary check`, `Static analysis` (clang-format 18.1.8 over every tracked C file with `scripts/check-format.sh`, then clang-tidy 18 over the host-built sources with `scripts/analyze_host.py`, which prints the list of tracked sources not analysed; any difference or finding fails the job) (names shortened) | pull requests and pushes to `main` |
-| `budget.yml` | `Budget` for S0 to S5: static resource use against `budgets/limits.json` | pull requests and pushes to `main` |
+| `ci.yml` | `Tooling tests`, `West pins`, `Host tests` (sanitizer off and on), `S1` (Twister on `native_sim` for the scenarios in `tests/native_sim`, then the RT1060-EVKB build), `S2 build`, `S3 build`, `S4 build`, `S5 build`, `S6 build` (Twister on `native_sim` for the scenario in `tests/native_sim_mbed`, then the RT1060-EVKB build; the only job that fetches the Mbed TLS modules, with the group switched on in its own runner), `S0 build`, `Boundary check`, `Static analysis` (clang-format 18.1.8 over every tracked C file with `scripts/check-format.sh`, then clang-tidy 18 over the host-built sources with `scripts/analyze_host.py`, which prints the list of tracked sources not analysed; any difference or finding fails the job) (names shortened) | pull requests and pushes to `main` |
+| `budget.yml` | `Budget` for S0 to S6: static resource use against `budgets/limits.json` (the S6 row fetches the Mbed TLS modules in its own runner) | pull requests and pushes to `main` |
 | `rebuild.yml` | builds S2 twice at different paths and compares `zephyr.bin` and `firmware_identity` | by hand, and pull requests that change the workflow or `release/` |
 | `release.yml` | dry run of the release flow, publishes nothing | by hand, and pull requests that change the workflow, `release/` or `west.yml` |
 | `scheduled-main.yml` | `S2 build against crux-pilot main` | daily, and by hand |
@@ -79,8 +79,11 @@ review, and a build in CI is not a run on a board.
 crux-pins` must print a `CONTRACT crux-pilot` line and no `MISMATCH`; the `West pins` job checks this
 and has a negative control that must fail. Another project is added to `west.yml` only with a comment
 that says why it is there and where its revision comes from, and `docs/dependencies.md` is updated. The
-optional groups of the Crux manifest stay off, `crux-secure-management` among them: their terms are not
-the Apache-2.0 terms of this repository.
+optional groups of the Crux manifest stay off in `west.yml` and in every job except `S6 build` and the
+`Budget` row of S6. Those two switch `crux-secure-management` on in their own runner, only after
+`scripts/check_mbed_only.py` has checked the resolved project list, so that only the Mbed TLS modules are
+fetched. The other projects of that group are not under the Apache-2.0 terms of this repository, and the
+narrowed import in `west.yml` keeps them out.
 
 A pin moves in its own small pull request, with the reason in the commit message:
 

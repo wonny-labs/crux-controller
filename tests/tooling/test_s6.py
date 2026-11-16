@@ -1215,6 +1215,299 @@ class S6Scenario(unittest.TestCase):
                 self.assertNotRegex(text, r"/Users/|/home/|/private/|-----BEGIN", str(path))
 
 
+class S6Workflows(unittest.TestCase):
+    """The S6 job and the budget row. They are the only places that switch the Mbed TLS group on, in
+    their own runner and after the project list was checked, never in west.yml."""
+
+    BOARD = "mimxrt1060_evk@B//qspi"
+    GROUP_ON = "west config --local manifest.group-filter -- +crux-secure-management"
+
+    def ci(self):
+        return yaml.safe_load((ROOT / ".github" / "workflows" / "ci.yml").read_text())
+
+    def budget(self):
+        return yaml.safe_load((ROOT / ".github" / "workflows" / "budget.yml").read_text())
+
+    def job(self):
+        return self.ci()["jobs"]["s6"]
+
+    def step_names(self):
+        return [step.get("name", step.get("uses", "")) for step in self.job()["steps"]]
+
+    def step(self, name):
+        return next(step for step in self.job()["steps"] if step.get("name") == name)
+
+    def commands(self):
+        return "\n".join(step.get("run", "") for step in self.job()["steps"])
+
+    def test_ci_has_an_s6_job_named_for_the_step_build_jobs_and_asking_for_no_permission(self):
+        job = self.job()
+        self.assertRegex(job["name"], r"^S6 build \(")
+        self.assertEqual(self.BOARD, job["env"]["BOARD"])
+        self.assertEqual("ubuntu-24.04", job["runs-on"])
+        self.assertNotIn("permissions", job)
+        self.assertEqual({"contents": "read"}, self.ci()["permissions"])
+
+    def test_the_job_has_the_same_shape_as_the_s1_job_where_both_fetch_and_install(self):
+        jobs = self.ci()["jobs"]
+        for key in ("runs-on",):
+            self.assertEqual(jobs["s1"][key], jobs["s6"][key])
+        self.assertEqual(jobs["s1"]["env"], jobs["s6"]["env"])
+        host_packages = next(s for s in jobs["s6"]["steps"] if s.get("name") == "Install host packages")
+        s1_packages = next(s for s in jobs["s1"]["steps"] if s.get("name") == "Install host packages")
+        self.assertEqual(s1_packages["run"], host_packages["run"])
+
+    def test_the_steps_run_in_the_order_that_keeps_the_group_off_until_it_was_checked(self):
+        names = self.step_names()
+        order = [
+            "Fetch the default workspace",
+            "Mbed-only check, default workspace",
+            "Mbed-only check, group on",
+            "Fetch the Mbed TLS modules and nothing else",
+            "Restore the Zephyr SDK",
+            "Install the Zephyr SDK",
+            "Run the S6 scenario on native_sim",
+            "Check that the scenario ran and was not skipped",
+            "Cross-build S6 with the baseline gate required",
+            "Check the outputs exist",
+            "Check the resolved S6 configuration and devicetree",
+            "Check what the image links",
+        ]
+        positions = [names.index(name) for name in order]
+        self.assertEqual(sorted(positions), positions)
+
+    def test_the_default_update_comes_first_and_the_group_is_switched_on_after_the_project_list_check(self):
+        default = self.step("Fetch the default workspace")["run"]
+        self.assertIn("west init -l crux-controller", default)
+        self.assertEqual(1, default.count("west update"))
+        self.assertNotIn("group-filter", default)
+        listing = self.step("Mbed-only check, group on")["run"]
+        self.assertIn(self.GROUP_ON, listing)
+        self.assertIn("check_mbed_only.py --mode mbed --baseline list-default.txt < list-mbed.txt", listing)
+        self.assertNotIn("west update", listing)
+        fetch = self.step("Fetch the Mbed TLS modules and nothing else")["run"]
+        self.assertIn("west update", fetch)
+        self.assertNotIn("group-filter", fetch)
+
+    def test_the_fetch_asserts_that_no_wolf_project_and_both_mbed_projects_are_there(self):
+        fetch = self.step("Fetch the Mbed TLS modules and nothing else")["run"]
+        for name in ("wolfssl", "wolfssh", "wolfpsa"):
+            self.assertIn(name, fetch)
+        self.assertRegex(fetch, r'test ! -e "modules/crypto/\$name"')
+        for name in ("mbedtls", "tf-psa-crypto"):
+            self.assertIn(name, fetch)
+        self.assertRegex(fetch, r'test -d "modules/crypto/\$name"')
+        for requirements in ("requirements-base.txt", "requirements-build-test.txt",
+                             "requirements-run-test.txt"):
+            self.assertIn(requirements, fetch)
+
+    def test_the_group_is_switched_on_in_exactly_the_pins_job_the_s6_job_and_the_budget_step(self):
+        for name, job in self.ci()["jobs"].items():
+            text = "\n".join(step.get("run", "") for step in job["steps"])
+            self.assertEqual(name in ("pins", "s6"), "+crux-secure-management" in text, name)
+        for name, job in self.budget()["jobs"].items():
+            text = "\n".join(step.get("run", "") for step in job["steps"])
+            self.assertIn("+crux-secure-management", text)
+        manifest = (ROOT / "west.yml").read_text()
+        self.assertNotIn("group-filter", manifest)
+
+    def test_the_scenario_runs_from_the_sibling_directory_and_the_s1_job_is_unchanged(self):
+        run = self.step("Run the S6 scenario on native_sim")["run"]
+        self.assertIn("west twister -p native_sim/native/64 -T crux-controller/tests/native_sim_mbed", run)
+        self.assertIn("-O twister-out-s6", run)
+        s1 = "\n".join(step.get("run", "") for step in self.ci()["jobs"]["s1"]["steps"])
+        self.assertIn("-T crux-controller/tests/native_sim \\\n", s1)
+        self.assertNotIn("native_sim_mbed", s1)
+
+    def test_a_skipped_or_missing_case_fails_the_job(self):
+        run = self.step("Check that the scenario ran and was not skipped")["run"]
+        self.assertIn("twister-out-s6/twister.json", run)
+        self.assertIn("assert statuses and all(status == \"passed\"", run)
+        self.assertIn("controller.s6.native_sim.https_management", run)
+
+    def test_the_board_image_is_built_with_the_gate_the_s6_fragments_and_both_overlays(self):
+        build = self.step("Cross-build S6 with the baseline gate required")["run"]
+        self.assertIn("-DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON", build)
+        self.assertIn("conf/s1.conf;conf/s2.conf;conf/s6.conf", build)
+        self.assertIn("boards/s2.overlay;boards/s6.overlay", build)
+        self.assertIn("build/s6", build)
+        self.assertIn("-p always -b '${{ env.BOARD }}'", build)
+
+    def test_the_job_checks_the_options_that_must_be_on_in_what_the_build_resolved(self):
+        run = self.step("Check the resolved S6 configuration and devicetree")["run"]
+        for option in (
+            "CONFIG_CRUX_CONTROLLER_S6=y", "CONFIG_CRUX_CONTROLLER_S2=y", "CONFIG_CRUX_CONTROLLER_S1=y",
+            "CONFIG_CRUX_PSA_THREADING=y", "CONFIG_PSA_CRYPTO_PROVIDER_MBEDTLS=y", "CONFIG_MBEDTLS=y",
+            "CONFIG_CRUX_ACCESS=y", "CONFIG_CRUX_CONFIG_SERVICE=y", "CONFIG_CRUX_MGMT_STATUS=y",
+            "CONFIG_CRUX_TLS_CERTIFICATE=y", "CONFIG_CRUX_WEB=y", "CONFIG_CRUX_WEB_SESSION=y",
+            "CONFIG_CRUX_WEB_MANAGEMENT=y", "CONFIG_CRUX_SYSTEM=y", "CONFIG_CRUX_NETIF=y",
+            "CONFIG_CRUX_FILE_FATFS_RT1060_RAM_DISK=y", "CONFIG_DISK_DRIVER_RAM=y",
+            "CONFIG_FILE_SYSTEM_MKFS=y", "CONFIG_ENTROPY_MCUX_TRNG=y",
+            "CONFIG_MBEDTLS_PSA_DRIVER_GET_ENTROPY=y", "CONFIG_CRUX_WEB_PORT=443",
+            'CONFIG_CRUX_WEB_BIND_ADDRESS="192.168.77.2"',
+            "CONFIG_CRUX_WEB_SESSION_WORKER_PRIORITY=11",
+            "CONFIG_CRUX_WEB_MANAGEMENT_WORKER_PRIORITY=11",
+            "CONFIG_CRUX_SECURITY_EVENT_DRAIN_PRIORITY=11", "CONFIG_HTTP_SERVER_MAX_CLIENTS=3",
+            "CONFIG_MBEDTLS_HEAP_SIZE=120000", "CONFIG_CRUX_THREAD=y", "CONFIG_CRUX_SYNC=y",
+        ):
+            self.assertIn(option, run, option)
+
+    def test_the_job_checks_the_options_that_must_be_off_in_what_the_build_resolved(self):
+        run = self.step("Check the resolved S6 configuration and devicetree")["run"]
+        for option in (
+            "CONFIG_CRUX_REBOOT=y", "CONFIG_CRUX_NETWORK_SETTINGS=y", "CONFIG_CRUX_FILE_SERVICE=y",
+            "CONFIG_CRUX_SSH=y", "CONFIG_CRUX_CLI=y", "CONFIG_CRUX_CLI_CONSOLE=y",
+            "CONFIG_CRUX_WEB_PLAIN_HTTP_FOR_TESTS=y", "CONFIG_CRUX_DEVELOPMENT_IMAGE=y",
+            "CONFIG_CRUX_CONTROLLER_S3=y", "CONFIG_CRUX_CONTROLLER_S4=y", "CONFIG_CRUX_QUEUE=y",
+            "CONFIG_CRUX_SERIAL=y", "CONFIG_SHELL=y", "CONFIG_DISK_DRIVER_SDMMC=y", "CONFIG_IMX_USDHC=y",
+            "CONFIG_FS_FATFS_MOUNT_MKFS=y", "CONFIG_TEST_RANDOM_GENERATOR=y",
+            "CONFIG_FAKE_ENTROPY_NATIVE_SIM=y", "CONFIG_CRUX_CONFIGURATION_SETTINGS_FILE=y",
+            "CONFIG_TASK_WDT_HW_FALLBACK=y", "CONFIG_WDT_SHELL=y", "CONFIG_HWINFO_SHELL=y",
+        ):
+            self.assertIn(option, run, option)
+        self.assertIn("'^CONFIG_WOLF'", run)
+        # The sentence that explains why Thread and Sync are on and nothing of the product names them.
+        self.assertIn("The product's sources include neither", " ".join(run.replace("#", " ").split()))
+
+    def test_the_job_checks_the_devicetree_for_the_watchdog_alias_the_ram_disk_and_the_entry(self):
+        run = self.step("Check the resolved S6 configuration and devicetree")["run"]
+        for needle in ("crux-watchdog0 = &?wdog0", "zephyr,ram-disk", "controller_storage", "zephyr.dts"):
+            self.assertIn(needle, run, needle)
+
+    def test_the_job_checks_what_the_image_links_and_what_it_does_not(self):
+        run = self.step("Check what the image links")["run"]
+        for symbol in ("management_port_start", "management_address_parse", "storage_port_bind_store",
+                       "crux_web_start", "crux_tls_certificate_start",
+                       "crux_tls_certificate_material_take", "tls_credential_add",
+                       "crux_access_init", "crux_credential_start", "crux_security_event_start",
+                       "crux_config_service_start", "crux_mgmt_status_start", "crux_web_session_init",
+                       "crux_web_management_init", "crux_file_zephyr_bind_root",
+                       "crux_system_reset_cause_get"):
+            self.assertIn(symbol, run, symbol)
+        for symbol in ("crux_reboot_start", "crux_network_settings_start", "crux_file_service_start"):
+            self.assertIn(symbol, run, symbol)
+        self.assertRegex(run, r"! grep -qE \" \[Tt\] \$\{symbol\}\$\" symbols\.txt")
+        self.assertIn("arm-zephyr-eabi-nm", run)
+
+    def test_the_job_runs_no_hardware_command_uploads_nothing_and_says_nothing_ran_on_a_board(self):
+        commands = self.commands()
+        for word in ("west flash", "west debug", "JLink", "pyocd", "openocd", "upload-artifact"):
+            self.assertNotIn(word, commands, word)
+        for step in self.job()["steps"]:
+            self.assertNotIn("upload-artifact", step.get("uses", ""))
+        self.assertIn("No flash, reset or hardware command was run.", commands)
+
+    def test_every_west_build_of_the_job_carries_the_gate(self):
+        for step in self.job()["steps"]:
+            run = step.get("run", "")
+            if "west build" in run:
+                self.assertIn("-DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON", run)
+
+    def test_the_pins_job_comment_no_longer_says_that_no_job_fetches_with_the_group_on(self):
+        text = (ROOT / ".github" / "workflows" / "ci.yml").read_text()
+        self.assertNotIn("no job fetches or builds with", text)
+        words = " ".join(text.replace("#", " ").split())
+        self.assertIn("This job fetches nothing with the group on. The S6 job does, after the same check.", words)
+
+    ROWS = {
+        "S0": {"step": "S0", "conf": "", "overlay": "", "require": ""},
+        "S1": {"step": "S1", "conf": "conf/s1.conf", "overlay": "", "require": ""},
+        "S2": {"step": "S2", "conf": "conf/s1.conf;conf/s2.conf", "overlay": "boards/s2.overlay",
+               "require": ""},
+        "S3": {"step": "S3", "conf": "conf/s1.conf;conf/s3.conf", "overlay": "boards/s3.overlay",
+               "require": "CONFIG_CRUX_CONTROLLER_S3=y CONFIG_CRUX_FILE_FATFS_RT1060=y"},
+        "S4": {"step": "S4", "conf": "conf/s1.conf;conf/s4.conf", "overlay": "boards/s4.overlay",
+               "require": "CONFIG_CRUX_CONTROLLER_S4=y CONFIG_CRUX_SYSTEM=y"},
+        "S5": {"step": "S5", "conf": "conf/s1.conf;conf/s2.conf;conf/s5.conf",
+               "overlay": "boards/s2.overlay",
+               "require": "CONFIG_CRUX_CONTROLLER_S5=y CONFIG_CRUX_CONTROLLER_S2=y CONFIG_SNTP=y"},
+    }
+
+    def rows(self):
+        return {row["step"]: row for row in self.budget()["jobs"]["budget"]["strategy"]["matrix"]["include"]}
+
+    def test_the_budget_rows_of_s0_to_s5_are_byte_identical_to_the_rows_before_the_step(self):
+        rows = self.rows()
+        self.assertEqual(["S0", "S1", "S2", "S3", "S4", "S5", "S6"], sorted(rows))
+        for step, expected in self.ROWS.items():
+            self.assertEqual(expected, rows[step], step)
+
+    def test_the_s6_row_is_built_on_the_network_with_the_group_and_requires_the_step(self):
+        row = self.rows()["S6"]
+        self.assertEqual("conf/s1.conf;conf/s2.conf;conf/s6.conf", row["conf"])
+        self.assertEqual("boards/s2.overlay;boards/s6.overlay", row["overlay"])
+        self.assertEqual("mbed", row["group"])
+        for option in ("CONFIG_CRUX_CONTROLLER_S6=y", "CONFIG_CRUX_ACCESS=y",
+                       "CONFIG_CRUX_PSA_THREADING=y", "CONFIG_CRUX_WEB_MANAGEMENT=y"):
+            self.assertIn(option, row["require"].split(), option)
+
+    def test_only_the_s6_row_names_a_group(self):
+        for step, row in self.rows().items():
+            self.assertEqual(step == "S6", "group" in row, step)
+
+    def test_the_budget_step_for_the_group_runs_only_for_the_rows_that_ask_and_before_the_sdk(self):
+        steps = self.budget()["jobs"]["budget"]["steps"]
+        names = [step.get("name") for step in steps]
+        name = "Switch the Mbed TLS group on (rows that need it)"
+        self.assertIn(name, names)
+        step = steps[names.index(name)]
+        self.assertEqual("matrix.group == 'mbed'", step["if"])
+        self.assertLess(names.index("Fetch the workspace"), names.index(name))
+        self.assertLess(names.index(name), names.index("Restore the Zephyr SDK"))
+        run = step["run"]
+        self.assertLess(run.index("check_mbed_only.py --mode mbed --baseline list-default.txt"),
+                        run.index("west update"))
+        self.assertLess(run.index("--mode default"), run.index(self.GROUP_ON))
+        self.assertLess(run.index(self.GROUP_ON), run.index("--mode mbed"))
+        for wolf in ("wolfssl", "wolfssh", "wolfpsa"):
+            self.assertIn(wolf, run)
+        for other in steps:
+            if other is not step:
+                self.assertNotIn("matrix.group", yaml.safe_dump(other))
+
+    def test_the_budget_workflow_only_gained_lines(self):
+        text = (ROOT / ".github" / "workflows" / "budget.yml").read_text()
+        # The existing steps still read the same matrix keys, which the S6 row supplies.
+        for key in ("matrix.conf", "matrix.overlay", "matrix.require", "matrix.step"):
+            self.assertIn(key, text, key)
+        self.assertNotIn("upload-artifact", text)
+        self.assertNotIn("permissions: write", text)
+        self.assertEqual({"contents": "read"}, self.budget()["permissions"])
+
+
+class S6Contributing(unittest.TestCase):
+    """The contribution guide says what CI does for step S6, and no more."""
+
+    def text(self):
+        return " ".join((ROOT / "CONTRIBUTING.md").read_text().split())
+
+    def test_the_role_section_lists_the_steps_built_in_ci_up_to_s6_and_still_claims_no_board_run(self):
+        text = self.text()
+        self.assertIn("Steps S0 to S6 are built in CI.", text)
+        self.assertIn("Step S2 has run on a board (twice, on one bench;", text)
+        self.assertIn("and nothing else has, and a change must not claim otherwise", text)
+
+    def test_the_job_list_names_the_s6_build_and_what_it_fetches(self):
+        text = self.text()
+        self.assertIn("`S6 build` (Twister on `native_sim` for the scenario in `tests/native_sim_mbed`, then the RT1060-EVKB build; the only job that fetches the Mbed TLS modules, with the group switched on in its own runner)", text)
+        self.assertIn("`Budget` for S0 to S6: static resource use against `budgets/limits.json` (the S6 row fetches the Mbed TLS modules in its own runner)", text)
+
+    def test_the_optional_group_sentence_names_the_two_places_that_switch_it_on_and_the_check(self):
+        text = self.text()
+        self.assertIn("The optional groups of the Crux manifest stay off in `west.yml` and in every job except `S6 build` and the `Budget` row of S6.", text)
+        self.assertIn("only after `scripts/check_mbed_only.py` has checked the resolved project list", text)
+        self.assertIn("The other projects of that group are not under the Apache-2.0 terms of this repository, and the narrowed import in `west.yml` keeps them out.", text)
+        self.assertNotIn("The optional groups of the Crux manifest stay off, `crux-secure-management` among them", text)
+
+    def test_the_boundary_sentence_names_the_two_files_of_the_management_directory(self):
+        text = self.text()
+        self.assertIn("`app/CMakeLists.txt`, `app/management/management.cmake` and `app/management/entropy.cmake` are checked for that", text)
+
+    def test_the_guide_claims_no_login_and_no_board_run_for_s6(self):
+        text = self.text()
+        self.assertNotRegex(text, r"S6[^.]*(?:ran on a board|log in works|login works)")
+
+
 class S6Findings(unittest.TestCase):
     NOTE = ROOT / "docs" / "findings" / "s6-https-management-gaps.md"
     PIN = "8e3737d25d048b14a00c01da00494f58a62958c6"

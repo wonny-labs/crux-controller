@@ -54,6 +54,15 @@ jobs:
             conf: "conf/s1.conf;conf/s2.conf;conf/s5.conf"
             overlay: "boards/s2.overlay"
             require: "CONFIG_CRUX_CONTROLLER_S5=y CONFIG_CRUX_CONTROLLER_S2=y CONFIG_SNTP=y"
+          # S6 is built on the network of S2, with the Mbed TLS profile of Crux Access, the web
+          # server and the RAM disk. Its fragment would build silently without the step if a Kconfig
+          # dependency were unmet, so the build is checked. It is the only row that needs the Mbed
+          # TLS group, which the step below switches on in this runner.
+          - step: S6
+            conf: "conf/s1.conf;conf/s2.conf;conf/s6.conf"
+            overlay: "boards/s2.overlay;boards/s6.overlay"
+            require: "CONFIG_CRUX_CONTROLLER_S6=y CONFIG_CRUX_ACCESS=y CONFIG_CRUX_PSA_THREADING=y CONFIG_CRUX_WEB_MANAGEMENT=y"
+            group: "mbed"
     env:
       BOARD: mimxrt1060_evk@B//qspi
       SDK_VERSION: "1.0.1"
@@ -78,6 +87,18 @@ jobs:
           west init -l crux-controller
           west update
           python -m pip install -r zephyr/scripts/requirements-base.txt
+      - name: Switch the Mbed TLS group on (rows that need it)
+        if: matrix.group == 'mbed'
+        run: |
+          west list --all -f '{name} {active}' > list-default.txt
+          python crux-controller/scripts/check_mbed_only.py --mode default < list-default.txt
+          west config --local manifest.group-filter -- +crux-secure-management
+          west list --all -f '{name} {active}' > list-mbed.txt
+          python crux-controller/scripts/check_mbed_only.py --mode mbed --baseline list-default.txt < list-mbed.txt
+          west update
+          for name in wolfssl wolfssh wolfpsa; do
+            test ! -e "modules/crypto/$name" || { echo "unexpected $name" >&2; exit 1; }
+          done
       - name: Restore the Zephyr SDK
         id: sdk_cache
         uses: actions/cache@v4

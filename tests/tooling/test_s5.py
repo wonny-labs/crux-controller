@@ -701,8 +701,9 @@ class S5Workflows(unittest.TestCase):
             self.assertIn(option, require, option)
 
     def test_the_budget_rows_of_the_other_steps_are_unchanged(self):
+        # Step S6 later added its own row, which test_s6.py pins, so the list ends at S6.
         rows = self.budget_rows()
-        self.assertEqual(["S0", "S1", "S2", "S3", "S4", "S5"], sorted(rows))
+        self.assertEqual(["S0", "S1", "S2", "S3", "S4", "S5", "S6"], sorted(rows))
         self.assertEqual(("", "", ""), (rows["S0"]["conf"], rows["S0"]["overlay"], rows["S0"]["require"]))
         self.assertEqual("conf/s1.conf", rows["S1"]["conf"])
         self.assertEqual("conf/s1.conf;conf/s2.conf", rows["S2"]["conf"])
@@ -809,9 +810,9 @@ class S5Findings(unittest.TestCase):
 
     def test_the_contributing_guide_lists_s5_where_it_lists_the_steps_and_jobs(self):
         text = (ROOT / "CONTRIBUTING.md").read_text()
-        self.assertIn("Steps S0 to S5 are built in CI", text)
+        self.assertIn("Steps S0 to S6 are built in CI", text)
         self.assertIn("`S5 build`", text)
-        self.assertIn("`Budget` for S0 to S5:", text)
+        self.assertIn("`Budget` for S0 to S6:", text)
 
     def test_the_zone_note_no_longer_says_that_no_sntp_code_exists(self):
         zone = " ".join((ROOT / "docs" / "composition-zone.md").read_text().split())
