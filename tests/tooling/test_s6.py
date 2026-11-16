@@ -273,9 +273,158 @@ class S6Port(unittest.TestCase):
             self.assertEqual(["zephyr/kernel.h"], [v.include for v in found])
 
 
+def conf_options(path):
+    options = {}
+    for line in pathlib.Path(path).read_text().splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            name, value = line.split("=", 1)
+            options[name.strip()] = value.strip()
+    return options
+
+
+def kconfig_block(name):
+    text = "\n".join(code_lines(ROOT / "app" / "Kconfig"))
+    block = re.search(rf"^config {name}\n(.*?)(?=^config |^source |\Z)", text, re.S | re.M)
+    assert block is not None, f"no config {name} in app/Kconfig"
+    return block.group(1)
+
+
+class S6Configuration(unittest.TestCase):
+    """The step option, its fragment and its overlay. An unmet Kconfig dependency only warns in a
+    build, so the option's dependencies are pinned here and the resolved configuration is read by
+    the CI job."""
+
+    CONF = ROOT / "app" / "conf" / "s6.conf"
+    OVERLAY = ROOT / "app" / "boards" / "s6.overlay"
+
+    def test_the_step_option_builds_on_the_network_step_and_the_crux_services(self):
+        block = kconfig_block("CRUX_CONTROLLER_S6")
+        self.assertIn("bool", block)
+        depends = re.search(r"depends on ([^\n]+)", block).group(1)
+        for needed in ("CRUX_CONTROLLER_S2", "CRUX_ACCESS", "CRUX_WEB_MANAGEMENT",
+                       "CRUX_TLS_CERTIFICATE", "CRUX_SYSTEM"):
+            self.assertRegex(depends, rf"\b{needed}\b", needed)
+
+    def test_the_step_option_excludes_the_steps_it_cannot_share_an_image_with(self):
+        depends = re.search(r"depends on ([^\n]+)", kconfig_block("CRUX_CONTROLLER_S6")).group(1)
+        # S3 and S6 each own a file provider, and S4 clears the reset cause that S6 reads once.
+        self.assertRegex(depends, r"!CRUX_CONTROLLER_S3\b")
+        self.assertRegex(depends, r"!CRUX_CONTROLLER_S4\b")
+        self.assertNotRegex(depends, r"!CRUX_CONTROLLER_S5\b")
+
+    def test_the_step_option_selects_nothing(self):
+        self.assertNotRegex(kconfig_block("CRUX_CONTROLLER_S6"), r"^\s*select\b")
+
+    def test_the_help_states_the_limits_in_words(self):
+        text = " ".join(kconfig_block("CRUX_CONTROLLER_S6").split())
+        for needle in ("TLS 1.3", "self-signed", "RAM disk", "nothing persists", "no account",
+                       "nobody can log in", "never run on a board", "not measured",
+                       "save route", "S3", "S4", "192.168.77.2"):
+            self.assertIn(needle, text, needle)
+
+    def test_the_help_names_no_provider_symbol_that_the_product_does_not_select(self):
+        text = kconfig_block("CRUX_CONTROLLER_S6")
+        self.assertNotRegex(text, r"\bCRUX_(?:THREAD|SYNC|QUEUE)(?:_\w+)?\b")
+
+    def test_the_first_step_help_no_longer_says_no_provider_is_selected_by_any_step(self):
+        text = " ".join(kconfig_block("CRUX_CONTROLLER_S1").split())
+        self.assertNotIn("so none is selected for it", text)
+        self.assertIn("Product code includes none of their headers", text)
+        self.assertIn("select them for themselves", text)
+
+    def test_the_fragment_selects_the_step_and_the_crux_services_and_the_locks(self):
+        options = conf_options(self.CONF)
+        for name in ("CONFIG_CRUX_CONTROLLER_S6", "CONFIG_CRUX_PSA_THREADING", "CONFIG_CRUX_ACCESS",
+                     "CONFIG_CRUX_CONFIG_SERVICE", "CONFIG_CRUX_MGMT_STATUS",
+                     "CONFIG_CRUX_TLS_CERTIFICATE", "CONFIG_CRUX_WEB", "CONFIG_CRUX_WEB_SESSION",
+                     "CONFIG_CRUX_WEB_MANAGEMENT", "CONFIG_CRUX_SYSTEM",
+                     "CONFIG_CRUX_FILE_FATFS_RT1060_RAM_DISK", "CONFIG_MBEDTLS",
+                     "CONFIG_PSA_CRYPTO_PROVIDER_MBEDTLS"):
+            self.assertEqual("y", options.get(name), name)
+
+    def test_the_fragment_names_no_thread_sync_or_queue_symbol_because_the_services_select_them(self):
+        for name in conf_options(self.CONF):
+            self.assertNotRegex(name, r"^CONFIG_CRUX_(?:THREAD|SYNC|QUEUE|SERIAL)(?:_\w+)?$", name)
+
+    def test_the_fragment_sets_the_worker_priorities_between_the_workload_and_the_log_thread(self):
+        options = conf_options(self.CONF)
+        for name in ("CONFIG_CRUX_WEB_SESSION_WORKER_PRIORITY",
+                     "CONFIG_CRUX_WEB_MANAGEMENT_WORKER_PRIORITY",
+                     "CONFIG_CRUX_SECURITY_EVENT_DRAIN_PRIORITY"):
+            self.assertEqual("11", options.get(name), name)
+
+    def test_the_fragment_binds_the_one_address_of_the_board_on_port_443(self):
+        options = conf_options(self.CONF)
+        self.assertEqual('"192.168.77.2"', options.get("CONFIG_CRUX_WEB_BIND_ADDRESS"))
+        self.assertEqual("443", options.get("CONFIG_CRUX_WEB_PORT"))
+        self.assertEqual("3", options.get("CONFIG_HTTP_SERVER_MAX_CLIENTS"))
+
+    def test_the_fragment_declares_the_unmeasured_sizes_and_says_they_are_unmeasured(self):
+        options = conf_options(self.CONF)
+        self.assertEqual("16384", options.get("CONFIG_MAIN_STACK_SIZE"))
+        self.assertEqual("16384", options.get("CONFIG_HTTP_SERVER_STACK_SIZE"))
+        self.assertEqual("120000", options.get("CONFIG_MBEDTLS_HEAP_SIZE"))
+        self.assertEqual("y", options.get("CONFIG_THREAD_STACK_INFO"))
+        self.assertEqual("y", options.get("CONFIG_INIT_STACKS"))
+        text = " ".join(self.CONF.read_text().split())
+        self.assertIn("not measured", text)
+
+    def test_the_fragment_keeps_the_entropy_on_the_hardware_source_and_off_test_sources(self):
+        options = conf_options(self.CONF)
+        self.assertEqual("y", options.get("CONFIG_ENTROPY_GENERATOR"))
+        for name in ("CONFIG_TEST_RANDOM_GENERATOR", "CONFIG_FAKE_ENTROPY_NATIVE_SIM"):
+            self.assertNotEqual("y", options.get(name), name)
+
+    def test_the_fragment_turns_the_card_off_because_the_ram_disk_is_the_only_disk(self):
+        options = conf_options(self.CONF)
+        self.assertEqual("n", options.get("CONFIG_DISK_DRIVER_SDMMC"))
+        self.assertEqual("n", options.get("CONFIG_IMX_USDHC"))
+        self.assertEqual("y", options.get("CONFIG_FILE_SYSTEM_MKFS"))
+        self.assertEqual("n", options.get("CONFIG_FS_FATFS_MOUNT_MKFS"))
+
+    def test_the_fragment_sets_none_of_what_the_step_leaves_off(self):
+        options = conf_options(self.CONF)
+        for name in ("CONFIG_CRUX_REBOOT", "CONFIG_CRUX_NETWORK_SETTINGS", "CONFIG_CRUX_FILE_SERVICE",
+                     "CONFIG_CRUX_SSH", "CONFIG_CRUX_CLI", "CONFIG_CRUX_CLI_CONSOLE",
+                     "CONFIG_CRUX_WEB_PLAIN_HTTP_FOR_TESTS", "CONFIG_CRUX_DEVELOPMENT_IMAGE",
+                     "CONFIG_CRUX_CONFIGURATION_SETTINGS_FILE", "CONFIG_SHELL", "CONFIG_WOLFSSL",
+                     "CONFIG_CRUX_CONTROLLER_S3", "CONFIG_CRUX_CONTROLLER_S4"):
+            self.assertNotEqual("y", options.get(name), name)
+        self.assertFalse([n for n in options if n.startswith("CONFIG_WOLF")])
+
+    def test_the_fragment_names_the_fragments_it_is_built_with(self):
+        text = " ".join(self.CONF.read_text().split())
+        self.assertIn("conf/s1.conf;conf/s2.conf;conf/s6.conf", text)
+        self.assertIn("boards/s2.overlay;boards/s6.overlay", text)
+
+    def test_the_overlay_has_the_ram_disk_the_fstab_entry_and_the_system_watchdog(self):
+        text = "\n".join(line.split("//", 1)[0] for line in self.OVERLAY.read_text().splitlines())
+        text = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
+        self.assertIn('compatible = "zephyr,ram-disk"', text)
+        self.assertIn('disk-name = "RAM"', text)
+        self.assertIn("controller_storage:", text)
+        self.assertIn('compatible = "zephyr,fstab,fatfs"', text)
+        self.assertIn('mount-point = "/RAM:"', text)
+        self.assertIn("crux-watchdog0 = &wdog0;", text)
+        self.assertRegex(text, r"&wdog0\s*\{\s*status = \"okay\";")
+
+    def test_the_overlay_does_not_repeat_the_logging_or_the_network_overlays(self):
+        text = self.OVERLAY.read_text()
+        for needle in ("lpuart1", "enet_mac", "zephyr,log-uart"):
+            self.assertNotIn(needle, text, needle)
+
+    def test_the_wording_of_thread_and_sync_in_the_first_fragment_is_the_corrected_one(self):
+        text = " ".join((ROOT / "app" / "conf" / "s1.conf").read_text().split())
+        self.assertNotIn("neither is selected.", text)
+        self.assertIn("selects none of them", text)
+        self.assertIn("select them for themselves", text)
+
+
 class S6NotBuilt(unittest.TestCase):
-    """This groundwork changes no firmware image: no build file, option or configuration under
-    app/ names the new files or step S6. The host tests are the only users."""
+    """What the build files under app/ may name. Step S6 is built now, so the groundwork's
+    assertions that no file names it were replaced, one by one, by assertions that only the files of
+    the step do. The class keeps its name because the findings note of the groundwork refers to it."""
 
     BUILD_FILES = ("CMakeLists.txt", "*.cmake", "Kconfig*", "*.conf", "*.overlay", "*.dts")
 
@@ -292,9 +441,25 @@ class S6NotBuilt(unittest.TestCase):
         for needle in ("management_policy", "management_port", "management_start"):
             self.assertNotIn(needle, text, needle)
 
-    def test_no_build_file_or_option_under_app_names_step_s6(self):
-        text = self.build_text()
-        self.assertNotRegex(text, r"CRUX_CONTROLLER_S6|conf/s6|boards/s6|\bS6\b")
+    # Approved behaviour change: step S6 is now built, so the old assertion that no build file names
+    # it is replaced by one that only its own files do. The files of the other steps stay clean.
+    S6_FILES = {"Kconfig", "conf/s1.conf", "conf/s6.conf", "boards/s6.overlay", "CMakeLists.txt",
+                "management/management.cmake", "management/reviewed-routes.txt",
+                "compose/CMakeLists.txt"}
+
+    def test_only_the_files_of_step_s6_name_it(self):
+        for pattern in self.BUILD_FILES:
+            for path in sorted((ROOT / "app").rglob(pattern)):
+                relative = path.relative_to(ROOT / "app").as_posix()
+                if relative in self.S6_FILES:
+                    continue
+                self.assertNotRegex(path.read_text(), r"CRUX_CONTROLLER_S6|conf/s6|boards/s6|\bS6\b",
+                                    relative)
+
+    def test_the_other_steps_fragments_and_overlays_do_not_name_s6(self):
+        for name in ("conf/s2.conf", "conf/s3.conf", "conf/s4.conf", "conf/s5.conf", "prj.conf",
+                     "boards/s2.overlay", "boards/s3.overlay", "boards/s4.overlay"):
+            self.assertNotRegex((ROOT / "app" / name).read_text(), r"\bS6\b|CRUX_CONTROLLER_S6", name)
 
     def test_no_source_under_app_includes_the_management_headers(self):
         for path in sorted(p for p in (ROOT / "app").rglob("*") if p.suffix in (".c", ".h")):
@@ -303,11 +468,23 @@ class S6NotBuilt(unittest.TestCase):
             for include in includes(path):
                 self.assertNotIn("management_", include, f"{path.relative_to(ROOT)}: {include}")
 
-    def test_no_crux_symbol_for_the_web_or_access_is_set_under_app(self):
-        text = self.build_text()
-        for symbol in ("CONFIG_CRUX_ACCESS", "CONFIG_CRUX_WEB", "CONFIG_CRUX_TLS_CERTIFICATE",
-                       "CONFIG_CRUX_PSA_THREADING", "CONFIG_CRUX_CONFIG_SERVICE"):
-            self.assertNotIn(symbol, text, symbol)
+    # Approved behaviour change: the S6 fragment now sets the symbols of the web server and Access.
+    # The assertion that no file sets them becomes: no fragment but the S6 one does.
+    def test_only_the_s6_fragment_sets_the_crux_symbol_for_the_web_or_access(self):
+        for path in sorted((ROOT / "app").rglob("*.conf")):
+            if path.name == "s6.conf":
+                continue
+            options = conf_options(path)
+            for symbol in ("CONFIG_CRUX_ACCESS", "CONFIG_CRUX_WEB", "CONFIG_CRUX_TLS_CERTIFICATE",
+                           "CONFIG_CRUX_PSA_THREADING", "CONFIG_CRUX_CONFIG_SERVICE",
+                           "CONFIG_CRUX_MGMT_STATUS", "CONFIG_CRUX_WEB_SESSION",
+                           "CONFIG_CRUX_WEB_MANAGEMENT"):
+                self.assertNotIn(symbol, options, f"{path.name}: {symbol}")
+
+    def test_no_overlay_other_than_the_s6_one_declares_the_ram_disk(self):
+        for path in sorted((ROOT / "app").rglob("*.overlay")):
+            if path.name != "s6.overlay":
+                self.assertNotIn("zephyr,ram-disk", path.read_text(), path.name)
 
 
 class S6Findings(unittest.TestCase):
