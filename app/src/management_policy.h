@@ -7,13 +7,17 @@
  * host builds and tests it with no Crux or Zephyr header. No firmware image compiles this file
  * yet: it is groundwork, and the composition that would use it is a later change.
  *
- * The names below are copies of what Crux defines, because this file has no Crux include:
- *   "access.manage"  CRUX_ACCESS_PERMISSION_MANAGE   (crux/access.h)
- *   "status.read"    CRUX_MGMT_STATUS_PERMISSION_READ (crux/management_status.h)
- *   "config.save"    CRUX_CONFIG_SERVICE_PERMISSION_SAVE (crux/config_service.h)
- * The composition that passes this data to Crux must assert at build time that each copy equals
- * the Crux value, as time_sync.c does for the time range. "access.self" is not listed: every role
- * holds it implicitly (crux/access.h).
+ * The permission names below are copies, because this file has no Crux include. What backs each
+ * one: "access.manage"  CRUX_ACCESS_PERMISSION_MANAGE, defined in crux/access.h, which also defines
+ *                    "access.self" (not listed here: every role holds it implicitly).
+ *   "config.save"    named by the route table of docs/management-in-a-product.md. The macro that
+ *                    carries it, CRUX_CONFIG_SERVICE_PERMISSION_SAVE in crux/config_service.h, was
+ *                    read by the author only.
+ *   "status.read"    CRUX_MGMT_STATUS_PERMISSION_READ in crux/management_status.h, read by the
+ *                    author only; no second source states the value.
+ * The two strings that rest on the author's reading are to be confirmed against the header by the
+ * composition that passes this data to Crux. That composition must also assert at build time that
+ * each copy equals the Crux value, as time_sync.c does for the time range.
  *
  * Only the permissions that the web routes of step S6 would check are granted: the status and the
  * configuration save. Nothing else is granted, because no other route is planned.
@@ -37,17 +41,29 @@
 #define MANAGEMENT_SESSION_IDLE_LIMIT_S (15u * 60u)
 #define MANAGEMENT_SESSION_ABSOLUTE_LIMIT_S (8u * 3600u)
 
-/* The longest version text that the status service accepts, without the terminator. */
+/*
+ * The longest version text that the status service accepts, without the terminator. Not verified
+ * beyond the author's reading of the comment of crux/management_status.h, which says 63 bytes under
+ * a character rule; no other source was checked.
+ */
 #define MANAGEMENT_VERSION_LENGTH_MAX 63u
 
-/* A role: a name and the exact list of its permissions. The layout of crux_access_role_t. */
+/*
+ * A role: a name and the exact list of its permissions. It has the same members as
+ * crux_access_role_t of crux/access.h, in the same order. Nothing in this repository checks that
+ * the two are equivalent yet, so the composition must copy member by member, and assert sizeof and
+ * offsetof or compile against the Crux header.
+ */
 typedef struct {
     const char *name;
     const char *const *permissions;
     size_t permission_count;
 } management_role_t;
 
-/* The roles and the session limits. The layout of crux_access_policy_t without the password rule.
+/*
+ * The roles and the session limits. It has the same members as crux_access_policy_t of
+ * crux/access.h, without the password rule hook. The same applies: nothing in this repository
+ * checks the equivalence yet, so the composition copies member by member and asserts it.
  */
 typedef struct {
     const management_role_t *roles;
@@ -63,8 +79,11 @@ typedef struct {
  * part. A null pointer and the empty text are refused. The text ends at its first NUL, so bytes
  * after a NUL are not seen.
  *
- * The Zephyr web server treats a bind text that is not an address as "every address", so a
- * composition that wants one interface has to refuse such a text itself, and this is the check.
+ * Zephyr's HTTP server falls back to every address for a text that is not an address, so a
+ * composition that wants one interface checks the text itself, and this is that check. This is
+ * stated in docs/management-in-a-product.md and in a comment of
+ * components/web/ports/zephyr/web_http_server.c at the pinned revision; the behaviour itself is
+ * not verified here.
  */
 bool management_address_valid(const char *text);
 

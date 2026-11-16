@@ -12,16 +12,24 @@
  *
  * Nothing implements or calls this port yet, and no firmware image compiles it. It records the
  * shape that a later change is expected to fill in, and the order that an implementation has to
- * keep. The order is the reading of the Crux headers and composition guide at the pinned revision,
- * and it has not been run:
+ * keep. The order is a reading of three Crux sources at the pinned revision, and it has not been
+ * run: the "Boot order" section of docs/management-in-a-product.md, the start calls of the module
+ * test tests/native/management_module/src/main.c (configuration service, management status and
+ * security event start, and only then the TLS certificate start), and the header
+ * components/web/ports/zephyr/include/crux/web_zephyr.h (services started, TLS material registered
+ * under the security tag, then the session and management init with their workers, then start).
  *
  *   1. security event init, realtime init, mount the medium and bind the two store roots
  *   2. credential store start, then Access init with the policy below
- *   3. TLS certificate start, config service start, management status start
- *   4. security event start, web session init, web management init
+ *   3. config service start, management status start, then security event start
+ *   4. TLS certificate start
  *   5. take the certificate material and register it under the web security tag, and fail the
  *      start if either registration fails (the web listener does not report a missing certificate)
- *   6. web start, with the session authenticate function
+ *   6. web session init and web management init, each with its worker
+ *   7. web start, with the session authenticate function
+ *
+ * The guide puts the first account between steps 3 and 4. This port does not create one: that
+ * is the serial console's work, in a later change.
  *
  * management_port_start() runs the whole sequence once, on one thread, before any request.
  */

@@ -54,15 +54,12 @@ class S6Limits(unittest.TestCase):
 
 
 class S6Validator(unittest.TestCase):
-    """The bind address text is checked by plain C, so the host builds and tests it. The Zephyr
-    web server falls back to every address for a text that is not an address; the validator is
-    what lets a later composition refuse such a text instead."""
+    """The bind address text is checked by plain C, so the host builds and tests it. Crux's guide
+    (docs/management-in-a-product.md at the pinned revision) says Zephyr's HTTP server falls back to
+    every address for a text that is not an address, so a composition that sets one checks the text;
+    the validator is that check."""
 
     ISO_C = {"<stdbool.h>", "<stddef.h>", "<stdint.h>"}
-
-    def test_the_policy_files_exist(self):
-        self.assertTrue((APP_SRC / "management_policy.h").is_file())
-        self.assertTrue((APP_SRC / "management_policy.c").is_file())
 
     def test_the_policy_includes_iso_c_and_its_own_header_only(self):
         for name in ("management_policy.h", "management_policy.c"):
@@ -85,16 +82,37 @@ class S6Validator(unittest.TestCase):
         self.assertRegex(text, r"target_compile_options\(test_management_policy PRIVATE[^)]*-Werror")
         self.assertRegex(text, r"add_test\(NAME management_policy COMMAND test_management_policy\)")
 
-    def test_the_host_test_covers_each_rule_of_the_address_text(self):
+    def host_test_literals(self):
+        """The text of every C string literal of the host test, as written between the quotes."""
         source = (ROOT / "tests" / "host" / "test_management_policy.c").read_text()
-        for needle in (
-            "management_address_valid", "management_policy_valid", "management_version_valid",
-            "management_port.h", "NULL", '"0.0.0.0"', '"255.255.255.255"', '"192.168.77.2"',
-            '""', '" 1.2.3.4"', '"1.2.3.4 "', '"01.2.3.4"', '"1.2.3.04"', '"00.0.0.0"',
-            '"256.1.1.1"', '"1.1.1.256"', '"1000.1.1.1"', '"1.2.3"', '"1.2.3."', '"1.2..3"',
-            '"1.2.3.4.5"', '"1.2.3.4x"', '"0x1.2.3.4"', '"+1.2.3.4"', '"1.2.3.4:443"', '"::1"',
-            r'"1.2.3.4\0junk"', r'"1.2.3\0.4"',
-        ):
+        return set(re.findall(r'"((?:[^"\\\n]|\\.)*)"', source))
+
+    def test_the_host_test_covers_each_rule_of_the_address_text(self):
+        literals = self.host_test_literals()
+        cases = (
+            "0.0.0.0", "255.255.255.255", "192.168.77.2",  # valid, with both ends
+            "", " 1.2.3.4", "1.2.3.4 ", "1.2.3.4\\n",  # empty and whitespace
+            "01.2.3.4", "1.2.3.04", "00.0.0.0",  # leading zeros
+            "256.1.1.1", "1.1.1.256", "1000.1.1.1",  # above 255
+            "1.2.3", "1.2.3.", "1.2..3", "1.2.3.4.5",  # parts
+            "1.2.3.4x", "0x1.2.3.4", "+1.2.3.4", "1.2.3.4:443", "::1",  # other characters
+            "1.2.3.4\\0junk", "1.2.3\\0.4",  # NUL
+        )
+        for case in cases:
+            self.assertIn(case, literals, case)
+
+    def test_the_host_test_covers_a_part_that_would_wrap_around_in_each_position(self):
+        # Only the cap of three digits stops a long part from wrapping around to a small value:
+        # 4294967296 is 0 and 4294967295 is 255 in 32 bits, and 4294967551 is 255 after 2^32 + 255.
+        literals = self.host_test_literals()
+        for part in ("4294967296", "4294967295", "4294967551", "1000000000000"):
+            for text in (f"{part}.1.1.1", f"1.{part}.1.1", f"1.1.{part}.1", f"1.1.1.{part}"):
+                self.assertIn(text, literals, text)
+
+    def test_the_host_test_covers_the_public_functions_and_the_port_header(self):
+        source = (ROOT / "tests" / "host" / "test_management_policy.c").read_text()
+        for needle in ("management_address_valid", "management_policy_valid",
+                       "management_version_valid", "management_port.h"):
             self.assertIn(needle, source, needle)
 
 
@@ -121,6 +139,30 @@ class S6Policy(unittest.TestCase):
         header = c_code(self.POLICY_H)
         self.assertRegex(header, r"#define MANAGEMENT_SESSION_IDLE_LIMIT_S\s+\(?15u \* 60u\)?")
         self.assertRegex(header, r"#define MANAGEMENT_SESSION_ABSOLUTE_LIMIT_S\s+\(?8u \* 3600u\)?")
+
+    def header(self):
+        return " ".join(self.POLICY_H.read_text().replace("*", " ").split())
+
+    def test_the_header_does_not_claim_a_layout_that_nothing_checks(self):
+        text = self.header()
+        self.assertNotIn("The layout of crux_access_role_t", text)
+        self.assertNotIn("The layout of crux_access_policy_t", text)
+        for needle in ("same members as", "member by member", "sizeof", "offsetof",
+                       "nothing in this repository checks"):
+            self.assertIn(needle, text, needle)
+
+    def test_the_header_says_where_each_permission_string_was_confirmed(self):
+        text = self.header()
+        for needle in ("access.manage", "crux/access.h", "config.save",
+                       "docs/management-in-a-product.md", "status.read",
+                       "to be confirmed against the header"):
+            self.assertIn(needle, text, needle)
+
+    def test_the_header_labels_what_it_has_not_verified_in_a_source(self):
+        text = self.header()
+        self.assertIn("docs/management-in-a-product.md", text)
+        self.assertIn("components/web/ports/zephyr/web_http_server.c", text)
+        self.assertIn("not verified", text)
 
     def test_the_policy_leaves_the_password_rule_to_the_crux_reference(self):
         text = c_code(self.POLICY_H) + c_code(self.POLICY_C)
@@ -164,6 +206,42 @@ class S6Port(unittest.TestCase):
             self.assertNotIn(needle, c_code(self.PORT), needle)
         self.assertNotRegex("\n".join(includes(self.PORT)), r"compose|zephyr")
         self.assertIn("management_port_start", text)
+
+    def start_order_comment(self):
+        comments = re.findall(r"/\*(.*?)\*/", self.PORT.read_text(), re.S)
+        return max(comments, key=len)
+
+    def test_the_start_order_follows_the_crux_sources_it_cites(self):
+        comment = self.start_order_comment()
+        steps = {int(n): " ".join(text.replace("*", " ").split())
+                 for n, text in re.findall(r"^\s*\*\s+(\d+)\.\s(.*(?:\n\s*\*\s{5,}.*)*)", comment, re.M)}
+        self.assertEqual(list(range(1, 8)), sorted(steps), steps)
+        # Each phrase, with the number of the step it must be in, in the order of the sources:
+        # the guide's boot order, the module test's start calls and the header of web_zephyr.h.
+        expected = (
+            ("security event init", 1), ("realtime init", 1), ("bind", 1),
+            ("credential store start", 2), ("Access init", 2),
+            ("config service start", 3), ("management status start", 3),
+            ("security event start", 3),
+            ("TLS certificate start", 4),
+            ("register", 5),
+            ("web session init", 6), ("web management init", 6),
+            ("web start", 7),
+        )
+        steps_text = comment[re.search(r"^\s*\*\s+1\.\s", comment, re.M).start():]
+        last_step, last_position = 0, -1
+        for phrase, number in expected:
+            self.assertIn(phrase, steps[number], f"{phrase!r} is not in step {number}")
+            position = steps_text.index(phrase)
+            self.assertGreater(position, last_position, f"{phrase!r} is out of order")
+            self.assertGreaterEqual(number, last_step, phrase)
+            last_step, last_position = number, position
+
+    def test_the_start_order_cites_its_sources_by_file_name_only(self):
+        comment = self.start_order_comment()
+        self.assertIn("docs/management-in-a-product.md", comment)
+        self.assertIn("web_zephyr.h", comment)
+        self.assertNotRegex(comment, r"(?i)\bline[s]? [0-9]+|:[0-9]+\b|/Users/|/home/")
 
     def test_the_boundary_check_accepts_the_port_header_against_a_crux_that_publishes_time(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -291,6 +369,22 @@ class S6Findings(unittest.TestCase):
         text = self.words()
         for needle in ("2,000 ms", "one silent client", "every other client", "docs/https-composition.md"):
             self.assertIn(needle, text, needle)
+
+    def test_the_libc_default_is_not_presented_as_read_in_an_exported_file(self):
+        row = next(line for line in self.text().splitlines()
+                   if "selects the external libc by default" in line)
+        self.assertRegex(row, r"\*\*(Inferred|Not verified)\*\*")
+        self.assertIn("web_http_server.c", row)
+
+    def test_the_command_table_row_says_the_cli_header_was_not_read(self):
+        row = next(line for line in self.text().splitlines() if "components/cli/include/crux/cli.h" in line)
+        self.assertIn("**Inferred**", row)
+        self.assertIn("not read at the pin", row)
+
+    def test_the_note_says_the_not_built_checks_are_meant_to_be_inverted(self):
+        text = self.words()
+        self.assertIn("S6NotBuilt", text)
+        self.assertIn("approved behaviour change", text)
 
     def test_the_note_lists_what_is_not_verified(self):
         text = self.words()

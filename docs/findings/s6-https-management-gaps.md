@@ -57,7 +57,7 @@ to assert it. Neither exists yet.
 | The composition zone of this repository may include only `<crux/file_zephyr.h>` and `<crux/web_zephyr.h>` among the composition interfaces, so an include of `<crux/cli_zephyr.h>` fails the boundary check today | **Verified** | `scripts/check_boundary.py` at 8b9c702, `COMPOSITION_CRUX_HEADERS` |
 | Allowing it is a reviewed change of `scripts/check_boundary.py`, `tests/tooling/test_boundary.py` and `docs/composition-zone.md` together, and it must say why the public interface is not enough | **Verified** | `CONTRIBUTING.md` at 8b9c702, "The boundary" |
 | A read-only account can only be made by a signed-in administrator, because creating an account needs `access.manage` | **Verified** | `components/access/include/crux/access.h` at 8e3737d2 |
-| A product command that creates the read-only account would be the product's own code, after the console exists | **Inferred** | `components/cli/include/crux/cli.h` at 8e3737d2 offers the command tables; no product command was read or written |
+| A product command that creates the read-only account would be the product's own code, after the console exists | **Inferred** | `components/cli/include/crux/cli.h` at 8e3737d2 was not read at the pin for this statement (`cli_zephyr.h` only says that the application passes its command tables to `crux_cli_init()`); no product command was read or written |
 
 What follows: the first account needs the console, and the console needs an allow-list change that is not part of
 this change. This change adds no `crux/cli_zephyr.h` include and does not touch `scripts/check_boundary.py`.
@@ -80,7 +80,8 @@ decides what happens next. A request to `crux-pilot` is filed only with the owne
 
 | Statement | Label | Source |
 |---|---|---|
-| The web adapter has a build assertion against `CONFIG_EXTERNAL_LIBC`, because the server's wildcard matching needs Zephyr's own `fnmatch`; `native_sim` selects the external libc by default | **Verified** | `components/web/ports/zephyr/web_http_server.c` at 8e3737d2, and `docs/web-contract.md` at 8e3737d2 |
+| The web adapter has a build assertion against `CONFIG_EXTERNAL_LIBC`, with a comment that the server's wildcard matching needs Zephyr's own `fnmatch` | **Verified** | `components/web/ports/zephyr/web_http_server.c` at 8e3737d2 |
+| `native_sim` selects the external libc by default, so a scenario has to choose another one. Only `docs/web-contract.md` of `crux-pilot` says so; `web_http_server.c` has the build assertion and not the default, and Zephyr's own default was not read here | **Inferred** | `docs/web-contract.md` at 8e3737d2 and `web_http_server.c` |
 | The earlier scenarios of this repository pick `CONFIG_PICOLIBC=y`, for a different reason (the native libc would bypass Zephyr's socket providers), and the picolibc module is in the manifest | **Verified** | `tests/native_sim/s2/prj.conf` and `west.yml` at 8b9c702 |
 | The S6 scenario should try picolibc first, because the target uses picolibc, and fall back to the minimal libc (the choice that Crux's own web tests make) only if the server's start refuses picolibc's `fnmatch`; which one passes, if either, is not known | **Inferred** | the rows above |
 | In Crux's manifest `mbedtls`, `tf-psa-crypto`, `wolfssl`, `wolfssh` and `wolfpsa` are all in the optional group `crux-secure-management`, which is off by default | **Verified** | `west.yml` at 8e3737d2 |
@@ -122,6 +123,9 @@ if it did:
 - stack use of the web and session workers, and heap use of the TLS stack;
 - entropy: the native_sim entropy source is a fake one, so a simulator run would say nothing about key strength
   (`tests/native/management_module/CMakeLists.txt` at 8e3737d2 restricts its fixture to native_sim for that reason);
+- the tooling tests `S6NotBuilt` of this change, which assert that no build file under `app/` names the new files or
+  step S6: they are meant to be inverted by the later composition change, as an approved behaviour change, and
+  they say nothing about that later image;
 - the fetch and build of the Mbed group in a workflow, the picolibc `fnmatch` behaviour, and whether the route sources
   compile from this repository.
 
