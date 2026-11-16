@@ -16,7 +16,7 @@ release dry run are the record.
 ```mermaid
 flowchart TD
     CC["crux-controller<br/>west.yml, the manifest repository"]
-    CP["crux-pilot<br/>pinned commit dfd3ad7d"]
+    CP["crux-pilot<br/>pinned commit 8e3737d2"]
     ZP["zephyr v4.4.2<br/>pinned by Crux"]
     MOD["cmsis, cmsis_6, hal_nxp, littlefs, fatfs<br/>Zephyr modules Crux lets through"]
     PL["picolibc<br/>product-only, native_sim test"]
@@ -32,7 +32,7 @@ flowchart TD
 
 | Project | Revision | Route | Why it is here | Licence as the project states it |
 |---|---|---|---|---|
-| `crux-pilot` | `dfd3ad7d4380b06a47d8c8b5b9f0ce46fbba0576` (a commit, no Crux tag exists) | The platform itself: pinned in `west.yml`, its manifest is imported | The Crux components, the composition interface `<crux/file_zephyr.h>` and the public management headers; no code of this repository uses the management headers yet | Apache-2.0 |
+| `crux-pilot` | `8e3737d25d048b14a00c01da00494f58a62958c6` (a commit, no Crux tag exists) | The platform itself: pinned in `west.yml`, its manifest is imported | The Crux components, the composition interface `<crux/file_zephyr.h>` and the public management headers; no code of this repository uses the management headers yet. At this pin the Mbed TLS modules of the optional group are at the revisions of Zephyr's v4.4-branch (Mbed TLS 4.1.1 plus 8 commits, TF-PSA-Crypto 1.1.1 plus 24 commits), which are not fetched here | Apache-2.0 |
 | `zephyr` | `dccb09599635bdff17633fa7e9dab014b91dce90` (v4.4.2) | Pinned via the Crux contract | The RTOS the image is built on | Apache-2.0 |
 | `cmsis` | `512cc7e895e8491696b61f7ba8066b4a182569b8` | Pinned via the Crux contract | Arm Cortex-M core headers that Zephyr's Cortex-M support uses | Apache-2.0 |
 | `cmsis_6` | `30a859f44ef8ab4dc8f84b03ed586fd16ccf9d74` | Pinned via the Crux contract | Arm core headers of the newer CMSIS interface, which Zephyr's manifest also names | Apache-2.0 |
@@ -74,6 +74,12 @@ was not run. A build with the group on is not run either. A blocklist is used an
 an allowlist drops Zephyr and everything it imports if `zephyr` is left out of it, while a blocklist leaves
 the rest of the import alone; the cost is that it names what is known today, so when a pin moves, read the groups of the new Crux
 manifest, which the delta check also helps to catch.
+
+At the pin of 16 November 2026 the Crux manifest differs from the previous pin only in the revisions of `mbedtls` and
+`tf-psa-crypto` (and in the comment above them). The three optional groups and the projects in them are the same, so the
+narrowed import and the checks above did not need a change. The two revisions are not those of Zephyr's own manifest at
+v4.4.2 but those of Zephyr's v4.4-branch after that release (Mbed TLS 4.1.1 plus 8 commits, TF-PSA-Crypto 1.1.1 plus 24 commits); that is Crux's choice
+and is reviewed in `docs/dependency-review-mbed-tls-4.1.1.md` of `crux-pilot`. This repository does not fetch them.
 
 ## Changing a pin
 

@@ -826,7 +826,7 @@ class S5Findings(unittest.TestCase):
 
     def test_the_manifest_pins_the_approved_commit(self):
         manifest = (ROOT / "west.yml").read_text()
-        self.assertIn("revision: dfd3ad7d4380b06a47d8c8b5b9f0ce46fbba0576", manifest)
+        self.assertIn("revision: 8e3737d25d048b14a00c01da00494f58a62958c6", manifest)
 
 
 if __name__ == "__main__":
