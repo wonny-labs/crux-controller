@@ -16,6 +16,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 import check  # noqa: E402
 import check_boundary  # noqa: E402
+import fake_crux  # noqa: E402
 
 WORKFLOWS = ROOT / ".github" / "workflows"
 BOARD = "mimxrt1060_evk@B//qspi"
@@ -502,15 +503,10 @@ class S5Sources(unittest.TestCase):
         self.assertNotRegex(source, r"crux_realtime|sys_clock|clock_")
 
     def test_the_glue_and_its_header_pass_the_boundary_check_against_a_crux_that_publishes_time(self):
+        # The headers come from tests/tooling/fake_crux.py, which also lists the Access and web headers
+        # that the composition zone of step S6 includes, so this fixture publishes them too.
         with tempfile.TemporaryDirectory() as directory:
-            crux = pathlib.Path(directory)
-            for name in ("time.h", "time_authority.h", "logging.h", "status.h", "system.h", "file.h"):
-                header = crux / "components" / "x" / "include" / "crux" / name
-                header.parent.mkdir(parents=True, exist_ok=True)
-                header.write_text("")
-            composition = crux / "components" / "file" / "ports" / "zephyr" / "include" / "crux"
-            composition.mkdir(parents=True)
-            (composition / "file_zephyr.h").write_text("")
+            crux = fake_crux.publish(directory)
             self.assertEqual([], check_boundary.check(ROOT, crux))
 
     def test_the_zone_allow_lists_are_unchanged_by_this_step(self):

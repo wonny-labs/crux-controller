@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crux controller management</title>
+<link rel="stylesheet" href="page.css">
+</head>
+<body>
+<main>
+<h1>Crux controller management</h1>
+<p class="note">This page is served over HTTPS with a certificate that the device made for itself.
+Compare its fingerprint with the one the device logs before you trust it.</p>
+<p id="message" role="status"></p>
+
+<form id="login" autocomplete="on">
+<h2>Sign in</h2>
+<label>User <input name="user" type="text" autocomplete="username" maxlength="31" required></label>
+<label>Password <input type="password" name="password" autocomplete="current-password" maxlength="128" required></label>
+<button type="submit">Sign in</button>
+</form>
+
+<section id="status" hidden>
+<h2>Status</h2>
+<p id="who"></p>
+<table>
+<thead><tr><th>Item</th><th>Value</th></tr></thead>
+<tbody id="items"></tbody>
+</table>
+<button type="button" id="refresh">Refresh</button>
+<button type="button" id="logout">Sign out</button>
+</section>
+</main>
+<script src="page.js"></script>
+</body>
+</html>

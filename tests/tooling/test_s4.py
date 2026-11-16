@@ -16,6 +16,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 import check  # noqa: E402
 import check_boundary  # noqa: E402
+import fake_crux  # noqa: E402
 
 WORKFLOWS = ROOT / ".github" / "workflows"
 BOARD = "mimxrt1060_evk@B//qspi"
@@ -230,15 +231,10 @@ class S4Sources(unittest.TestCase):
         self.assertIn("<crux/logging.h>", includes(self.GLUE))
 
     def test_the_glue_and_its_header_pass_the_boundary_check_against_a_crux_that_publishes_system(self):
+        # The headers come from tests/tooling/fake_crux.py, which also lists the Access and web headers
+        # that the composition zone of step S6 includes, so this fixture publishes them too.
         with tempfile.TemporaryDirectory() as directory:
-            crux = pathlib.Path(directory)
-            for name in ("system.h", "logging.h", "status.h", "time.h", "time_authority.h", "file.h"):
-                header = crux / "components" / "x" / "include" / "crux" / name
-                header.parent.mkdir(parents=True, exist_ok=True)
-                header.write_text("")
-            composition = crux / "components" / "file" / "ports" / "zephyr" / "include" / "crux"
-            composition.mkdir(parents=True)
-            (composition / "file_zephyr.h").write_text("")
+            crux = fake_crux.publish(directory)
             self.assertEqual([], check_boundary.check(ROOT, crux))
 
     def test_the_policy_flag_values_are_asserted_against_crux_at_build_time(self):

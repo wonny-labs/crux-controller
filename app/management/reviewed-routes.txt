@@ -1,0 +1,17 @@
+# The public and session-only routes of this image: exactly the nine routes of the session and
+# management route sources that management.cmake names, and the packaged folder. The route
+# generator fails the build for a public or session-only route that is not on this list, and for
+# an entry that has no route. The save route of the configuration service carries config.save as
+# its access class, so it is not on this list: routes that name a permission as their access class
+# are not part of this review, because the permission check is the review. There is no network,
+# reboot or file route in this image.
+public POST /api/v1/session
+session DELETE /api/v1/session
+public GET /api/v1/session/attempt/{id}
+session GET /api/v1/session/me
+session POST /api/v1/session/me/password
+session GET /api/v1/status
+session GET /api/v1/config
+session GET /api/v1/config/{name}
+session PUT /api/v1/config/{name}
+public GET @assets

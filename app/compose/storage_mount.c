@@ -23,6 +23,9 @@
 
 #define STORAGE_NODE DT_NODELABEL(controller_storage)
 #define FILES_DIRECTORY "files"
+/* The two directories of the credential store of step S6, one for each of its slots. */
+#define STORE_DIRECTORY_A "secure-a"
+#define STORE_DIRECTORY_B "secure-b"
 /* File accepts 2 to 63 characters, so the buffer holds 63 and the end of string. */
 #define PATH_CAPACITY 64u
 
@@ -33,12 +36,18 @@ static struct fs_mount_t *volume(void)
     return &FS_FSTAB_ENTRY(STORAGE_NODE);
 }
 
+/* A directory of the volume: the mount point, a slash and the name. */
+static int directory_path(char *path, size_t capacity, const char *name)
+{
+    const int length = snprintf(path, capacity, "%s/%s", volume()->mnt_point, name);
+
+    return (length > 0 && (size_t)length < capacity) ? 0 : -1;
+}
+
 /* The directory of the volume that File uses: the mount point and "/files". */
 static int files_path(char *path, size_t capacity)
 {
-    const int length = snprintf(path, capacity, "%s/%s", volume()->mnt_point, FILES_DIRECTORY);
-
-    return (length > 0 && (size_t)length < capacity) ? 0 : -1;
+    return directory_path(path, capacity, FILES_DIRECTORY);
 }
 
 #ifdef CONFIG_FILE_SYSTEM_MKFS
@@ -90,6 +99,45 @@ storage_port_status_t storage_port_bind(void)
         return STORAGE_PORT_ERR_BIND;
     }
     switch (crux_file_zephyr_bind(path)) {
+    case CRUX_FILE_OK:
+        return STORAGE_PORT_OK;
+    case CRUX_FILE_ERR_INVALID_STATE:
+        return STORAGE_PORT_ERR_ALREADY_BOUND;
+    default:
+        return STORAGE_PORT_ERR_BIND;
+    }
+}
+
+/* A directory that exists afterwards. An existing entry is fine here: File refuses it at the bind
+ * when it is not a directory. */
+static int make_directory(const char *path)
+{
+    const int result = fs_mkdir(path);
+
+    return (result == 0 || result == -EEXIST) ? 0 : -1;
+}
+
+storage_port_status_t storage_port_bind_store(void)
+{
+    char path_a[PATH_CAPACITY];
+    char path_b[PATH_CAPACITY];
+
+    if (directory_path(path_a, sizeof path_a, STORE_DIRECTORY_A) != 0 ||
+        directory_path(path_b, sizeof path_b, STORE_DIRECTORY_B) != 0) {
+        return STORAGE_PORT_ERR_BIND;
+    }
+    if (make_directory(path_a) != 0 || make_directory(path_b) != 0) {
+        return STORAGE_PORT_ERR_LAYOUT;
+    }
+    switch (crux_file_zephyr_bind_root(STORAGE_PORT_STORE_ROOT_A, path_a)) {
+    case CRUX_FILE_OK:
+        break;
+    case CRUX_FILE_ERR_INVALID_STATE:
+        return STORAGE_PORT_ERR_ALREADY_BOUND;
+    default:
+        return STORAGE_PORT_ERR_BIND;
+    }
+    switch (crux_file_zephyr_bind_root(STORAGE_PORT_STORE_ROOT_B, path_b)) {
     case CRUX_FILE_OK:
         return STORAGE_PORT_OK;
     case CRUX_FILE_ERR_INVALID_STATE:

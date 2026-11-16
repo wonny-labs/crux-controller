@@ -25,9 +25,12 @@ if(CONFIG_CRUX_CONTROLLER_S1)
     endif()
     # Step S3: the configuration record in a file, through Crux File. The application uses
     # <crux/file.h> only. The composition zone is a library of its own, the only target that
-    # links the File composition interface, so the application gets no include path to it.
-    if(CONFIG_CRUX_CONTROLLER_S3)
+    # links the File composition interface, so the application gets no include path to it. Step
+    # S6 uses the same zone for the web start, so it is added for either step.
+    if(CONFIG_CRUX_CONTROLLER_S3 OR CONFIG_CRUX_CONTROLLER_S6)
         add_subdirectory(compose)
+    endif()
+    if(CONFIG_CRUX_CONTROLLER_S3)
         target_sources(app PRIVATE src/config_store.c)
         target_link_libraries(app PRIVATE crux::file compose)
     endif()
@@ -44,5 +47,15 @@ if(CONFIG_CRUX_CONTROLLER_S1)
     # (app/os), so no zone, library or include path is added here.
     if(CONFIG_CRUX_CONTROLLER_S5)
         target_sources(app PRIVATE src/time_sync.c src/time_sync_policy.c)
+    endif()
+    # Step S6: HTTPS management. The policy is a source of the application, the start sequence is
+    # in the composition zone (app/compose), and the route sources, the packaged page and the
+    # entropy correction are named by app/management/management.cmake, which is included here
+    # because the route table belongs to the target `app`. The application links the public
+    # target of the web API for the route macros, and no include path is added anywhere.
+    if(CONFIG_CRUX_CONTROLLER_S6)
+        target_sources(app PRIVATE src/management_policy.c)
+        target_link_libraries(app PRIVATE crux::web compose)
+        include("${CMAKE_CURRENT_LIST_DIR}/management/management.cmake")
     endif()
 endif()

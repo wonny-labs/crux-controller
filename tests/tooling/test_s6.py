@@ -14,6 +14,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import check_boundary  # noqa: E402
+import fake_crux  # noqa: E402
 
 REGIONS = {"FLASH", "RAM", "ITCM", "DTCM", "OCRAM", "OCRAM2", "IDT_LIST"}
 APP_SRC = ROOT / "app" / "src"
@@ -252,15 +253,10 @@ class S6Port(unittest.TestCase):
         self.assertNotRegex(comment, r"(?i)\bline[s]? [0-9]+|:[0-9]+\b|/Users/|/home/")
 
     def test_the_boundary_check_accepts_the_port_header_against_a_crux_that_publishes_time(self):
+        # Extended by the composition change: the fixture now comes from fake_crux.py and also
+        # publishes the Access and web headers that the zone of step S6 includes.
         with tempfile.TemporaryDirectory() as directory:
-            crux = pathlib.Path(directory)
-            for name in ("time.h", "time_authority.h", "logging.h", "status.h", "system.h", "file.h"):
-                header = crux / "components" / "x" / "include" / "crux" / name
-                header.parent.mkdir(parents=True, exist_ok=True)
-                header.write_text("")
-            composition = crux / "components" / "file" / "ports" / "zephyr" / "include" / "crux"
-            composition.mkdir(parents=True)
-            (composition / "file_zephyr.h").write_text("")
+            crux = fake_crux.publish(directory)
             self.assertEqual([], check_boundary.check(ROOT, crux))
             self.assertEqual([], check_boundary.check(ROOT))
 
@@ -436,10 +432,17 @@ class S6NotBuilt(unittest.TestCase):
         self.assertTrue(parts)
         return "\n".join(parts)
 
-    def test_no_build_file_under_app_names_the_management_sources(self):
-        text = self.build_text()
-        for needle in ("management_policy", "management_port", "management_start"):
-            self.assertNotIn(needle, text, needle)
+    # Approved behaviour change: the management sources are wired now. The assertion that no build
+    # file names them is replaced by one that says which build file names which source.
+    def test_each_management_source_is_named_by_the_build_file_that_owns_it(self):
+        app = "\n".join(code_lines(ROOT / "app" / "CMakeLists.txt"))
+        compose = "\n".join(code_lines(ROOT / "app" / "compose" / "CMakeLists.txt"))
+        self.assertIn("src/management_policy.c", app)
+        self.assertNotIn("management_start", app)
+        self.assertIn("management_start.c", compose)
+        self.assertNotIn("management_policy", compose)
+        for path in sorted((ROOT / "app").rglob("CMakeLists.txt")):
+            self.assertNotIn("management_port", "\n".join(code_lines(path)), str(path))
 
     # Approved behaviour change: step S6 is now built, so the old assertion that no build file names
     # it is replaced by one that only its own files do. The files of the other steps stay clean.
@@ -461,12 +464,18 @@ class S6NotBuilt(unittest.TestCase):
                      "boards/s2.overlay", "boards/s3.overlay", "boards/s4.overlay"):
             self.assertNotRegex((ROOT / "app" / name).read_text(), r"\bS6\b|CRUX_CONTROLLER_S6", name)
 
-    def test_no_source_under_app_includes_the_management_headers(self):
+    # Approved behaviour change: composition.c includes the port header, and the composition source
+    # includes it and the policy header. The assertion that nothing includes them becomes a list of
+    # the files that may.
+    def test_only_the_composition_and_the_zone_include_the_management_headers(self):
+        allowed = {"app/src/composition.c", "app/compose/management_start.c"}
         for path in sorted(p for p in (ROOT / "app").rglob("*") if p.suffix in (".c", ".h")):
-            if path.name.startswith("management_"):
+            relative = path.relative_to(ROOT).as_posix()
+            if path.name.startswith("management_policy") or path.name == "management_port.h":
                 continue
             for include in includes(path):
-                self.assertNotIn("management_", include, f"{path.relative_to(ROOT)}: {include}")
+                if "management_" in include:
+                    self.assertIn(relative, allowed, f"{relative}: {include}")
 
     # Approved behaviour change: the S6 fragment now sets the symbols of the web server and Access.
     # The assertion that no file sets them becomes: no fragment but the S6 one does.
@@ -485,6 +494,529 @@ class S6NotBuilt(unittest.TestCase):
         for path in sorted((ROOT / "app").rglob("*.overlay")):
             if path.name != "s6.overlay":
                 self.assertNotIn("zephyr,ram-disk", path.read_text(), path.name)
+
+
+class S6BuildFiles(unittest.TestCase):
+    """The wiring of the step. The route sources are named by variable and put in the route table by
+    Crux's own CMake functions, which hand their private include directories to those sources one by
+    one. The product adds no include directory, in any build file."""
+
+    APP_CMAKE = ROOT / "app" / "CMakeLists.txt"
+    MANAGEMENT_CMAKE = ROOT / "app" / "management" / "management.cmake"
+    COMPOSE_CMAKE = ROOT / "app" / "compose" / "CMakeLists.txt"
+    FORBIDDEN = ("include_directories", "zephyr_include_directories", "target_include_directories",
+                 "-include", "-I")
+
+    def app_text(self):
+        return "\n".join(code_lines(self.APP_CMAKE))
+
+    def management_text(self):
+        return "\n".join(code_lines(self.MANAGEMENT_CMAKE))
+
+    def compose_text(self):
+        return "\n".join(code_lines(self.COMPOSE_CMAKE))
+
+    def block(self):
+        match = re.search(r"if\(CONFIG_CRUX_CONTROLLER_S6\)(.*?)endif\(\)", self.app_text(), re.S)
+        self.assertIsNotNone(match, "no if(CONFIG_CRUX_CONTROLLER_S6) block")
+        return match.group(1)
+
+    def test_the_s6_block_is_inside_the_workload_switch_after_s5(self):
+        text = self.app_text()
+        self.assertGreater(text.index("if(CONFIG_CRUX_CONTROLLER_S6)"),
+                           text.index("if(CONFIG_CRUX_CONTROLLER_S5)"))
+        self.assertGreater(text.index("if(CONFIG_CRUX_CONTROLLER_S6)"),
+                           text.index("if(CONFIG_CRUX_CONTROLLER_S1)"))
+        self.assertLess(text.index("if(CONFIG_CRUX_CONTROLLER_S6)"), text.rindex("endif()"))
+
+    def test_the_block_adds_the_policy_links_the_zone_and_includes_the_management_cmake(self):
+        block = self.block()
+        self.assertRegex(block, r"target_sources\(app PRIVATE src/management_policy\.c\)")
+        self.assertRegex(block, r"target_link_libraries\(app PRIVATE crux::web compose\)")
+        self.assertIn('include("${CMAKE_CURRENT_LIST_DIR}/management/management.cmake")', block)
+
+    def test_the_zone_is_added_once_for_either_step_that_uses_it(self):
+        text = self.app_text()
+        self.assertEqual(1, text.count("add_subdirectory(compose)"))
+        self.assertRegex(
+            text,
+            r"if\(CONFIG_CRUX_CONTROLLER_S3 OR CONFIG_CRUX_CONTROLLER_S6\)\s*add_subdirectory\(compose\)\s*endif\(\)",
+        )
+
+    def test_no_build_file_of_the_step_adds_an_include_path(self):
+        for path in (self.APP_CMAKE, self.MANAGEMENT_CMAKE, self.COMPOSE_CMAKE):
+            for line in code_lines(path):
+                for word in self.FORBIDDEN:
+                    self.assertNotIn(word, line, f"{path.name}: {line.strip()}")
+
+    def test_the_build_files_of_the_step_name_no_private_crux_directory_or_target(self):
+        for path in (self.APP_CMAKE, self.MANAGEMENT_CMAKE, self.COMPOSE_CMAKE):
+            text = "\n".join(code_lines(path))
+            # The module's own files are included by path, and that is all of components/ named.
+            text = re.sub(r'include\("\$\{crux_root\}/[A-Za-z/]+\.cmake"\)', "", text)
+            for private in ("crux_web_adapter", "crux_web_zephyr_resources", "crux_service_priority",
+                            "components/", "/session", "/adapter", "web/src", "crux_access_adapter",
+                            "crux_web_api", "crux_system_zephyr", "crux_interrupt"):
+                self.assertNotIn(private, text, f"{path.name}: {private}")
+
+    def test_the_route_sources_are_the_only_sources_the_management_cmake_adds(self):
+        lines = [line for line in code_lines(self.MANAGEMENT_CMAKE) if "target_sources" in line]
+        self.assertEqual(1, len(lines), lines)
+        self.assertRegex(lines[0], r"target_sources\(app PRIVATE \$\{route_sources\}\)")
+
+    def test_the_management_cmake_names_the_session_and_management_routes_and_no_other(self):
+        text = self.management_text()
+        self.assertRegex(
+            text,
+            r"set\(route_sources \$\{CRUX_WEB_SESSION_ROUTES\} \$\{CRUX_WEB_MANAGEMENT_ROUTES\}\)",
+        )
+        for left_out in ("CRUX_WEB_MANAGEMENT_NETWORK_ROUTES", "CRUX_WEB_MANAGEMENT_REBOOT_ROUTES",
+                         "NETWORK_SOURCES", "SESSION_SOURCES", "MANAGEMENT_SOURCES", "PSA_PORT"):
+            self.assertNotIn(left_out, text, left_out)
+
+    def test_the_management_cmake_takes_the_crux_files_from_the_module_directory(self):
+        text = self.management_text()
+        self.assertIn("ZEPHYR_CRUX_PILOT_MODULE_DIR", text)
+        self.assertRegex(text, r"if\(NOT crux_root\)\s*message\(FATAL_ERROR")
+        for needed in ("cmake/CruxWebAssets.cmake", "cmake/CruxWebRoutes.cmake",
+                       "components/web/session/sources.cmake",
+                       "components/web/management/sources.cmake", "cmake/CruxMbedtlsEntropy.cmake"):
+            self.assertIn(f'include("${{crux_root}}/{needed}")', text, needed)
+
+    def test_the_assets_come_before_the_routes_as_crux_requires(self):
+        text = self.management_text()
+        assets = re.search(r"crux_web_assets\(app FOLDER \"\$\{CMAKE_CURRENT_LIST_DIR\}/site\" STYLE strict\)", text)
+        routes = re.search(
+            r"crux_web_routes\(app SOURCES \$\{route_sources\} ZEPHYR_RESOURCES REVIEWED "
+            r"\"\$\{CMAKE_CURRENT_LIST_DIR\}/reviewed-routes\.txt\"\)",
+            text,
+        )
+        self.assertIsNotNone(assets)
+        self.assertIsNotNone(routes)
+        self.assertLess(assets.start(), routes.start())
+        self.assertLess(text.index("target_sources(app PRIVATE ${route_sources})"), routes.start())
+
+    def test_the_entropy_correction_is_applied_after_its_file_is_included(self):
+        text = self.management_text()
+        self.assertLess(text.index('cmake/CruxMbedtlsEntropy.cmake'),
+                        text.index("crux_mbedtls_fail_closed_entropy()"))
+
+    def test_the_management_cmake_refuses_a_test_entropy_source_and_a_missing_kernel_version(self):
+        text = self.management_text()
+        self.assertRegex(text, r"if\(CONFIG_TEST_RANDOM_GENERATOR OR CONFIG_FAKE_ENTROPY_NATIVE_SIM\)")
+        self.assertRegex(text, r"if\(NOT KERNEL_VERSION_STRING\)")
+
+    def test_the_versions_are_compile_definitions_of_the_application(self):
+        text = self.management_text()
+        self.assertRegex(text, r'MANAGEMENT_PLATFORM_VERSION="zephyr-\$\{KERNEL_VERSION_STRING\}"')
+        self.assertRegex(text, r'MANAGEMENT_PROJECT_VERSION="crux-controller-s6"')
+        self.assertRegex(text, r"target_compile_definitions\(app PRIVATE")
+
+    def test_only_the_zone_library_links_the_web_composition_interface_and_system(self):
+        for path in sorted(ROOT.glob("app/**/CMakeLists.txt")) + [self.MANAGEMENT_CMAKE]:
+            if path.parent.name == "compose":
+                continue
+            text = "\n".join(code_lines(path))
+            self.assertNotIn("crux::web_zephyr", text, str(path))
+        self.assertEqual(1, self.app_text().count("crux::system"))
+        self.assertIn("crux::web_zephyr", self.compose_text())
+        self.assertIn("crux::system", self.compose_text())
+
+    def test_the_zone_gets_the_management_source_only_when_the_web_management_symbol_is_on(self):
+        text = self.compose_text()
+        self.assertRegex(
+            text,
+            r"if\(CONFIG_CRUX_WEB_MANAGEMENT\)\s*target_sources\(compose PRIVATE management_start\.c\)",
+        )
+        self.assertNotIn("CONFIG_CRUX_CONTROLLER_S6", text)
+        # The first line still builds the storage source for every step that has a zone.
+        self.assertRegex(text, r"add_library\(compose STATIC storage_mount\.c\)")
+
+    def test_the_zone_links_the_public_service_targets_and_nothing_private(self):
+        text = self.compose_text()
+        links = re.findall(r"target_link_libraries\(compose PRIVATE([^)]*)\)", text)
+        names = set(" ".join(links).split())
+        expected = {"zephyr_interface", "crux::file_zephyr", "crux::web_zephyr", "crux::web_session",
+                    "crux::web_management", "crux::access", "crux::credential_store",
+                    "crux::security_event", "crux::config_service", "crux::mgmt_status",
+                    "crux::tls_certificate", "crux::system", "crux::time", "crux::logging"}
+        self.assertEqual(expected, names)
+
+    def test_the_zone_keeps_the_application_warnings_on_the_management_source(self):
+        self.assertRegex(self.compose_text(), r"target_compile_options\(compose PRIVATE -Wall -Wextra -Werror\)")
+
+    def test_no_build_file_names_a_reboot_network_or_file_service_symbol_or_route(self):
+        for path in (self.APP_CMAKE, self.MANAGEMENT_CMAKE, self.COMPOSE_CMAKE):
+            text = "\n".join(code_lines(path))
+            for word in ("reboot", "REBOOT", "network_settings", "NETWORK_SETTINGS", "file_service",
+                         "FILE_SERVICE", "crux::reboot", "crux::network_settings"):
+                self.assertNotIn(word, text, f"{path.name}: {word}")
+
+    def test_the_site_folder_is_the_route_set_and_the_reviewed_list_lies_beside_it(self):
+        site = ROOT / "app" / "management" / "site"
+        self.assertEqual(["index.html", "page.css", "page.js"], sorted(p.name for p in site.iterdir()))
+        self.assertTrue((ROOT / "app" / "management" / "reviewed-routes.txt").is_file())
+
+
+class S6Routes(unittest.TestCase):
+    """The list that the route generator checks the table against. A public or session-only route
+    that is not listed fails the build, so this list is the review of what the image serves."""
+
+    LIST = ROOT / "app" / "management" / "reviewed-routes.txt"
+    EXPECTED = [
+        "public POST /api/v1/session",
+        "session DELETE /api/v1/session",
+        "public GET /api/v1/session/attempt/{id}",
+        "session GET /api/v1/session/me",
+        "session POST /api/v1/session/me/password",
+        "session GET /api/v1/status",
+        "session GET /api/v1/config",
+        "session GET /api/v1/config/{name}",
+        "session PUT /api/v1/config/{name}",
+        "public GET @assets",
+    ]
+
+    def entries(self):
+        return [line.strip() for line in self.LIST.read_text().splitlines()
+                if line.strip() and not line.strip().startswith("#")]
+
+    def test_the_list_is_the_nine_component_routes_and_the_packaged_folder(self):
+        self.assertEqual(self.EXPECTED, self.entries())
+
+    def test_the_list_names_no_reboot_network_or_file_route(self):
+        text = "\n".join(self.entries())
+        for word in ("reboot", "network", "/files", "/system"):
+            self.assertNotIn(word, text, word)
+
+    def test_the_list_says_why_the_save_route_is_not_on_it(self):
+        text = " ".join(self.LIST.read_text().split())
+        self.assertIn("config.save", text)
+        self.assertIn("permission as their access class", text)
+
+
+class S6Page(unittest.TestCase):
+    """The packaged page: no framework, no external URL, no inline script or style. Only its bytes
+    are tested here and by the scenario; no browser has loaded it."""
+
+    SITE = ROOT / "app" / "management" / "site"
+
+    def read(self, name):
+        return (self.SITE / name).read_text()
+
+    def test_the_page_names_its_own_script_and_style_by_relative_path(self):
+        html = self.read("index.html")
+        self.assertRegex(html, r'<link rel="stylesheet" href="page\.css">')
+        self.assertRegex(html, r'<script src="page\.js"></script>')
+
+    def test_the_page_has_no_external_url_inline_script_inline_style_or_event_attribute(self):
+        for name in ("index.html", "page.css", "page.js"):
+            text = self.read(name)
+            self.assertNotRegex(text, r"https?://|(?<![A-Za-z0-9])//[A-Za-z]|url\(", name)
+        html = self.read("index.html")
+        self.assertNotRegex(html, r"<script(?![^>]*\bsrc=)[^>]*>")
+        self.assertNotRegex(html, r"<script[^>]*src=[^>]*>\s*(?!</script>)\S", "no script body")
+        self.assertNotRegex(html, r"<style\b|\sstyle=")
+        self.assertNotRegex(html, r"\son[a-z]+=")
+        self.assertNotRegex(html, r"javascript:")
+
+    def test_the_page_has_the_two_login_fields_and_the_status_and_logout_parts(self):
+        html = self.read("index.html")
+        self.assertRegex(html, r'<input[^>]*\bname="user"[^>]*autocomplete="username"')
+        self.assertRegex(html, r'<input[^>]*type="password"[^>]*\bname="password"[^>]*autocomplete="current-password"')
+        for needle in ('id="login"', 'id="status"', 'id="logout"', 'id="message"', 'lang="en"'):
+            self.assertIn(needle, html, needle)
+
+    def test_the_script_talks_to_the_session_and_status_routes_with_the_two_forgery_headers(self):
+        js = self.read("page.js")
+        for needle in ('"/api/v1/session"', '"/attempt/"', '"/api/v1/status"',
+                       "X-Crux-Request", "X-XSRF-TOKEN", "XSRF-TOKEN", "application/json",
+                       "credentials", "same-origin"):
+            self.assertIn(needle, js, needle)
+
+    def test_the_script_writes_server_text_as_text_only(self):
+        js = self.read("page.js")
+        for banned in ("innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval(",
+                       "new Function", "setTimeout(\"", "localStorage", "sessionStorage"):
+            self.assertNotIn(banned, js, banned)
+        self.assertIn("textContent", js)
+
+    def test_the_script_keeps_the_password_out_of_the_page_after_the_attempt(self):
+        js = self.read("page.js")
+        self.assertRegex(js, r'password\.value = ""')
+
+    def test_the_script_sends_the_password_in_a_json_body_and_never_in_a_url(self):
+        js = self.read("page.js")
+        self.assertIn("JSON.stringify", js)
+        self.assertNotRegex(js, r"\?.*password|password.*\+.*\"\?")
+
+    def test_the_files_fit_what_the_packager_serves(self):
+        total = 0
+        for path in self.SITE.iterdir():
+            self.assertRegex(path.name, r"^[A-Za-z0-9._~-]+$")
+            self.assertIn(path.suffix, (".html", ".css", ".js"))
+            self.assertGreater(path.stat().st_size, 0)
+            total += path.stat().st_size
+        # The packager's declared default budget is 393,216 bytes in all and 32 files.
+        self.assertLess(total, 32 * 1024)
+        text = "".join(p.read_text() for p in self.SITE.iterdir())
+        self.assertNotRegex(text, r"-----BEGIN|\b(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}\b")
+
+    def test_the_page_says_what_it_does_not_do_and_names_no_private_wording(self):
+        html = self.read("index.html")
+        self.assertIn("certificate", html.lower())
+        self.assertNotRegex("".join(p.read_text() for p in self.SITE.iterdir()),
+                            r"(?i)\b(claude|assistant|llm)\b|work package|/Users/")
+
+
+class S6Storage(unittest.TestCase):
+    """The storage port gains the two roots of the credential store. The port stays ISO C."""
+
+    HEADER = APP_SRC / "storage_port.h"
+    SOURCE = ROOT / "app" / "compose" / "storage_mount.c"
+
+    def test_the_port_declares_the_store_binding_and_the_two_root_numbers(self):
+        code = c_code(self.HEADER)
+        self.assertRegex(code, r"#define STORAGE_PORT_STORE_ROOT_A 1\b")
+        self.assertRegex(code, r"#define STORAGE_PORT_STORE_ROOT_B 2\b")
+        self.assertRegex(code, r"storage_port_status_t storage_port_bind_store\(void\);")
+
+    def test_the_port_header_still_includes_nothing(self):
+        self.assertEqual([], includes(self.HEADER))
+
+    def test_the_zone_creates_the_two_directories_and_binds_the_two_roots(self):
+        code = c_code(self.SOURCE)
+        for needle in ('"secure-a"', '"secure-b"', "fs_mkdir(", "crux_file_zephyr_bind_root(",
+                       "STORAGE_PORT_STORE_ROOT_A", "STORAGE_PORT_STORE_ROOT_B"):
+            self.assertIn(needle, code, needle)
+
+    def test_the_roots_are_distinct_and_do_not_overlap_the_files_directory(self):
+        code = c_code(self.SOURCE)
+        self.assertRegex(code, r'#define FILES_DIRECTORY "files"')
+        self.assertNotIn('"secure-a/', code)
+
+    def test_the_header_comment_lists_the_third_call_and_its_order(self):
+        text = " ".join(self.HEADER.read_text().replace("*", " ").split())
+        self.assertIn("storage_port_bind_store()", text)
+        self.assertIn("after storage_port_mount()", text)
+
+
+class S6Sources(unittest.TestCase):
+    """The composition source of the zone. It runs the start sequence of management_port.h with the
+    public Crux headers, the two composition interfaces the zone may name, and one Zephyr header on
+    the zone's list. The checks read text; nothing here compiles or runs it."""
+
+    SOURCE = ROOT / "app" / "compose" / "management_start.c"
+    ALLOWED = {
+        '"../src/management_port.h"', '"../src/storage_port.h"', "<crux/access.h>",
+        "<crux/config_service.h>", "<crux/credential_store.h>", "<crux/logging.h>",
+        "<crux/management_status.h>", "<crux/security_event.h>", "<crux/status.h>",
+        "<crux/system.h>", "<crux/time.h>", "<crux/tls_certificate_start.h>", "<crux/web.h>",
+        "<crux/web_management.h>", "<crux/web_session.h>", "<crux/web_zephyr.h>",
+        "<stdbool.h>", "<stddef.h>", "<stdint.h>", "<stdio.h>", "<string.h>",
+        "<zephyr/net/tls_credentials.h>",
+    }
+
+    def code(self):
+        return c_code(self.SOURCE)
+
+    def test_the_source_includes_only_what_the_zone_may(self):
+        for include in includes(self.SOURCE):
+            self.assertIn(include, self.ALLOWED, include)
+        for needed in ("<crux/web_zephyr.h>", "<zephyr/net/tls_credentials.h>",
+                       '"../src/management_port.h"'):
+            self.assertIn(needed, includes(self.SOURCE), needed)
+
+    def test_the_source_includes_no_private_or_frozen_header(self):
+        for include in includes(self.SOURCE):
+            for banned in ("adapter", "session_internal", "web_session.h\"", "crux/thread.h",
+                           "crux/sync.h", "crux/queue.h", "crux/serial.h", "psa/", "mbedtls",
+                           "zephyr/kernel.h", "zephyr/sys/printk.h"):
+                self.assertNotIn(banned, include, include)
+
+    def test_the_source_implements_the_port_and_is_gated_on_the_crux_symbol_by_its_build_file(self):
+        code = self.code()
+        self.assertRegex(code, r"management_port_status_t management_port_start\(const management_port_config_t \*config\)")
+        self.assertNotIn("CONFIG_CRUX_CONTROLLER", code)
+
+    def body(self):
+        code = self.code()
+        return code[code.index("management_port_status_t management_port_start("):]
+
+    def positions(self, needles):
+        body = self.body()
+        found = []
+        for needle in needles:
+            self.assertIn(needle, body, needle)
+            found.append(body.index(needle))
+        return found
+
+    def test_the_calls_run_in_the_order_of_the_port_header(self):
+        found = self.positions((
+            "crux_security_event_init(", "crux_realtime_init(", "storage_port_mount(",
+            "storage_port_bind_store(", "crux_credential_start(", "crux_access_init(",
+            "crux_config_service_start(", "crux_mgmt_status_start(", "crux_security_event_start(",
+            "crux_tls_certificate_start(", "tls_credentials_register()", "crux_web_session_init(",
+            "crux_web_session_start_worker(", "crux_web_management_init(",
+            "crux_web_management_start_worker(", "crux_web_start(",
+        ))
+        self.assertEqual(sorted(found), found)
+
+    def test_the_credential_registration_takes_the_material_before_it_adds_it(self):
+        code = self.code()
+        helper = code[code.index("static int tls_credentials_register"):code.index("management_port_status_t management_port_start(")]
+        self.assertLess(helper.index("crux_tls_certificate_material_take("), helper.index("tls_credential_add("))
+
+    def test_the_web_start_is_the_last_call_of_the_sequence(self):
+        body = self.body()
+        calls = re.findall(r"\b(crux_[a-z_]+|storage_port_[a-z_]+|tls_credential_add)\(", body)
+        self.assertEqual("crux_web_start", [c for c in calls if c != "crux_log_write"][-1])
+
+    def test_both_tls_credential_registrations_are_checked_before_the_listener_starts(self):
+        code = self.code()
+        self.assertEqual(2, code.count("tls_credential_add("))
+        self.assertIn("TLS_CREDENTIAL_PUBLIC_CERTIFICATE", code)
+        self.assertIn("TLS_CREDENTIAL_PRIVATE_KEY", code)
+        self.assertRegex(code, r"int result = tls_credential_add\([^;]*PUBLIC_CERTIFICATE[^;]*;\s*"
+                               r"if \(result == 0\) \{\s*result = tls_credential_add\([^;]*PRIVATE_KEY")
+        self.assertRegex(code, r"tls_credentials_register\(\) != 0")
+        self.assertLess(code.index("tls_credentials_register() != 0"), code.index("crux_web_start("))
+
+    def test_the_key_material_is_neither_copied_nor_logged_nor_released(self):
+        code = self.code()
+        self.assertNotIn("crux_tls_certificate_material_release", code)
+        # The material is named inside its one helper and nowhere else, so no other code copies it.
+        start = code.index("static int tls_credentials_register")
+        end = code.index("static void set_certificate_options")
+        self.assertNotRegex(code[:start] + code[end:], r"\bmaterial\b")
+        for match in re.finditer(r"private_key", code):
+            statement = code[code.rfind(";", 0, match.start()) + 1 : code.index(";", match.end())]
+            self.assertIn("tls_credential_add(", statement, statement.strip())
+        self.assertEqual(1, code.count("static crux_tls_certificate_material_t material;"))
+
+    def test_the_certificate_names_the_bind_address_that_the_parser_gave(self):
+        code = self.code()
+        self.assertIn("management_address_parse(CONFIG_CRUX_WEB_BIND_ADDRESS", code)
+        self.assertLess(code.index("management_address_parse("), code.index("crux_tls_certificate_start("))
+        self.assertIn("CRUX_TLS_CERTIFICATE_DEFAULT_NOT_BEFORE_S", code)
+        self.assertRegex(code, r"\.validity_days = 0u")
+
+    def test_the_bind_address_text_must_not_be_empty_at_build_time(self):
+        self.assertRegex(self.code(), r"_Static_assert\(sizeof\(CONFIG_CRUX_WEB_BIND_ADDRESS\) > 1u")
+
+    def test_the_policy_and_the_versions_are_checked_before_anything_starts(self):
+        code = self.code()
+        start = code.index("management_port_status_t management_port_start(")
+        for needle in ("management_policy_valid(", "management_version_valid("):
+            self.assertIn(needle, code, needle)
+            self.assertLess(code.index(needle, start), code.index("crux_security_event_init(", start))
+
+    def test_the_permission_names_are_compared_with_the_crux_macros_and_a_difference_refuses_the_start(self):
+        code = self.code()
+        for ours, crux in (("MANAGEMENT_PERMISSION_ACCESS_MANAGE", "CRUX_ACCESS_PERMISSION_MANAGE"),
+                           ("MANAGEMENT_PERMISSION_STATUS_READ", "CRUX_MGMT_STATUS_PERMISSION_READ"),
+                           ("MANAGEMENT_PERMISSION_CONFIG_SAVE", "CRUX_CONFIG_SERVICE_PERMISSION_SAVE")):
+            self.assertRegex(code, rf"strcmp\({ours}, {crux}\) == 0")
+        self.assertRegex(code, r"permission_names_agree\(\)")
+        start = code.index("management_port_status_t management_port_start(")
+        self.assertLess(code.index("permission_names_agree()", start), code.index("crux_security_event_init(", start))
+
+    def test_the_policy_is_copied_member_by_member_into_the_crux_type(self):
+        code = self.code()
+        for member in (".name =", ".permissions =", ".permission_count =", ".roles =", ".role_count =",
+                       ".session_idle_limit_s =", ".session_absolute_limit_s =",
+                       ".password_acceptable = NULL"):
+            self.assertIn(member, code, member)
+        self.assertIn("management_role_count_fits", code)
+
+    def test_the_reset_cause_is_read_once_and_before_the_initialiser_that_uses_it(self):
+        code = self.code()
+        self.assertEqual(1, code.count("crux_system_reset_cause_get("))
+        self.assertEqual(0, code.count("crux_system_reset_cause_clear"))
+        self.assertRegex(code, r"const crux_status_t cause_status = crux_system_reset_cause_get\(&cause\);")
+        self.assertLess(code.index("crux_system_reset_cause_get("), code.index(".boot_reset_cause_status"))
+
+    def test_the_session_module_is_told_https_and_no_origin_list(self):
+        self.assertRegex(self.code(), r'crux_web_session_config_t sessions = \{"https", NULL, 0u\}')
+
+    def test_the_listener_gets_the_session_authentication_and_the_kconfig_request_deadline(self):
+        code = self.code()
+        self.assertIn(".authenticate = crux_web_session_authenticate", code)
+        self.assertIn(".request_deadline_ms = CONFIG_CRUX_WEB_REQUEST_DEADLINE_MS", code)
+        self.assertIn(".authenticate_context = NULL", code)
+
+    def test_the_start_is_one_shot_and_a_second_call_changes_nothing(self):
+        code = self.code()
+        self.assertIn("MANAGEMENT_PORT_ERR_ALREADY_STARTED", code)
+        self.assertRegex(code, r"static bool started;")
+        self.assertLess(code.index("MANAGEMENT_PORT_ERR_INVALID_ARGUMENT"), code.index("started = true;"))
+
+    def test_the_source_reports_through_crux_logging_and_never_logs_a_secret(self):
+        code = self.code()
+        self.assertIn("crux_log_write(", code)
+        self.assertNotRegex(code, r"\bprintk\b|\bprintf\(")
+        for word in ("password", "private_key"):
+            for line in code.splitlines():
+                if "crux_log_write" in line or "snprintf" in line:
+                    self.assertNotIn(word, line, line)
+
+    def test_the_source_calls_no_reboot_network_file_service_or_first_account_function(self):
+        code = self.code()
+        for word in ("crux_reboot", "crux_network_settings", "crux_file_service",
+                     "crux_access_provision", "crux_cli", "crux_ssh"):
+            self.assertNotIn(word, code, word)
+
+    def test_the_zone_with_this_source_passes_the_boundary_check_against_the_published_headers(self):
+        with tempfile.TemporaryDirectory() as directory:
+            crux = fake_crux.publish(directory)
+            self.assertEqual([], check_boundary.check(ROOT, crux))
+        self.assertEqual([], check_boundary.check(ROOT))
+
+    def test_the_boundary_allow_lists_are_unchanged_by_this_step(self):
+        self.assertEqual(frozenset({"crux/file_zephyr.h", "crux/web_zephyr.h"}),
+                         check_boundary.COMPOSITION_CRUX_HEADERS)
+        self.assertEqual(
+            frozenset({"zephyr/fs/fs.h", "zephyr/devicetree.h", "zephyr/net/tls_credentials.h"}),
+            check_boundary.COMPOSITION_ZEPHYR_HEADERS)
+        self.assertEqual(frozenset({"zephyr/kernel.h", "zephyr/net/sntp.h"}),
+                         check_boundary.OS_ADAPTER_ZEPHYR_HEADERS)
+
+
+class S6Composition(unittest.TestCase):
+    """The start of the step in composition.c, after S5 and before the workload threads."""
+
+    SOURCE = APP_SRC / "composition.c"
+
+    def code(self):
+        return c_code(self.SOURCE)
+
+    def test_the_composition_includes_the_port_and_logging_under_the_product_symbol(self):
+        text = self.SOURCE.read_text()
+        self.assertRegex(text, r'#ifdef CONFIG_CRUX_CONTROLLER_S6\s*#include <crux/logging.h>\s*#include "management_port.h"')
+
+    def test_the_composition_starts_s6_after_s5_and_before_the_workload_threads(self):
+        code = self.code()
+        s5 = code.index("time_sync_start()")
+        s6 = code.index("start_management();", code.index("static void start_management"))
+        run = code.index("return workload_thread_start(&config)")
+        self.assertLess(s5, s6)
+        self.assertLess(s6, run)
+
+    def test_the_composition_keys_on_the_product_symbol_and_no_provider_symbol(self):
+        code = self.code()
+        self.assertGreaterEqual(code.count("CONFIG_CRUX_CONTROLLER_S6"), 2)
+        self.assertNotRegex(code, r"CONFIG_CRUX_(?:THREAD|SYNC|QUEUE)")
+        self.assertNotRegex(code, r"CONFIG_CRUX_(?:ACCESS|WEB)")
+
+    def test_the_versions_come_from_the_build_and_a_missing_one_stops_the_build(self):
+        text = self.SOURCE.read_text()
+        self.assertRegex(text, r"#ifndef MANAGEMENT_PLATFORM_VERSION\s*#error")
+        self.assertRegex(text, r"#ifndef MANAGEMENT_PROJECT_VERSION\s*#error")
+        self.assertIn(".platform_version = MANAGEMENT_PLATFORM_VERSION", self.code())
+        self.assertIn(".project_version = MANAGEMENT_PROJECT_VERSION", self.code())
+
+    def test_a_failed_start_is_logged_and_the_workload_still_starts(self):
+        code = self.code()
+        self.assertRegex(code, r'if \(management_port_start\(&config\) != MANAGEMENT_PORT_OK\) \{\s*\(void\)crux_log_write\(CRUX_LOG_ERROR, "mgmt"')
 
 
 class S6Findings(unittest.TestCase):

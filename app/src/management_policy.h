@@ -4,8 +4,9 @@
 
 /*
  * The product's policy for HTTPS management, as data and plain C with ISO C includes only, so the
- * host builds and tests it with no Crux or Zephyr header. No firmware image compiles this file
- * yet: it is groundwork, and the composition that would use it is a later change.
+ * host builds and tests it with no Crux or Zephyr header. Step S6 compiles management_policy.c into
+ * its image, and the composition zone (app/compose/management_start.c) copies this data into the
+ * Crux types.
  *
  * The permission names below are copies, because this file has no Crux include. What backs each
  * one: "access.manage"  CRUX_ACCESS_PERMISSION_MANAGE, defined in crux/access.h, which also defines
@@ -16,8 +17,8 @@
  *   "status.read"    CRUX_MGMT_STATUS_PERMISSION_READ in crux/management_status.h, read by the
  *                    author only; no second source states the value.
  * The two strings that rest on the author's reading are to be confirmed against the header by the
- * composition that passes this data to Crux. That composition must also assert at build time that
- * each copy equals the Crux value, as time_sync.c does for the time range.
+ * composition that passes this data to Crux. That composition compares each copy with the Crux
+ * macro when it starts, and refuses to start on a difference; no build-time check does it.
  *
  * Only the permissions that the web routes of step S6 would check are granted: the status and the
  * configuration save. Nothing else is granted, because no other route is planned.
@@ -51,8 +52,9 @@
 /*
  * A role: a name and the exact list of its permissions. It has the same members as
  * crux_access_role_t of crux/access.h, in the same order. Nothing in this repository checks that
- * the two are equivalent yet, so the composition must copy member by member, and assert sizeof and
- * offsetof or compile against the Crux header.
+ * the two are equivalent beyond the copy itself: the composition copies member by member with
+ * designated initializers, so that a member that Crux renames or retypes fails its compile, and
+ * it does not rely on sizeof or offsetof of either type.
  */
 typedef struct {
     const char *name;
@@ -63,7 +65,7 @@ typedef struct {
 /*
  * The roles and the session limits. It has the same members as crux_access_policy_t of
  * crux/access.h, without the password rule hook. The same applies: nothing in this repository
- * checks the equivalence yet, so the composition copies member by member and asserts it.
+ * checks the equivalence beyond the copy, which sets the hook to NULL for the reference rule.
  */
 typedef struct {
     const management_role_t *roles;
