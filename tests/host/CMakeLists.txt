@@ -51,3 +51,10 @@ add_executable(test_time_sync_policy test_time_sync_policy.c ../../app/src/time_
 target_include_directories(test_time_sync_policy PRIVATE ../../app/src)
 target_compile_options(test_time_sync_policy PRIVATE -Wall -Wextra -Wpedantic -Werror)
 add_test(NAME time_sync_policy COMMAND test_time_sync_policy)
+
+# The address text and the role policy of the S6 management groundwork: ISO C only, so it builds
+# here without Crux or Zephyr headers. No firmware image compiles it yet.
+add_executable(test_management_policy test_management_policy.c ../../app/src/management_policy.c)
+target_include_directories(test_management_policy PRIVATE ../../app/src)
+target_compile_options(test_management_policy PRIVATE -Wall -Wextra -Wpedantic -Werror)
+add_test(NAME management_policy COMMAND test_management_policy)
