@@ -1,22 +1,24 @@
 # Finding: step S6, management over HTTPS
 
-Status: step S6 is wired and builds in CI. **Nothing in this note is a CI result.** Zephyr builds and Twister runs
-happen in CI only, no Zephyr build ran while the step was written, and the first CI run of the change that adds it is
-the first build of this chain from outside `crux-pilot`. Nothing has run on a board. Every result that only CI can give
-is marked Open below, with the job that gives it.
+Status: step S6 is wired and builds in CI. The results of the CI run at `bb3ffefd` are recorded below, with the label
+Recorded, and the main session read them from the GitHub job logs; the author of this change did not run CI and did not
+read the logs. Zephyr builds and Twister runs happen in CI only, no Zephyr build ran while the step was written, and the
+CI run of the change that added it was the first build of this chain from outside `crux-pilot`. Nothing has run on a
+board. A result that is still open is marked Open, with the job that gives it.
 
 The groundwork that came before is in [s6-https-management-gaps.md](s6-https-management-gaps.md), which stays as
 recorded. It lists three gaps found by reading: the locks of the PSA core, the first account and the route sources. This
 note records what the step did about each.
 
-Every statement carries one of three labels:
+Every statement carries one of four labels:
 
 - **Verified**: read in a named file at a named revision, or checked by a command that ran while the step was
   written, which the row names. The tooling tests, the host tests, `clang-format`, `clang-tidy` and the boundary
   check ran locally. A syntax-only compile of the new composition source and of `composition.c` ran against the public
   Crux headers at the pin, with a stub of one Zephyr header; that is not a Zephyr build.
 - **Inferred**: a reading of the sources, or a plan, that no file states and nothing has run.
-- **Open**: a result that only a CI run can give. The job is named.
+- **Recorded**: a CI result at the revision named, read by the main session from the GitHub job logs. The job is named.
+- **Open**: a result that only a CI run can give and that no run has given yet. The job is named.
 
 The revisions are `crux-pilot` at `8e3737d25d048b14a00c01da00494f58a62958c6`, the commit that `west.yml` pins ("8e3737d2"
 in the rows), and Zephyr as read in a v4.4.0 checkout while the pin is v4.4.2.
@@ -30,20 +32,33 @@ image has no account, so nobody can log in until a first-account console exists,
 of the configuration service exists and ends as not supported. There is no reboot, network or file route, no SSH and no
 command line.
 
-## Results that only CI can give
+## CI results
+
+At `bb3ffefd` all 21 checks passed. The rows below are what each job showed, read by the main session from the GitHub job
+logs. The change was then revised after an independent review, and the rows that the revision touches say so.
 
 | Question | State | Job that answers it |
 |---|---|---|
-| Do the route sources of Crux compile from this repository, under `-Werror`, with no include path of ours? | **Open** | `S6 build`, the cross-build step, and `Budget S6` |
-| Does `crux_web_routes()` accept the product's `app` target and the reviewed list? | **Open** | `S6 build`, the cross-build step |
-| Does the in-process TLS 1.3 handshake complete with peer verification required, and does the server answer a request? | **Open** | `S6 build`, the Twister step (cases 1 to 3) |
-| Is a self-signed leaf accepted as its own trust anchor, with the hostname `crux-controller` and no usable clock? | **Open** | `S6 build`, the Twister step |
-| Is a client with only a TLS 1.2 suite refused (case 4)? | **Open**; if it cannot be built the case is dropped and the gap is recorded, never weakened | `S6 build`, the Twister step |
-| Does picolibc satisfy the `fnmatch()` check at `crux_web_start()`, or does the scenario need the minimal libc? | **Open** | `S6 build`, the Twister step |
-| Are the assets served compressed or as text (case 6)? | **Open** | `S6 build`, the Twister step |
-| Does the board image resolve as the job asserts (the options on and off, the alias, the RAM disk, the TRNG as entropy source)? | **Open** | `S6 build`, the resolved-configuration step |
-| Does `west update` with the group on fetch the Mbed pair and nothing else, and does the Twister report have the keys the job reads? | **Open** | `S6 build`, the fetch and report steps |
-| Static size of the image against the declared limits | **Open**; if a margin is exceeded the limit is not changed in the same change | `Budget S6` |
+| Do the route sources of Crux compile from this repository, under `-Werror`, with no include path of ours, and does `crux_web_routes()` accept the product's `app` target and the reviewed list? | **Recorded**: the board build passed with the baseline gate | `S6 build`, the cross-build step |
+| Does the board image resolve as the job asserts (the options on and off, the alias, the RAM disk, the TRNG as entropy source)? | **Recorded**: the resolved-configuration step passed | `S6 build`, the resolved-configuration step |
+| Does `west update` with the group on fetch the Mbed pair and nothing else, and does the Twister report have the keys the job reads? | **Recorded**: the fetch step and the report step passed | `S6 build`, the fetch and report steps |
+| Does the scenario run: the start sequence, the certificate, an in-process TLS 1.3 handshake with peer verification required, the page, the login path? | **Recorded**: 10 of 10 cases passed. That includes a self-signed leaf accepted as its own trust anchor with the hostname `crux-controller`, and a scenario whose `prj.conf` selects picolibc starting the web server | `S6 build`, the Twister step |
+| Static size of the image against the declared limits | **Recorded**: `FLASH` 288872 and `RAM` 1265012, as the budget job reports them, inside the margins; no limit was changed | `Budget S6` |
+| Are the budget rows of S0 to S5 unchanged? | **Recorded**: S0 to S5 are identical to main | `Budget S0` to `Budget S5` |
+| Is a client with only a TLS 1.2 suite refused (case 4)? | **Recorded** at `bb3ffefd` as passed, but the case could pass on any failed connect. The review asked for a positive control and an errno check, which this revision adds; it has not run | `S6 build`, the Twister step |
+| Are the assets served compressed or as text (case 6)? | **Open**: the case passes either way, and which form the packager chose was not read | `S6 build`, the Twister step |
+
+### What a refusal in case 4 shows
+
+Case 4 now connects a control client first: the same minimum version, options and retries with one TLS 1.3 suite, which
+must connect (a positive control). Only then does it connect the client with one TLS 1.2 suite, logs the errno of the
+failed connect and requires that it is neither a refused connection nor a timeout. Even so, a refusal on the client side
+cannot be fully excluded in one process: the client and the server share the TLS library, the credentials and the clock,
+and Zephyr turns both an alert from the server and a local failure into a failed connect. Crux checks the version refusal
+on the wire with `openssl s_client`, which offers one version at a time and reads the alert, against its own listener
+(`docs/https-composition.md` at 8e3737d2, "Checked on the wire"); case 4 does not replace that check. The revised case
+has not run: this change had no local Zephyr, so the new assertions were checked by reading and by the tooling tests, and
+the case itself runs in the next CI run.
 
 ## What the product had to write
 
@@ -59,6 +74,12 @@ command line.
 | The members of an initialiser are not evaluated in a fixed order, so the reset cause is read before the initialiser that holds it. Crux's own sample reads it in the initialiser | **Inferred** (a reading of the C rule and of the sample) | `samples/management_rt1060_mbed/src/composition.c` at 8e3737d2 |
 | The Mbed profile, the PSA algorithms and the sizes are a product-owned copy of Crux's sample for this board, plus the two lines that only that sample has | **Verified** | `samples/management_rt1060_mbed/prj.conf` at 8e3737d2, and `app/conf/s6.conf` |
 | The page is three files, no framework, no external URL, no inline script or style; the packager checks only names, types, size and secrets, so the rest is checked by `S6Page` | **Verified** | `components/web/tools/web_assets.py` at 8e3737d2, and `tests/tooling/test_s6.py` |
+
+The permission names are compared at start, not at build time. An earlier comment in `management_policy.h` asked the
+composition to assert the equality at build time; two string literals cannot be compared that way in ISO C, so the
+composition passes the three Crux macros to `management_permission_names_match()` and refuses to start on a false
+answer. That start-time refusal is a plain-C function with a host test of its mismatch path. The composition's own
+refusal when it gets a false answer is not tested, because it needs Zephyr.
 
 ## Decisions, and the test that pins each
 
@@ -119,4 +140,4 @@ scenario runs on another one, the page in a browser, Ethernet, the address `192.
   of the TLS stack, and the network buffers.
 - Entropy: the strength of the hardware random source and whether `CONFIG_ENTROPY_MCUX_TRNG` resolves on for this
   board, which the job asserts.
-- Every Open row of the first table.
+- Every Open row of the table of CI results, and the revised case 4, which has not run.

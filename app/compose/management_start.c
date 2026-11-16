@@ -17,9 +17,14 @@
  * The route sources, the packaged page and the route table are not here. They belong to the target
  * `app` and are named by app/management/management.cmake.
  *
- * Nothing in this file has run: it has not been compiled with Zephyr or run on any target. The
- * order below is the one of management_port.h, which was read in Crux's guide, module fixture and
- * web start header at the pinned revision.
+ * Status: built in CI for the board and run on native_sim; never run on a board. The order below
+ * is the one of management_port.h, which was read in Crux's guide, module fixture and web start
+ * header at the pinned revision.
+ *
+ * A credential store that Crux reports as unusable (CRUX_CREDENTIAL_ERR_UNUSABLE) ends the start,
+ * because nothing after it could keep a key or an account. That is fine on a RAM disk, where the
+ * store is made again blank at every start, and it is to be revisited for a persistent medium,
+ * where a damaged store would then leave management off until someone repairs it.
  */
 
 #include "../src/management_port.h"
@@ -93,9 +98,9 @@ static management_port_status_t failed(const char *step)
  * wrong thing, so the start compares them with the Crux macros. */
 static bool permission_names_agree(void)
 {
-    return strcmp(MANAGEMENT_PERMISSION_ACCESS_MANAGE, CRUX_ACCESS_PERMISSION_MANAGE) == 0 &&
-           strcmp(MANAGEMENT_PERMISSION_STATUS_READ, CRUX_MGMT_STATUS_PERMISSION_READ) == 0 &&
-           strcmp(MANAGEMENT_PERMISSION_CONFIG_SAVE, CRUX_CONFIG_SERVICE_PERMISSION_SAVE) == 0;
+    return management_permission_names_match(CRUX_ACCESS_PERMISSION_MANAGE,
+                                             CRUX_MGMT_STATUS_PERMISSION_READ,
+                                             CRUX_CONFIG_SERVICE_PERMISSION_SAVE);
 }
 
 static bool management_role_count_fits(const management_policy_t *policy)

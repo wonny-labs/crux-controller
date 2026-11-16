@@ -60,6 +60,9 @@ static size_t log_length;
 static uint8_t trust_anchor[4096];
 static char response[RESPONSE_CAPACITY];
 static char attempt_id[80];
+/* The errno of the last connect that failed, saved before the socket is closed or the thread
+ * sleeps, so that a case can say why a connect failed and not only that it did. */
+static int last_connect_errno;
 
 /* Everything that Crux Logging wrote since the last call, appended to what was read before.
  * log_flush() wakes the log thread and returns when every message is written. */
@@ -116,7 +119,8 @@ static bool configure_tls(int sock, const char *name)
 
 /* Open a TLS socket of the given protocol, optionally restricted to one cipher suite, and connect
  * it to the listener, retrying while the listener is not open yet. The connect of a TLS socket
- * runs the handshake. Returns the socket, or -1 when no attempt connected. */
+ * runs the handshake. Returns the socket, or -1 when no attempt connected, with the errno of the
+ * last failed connect in last_connect_errno. */
 static int connect_tls(int protocol, int only_suite, int attempts)
 {
     const struct net_sockaddr_in address = loopback_address();
@@ -136,6 +140,7 @@ static int connect_tls(int protocol, int only_suite, int attempts)
         if (zsock_connect(sock, (const struct net_sockaddr *)&address, sizeof address) == 0) {
             return sock;
         }
+        last_connect_errno = errno;
         (void)zsock_close(sock);
         k_msleep(CONNECT_RETRY_MS);
     }
@@ -301,16 +306,43 @@ ZTEST(s6, test_03_tls13_handshake_verifies)
 
 /* A client whose only cipher suite is a TLS 1.2 suite is refused. Zephyr takes the version as a
  * minimum, so the suite is the restriction. A client that offers TLS 1.3 anyway would connect, and
- * this case would fail and say so. */
+ * this case would fail and say so.
+ *
+ * A failed connect alone would pass for many reasons, so the case has a positive control and looks
+ * at the errno. The control is the same client with the same minimum version, the same options and
+ * the same retries, with one TLS 1.3 suite: it must connect, so the listener is open and the set-up
+ * is sound, and only the suite differs below. The refusal must not be a refused connection or a
+ * timeout, which would mean that the server never answered the handshake. What this still cannot
+ * show is who refused: a refusal on the client side cannot be fully excluded in one process,
+ * because the client and the server share the TLS library, the credentials and the clock, and
+ * Zephyr maps both an alert from the server and a local failure to a failed connect. Crux checks
+ * the version refusal on the wire with openssl s_client against its own listener, which offers one
+ * version at a time and reads the alert (docs/https-composition.md of crux-pilot, "Checked on the
+ * wire"), and this case does not replace that. */
 ZTEST(s6, test_04_tls12_only_refused)
 {
+    const int control =
+        connect_tls(NET_IPPROTO_TLS_1_2, SUITE_TLS13_AES_128_GCM_SHA256, CONNECT_ATTEMPTS);
+
+    zassert_true(control >= 0,
+                 "the control client (TLS 1.2 minimum, a TLS 1.3 suite) did not connect");
+    (void)zsock_close(control);
+
+    last_connect_errno = 0;
+
     const int sock =
         connect_tls(NET_IPPROTO_TLS_1_2, SUITE_TLS12_ECDHE_ECDSA_AES_128_GCM_SHA256, 1);
+    const int why = last_connect_errno;
 
     if (sock >= 0) {
         (void)zsock_close(sock);
     }
+    TC_PRINT("TLS 1.2 suite only: connect %s, errno %d\n", sock >= 0 ? "succeeded" : "failed", why);
     zassert_true(sock < 0, "a client with only a TLS 1.2 suite connected");
+    zassert_true(why != 0, "the connect failed and left no errno");
+    zassert_true(why != ECONNREFUSED,
+                 "the server refused the connection and did not take part in a handshake");
+    zassert_true(why != ETIMEDOUT, "the connect timed out: the server did not answer");
     the_server_still_answers();
 }
 

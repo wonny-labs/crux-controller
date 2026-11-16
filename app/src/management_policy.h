@@ -17,8 +17,12 @@
  *   "status.read"    CRUX_MGMT_STATUS_PERMISSION_READ in crux/management_status.h, read by the
  *                    author only; no second source states the value.
  * The two strings that rest on the author's reading are to be confirmed against the header by the
- * composition that passes this data to Crux. That composition compares each copy with the Crux
- * macro when it starts, and refuses to start on a difference; no build-time check does it.
+ * composition that passes this data to Crux. An earlier version of this comment asked that
+ * composition to assert the equality at build time. It is a start-time refusal instead: the
+ * composition passes the three Crux macros to management_permission_names_match() below and
+ * refuses to start on a false answer. Two string literals cannot be compared by the preprocessor
+ * or the compiler in ISO C, so no build-time check does it. The mismatch path of the function has a
+ * host test; the composition's refusal on it has no test that runs without Zephyr.
  *
  * Only the permissions that the web routes of step S6 would check are granted: the status and the
  * configuration save. Nothing else is granted, because no other route is planned.
@@ -96,6 +100,14 @@ bool management_address_valid(const char *text);
  * destination is refused.
  */
 bool management_address_parse(const char *text, uint8_t octets[4]);
+
+/*
+ * True when the three texts, which the composition reads from the Crux macros for the manage
+ * permission of Access, the status read permission and the configuration save permission, are
+ * exactly the product's three names above, in that order. A null pointer is a mismatch.
+ */
+bool management_permission_names_match(const char *access_manage, const char *status_read,
+                                       const char *config_save);
 
 /* The product's policy: the administrator role and the read-only role, and the session limits. */
 const management_policy_t *management_policy_get(void);

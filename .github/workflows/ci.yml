@@ -675,6 +675,7 @@ jobs:
           print([suite["name"] for suite in suites], statuses)
           assert suites, "the S6 scenario is not in the Twister report"
           assert statuses and all(status == "passed" for status in statuses), statuses
+          assert len(statuses) == 10, statuses
           PY
       - name: Cross-build S6 with the baseline gate required
         env:

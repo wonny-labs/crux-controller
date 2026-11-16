@@ -118,6 +118,16 @@ class S6Validator(unittest.TestCase):
                        "management_policy_valid", "management_version_valid", "management_port.h"):
             self.assertIn(needle, source, needle)
 
+    def test_the_permission_name_check_is_plain_c_and_has_a_host_test_of_the_mismatch_path(self):
+        header = c_code(APP_SRC / "management_policy.h")
+        self.assertRegex(header, r"bool management_permission_names_match\(const char \*access_manage,\s*const char \*status_read,\s*const char \*config_save\);")
+        source = (ROOT / "tests" / "host" / "test_management_policy.c").read_text()
+        self.assertIn("management_permission_names_match", source)
+        for mismatch in ("access.manag", "status.reed", "config.savee"):
+            self.assertIn(mismatch, source, mismatch)
+        text = " ".join((APP_SRC / "management_policy.h").read_text().replace("*", " ").split())
+        self.assertIn("start-time refusal", text)
+
     def test_the_parser_is_declared_with_the_octets_and_defined_beside_the_validator(self):
         header = c_code(APP_SRC / "management_policy.h")
         source = c_code(APP_SRC / "management_policy.c")
@@ -819,6 +829,17 @@ class S6Storage(unittest.TestCase):
         self.assertRegex(code, r'#define FILES_DIRECTORY "files"')
         self.assertNotIn('"secure-a/', code)
 
+    def test_the_header_says_that_root_a_can_stay_bound_and_that_an_unusable_store_is_fatal(self):
+        text = " ".join(self.HEADER.read_text().replace("*", " ").split())
+        self.assertIn("root A stays bound when root B fails", text)
+        self.assertIn("there is no unbind", text)
+
+    def test_the_composition_documents_that_an_unusable_credential_store_ends_the_start(self):
+        text = " ".join((ROOT / "app" / "compose" / "management_start.c").read_text().replace("*", " ").split())
+        self.assertIn("CRUX_CREDENTIAL_ERR_UNUSABLE", text)
+        self.assertIn("fine on a RAM disk", text)
+        self.assertIn("revisited for a persistent medium", text)
+
     def test_the_header_comment_lists_the_third_call_and_its_order(self):
         text = " ".join(self.HEADER.read_text().replace("*", " ").split())
         self.assertIn("storage_port_bind_store()", text)
@@ -936,11 +957,13 @@ class S6Sources(unittest.TestCase):
             self.assertLess(code.index(needle, start), code.index("crux_security_event_init(", start))
 
     def test_the_permission_names_are_compared_with_the_crux_macros_and_a_difference_refuses_the_start(self):
-        code = self.code()
-        for ours, crux in (("MANAGEMENT_PERMISSION_ACCESS_MANAGE", "CRUX_ACCESS_PERMISSION_MANAGE"),
-                           ("MANAGEMENT_PERMISSION_STATUS_READ", "CRUX_MGMT_STATUS_PERMISSION_READ"),
-                           ("MANAGEMENT_PERMISSION_CONFIG_SAVE", "CRUX_CONFIG_SERVICE_PERMISSION_SAVE")):
-            self.assertRegex(code, rf"strcmp\({ours}, {crux}\) == 0")
+        # Changed with the review: the comparison is a plain-C function of the policy
+        # (management_permission_names_match), so that a host test can run the mismatch path. The
+        # composition passes it the three Crux macros and refuses the start on a false answer.
+        code = " ".join(self.code().split())
+        self.assertRegex(code, r"management_permission_names_match\( ?CRUX_ACCESS_PERMISSION_MANAGE, "
+                               r"CRUX_MGMT_STATUS_PERMISSION_READ, CRUX_CONFIG_SERVICE_PERMISSION_SAVE\)")
+        self.assertNotIn("strcmp(", code)
         self.assertRegex(code, r"permission_names_agree\(\)")
         start = code.index("management_port_status_t management_port_start(")
         self.assertLess(code.index("permission_names_agree()", start), code.index("crux_security_event_init(", start))
@@ -974,6 +997,16 @@ class S6Sources(unittest.TestCase):
         self.assertIn("MANAGEMENT_PORT_ERR_ALREADY_STARTED", code)
         self.assertRegex(code, r"static bool started;")
         self.assertLess(code.index("MANAGEMENT_PORT_ERR_INVALID_ARGUMENT"), code.index("started = true;"))
+
+    def test_the_header_comment_no_longer_says_that_nothing_in_the_file_has_run(self):
+        text = " ".join(self.SOURCE.read_text().replace("*", " ").split())
+        self.assertNotIn("Nothing in this file has run", text)
+        self.assertIn("built in CI for the board and run on native_sim; never run on a board", text)
+
+    def test_the_fragment_names_the_file_that_applies_the_entropy_correction(self):
+        text = (ROOT / "app" / "conf" / "s6.conf").read_text()
+        self.assertIn("applied in app/management/entropy.cmake", " ".join(text.replace("#", " ").split()))
+        self.assertNotIn("applied in app/management/management.cmake", " ".join(text.replace("#", " ").split()))
 
     def test_the_source_reports_through_crux_logging_and_never_logs_a_secret(self):
         code = self.code()
@@ -1202,6 +1235,30 @@ class S6Scenario(unittest.TestCase):
         self.assertIn("-EFBIG", code)
         self.assertEqual(1, code.count("TLS_CREDENTIAL_PRIVATE_KEY"))
 
+    def test_the_tls12_case_has_a_positive_control_and_does_not_pass_on_any_failed_connect(self):
+        code = " ".join(c_code(self.DIRECTORY / "src" / "test_s6.c").split())
+        case = code[code.index("ZTEST(s6, test_04_tls12_only_refused)"):code.index("ZTEST(s6, test_05_")]
+        # The control: the same client set-up with a TLS 1.3 suite must connect, so the refusal below
+        # is about the suite and not about the set-up, the listener or the socket options.
+        self.assertIn("connect_tls(NET_IPPROTO_TLS_1_2, SUITE_TLS13_AES_128_GCM_SHA256, CONNECT_ATTEMPTS)", case)
+        self.assertIn("connect_tls(NET_IPPROTO_TLS_1_2, SUITE_TLS12_ECDHE_ECDSA_AES_128_GCM_SHA256, 1)", case)
+        self.assertLess(case.index("SUITE_TLS13_AES_128_GCM_SHA256"), case.index("SUITE_TLS12_ECDHE"))
+        # The refusal is not a refused connection or a timeout, and the errno is logged.
+        self.assertIn("last_connect_errno", case)
+        self.assertIn("ECONNREFUSED", case)
+        self.assertIn("ETIMEDOUT", case)
+        self.assertIn("TC_PRINT", case)
+
+    def test_connect_tls_saves_errno_before_anything_can_overwrite_it(self):
+        code = " ".join(c_code(self.DIRECTORY / "src" / "test_s6.c").split())
+        helper = code[code.index("static int connect_tls("):code.index("static size_t read_until_quiet")]
+        self.assertRegex(helper, r"zsock_connect\([^;]*\) == 0\) \{ return sock; \} last_connect_errno = errno; \(void\)zsock_close\(sock\);")
+
+    def test_the_source_says_that_a_client_side_refusal_is_not_fully_excluded_in_process(self):
+        text = " ".join(self.source().replace("*", " ").split())
+        self.assertIn("a refusal on the client side cannot be fully excluded in one process", text)
+        self.assertIn("docs/https-composition.md", text)
+
     def test_the_client_waits_with_poll_and_retries_the_connect_because_the_listener_opens_late(self):
         code = c_code(self.DIRECTORY / "src" / "test_s6.c")
         self.assertIn("zsock_poll(", code)
@@ -1337,6 +1394,8 @@ class S6Workflows(unittest.TestCase):
         run = self.step("Check that the scenario ran and was not skipped")["run"]
         self.assertIn("twister-out-s6/twister.json", run)
         self.assertIn("assert statuses and all(status == \"passed\"", run)
+        # The scenario has ten cases, and a report with another count is a different scenario.
+        self.assertIn("assert len(statuses) == 10, statuses", run)
         self.assertIn("controller.s6.native_sim.https_management", run)
 
     def test_the_board_image_is_built_with_the_gate_the_s6_fragments_and_both_overlays(self):
@@ -1534,16 +1593,42 @@ class S6StepNote(unittest.TestCase):
     def words(self):
         return " ".join(self.text().split())
 
-    def test_the_note_exists_and_uses_the_three_labels(self):
-        for label in ("**Verified**", "**Inferred**", "**Open**"):
+    def test_the_note_exists_and_uses_its_labels(self):
+        for label in ("**Verified**", "**Inferred**", "**Open**", "**Recorded**"):
             self.assertIn(label, self.text())
 
-    def test_the_note_names_the_pin_and_says_nothing_in_it_is_a_ci_result_or_a_board_run(self):
+    # Approved behaviour change: CI ran at bb3ffefd and the main session read the results, so the
+    # sentence that nothing in the note is a CI result is replaced by the recorded results. The
+    # board claim stays.
+    def test_the_note_records_the_ci_results_at_the_reviewed_head_and_who_read_them(self):
+        text = self.words()
+        self.assertIn("bb3ffefd", text)
+        self.assertIn("read by the main session from the GitHub job logs", text)
+        self.assertIn("all 21 checks passed", text)
+        self.assertIn("10 of 10 cases", text)
+        self.assertIn("288872", text)
+        self.assertIn("1265012", text)
+        self.assertIn("S0 to S5 are identical to main", text)
+        self.assertIn("the baseline gate", text)
+
+    def test_the_note_claims_no_board_run_and_no_result_the_author_read(self):
         text = self.words()
         self.assertIn(self.PIN, text)
-        self.assertIn("Nothing in this note is a CI result", text)
         self.assertIn("Nothing has run on a board", text)
+        self.assertIn("the author of this change did not run CI", text)
         self.assertIn("the first build of this chain from outside `crux-pilot`", text)
+
+    def test_the_note_says_that_a_client_side_refusal_cannot_be_fully_excluded_in_process(self):
+        text = self.words()
+        self.assertIn("a refusal on the client side cannot be fully excluded in one process", text)
+        self.assertIn("docs/https-composition.md", text)
+        self.assertIn("openssl s_client", text)
+        self.assertIn("positive control", text)
+
+    def test_the_note_says_the_permission_check_became_a_start_time_refusal(self):
+        text = self.words()
+        self.assertIn("start-time refusal", text)
+        self.assertIn("host test", text)
 
     def test_the_note_says_that_no_zephyr_build_ran_while_the_step_was_written(self):
         text = self.words()
@@ -1551,12 +1636,15 @@ class S6StepNote(unittest.TestCase):
         self.assertIn("syntax-only compile", text)
         self.assertIn("that is not a Zephyr build", text)
 
-    def test_every_open_question_names_the_job_that_answers_it(self):
-        rows = [line for line in self.text().splitlines()
-                if line.startswith("|") and [c.strip() for c in line.split("|")][2].startswith("**Open**")]
-        self.assertGreaterEqual(len(rows), 9)
+    def test_every_open_question_and_every_recorded_result_names_the_job(self):
+        cells = lambda line: [c.strip() for c in line.split("|")]
+        rows = [line for line in self.text().splitlines() if line.startswith("|")
+                and len(cells(line)) > 3 and cells(line)[2].startswith(("**Open**", "**Recorded**"))]
+        # The table of CI results has eight rows since the results were recorded; it had ten open ones.
+        self.assertGreaterEqual(len(rows), 8)
         for row in rows:
-            self.assertRegex(row, r"`(?:S6 build|Budget S6)`", row)
+            self.assertRegex(row, r"`(?:S6 build|Budget S[0-6]?[^`]*)`", row)
+        self.assertGreaterEqual(sum(1 for r in rows if cells(r)[2].startswith("**Recorded**")), 6)
 
     def test_every_verified_row_of_the_work_table_names_a_file(self):
         rows = [line for line in self.text().splitlines()

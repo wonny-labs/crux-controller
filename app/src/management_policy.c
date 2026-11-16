@@ -123,6 +123,15 @@ static bool text_equal(const char *left, const char *right)
     return left[index] == right[index];
 }
 
+bool management_permission_names_match(const char *access_manage, const char *status_read,
+                                       const char *config_save)
+{
+    return access_manage != NULL && status_read != NULL && config_save != NULL &&
+           text_equal(access_manage, MANAGEMENT_PERMISSION_ACCESS_MANAGE) &&
+           text_equal(status_read, MANAGEMENT_PERMISSION_STATUS_READ) &&
+           text_equal(config_save, MANAGEMENT_PERMISSION_CONFIG_SAVE);
+}
+
 static bool role_valid(const management_role_t *role)
 {
     if (!text_valid(role->name, ACCESS_NAME_LENGTH_MAX)) {

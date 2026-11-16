@@ -68,7 +68,10 @@ storage_port_status_t storage_port_bind(void);
  * Neither is the directory that storage_port_bind() uses, and neither contains the other. A failed
  * directory leaves File unbound (STORAGE_PORT_ERR_LAYOUT); a root that File refuses, or one that
  * is already bound, returns STORAGE_PORT_ERR_BIND or STORAGE_PORT_ERR_ALREADY_BOUND. There is no
- * unbind and no second bind of a root.
+ * unbind and no second bind of a root. A consequence: root A stays bound when root B fails,
+ * because there is no unbind, and a second call then answers STORAGE_PORT_ERR_ALREADY_BOUND for
+ * root A. The caller treats any failure as the end of the
+ * management start (management_start.c does), and does not retry.
  */
 storage_port_status_t storage_port_bind_store(void);
 

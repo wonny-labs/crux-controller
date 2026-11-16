@@ -244,6 +244,19 @@ static void the_parser_stops_at_the_first_nul(void)
     CHECK(!management_address_parse(cut_short, octets));
 }
 
+static void the_permission_names_match_only_when_all_three_are_the_policys(void)
+{
+    CHECK(management_permission_names_match("access.manage", "status.read", "config.save"));
+    /* One name different at a time, in each position, and the empty and null cases. */
+    CHECK(!management_permission_names_match("access.manag", "status.read", "config.save"));
+    CHECK(!management_permission_names_match("access.manage", "status.reed", "config.save"));
+    CHECK(!management_permission_names_match("access.manage", "status.read", "config.savee"));
+    CHECK(!management_permission_names_match("status.read", "access.manage", "config.save"));
+    CHECK(!management_permission_names_match("", "status.read", "config.save"));
+    CHECK(!management_permission_names_match("access.manage", NULL, "config.save"));
+    CHECK(!management_permission_names_match(NULL, NULL, NULL));
+}
+
 /* Copies of the limits that crux_access_init() enforces (crux/access.h at the pinned revision). */
 #define ACCESS_NAME_MAX 31u       /* CRUX_ACCESS_NAME_SIZE (32) without the terminator. */
 #define ACCESS_PERMISSION_MAX 63u /* CRUX_ACCESS_PERMISSION_MAX. */
@@ -473,6 +486,7 @@ int main(void)
     the_parser_and_the_validator_agree_on_every_text_of_both_tables();
     the_parser_refuses_a_null_text_and_a_null_destination();
     the_parser_stops_at_the_first_nul();
+    the_permission_names_match_only_when_all_three_are_the_policys();
     the_policy_has_exactly_an_administrator_and_a_read_only_role();
     the_administrator_holds_exactly_manage_status_read_and_config_save();
     the_read_only_role_holds_status_read_and_nothing_else();
