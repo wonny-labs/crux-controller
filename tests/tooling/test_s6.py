@@ -9,6 +9,8 @@ import sys
 import tempfile
 import unittest
 
+import yaml
+
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -1026,6 +1028,191 @@ class S6Composition(unittest.TestCase):
     def test_a_failed_start_is_logged_and_the_workload_still_starts(self):
         code = self.code()
         self.assertRegex(code, r'if \(management_port_start\(&config\) != MANAGEMENT_PORT_OK\) \{\s*\(void\)crux_log_write\(CRUX_LOG_ERROR, "mgmt"')
+
+
+class S6Scenario(unittest.TestCase):
+    """The native_sim scenario of step S6. It lives beside tests/native_sim, not in it: the S1 job
+    runs every scenario under tests/native_sim in a workspace that has no Mbed TLS modules, so a
+    scenario that needs them would fail to configure there. The S6 job names this directory."""
+
+    DIRECTORY = ROOT / "tests" / "native_sim_mbed" / "s6"
+    CASES = ("start_sequence", "certificate_registered", "tls13_handshake_verifies",
+             "tls12_only_refused", "plain_http_not_answered", "page_bytes",
+             "status_needs_a_session", "login_attempt_accepted", "poll_reports_rejected",
+             "csrf_rejected_without_header")
+
+    def text(self, name):
+        return (self.DIRECTORY / name).read_text()
+
+    def cmake(self):
+        return "\n".join(code_lines(self.DIRECTORY / "CMakeLists.txt"))
+
+    def test_the_scenario_is_a_sibling_of_the_native_sim_directory_not_inside_it(self):
+        self.assertTrue(self.DIRECTORY.is_dir())
+        self.assertFalse((ROOT / "tests" / "native_sim" / "s6").exists())
+        self.assertEqual(
+            ["CMakeLists.txt", "app.overlay", "prj.conf", "src", "testcase.yaml"],
+            sorted(p.name for p in self.DIRECTORY.iterdir()),
+        )
+
+    def test_one_scenario_one_image_on_the_64_bit_simulator(self):
+        data = yaml.safe_load(self.text("testcase.yaml"))
+        self.assertEqual(["controller.s6.native_sim.https_management"], sorted(data["tests"]))
+        scenario = data["tests"]["controller.s6.native_sim.https_management"]
+        self.assertEqual(["native_sim/native/64"], data["common"]["platform_allow"])
+        self.assertEqual({"controller", "s6"}, set(data["common"]["tags"]))
+        self.assertEqual(180, scenario["timeout"])
+        # A missing module is a failure, not a skip: the key `modules` would turn it into one.
+        self.assertNotIn("modules", scenario)
+        self.assertNotIn("modules", data["common"])
+        self.assertNotIn("extra_args", scenario)
+
+    def test_the_scenario_builds_the_real_route_wiring_the_real_zone_and_the_real_policy(self):
+        cmake = self.cmake()
+        self.assertIn("${controller_root}/app/management/management.cmake", cmake)
+        self.assertRegex(cmake, r"add_subdirectory\(\$\{controller_root\}/app/compose compose\)")
+        self.assertIn("${controller_root}/app/src/management_policy.c", cmake)
+        self.assertRegex(cmake, r"target_link_libraries\(app PRIVATE[^)]*\bcompose\b")
+        self.assertNotIn("management_start", cmake)
+        self.assertNotIn("entropy.cmake", cmake)
+        self.assertNotIn("route_sources", cmake)
+
+    def test_the_scenario_adds_no_include_path_beyond_the_application_sources(self):
+        cmake = self.cmake()
+        for line in cmake.splitlines():
+            for word in ("-include", "-I"):
+                self.assertNotIn(word, line, line.strip())
+        for line in cmake.splitlines():
+            if "include_directories" in line:
+                self.assertRegex(line, r"target_include_directories\(app PRIVATE \$\{controller_root\}/app/src\)")
+        for private in ("components/", "crux_web_adapter", "/session", "psa_threading"):
+            self.assertNotIn(private, cmake, private)
+
+    def test_the_scenario_refuses_to_build_outside_the_simulator_whose_entropy_is_a_test_source(self):
+        cmake = self.cmake()
+        self.assertRegex(cmake, r"if\(NOT CONFIG_BOARD_NATIVE_SIM OR NOT CONFIG_FAKE_ENTROPY_NATIVE_SIM\)\s*message\(FATAL_ERROR")
+
+    def test_the_scenario_names_no_thread_sync_or_queue_symbol(self):
+        for name in ("CMakeLists.txt", "prj.conf"):
+            self.assertNotRegex(self.text(name), r"CRUX_(?:THREAD|SYNC|QUEUE)(?:_\w+)?\b", name)
+
+    def prj(self):
+        return conf_options(self.DIRECTORY / "prj.conf")
+
+    def test_the_scenario_picks_picolibc_because_the_target_does_and_says_so(self):
+        text = self.text("prj.conf")
+        self.assertEqual("y", self.prj().get("CONFIG_PICOLIBC"))
+        self.assertNotIn("CONFIG_MINIMAL_LIBC=y", text)
+        self.assertNotIn("CONFIG_EXTERNAL_LIBC=y", text)
+        self.assertIn("minimal libc", " ".join(text.split()))
+
+    def test_the_scenario_has_the_services_the_loopback_listener_and_the_fake_entropy(self):
+        options = self.prj()
+        for name in ("CONFIG_CRUX_PSA_THREADING", "CONFIG_CRUX_ACCESS", "CONFIG_CRUX_CONFIG_SERVICE",
+                     "CONFIG_CRUX_MGMT_STATUS", "CONFIG_CRUX_TLS_CERTIFICATE", "CONFIG_CRUX_WEB",
+                     "CONFIG_CRUX_WEB_SESSION", "CONFIG_CRUX_WEB_MANAGEMENT", "CONFIG_CRUX_SYSTEM",
+                     "CONFIG_CRUX_NETIF", "CONFIG_CRUX_LOGGING", "CONFIG_NET_LOOPBACK",
+                     "CONFIG_NET_SOCKETS_SOCKOPT_TLS", "CONFIG_TLS_CREDENTIALS",
+                     "CONFIG_ENTROPY_GENERATOR", "CONFIG_CRUX_FILE_FATFS_SIMULATOR",
+                     "CONFIG_FILE_SYSTEM_MKFS", "CONFIG_MBEDTLS", "CONFIG_PSA_CRYPTO_PROVIDER_MBEDTLS"):
+            self.assertEqual("y", options.get(name), name)
+        self.assertEqual('"127.0.0.1"', options.get("CONFIG_CRUX_WEB_BIND_ADDRESS"))
+        self.assertEqual("443", options.get("CONFIG_CRUX_WEB_PORT"))
+        for name in ("CONFIG_CRUX_WEB_SESSION_WORKER_PRIORITY", "CONFIG_CRUX_WEB_MANAGEMENT_WORKER_PRIORITY",
+                     "CONFIG_CRUX_SECURITY_EVENT_DRAIN_PRIORITY"):
+            self.assertEqual("11", options.get(name), name)
+        self.assertEqual("n", options.get("CONFIG_FS_FATFS_MOUNT_MKFS"))
+
+    def test_the_scenario_has_no_symbol_of_the_product_or_of_what_the_step_leaves_off(self):
+        options = self.prj()
+        self.assertFalse([n for n in options if n.startswith("CONFIG_CRUX_CONTROLLER")])
+        for name in ("CONFIG_CRUX_REBOOT", "CONFIG_CRUX_NETWORK_SETTINGS", "CONFIG_CRUX_FILE_SERVICE",
+                     "CONFIG_CRUX_SSH", "CONFIG_CRUX_CLI", "CONFIG_CRUX_WEB_PLAIN_HTTP_FOR_TESTS",
+                     "CONFIG_SHELL"):
+            self.assertNotEqual("y", options.get(name), name)
+        self.assertFalse([n for n in options if n.startswith("CONFIG_WOLF")])
+
+    def test_the_mbed_profile_is_the_one_of_the_fragment_except_for_the_larger_heap(self):
+        fragment = conf_options(ROOT / "app" / "conf" / "s6.conf")
+        options = self.prj()
+        shared = [name for name in fragment
+                  if name.startswith(("CONFIG_MBEDTLS", "CONFIG_PSA_WANT", "CONFIG_PSA_CRYPTO"))]
+        self.assertGreater(len(shared), 20)
+        for name in shared:
+            if name == "CONFIG_MBEDTLS_HEAP_SIZE":
+                self.assertEqual("180000", options.get(name))
+                continue
+            self.assertEqual(fragment[name], options.get(name), name)
+
+    def test_the_heap_is_larger_than_the_products_because_the_client_shares_the_process(self):
+        text = " ".join(self.text("prj.conf").split())
+        self.assertIn("client", text)
+        self.assertIn("120,000", text)
+
+    def test_the_scenario_declares_the_kernel_stacks_the_handshake_needs(self):
+        options = self.prj()
+        self.assertEqual("32768", options.get("CONFIG_MAIN_STACK_SIZE"))
+        self.assertEqual("32768", options.get("CONFIG_ZTEST_STACK_SIZE"))
+
+    def test_the_overlay_has_the_emulated_log_uart_the_ram_disk_and_the_storage_entry(self):
+        text = self.text("app.overlay")
+        for needle in ('compatible = "zephyr,uart-emul"', "logging_test:", 'compatible = "zephyr,ram-disk"',
+                       "controller_storage:", 'mount-point = "/RAM:"', "zephyr,log-uart"):
+            self.assertIn(needle, text, needle)
+
+    def source(self):
+        return self.text("src/test_s6.c")
+
+    def test_the_source_has_the_ten_cases_in_order(self):
+        code = c_code(self.DIRECTORY / "src" / "test_s6.c")
+        found = re.findall(r"ZTEST\(s6, test_(\d\d)_([a-z0-9_]+)\)", code)
+        self.assertEqual([(f"{n + 1:02d}", name) for n, name in enumerate(self.CASES)], found)
+
+    def test_the_source_starts_management_once_through_the_products_port(self):
+        code = c_code(self.DIRECTORY / "src" / "test_s6.c")
+        self.assertIn('#include "management_port.h"', code)
+        self.assertEqual(1, code.count("status = management_port_start(&config);"))
+        self.assertIn("MANAGEMENT_PORT_ERR_ALREADY_STARTED", code)
+        self.assertIn("MANAGEMENT_PORT_ERR_INVALID_ARGUMENT", code)
+
+    def test_the_client_verifies_the_server_with_the_certificate_the_product_registered(self):
+        code = " ".join(c_code(self.DIRECTORY / "src" / "test_s6.c").split())
+        for needle in ("ZSOCK_TLS_PEER_VERIFY_REQUIRED", "TLS_CREDENTIAL_CA_CERTIFICATE",
+                       "tls_credential_get(CONFIG_CRUX_WEB_TLS_SEC_TAG, TLS_CREDENTIAL_PUBLIC_CERTIFICATE",
+                       "NET_IPPROTO_TLS_1_3", "ZSOCK_TLS_SEC_TAG_LIST", "ZSOCK_TLS_HOSTNAME"):
+            self.assertIn(needle, code, needle)
+
+    def test_the_key_is_asked_for_its_length_only_and_never_read_or_printed(self):
+        code = " ".join(c_code(self.DIRECTORY / "src" / "test_s6.c").split())
+        self.assertRegex(code, r"tls_credential_get\( ?CONFIG_CRUX_WEB_TLS_SEC_TAG, TLS_CREDENTIAL_PRIVATE_KEY, &probe, &key_length\)")
+        self.assertIn("-EFBIG", code)
+        self.assertEqual(1, code.count("TLS_CREDENTIAL_PRIVATE_KEY"))
+
+    def test_the_client_waits_with_poll_and_retries_the_connect_because_the_listener_opens_late(self):
+        code = c_code(self.DIRECTORY / "src" / "test_s6.c")
+        self.assertIn("zsock_poll(", code)
+        self.assertIn("CONNECT_ATTEMPTS", code)
+        self.assertIn("k_msleep(", code)
+
+    def test_the_source_names_the_limit_of_the_simulator_run(self):
+        text = " ".join(self.source().replace("*", " ").split())
+        for needle in ("fake entropy", "handshake time", "stack use", "heap peaks", "no browser",
+                       "a successful login", "192.168.77.2", "the first account", "the libc"):
+            self.assertIn(needle, text, needle)
+
+    def test_the_source_uses_no_private_wording_and_logs_no_secret(self):
+        text = self.source()
+        self.assertNotRegex(text, r"(?i)\b(claude|assistant|llm)\b|work package|/Users/")
+        code = c_code(self.DIRECTORY / "src" / "test_s6.c")
+        for line in code.splitlines():
+            if "TC_PRINT" in line or "printk" in line:
+                self.assertNotRegex(line, r"password|private|der\b|key", line)
+
+    def test_the_scenario_files_carry_no_machine_path_or_secret(self):
+        for path in self.DIRECTORY.rglob("*"):
+            if path.is_file():
+                text = path.read_text()
+                self.assertNotRegex(text, r"/Users/|/home/|/private/|-----BEGIN", str(path))
 
 
 class S6Findings(unittest.TestCase):
