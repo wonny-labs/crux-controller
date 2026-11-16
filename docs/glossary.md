@@ -99,7 +99,7 @@ board image passes. It makes the Crux module refuse a Zephyr that is not the ver
 project" even when the gate passes.
 
 **Pin.** The full commit of `crux-pilot` that `west.yml` imports, currently
-`dfd3ad7d4380b06a47d8c8b5b9f0ce46fbba0576`. It is a commit and never a branch or a tag; no Crux tag
+`8e3737d25d048b14a00c01da00494f58a62958c6`. It is a commit and never a branch or a tag; no Crux tag
 exists. `west crux-pins` checks it in CI. A pin moves in its own pull request. See the pin section of
 [CONTRIBUTING.md](../CONTRIBUTING.md).
 
