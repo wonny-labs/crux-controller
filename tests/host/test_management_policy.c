@@ -9,6 +9,7 @@
 #include <string.h>
 
 #include "management_policy.h"
+#include "management_port.h"
 
 static int failures;
 static int checks;
@@ -147,6 +148,222 @@ static void the_boundaries_of_each_part_are_exact(void)
     CHECK(!management_address_valid("255.255.255.2555"));
 }
 
+/* Copies of the limits that crux_access_init() enforces (crux/access.h at the pinned revision). */
+#define ACCESS_NAME_MAX 31u       /* CRUX_ACCESS_NAME_SIZE (32) without the terminator. */
+#define ACCESS_PERMISSION_MAX 63u /* CRUX_ACCESS_PERMISSION_MAX. */
+
+static bool has_permission(const management_role_t *role, const char *permission)
+{
+    for (size_t i = 0; i < role->permission_count; i++) {
+        if (strcmp(role->permissions[i], permission) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static const management_role_t *role_named(const management_policy_t *policy, const char *name)
+{
+    for (size_t i = 0; i < policy->role_count; i++) {
+        if (strcmp(policy->roles[i].name, name) == 0) {
+            return &policy->roles[i];
+        }
+    }
+    return NULL;
+}
+
+static void the_policy_has_exactly_an_administrator_and_a_read_only_role(void)
+{
+    const management_policy_t *policy = management_policy_get();
+
+    CHECK(policy != NULL);
+    CHECK(policy->role_count == 2u);
+    CHECK(role_named(policy, "administrator") != NULL);
+    CHECK(role_named(policy, "read-only") != NULL);
+    CHECK(strcmp(MANAGEMENT_ROLE_ADMINISTRATOR, "administrator") == 0);
+    CHECK(strcmp(MANAGEMENT_ROLE_READ_ONLY, "read-only") == 0);
+}
+
+static void the_administrator_holds_exactly_manage_status_read_and_config_save(void)
+{
+    const management_role_t *role = role_named(management_policy_get(), "administrator");
+
+    CHECK(role != NULL);
+    CHECK(role->permission_count == 3u);
+    CHECK(has_permission(role, "access.manage"));
+    CHECK(has_permission(role, "status.read"));
+    CHECK(has_permission(role, "config.save"));
+}
+
+static void the_read_only_role_holds_status_read_and_nothing_else(void)
+{
+    const management_role_t *role = role_named(management_policy_get(), "read-only");
+
+    CHECK(role != NULL);
+    CHECK(role->permission_count == 1u);
+    CHECK(has_permission(role, "status.read"));
+    CHECK(!has_permission(role, "access.manage"));
+    CHECK(!has_permission(role, "config.save"));
+    CHECK(!has_permission(role, "access.self"));
+}
+
+static void the_session_limits_are_fifteen_minutes_idle_and_eight_hours_absolute(void)
+{
+    const management_policy_t *policy = management_policy_get();
+
+    CHECK(policy->session_idle_limit_s == 15u * 60u);
+    CHECK(policy->session_absolute_limit_s == 8u * 3600u);
+    CHECK(MANAGEMENT_SESSION_IDLE_LIMIT_S == 900u);
+    CHECK(MANAGEMENT_SESSION_ABSOLUTE_LIMIT_S == 28800u);
+}
+
+static void the_shipped_policy_meets_the_rules_that_access_enforces(void)
+{
+    CHECK(management_policy_valid(management_policy_get()));
+}
+
+static management_policy_t policy_with(const management_role_t *roles, size_t count)
+{
+    management_policy_t policy = {.roles = roles,
+                                  .role_count = count,
+                                  .session_idle_limit_s = 60u,
+                                  .session_absolute_limit_s = 120u};
+
+    return policy;
+}
+
+static void a_policy_that_access_would_refuse_is_refused(void)
+{
+    static const char *const manage[] = {"access.manage"};
+    static const char *const status[] = {"status.read"};
+    static const char *const twice[] = {"status.read", "status.read"};
+    static const char *const empty_name[] = {""};
+    static const char *const null_name[] = {NULL};
+    static const char long_permission[ACCESS_PERMISSION_MAX + 2u] =
+        "0123456789012345678901234567890123456789012345678901234567890123";
+    static const char *const long_permissions[] = {long_permission};
+    static const char *const exact_permissions[] = {"0123456789012345678901234567890123456789"
+                                                    "01234567890123456789012"};
+    static const char long_name[ACCESS_NAME_MAX + 2u] = "01234567890123456789012345678901";
+    static const management_role_t good[] = {{"a", manage, 1u}, {"b", status, 1u}};
+    static const management_role_t no_manager[] = {{"b", status, 1u}};
+    static const management_role_t dup_role[] = {{"a", manage, 1u}, {"a", status, 1u}};
+    static const management_role_t dup_permission[] = {{"a", manage, 1u}, {"b", twice, 2u}};
+    static const management_role_t no_name[] = {{"", manage, 1u}};
+    static const management_role_t null_role_name[] = {{NULL, manage, 1u}};
+    static const management_role_t over_long_name[] = {{long_name, manage, 1u}};
+    static const management_role_t exact_name[] = {{"0123456789012345678901234567890", manage, 1u}};
+    static const management_role_t empty_permission[] = {{"a", manage, 1u}, {"b", empty_name, 1u}};
+    static const management_role_t null_permission[] = {{"a", manage, 1u}, {"b", null_name, 1u}};
+    static const management_role_t over_long_permission[] = {{"a", manage, 1u},
+                                                             {"b", long_permissions, 1u}};
+    static const management_role_t exact_permission[] = {{"a", manage, 1u},
+                                                         {"b", exact_permissions, 1u}};
+    static const management_role_t no_permission_list[] = {{"a", manage, 1u}, {"b", NULL, 1u}};
+    static const management_role_t empty_list[] = {{"a", manage, 1u}, {"b", NULL, 0u}};
+    management_policy_t policy;
+
+    CHECK(strlen(long_permission) == ACCESS_PERMISSION_MAX + 1u);
+    CHECK(strlen(exact_permissions[0]) == ACCESS_PERMISSION_MAX);
+    CHECK(strlen(long_name) == ACCESS_NAME_MAX + 1u);
+    CHECK(strlen(exact_name[0].name) == ACCESS_NAME_MAX);
+
+    policy = policy_with(good, 2u);
+    CHECK(management_policy_valid(&policy));
+    CHECK(!management_policy_valid(NULL));
+
+    policy = policy_with(NULL, 0u);
+    CHECK(!management_policy_valid(&policy));
+    policy = policy_with(NULL, 1u);
+    CHECK(!management_policy_valid(&policy));
+    policy = policy_with(good, 0u);
+    CHECK(!management_policy_valid(&policy));
+
+    policy = policy_with(no_manager, 1u);
+    CHECK(!management_policy_valid(&policy));
+    policy = policy_with(dup_role, 2u);
+    CHECK(!management_policy_valid(&policy));
+    policy = policy_with(dup_permission, 2u);
+    CHECK(!management_policy_valid(&policy));
+    policy = policy_with(no_name, 1u);
+    CHECK(!management_policy_valid(&policy));
+    policy = policy_with(null_role_name, 1u);
+    CHECK(!management_policy_valid(&policy));
+    policy = policy_with(over_long_name, 1u);
+    CHECK(!management_policy_valid(&policy));
+    policy = policy_with(exact_name, 1u);
+    CHECK(management_policy_valid(&policy));
+    policy = policy_with(empty_permission, 2u);
+    CHECK(!management_policy_valid(&policy));
+    policy = policy_with(null_permission, 2u);
+    CHECK(!management_policy_valid(&policy));
+    policy = policy_with(over_long_permission, 2u);
+    CHECK(!management_policy_valid(&policy));
+    policy = policy_with(exact_permission, 2u);
+    CHECK(management_policy_valid(&policy));
+    policy = policy_with(no_permission_list, 2u);
+    CHECK(!management_policy_valid(&policy));
+    policy = policy_with(empty_list, 2u);
+    CHECK(management_policy_valid(&policy));
+
+    policy = policy_with(good, 2u);
+    policy.session_idle_limit_s = 0u;
+    CHECK(!management_policy_valid(&policy));
+    policy = policy_with(good, 2u);
+    policy.session_absolute_limit_s = 0u;
+    CHECK(!management_policy_valid(&policy));
+    policy = policy_with(good, 2u);
+    policy.session_idle_limit_s = 121u;
+    CHECK(!management_policy_valid(&policy));
+    policy.session_idle_limit_s = 120u;
+    CHECK(management_policy_valid(&policy));
+}
+
+static void a_version_text_is_one_to_sixty_three_printable_ascii_bytes(void)
+{
+    static const char sixty_three[] =
+        "012345678901234567890123456789012345678901234567890123456789012";
+    static const char sixty_four[] =
+        "0123456789012345678901234567890123456789012345678901234567890123";
+
+    CHECK(strlen(sixty_three) == 63u);
+    CHECK(strlen(sixty_four) == 64u);
+    CHECK(MANAGEMENT_VERSION_LENGTH_MAX == 63u);
+
+    CHECK(management_version_valid("1"));
+    CHECK(management_version_valid("0.1.0"));
+    CHECK(management_version_valid("v1.2.3-rc1+build.5 (debug)"));
+    CHECK(management_version_valid(sixty_three));
+    CHECK(management_version_valid(" ~"));
+
+    CHECK(!management_version_valid(NULL));
+    CHECK(!management_version_valid(""));
+    CHECK(!management_version_valid(sixty_four));
+    CHECK(!management_version_valid("1.0\n"));
+    CHECK(!management_version_valid("1.0\t"));
+    CHECK(!management_version_valid("1.0\x7f"));
+    CHECK(!management_version_valid("1.0\x1b[0m"));
+    CHECK(!management_version_valid("1.0\xc3\xa9"));
+    CHECK(!management_version_valid("\x80"));
+}
+
+static void the_port_configuration_carries_the_policy_and_two_versions(void)
+{
+    const management_port_config_t config = {
+        .policy = management_policy_get(),
+        .platform_version = "platform 1",
+        .project_version = "project 1",
+    };
+
+    CHECK(management_policy_valid(config.policy));
+    CHECK(management_version_valid(config.platform_version));
+    CHECK(management_version_valid(config.project_version));
+    CHECK(MANAGEMENT_PORT_OK == 0);
+    CHECK(MANAGEMENT_PORT_ERR_INVALID_ARGUMENT < 0);
+    CHECK(MANAGEMENT_PORT_ERR_ALREADY_STARTED < 0);
+    CHECK(MANAGEMENT_PORT_ERR_STEP_FAILED < 0);
+}
+
 int main(void)
 {
     a_dotted_ipv4_address_is_valid();
@@ -154,6 +371,14 @@ int main(void)
     no_text_at_all_is_refused();
     the_text_ends_at_the_first_nul_and_nothing_after_it_counts();
     the_boundaries_of_each_part_are_exact();
+    the_policy_has_exactly_an_administrator_and_a_read_only_role();
+    the_administrator_holds_exactly_manage_status_read_and_config_save();
+    the_read_only_role_holds_status_read_and_nothing_else();
+    the_session_limits_are_fifteen_minutes_idle_and_eight_hours_absolute();
+    the_shipped_policy_meets_the_rules_that_access_enforces();
+    a_policy_that_access_would_refuse_is_refused();
+    a_version_text_is_one_to_sixty_three_printable_ascii_bytes();
+    the_port_configuration_carries_the_policy_and_two_versions();
 
     printf("%d checks, %d failures\n", checks, failures);
     return failures == 0 ? 0 : 1;
