@@ -447,8 +447,8 @@ class S6NotBuilt(unittest.TestCase):
     # Approved behaviour change: step S6 is now built, so the old assertion that no build file names
     # it is replaced by one that only its own files do. The files of the other steps stay clean.
     S6_FILES = {"Kconfig", "conf/s1.conf", "conf/s6.conf", "boards/s6.overlay", "CMakeLists.txt",
-                "management/management.cmake", "management/reviewed-routes.txt",
-                "compose/CMakeLists.txt"}
+                "management/management.cmake", "management/entropy.cmake",
+                "management/reviewed-routes.txt", "compose/CMakeLists.txt"}
 
     def test_only_the_files_of_step_s6_name_it(self):
         for pattern in self.BUILD_FILES:
@@ -503,6 +503,7 @@ class S6BuildFiles(unittest.TestCase):
 
     APP_CMAKE = ROOT / "app" / "CMakeLists.txt"
     MANAGEMENT_CMAKE = ROOT / "app" / "management" / "management.cmake"
+    ENTROPY_CMAKE = ROOT / "app" / "management" / "entropy.cmake"
     COMPOSE_CMAKE = ROOT / "app" / "compose" / "CMakeLists.txt"
     FORBIDDEN = ("include_directories", "zephyr_include_directories", "target_include_directories",
                  "-include", "-I")
@@ -544,7 +545,7 @@ class S6BuildFiles(unittest.TestCase):
         )
 
     def test_no_build_file_of_the_step_adds_an_include_path(self):
-        for path in (self.APP_CMAKE, self.MANAGEMENT_CMAKE, self.COMPOSE_CMAKE):
+        for path in (self.APP_CMAKE, self.MANAGEMENT_CMAKE, self.ENTROPY_CMAKE, self.COMPOSE_CMAKE):
             for line in code_lines(path):
                 for word in self.FORBIDDEN:
                     self.assertNotIn(word, line, f"{path.name}: {line.strip()}")
@@ -580,7 +581,7 @@ class S6BuildFiles(unittest.TestCase):
         self.assertRegex(text, r"if\(NOT crux_root\)\s*message\(FATAL_ERROR")
         for needed in ("cmake/CruxWebAssets.cmake", "cmake/CruxWebRoutes.cmake",
                        "components/web/session/sources.cmake",
-                       "components/web/management/sources.cmake", "cmake/CruxMbedtlsEntropy.cmake"):
+                       "components/web/management/sources.cmake"):
             self.assertIn(f'include("${{crux_root}}/{needed}")', text, needed)
 
     def test_the_assets_come_before_the_routes_as_crux_requires(self):
@@ -596,15 +597,23 @@ class S6BuildFiles(unittest.TestCase):
         self.assertLess(assets.start(), routes.start())
         self.assertLess(text.index("target_sources(app PRIVATE ${route_sources})"), routes.start())
 
-    def test_the_entropy_correction_is_applied_after_its_file_is_included(self):
-        text = self.management_text()
-        self.assertLess(text.index('cmake/CruxMbedtlsEntropy.cmake'),
-                        text.index("crux_mbedtls_fail_closed_entropy()"))
+    def test_the_entropy_rules_are_in_their_own_file_that_only_the_image_includes(self):
+        entropy = "\n".join(code_lines(ROOT / "app" / "management" / "entropy.cmake"))
+        self.assertIn("ZEPHYR_CRUX_PILOT_MODULE_DIR", entropy)
+        self.assertLess(entropy.index("cmake/CruxMbedtlsEntropy.cmake"),
+                        entropy.index("crux_mbedtls_fail_closed_entropy()"))
+        self.assertRegex(entropy, r"if\(CONFIG_TEST_RANDOM_GENERATOR OR CONFIG_FAKE_ENTROPY_NATIVE_SIM\)\s*message\(FATAL_ERROR")
+        self.assertRegex(entropy, r"CONFIG_ENTROPY_MCUX_TRNG")
+        self.assertRegex(entropy, r"CONFIG_MBEDTLS_PSA_DRIVER_GET_ENTROPY")
+        block = self.block()
+        self.assertLess(block.index("management/entropy.cmake"), block.index("management/management.cmake"))
+        # The management file, which the scenario includes too, holds none of it.
+        self.assertNotIn("Entropy", self.management_text())
+        self.assertNotIn("TEST_RANDOM", self.management_text())
+        self.assertNotIn("fail_closed", self.management_text())
 
-    def test_the_management_cmake_refuses_a_test_entropy_source_and_a_missing_kernel_version(self):
-        text = self.management_text()
-        self.assertRegex(text, r"if\(CONFIG_TEST_RANDOM_GENERATOR OR CONFIG_FAKE_ENTROPY_NATIVE_SIM\)")
-        self.assertRegex(text, r"if\(NOT KERNEL_VERSION_STRING\)")
+    def test_the_management_cmake_refuses_a_missing_kernel_version(self):
+        self.assertRegex(self.management_text(), r"if\(NOT KERNEL_VERSION_STRING\)")
 
     def test_the_versions_are_compile_definitions_of_the_application(self):
         text = self.management_text()

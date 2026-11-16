@@ -6,9 +6,7 @@
 # sources, which have to be in the same directory scope.
 #
 # What it does, in the order that Crux's functions need:
-#   - finds the Crux module by the variable that Zephyr sets for it, and includes four files of it;
-#   - applies the fail-closed entropy correction, because on this board a failed read of the
-#     hardware random source would otherwise fall back to a generator that is not cryptographic;
+#   - finds the Crux module by the variable that Zephyr sets for it, and includes three files of it;
 #   - packages the page of app/management/site (crux_web_assets), then names the route sources of
 #     the session and management services and generates the route table (crux_web_routes), checked
 #     against reviewed-routes.txt.
@@ -17,6 +15,9 @@
 # directories as a property of that one source, so `app` gets no include directory from here and
 # this file adds none. If that does not compile from this repository, the step stops: there is no
 # private include path to fall back on (docs/findings/s6-https-management.md).
+#
+# The entropy rules of the board image are in entropy.cmake, which only the image includes: the
+# native_sim scenario includes this file and has a test entropy source on purpose.
 #
 # The network, reboot and file service routes are separate variables of Crux and are not named, so
 # they are not in the table. The version texts that the status service reports are compile
@@ -27,10 +28,6 @@ if(NOT crux_root)
     message(FATAL_ERROR "Step S6 needs the Crux module: ZEPHYR_CRUX_PILOT_MODULE_DIR is not set")
 endif()
 
-# A key and a salt that came from a test source mean nothing, so the image refuses one.
-if(CONFIG_TEST_RANDOM_GENERATOR OR CONFIG_FAKE_ENTROPY_NATIVE_SIM)
-    message(FATAL_ERROR "Step S6 generates a TLS key at its first start: no test entropy source")
-endif()
 if(NOT KERNEL_VERSION_STRING)
     message(FATAL_ERROR "Step S6 reports the Zephyr version to the status service, and the build "
                         "gave none (KERNEL_VERSION_STRING)")
@@ -40,8 +37,6 @@ include("${crux_root}/cmake/CruxWebAssets.cmake")
 include("${crux_root}/cmake/CruxWebRoutes.cmake")
 include("${crux_root}/components/web/session/sources.cmake")
 include("${crux_root}/components/web/management/sources.cmake")
-include("${crux_root}/cmake/CruxMbedtlsEntropy.cmake")
-crux_mbedtls_fail_closed_entropy()
 
 target_compile_definitions(app PRIVATE
     MANAGEMENT_PLATFORM_VERSION="zephyr-${KERNEL_VERSION_STRING}"

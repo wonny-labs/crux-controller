@@ -48,14 +48,16 @@ if(CONFIG_CRUX_CONTROLLER_S1)
     if(CONFIG_CRUX_CONTROLLER_S5)
         target_sources(app PRIVATE src/time_sync.c src/time_sync_policy.c)
     endif()
-    # Step S6: HTTPS management. The policy is a source of the application, the start sequence is
-    # in the composition zone (app/compose), and the route sources, the packaged page and the
-    # entropy correction are named by app/management/management.cmake, which is included here
-    # because the route table belongs to the target `app`. The application links the public
-    # target of the web API for the route macros, and no include path is added anywhere.
+    # Step S6: HTTPS management. The policy is a source of the application, and the start sequence
+    # is in the composition zone (app/compose). The entropy rules of the image are in
+    # app/management/entropy.cmake. The route sources and the packaged page are named by
+    # app/management/management.cmake. Both files are included here, not added as subdirectories,
+    # because the route table belongs to the target `app`. The application links the public target
+    # of the web API for the route macros, and no include path is added anywhere.
     if(CONFIG_CRUX_CONTROLLER_S6)
         target_sources(app PRIVATE src/management_policy.c)
         target_link_libraries(app PRIVATE crux::web compose)
+        include("${CMAKE_CURRENT_LIST_DIR}/management/entropy.cmake")
         include("${CMAKE_CURRENT_LIST_DIR}/management/management.cmake")
     endif()
 endif()
