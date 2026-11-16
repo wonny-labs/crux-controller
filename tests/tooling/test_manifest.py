@@ -42,11 +42,17 @@ class ManifestIsOptionA(unittest.TestCase):
 
     def test_crux_pilot_is_pinned_to_the_approved_commit(self):
         # Moving the pin is a reviewed change of this test and of west.yml together.
-        # The owner approved this commit on 14 November 2026: it adds the public management
-        # headers and the simulated native_sim watchdog, and it does not contain the move of
-        # the crypto modules to the Zephyr v4.4-branch revisions.
+        # The project owner approved this commit on 16 November 2026. It contains the move of
+        # the crypto modules to the Zephyr v4.4-branch revisions (wonny-labs/crux-pilot#416),
+        # which only changes the two optional-group projects that this repository keeps off.
         revision = load_manifest()["projects"][0]["revision"]
-        self.assertEqual(revision, "dfd3ad7d4380b06a47d8c8b5b9f0ce46fbba0576")
+        self.assertEqual(revision, "8e3737d25d048b14a00c01da00494f58a62958c6")
+
+    def test_the_pin_comment_does_not_say_the_crypto_move_is_missing(self):
+        text = (ROOT / "west.yml").read_text()
+        self.assertNotIn("is not in it", text)
+        self.assertIn("Mbed TLS 4.1.1", text)
+        self.assertIn("TF-PSA-Crypto 1.1.1", text)
 
     def test_manifest_has_no_tag_pin(self):
         revision = str(load_manifest()["projects"][0]["revision"])
