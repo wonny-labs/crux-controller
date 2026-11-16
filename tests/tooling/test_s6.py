@@ -224,5 +224,106 @@ class S6NotBuilt(unittest.TestCase):
             self.assertNotIn(symbol, text, symbol)
 
 
+class S6Findings(unittest.TestCase):
+    NOTE = ROOT / "docs" / "findings" / "s6-https-management-gaps.md"
+    PIN = "8e3737d25d048b14a00c01da00494f58a62958c6"
+    PREVIOUS_PIN = "dfd3ad7d4380b06a47d8c8b5b9f0ce46fbba0576"
+
+    def text(self):
+        return self.NOTE.read_text()
+
+    def words(self):
+        return " ".join(self.text().split())
+
+    def test_the_note_exists_and_uses_the_three_labels(self):
+        for label in ("**Verified**", "**Inferred**", "**Not verified**"):
+            self.assertIn(label, self.text())
+
+    def test_the_note_defines_its_labels_and_names_both_revisions(self):
+        text = self.words()
+        self.assertIn(self.PIN, text)
+        self.assertIn(self.PREVIOUS_PIN, text)
+        self.assertIn("read in a named file at a named revision", text)
+
+    def test_the_note_claims_nothing_was_built_or_run(self):
+        text = self.words()
+        self.assertIn("No Zephyr build, Twister run, CI run or board run stands behind any statement", text)
+        self.assertIn("not compiled into any firmware image", text)
+
+    def test_every_verified_row_of_a_table_names_a_file_and_a_revision(self):
+        rows = [line for line in self.text().splitlines()
+                if line.startswith("|") and "**Verified**" in line]
+        self.assertGreaterEqual(len(rows), 10)
+        for row in rows:
+            source = [cell for cell in row.split("|") if cell.strip()][-1]
+            self.assertRegex(source, r"`[A-Za-z0-9_./-]*[/.][A-Za-z0-9_./-]*`", row)
+            self.assertRegex(source, r"8e3737d2|dfd3ad7d|8b9c702", row)
+
+    def test_the_note_covers_the_locks_gap_with_the_symbol_and_its_state(self):
+        text = self.words()
+        for needle in ("CONFIG_CRUX_PSA_THREADING", "Experimental", "off by default",
+                       "zephyr/Kconfig", "open at the previous pin", "addressed at 8e3737d2"):
+            self.assertIn(needle, text, needle)
+
+    def test_the_note_covers_the_first_account_gap(self):
+        text = self.words()
+        for needle in ("<crux/cli_zephyr.h>", "crux_cli_serial_start", "crux_access_provision_first_account",
+                       "COMPOSITION_CRUX_HEADERS", "reviewed change", "scripts/check_boundary.py",
+                       "tests/tooling/test_boundary.py", "docs/composition-zone.md"):
+            self.assertIn(needle, text, needle)
+
+    def test_the_note_covers_the_route_sources_gap_without_a_workaround(self):
+        text = self.words()
+        for needle in ("crux_web_routes()", "unproven", "first native_sim build of the composition",
+                       "no private include", "platform gap", "the owner decides"):
+            self.assertIn(needle, text, needle)
+
+    def test_the_note_covers_libc_the_group_and_the_wording_of_thread_and_sync(self):
+        text = self.words()
+        for needle in ("picolibc", "minimal libc", "CONFIG_EXTERNAL_LIBC",
+                       "crux-secure-management", "runner of the S6 and budget jobs only",
+                       "never in `west.yml`", "check_mbed_only.py",
+                       "the Crux services select them for themselves", "product code includes none",
+                       "app/Kconfig", "docs/architecture.md", "S1 to S5 only"):
+            self.assertIn(needle, text, needle)
+
+    def test_the_note_states_the_timeout_limit_of_one_silent_client(self):
+        text = self.words()
+        for needle in ("2,000 ms", "one silent client", "every other client", "docs/https-composition.md"):
+            self.assertIn(needle, text, needle)
+
+    def test_the_note_lists_what_is_not_verified(self):
+        text = self.words()
+        for needle in ("login", "sessions", "roles at run time", "first account", "browser", "any board",
+                       "timing", "stack", "heap", "entropy"):
+            self.assertIn(needle, text, needle)
+
+    def test_the_note_uses_no_shorthand_or_private_wording(self):
+        text = self.text()
+        self.assertNotRegex(text, r"\b[OB][1-9]\b")
+        self.assertNotRegex(text, r"(?i)\b(claude|assistant|chatgpt|llm|agent)\b")
+        self.assertNotRegex(text, r"(?i)work package|skeleton plan|\b(?:OD|WD)[0-9]+\b")
+        self.assertNotRegex(text, r"/Users/|/home/|/private/|/tmp/|[A-Z]:\\")
+
+    def test_every_issue_reference_in_the_note_is_qualified(self):
+        for number, line in enumerate(self.text().splitlines(), 1):
+            for match in re.finditer(r"#[0-9]+", line):
+                before = line[: match.start()]
+                self.assertRegex(
+                    before, r"wonny-labs/crux-(?:pilot|controller)$", f"{number}: {line.strip()}"
+                )
+
+    def test_the_note_and_the_readme_do_not_present_s6_as_a_step(self):
+        readme = (ROOT / "README.md").read_text()
+        self.assertIsNone(re.search(r"^\|\s*S6\s*\|", readme, re.M))
+        self.assertIn("not a step", self.words())
+
+    def test_the_changelog_records_the_groundwork_and_that_no_image_changes(self):
+        text = " ".join((ROOT / "CHANGELOG.md").read_text().split())
+        self.assertIn("S6", text)
+        self.assertIn("s6-https-management-gaps.md", text)
+        self.assertIn("no firmware image", text)
+
+
 if __name__ == "__main__":
     unittest.main()

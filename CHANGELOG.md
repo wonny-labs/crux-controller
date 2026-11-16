@@ -83,6 +83,13 @@ twice on a board (see `docs/findings/s2-first-board-run.md`); nothing else has r
   Zephyr builds and the budget jobs run in CI.
 - Static resource use is collected and checked against declared limits (`budgets/`), with a
   step summary per step.
+- Groundwork for a later step S6 (HTTPS management), which is not a step yet: the limits file declares a
+  row `S6` equal to the `S5` row (the placeholder of 25 percent free in every region), before anything is
+  measured and before any workflow uses it. `app/src/management_policy.[ch]` hold a strict IPv4 text check,
+  the administrator and read-only role data, the session limits and a version text check, and
+  `app/src/management_port.h` declares the product-owned port. They are built and tested on the host only:
+  no firmware image changes, because no build file, option or configuration names them. The finding
+  `docs/findings/s6-https-management-gaps.md` records the gaps found by reading, with what is not verified.
 
 ### Release tooling
 
