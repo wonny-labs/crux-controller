@@ -800,6 +800,20 @@ class S6Storage(unittest.TestCase):
                        "STORAGE_PORT_STORE_ROOT_A", "STORAGE_PORT_STORE_ROOT_B"):
             self.assertIn(needle, code, needle)
 
+    def test_the_store_binding_is_compiled_only_with_the_web_management_symbol_so_other_steps_are_unchanged(self):
+        # The S3 image compiles this file too. Everything that S6 added to it is behind the Crux
+        # symbol that the S6 fragment sets, and the helper that the S3 code uses is the one it had.
+        code = c_code(self.SOURCE)
+        guarded = code[code.index("#ifdef CONFIG_CRUX_WEB_MANAGEMENT"):]
+        self.assertIn("storage_port_bind_store(void)", guarded)
+        self.assertIn("directory_path(", guarded)
+        before = code[: code.index("#ifdef CONFIG_CRUX_WEB_MANAGEMENT")]
+        self.assertNotIn("directory_path", before)
+        self.assertNotIn("storage_port_bind_store", before)
+        self.assertNotIn("STORE_DIRECTORY", before)
+        self.assertRegex(before, r"snprintf\(path, capacity, \"%s/%s\", volume\(\)->mnt_point, FILES_DIRECTORY\)")
+        self.assertTrue(guarded.rstrip().endswith("#endif"))
+
     def test_the_roots_are_distinct_and_do_not_overlap_the_files_directory(self):
         code = c_code(self.SOURCE)
         self.assertRegex(code, r'#define FILES_DIRECTORY "files"')

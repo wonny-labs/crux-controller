@@ -23,9 +23,6 @@
 
 #define STORAGE_NODE DT_NODELABEL(controller_storage)
 #define FILES_DIRECTORY "files"
-/* The two directories of the credential store of step S6, one for each of its slots. */
-#define STORE_DIRECTORY_A "secure-a"
-#define STORE_DIRECTORY_B "secure-b"
 /* File accepts 2 to 63 characters, so the buffer holds 63 and the end of string. */
 #define PATH_CAPACITY 64u
 
@@ -36,18 +33,12 @@ static struct fs_mount_t *volume(void)
     return &FS_FSTAB_ENTRY(STORAGE_NODE);
 }
 
-/* A directory of the volume: the mount point, a slash and the name. */
-static int directory_path(char *path, size_t capacity, const char *name)
-{
-    const int length = snprintf(path, capacity, "%s/%s", volume()->mnt_point, name);
-
-    return (length > 0 && (size_t)length < capacity) ? 0 : -1;
-}
-
 /* The directory of the volume that File uses: the mount point and "/files". */
 static int files_path(char *path, size_t capacity)
 {
-    return directory_path(path, capacity, FILES_DIRECTORY);
+    const int length = snprintf(path, capacity, "%s/%s", volume()->mnt_point, FILES_DIRECTORY);
+
+    return (length > 0 && (size_t)length < capacity) ? 0 : -1;
 }
 
 #ifdef CONFIG_FILE_SYSTEM_MKFS
@@ -108,6 +99,25 @@ storage_port_status_t storage_port_bind(void)
     }
 }
 
+#ifdef CONFIG_CRUX_WEB_MANAGEMENT
+/*
+ * Step S6 only: the two directories of the credential store. This part is compiled only when the
+ * web management symbol of Crux is on, which the S6 fragment sets, so the object of every other
+ * step, S3 included, is the one it was before.
+ */
+
+/* The two directories of the credential store of step S6, one for each of its slots. */
+#define STORE_DIRECTORY_A "secure-a"
+#define STORE_DIRECTORY_B "secure-b"
+
+/* A directory of the volume: the mount point, a slash and the name. */
+static int directory_path(char *path, size_t capacity, const char *name)
+{
+    const int length = snprintf(path, capacity, "%s/%s", volume()->mnt_point, name);
+
+    return (length > 0 && (size_t)length < capacity) ? 0 : -1;
+}
+
 /* A directory that exists afterwards. An existing entry is fine here: File refuses it at the bind
  * when it is not a directory. */
 static int make_directory(const char *path)
@@ -146,3 +156,4 @@ storage_port_status_t storage_port_bind_store(void)
         return STORAGE_PORT_ERR_BIND;
     }
 }
+#endif /* CONFIG_CRUX_WEB_MANAGEMENT */
