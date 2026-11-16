@@ -1,0 +1,111 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+#ifndef MANAGEMENT_POLICY_H
+#define MANAGEMENT_POLICY_H
+
+/*
+ * The product's policy for HTTPS management, as data and plain C with ISO C includes only, so the
+ * host builds and tests it with no Crux or Zephyr header. No firmware image compiles this file
+ * yet: it is groundwork, and the composition that would use it is a later change.
+ *
+ * The permission names below are copies, because this file has no Crux include. What backs each
+ * one: "access.manage"  CRUX_ACCESS_PERMISSION_MANAGE, defined in crux/access.h, which also defines
+ *                    "access.self" (not listed here: every role holds it implicitly).
+ *   "config.save"    named by the route table of docs/management-in-a-product.md. The macro that
+ *                    carries it, CRUX_CONFIG_SERVICE_PERMISSION_SAVE in crux/config_service.h, was
+ *                    read by the author only.
+ *   "status.read"    CRUX_MGMT_STATUS_PERMISSION_READ in crux/management_status.h, read by the
+ *                    author only; no second source states the value.
+ * The two strings that rest on the author's reading are to be confirmed against the header by the
+ * composition that passes this data to Crux. That composition must also assert at build time that
+ * each copy equals the Crux value, as time_sync.c does for the time range.
+ *
+ * Only the permissions that the web routes of step S6 would check are granted: the status and the
+ * configuration save. Nothing else is granted, because no other route is planned.
+ *
+ * The password rule is not set here. A missing rule selects the Crux Access reference rule, which
+ * is the intent. Setting one later is a product decision of its own.
+ */
+
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+
+#define MANAGEMENT_ROLE_ADMINISTRATOR "administrator"
+#define MANAGEMENT_ROLE_READ_ONLY "read-only"
+
+#define MANAGEMENT_PERMISSION_ACCESS_MANAGE "access.manage"
+#define MANAGEMENT_PERMISSION_STATUS_READ "status.read"
+#define MANAGEMENT_PERMISSION_CONFIG_SAVE "config.save"
+
+/* A session ends after 15 minutes without activity, and at the latest 8 hours after its start. */
+#define MANAGEMENT_SESSION_IDLE_LIMIT_S (15u * 60u)
+#define MANAGEMENT_SESSION_ABSOLUTE_LIMIT_S (8u * 3600u)
+
+/*
+ * The longest version text that the status service accepts, without the terminator. Not verified
+ * beyond the author's reading of the comment of crux/management_status.h, which says 63 bytes under
+ * a character rule; no other source was checked.
+ */
+#define MANAGEMENT_VERSION_LENGTH_MAX 63u
+
+/*
+ * A role: a name and the exact list of its permissions. It has the same members as
+ * crux_access_role_t of crux/access.h, in the same order. Nothing in this repository checks that
+ * the two are equivalent yet, so the composition must copy member by member, and assert sizeof and
+ * offsetof or compile against the Crux header.
+ */
+typedef struct {
+    const char *name;
+    const char *const *permissions;
+    size_t permission_count;
+} management_role_t;
+
+/*
+ * The roles and the session limits. It has the same members as crux_access_policy_t of
+ * crux/access.h, without the password rule hook. The same applies: nothing in this repository
+ * checks the equivalence yet, so the composition copies member by member and asserts it.
+ */
+typedef struct {
+    const management_role_t *roles;
+    size_t role_count;
+    uint32_t session_idle_limit_s;
+    uint32_t session_absolute_limit_s;
+} management_policy_t;
+
+/*
+ * True when text is a strict dotted IPv4 address: four decimal parts separated by single dots,
+ * each part 0 to 255, written with one to three digits and no leading zero (a part that starts
+ * with zero is exactly "0"). No sign, no space, no other character and no text after the last
+ * part. A null pointer and the empty text are refused. The text ends at its first NUL, so bytes
+ * after a NUL are not seen.
+ *
+ * Zephyr's HTTP server falls back to every address for a text that is not an address, so a
+ * composition that wants one interface checks the text itself, and this is that check. This is
+ * stated in docs/management-in-a-product.md and in a comment of
+ * components/web/ports/zephyr/web_http_server.c at the pinned revision; the behaviour itself is
+ * not verified here.
+ */
+bool management_address_valid(const char *text);
+
+/* The product's policy: the administrator role and the read-only role, and the session limits. */
+const management_policy_t *management_policy_get(void);
+
+/*
+ * True when the policy meets the rules that crux_access_init() documents and applies (read in
+ * crux/access.h and components/access/src/access.c at the pinned revision): at least one role, a
+ * role name of 1 to 31 bytes, a permission of 1 to 63 bytes, no duplicate role name, no duplicate
+ * permission inside one role, both session limits above zero, the idle limit not above the
+ * absolute limit, and at least one role that holds "access.manage". A role with no permissions is
+ * allowed. A null policy is refused. This is a host-side check of the data, not a replacement for
+ * what Crux does at start.
+ */
+bool management_policy_valid(const management_policy_t *policy);
+
+/*
+ * True when text is one to MANAGEMENT_VERSION_LENGTH_MAX bytes of printable ASCII (0x20 to 0x7E).
+ * That is a subset of what the status service accepts, which also allows other well-formed UTF-8
+ * but no control character. The subset keeps the version out of terminal and log trouble.
+ */
+bool management_version_valid(const char *text);
+
+#endif
