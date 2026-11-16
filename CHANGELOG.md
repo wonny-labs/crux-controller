@@ -19,8 +19,9 @@ twice on a board (see `docs/findings/s2-first-board-run.md`); nothing else has r
   pull request, because they come from CI.
 - The `crux-pilot` pin moved from `dfd3ad7d` to `8e3737d2`, the squash commit of wonny-labs/crux-pilot#485,
   approved by the project owner on 16 November 2026. The range contains the move of the crypto modules
-  (wonny-labs/crux-pilot#416): `mbedtls` is now Mbed TLS 4.1.1 and `tf-psa-crypto` is TF-PSA-Crypto 1.1.1,
-  the revisions of Zephyr's v4.4-branch after v4.4.2. Both are in the optional group
+  (wonny-labs/crux-pilot#416): `mbedtls` is now Mbed TLS 4.1.1 plus 8 commits and `tf-psa-crypto` is
+  TF-PSA-Crypto 1.1.1 plus 24 commits (as the dependency review of `crux-pilot` counts them), the revisions
+  of Zephyr's v4.4-branch after v4.4.2. Both are in the optional group
   `crux-secure-management`, which stays off, so this repository does not fetch them; the Crux manifest
   differs from the previous pin only in those two revisions and the comment above them. The Zephyr revision (v4.4.2) and the verified
   baseline are unchanged. The pin now also holds `CONFIG_CRUX_PSA_THREADING` (Experimental, off by
