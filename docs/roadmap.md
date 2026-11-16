@@ -10,8 +10,8 @@ board bring-up would go, not yet run for this controller, is in [board-bring-up.
 
 ## Short version
 
-- Six steps, S0 to S5, are on `main`. CI builds them for the NXP RT1060-EVKB Rev B and runs
-  `native_sim` scenarios for S1 to S5. This page does not claim a current CI result; look at the checks of
+- Seven steps, S0 to S6, are on `main`. CI builds them for the NXP RT1060-EVKB Rev B and runs
+  `native_sim` scenarios for S1 to S6. This page does not claim a current CI result; look at the checks of
   the commit you care about.
 - S5 (the Crux Time realtime clock set from an SNTP server) arrived with
   [wonny-labs/crux-controller#50](https://github.com/wonny-labs/crux-controller/pull/50). It was never run
@@ -19,8 +19,11 @@ board bring-up would go, not yet run for this controller, is in [board-bring-up.
 - **Nothing here has run on a physical board except what
   [docs/findings/s2-first-board-run.md](findings/s2-first-board-run.md) records**: the S2 image, twice, on
   one bench. See [What has run on a board](#what-has-run-on-a-board) for the exact scope.
-- None of the management features (HTTPS, command lines, SFTP, access control and the rest) is built here,
-  and for each there is a recorded reason why not.
+- One management feature is wired: HTTPS management on the Mbed TLS profile (step S6, with Crux Access, the
+  status and configuration services and a packaged page). It is built in CI and has never run on a board, and
+  the image has no account, so nobody can log in until the first-account console exists. The serial and SSH
+  command lines, SFTP, network settings, file and reboot routes are not built, and for each there is a recorded
+  reason why not. See [docs/findings/s6-https-management.md](findings/s6-https-management.md).
 - There is no release and no tag.
 
 ## What exists on `main`
@@ -33,6 +36,7 @@ board bring-up would go, not yet run for this controller, is in [board-bring-up.
 | S3 | The configuration record is kept in a file through Crux File, mounted by the composition zone | A `native_sim` scenario with the simulator provider on a RAM disk, and a CI build for the board with the FatFs provider on microSD. No card was used. |
 | S4 | The reset cause is logged at boot, and a watchdog is fed once for each pass of the workload that has cycles due, through Crux System | A `native_sim` scenario that shows the boot line and an unavailable watchdog (the simulator has none, so no feed cycle), host tests of the policy, and a CI build for the board with WDOG1 named by a devicetree alias. |
 | S5 | The Crux Time realtime clock is set from an SNTP server on the S2 network, by a low-priority thread, and a product policy decides what an answer may do | `native_sim` scenarios with a UDP responder on loopback, in seven cases (each case is its own image), host tests of the policy, and a CI build for the board on the S2 base. No board run. |
+| S6 | HTTPS management on the S2 network: Crux Access, the web server on the Mbed TLS profile, the status and configuration services and a packaged page, on a RAM disk | One `native_sim` image with ten ordered cases (a TLS 1.3 handshake that an in-process client verifies, the page bytes and the login path up to a rejected attempt), host tests of the address parser, and a CI build for the board with the Mbed TLS group switched on in its own runner. No board run, no account and no successful login. |
 
 On the S4 row: a simulated watchdog exists in Crux at revision 35431b1e, which is after this repository's
 pin. Whether the S4 scenario could use it has not been checked, and nothing is decided or scheduled.
@@ -42,12 +46,12 @@ Around the steps:
 - The boundary check (`scripts/check_boundary.py`) and two zones, `app/os` and `app/compose`.
   `zephyr/net/sntp.h` is on the adapter zone's allow-list, and one source includes it:
   `app/os/time_sync_zephyr.c` (step S5).
-- Declared resource limits for S0 to S5 (`budgets/limits.json`), which are placeholders, checked in CI
+- Declared resource limits for S0 to S6 (`budgets/limits.json`), which are placeholders, checked in CI
   against static size only. Stack use, heap use and timing are not measured.
 - Release tooling and a dry run that publishes nothing, a rebuild comparison at another path, and a daily
   build against the current `crux-pilot` main that is information only.
-- Findings in `docs/findings/`: the File binding (closed upstream since), step S3, step S4, step S5, the S2 board
-  runs and the management features.
+- Findings in `docs/findings/`: the File binding (closed upstream since), step S3, step S4, step S5, step S6, the
+  S2 board runs and the management features.
 
 The README table is the maintained summary of the steps and says, per step, whether it ran on a board.
 
@@ -117,6 +121,11 @@ unless another note is named. That note was read against a Crux revision other t
 This repository's boundary check keeps no exception, so a feature that needs a Crux private header is
 blocked until Crux offers a public way, and nothing here will widen the check to get around it.
 
+Step S6 has overtaken some of the rows below. It composes HTTPS, the web page, Access, the credential store and the
+configuration service with public Crux headers and targets, built in CI and never run on a board, with no account
+and no login shown. The rows keep what the earlier finding recorded at its own revision; the current state, and
+what is still open, is in [docs/findings/s6-https-management.md](findings/s6-https-management.md).
+
 | Feature | What blocks it, as recorded | Open before it could be built |
 |---|---|---|
 | HTTPS | Mostly as the finding records (the name blocklist is from `west.yml`, and the finding says that narrowing "has not been tried"). No public composition: the web start function and the certificate start function are in private headers, and the web adapter's include directory is offered only through an interface target that is marked "only for a composition". Licensing: Mbed TLS and TF-PSA-Crypto are stated as Apache-2.0 OR GPL-2.0-or-later, which fits this Apache-2.0 repository under the Apache option, but Crux puts them in one optional group with the wolf projects (GPL or commercial), and this repository's import blocks those three by name. The Wolf profile also needs a Zephyr patch whose terms are unconfirmed, so it cannot be used here. | Certificate handling, the interface a listener binds, and what management load does to the control cycle. |
@@ -144,7 +153,7 @@ tracked in this repository's own issues, with the epic
 
 - A release, a tag or a published image. The release flow runs only as a dry run, and images are never
   published, only hashes.
-- A board run of S0, of S1 alone, of S3, of S4 or of S5, and any run after a cold power cycle.
+- A board run of S0, of S1 alone, of S3, of S4, of S5 or of S6, and any run after a cold power cycle.
 - Run-time measurement: the budget job measures static size only.
 - A firmware image, `.elf` or `.map` in the repository, a bundle or a CI artifact: this is a rule, not a
   gap.

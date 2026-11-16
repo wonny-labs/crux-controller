@@ -6,9 +6,9 @@ the terms are new to you.
 
 ## Steps and stages
 
-**Step.** A numbered increment of what the firmware does, written S0 to S5 on `main`. Each step after S0
-has a Kconfig option (`CRUX_CONTROLLER_S1` to `CRUX_CONTROLLER_S5` in `app/Kconfig`), a configuration
-fragment (`app/conf/s1.conf` to `s5.conf`), a CI build job (the S1 job is named `S1 (native_sim and RT1060-EVKB)`), its own row in the `Budget` matrix and
+**Step.** A numbered increment of what the firmware does, written S0 to S6 on `main`. Each step after S0
+has a Kconfig option (`CRUX_CONTROLLER_S1` to `CRUX_CONTROLLER_S6` in `app/Kconfig`), a configuration
+fragment (`app/conf/s1.conf` to `s6.conf`), a CI build job (the S1 job is named `S1 (native_sim and RT1060-EVKB)`), its own row in the `Budget` matrix and
 in `budgets/limits.json`, and a row in the README table.
 
 | Step | What it adds |
@@ -19,11 +19,13 @@ in `budgets/limits.json`, and a row in the README table.
 | S3 | The workload's configuration record is kept in a file through Crux File, on a microSD volume mounted by the composition zone. |
 | S4 | The reset cause is logged at boot and a watchdog is fed once for each pass of the workload that has cycles due, through Crux System. |
 | S5 | The Crux Time realtime clock is set from an SNTP server on the S2 network, with a product policy for what an answer may do. |
+| S6 | Management over HTTPS on the S2 network: Crux Access, the web server on the Mbed TLS profile, the status and configuration services and a packaged page, on a RAM disk, with no account until the first-account console exists. |
 
 S2, S3 and S4 each depend on S1 in Kconfig and are built on top of `conf/s1.conf`. S5 depends on S2
-(and so on S1) and is built on `conf/s1.conf;conf/s2.conf;conf/s5.conf`. "Build on" in the
+(and so on S1) and is built on `conf/s1.conf;conf/s2.conf;conf/s5.conf`. S6 depends on S2 too, excludes S3 and S4 in Kconfig, and is
+built on `conf/s1.conf;conf/s2.conf;conf/s6.conf`. "Build on" in the
 repository therefore means "depends on" a lower step. CI builds each step as its own image and never
-combines S2, S3 and S4; the S5 image is built on S2 (and so on S1). What each step has and has not run is in [roadmap.md](roadmap.md), and the procedure for
+combines S2, S3 and S4; the S5 and S6 images are built on S2 (and so on S1). What each step has and has not run is in [roadmap.md](roadmap.md), and the procedure for
 adding one is in [adding-a-step.md](adding-a-step.md).
 
 "Step" has two other meanings that share the word. In a GitHub Actions workflow a step is one entry of
@@ -56,8 +58,8 @@ in `scripts/check_boundary.py`), and no Sockets profile, POSIX or composition he
 `app/os/time_sync_zephyr.c` (S5) includes the SNTP header. See [composition-zone.md](composition-zone.md).
 
 **Composition zone.** The directory `app/compose`. The one place that mounts a file system and binds it
-to Crux File with the composition interface `<crux/file_zephyr.h>`, and the place for the Web
-composition interface `<crux/web_zephyr.h>`. It may include three Zephyr headers,
+to Crux File with the composition interface `<crux/file_zephyr.h>`, and the place that starts HTTPS management with
+the Web composition interface `<crux/web_zephyr.h>` (S6). It may include three Zephyr headers,
 `zephyr/fs/fs.h`, `zephyr/devicetree.h` and `zephyr/net/tls_credentials.h`. It implements the port header `app/src/storage_port.h`.
 "Composition" in this repository's documents means product code that joins Crux components to the
 board and the OS; the Crux definition itself was not read for this page. Do not confuse
@@ -125,7 +127,7 @@ cannot be shown there.
 that board string; reading `@B` as revision B is the reader's inference and is not verified here. An
 "EVKB build" in this repository means a cross-compile in CI. It never means a run.
 
-**Scenario.** One Zephyr test application under `tests/native_sim/sN`, with a `testcase.yaml` for
+**Scenario.** One Zephyr test application under `tests/native_sim/sN` (S6: `tests/native_sim_mbed/s6`, which needs the Mbed TLS modules), with a `testcase.yaml` for
 Twister. S3, S4 and S5 select one case per image through a build variable (`S3_CASE`, `S4_CASE`,
 `S5_CASE`), because File can be bound and the watchdog started once per boot, and because the S5 test's
 CMake file notes that Crux Time keeps its state for the whole run.

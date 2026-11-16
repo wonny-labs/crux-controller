@@ -99,6 +99,9 @@ Only the S2 image has a recorded board run. This outline does not cover the othe
 - **S5** sets the Crux Time clock from an SNTP server, by default `192.168.77.1` (the S2 peer). It was never
   run on a board. A run would need a responder for SNTP (UDP port 123) on the host peer; this page does not
   describe one.
+- **S6** serves HTTPS management on `192.168.77.2` port 443 with a certificate that the board makes for itself. It was
+  never run on a board. The image has no account, so nobody could log in, and nothing persists across a reset because the
+  medium is a RAM disk. This page does not describe a run of it.
 - **S4** is described below.
 
 ### S4 needs supervision

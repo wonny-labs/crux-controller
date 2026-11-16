@@ -99,15 +99,19 @@ class Dependencies(unittest.TestCase):
 
     def test_the_page_states_the_proof_level_and_why_a_blocklist(self):
         page = text("docs/dependencies.md")
-        for phrase in ("project-list level", "no job fetches or builds with the group on",
+        # Step S6 added a job that fetches with the group on, so the sentence that no job does is
+        # replaced by one that names the two places that do, and the proof level is still stated.
+        for phrase in ("project-list level", "The `S6 build` job and the `Budget` row of S6",
                        "only active projects", "not run", "allowlist", "drops Zephyr"):
             self.assertIn(phrase, page, phrase)
+        self.assertNotIn("no job fetches or builds with the group on", page)
 
     def test_the_page_names_what_the_group_check_catches_and_what_was_not_run(self):
         page = text("docs/dependencies.md")
         self.assertIn("a project that the group would activate", page)
         self.assertNotIn("a project that Crux adds to the group later", page)
-        self.assertIn("a `west update` with the group on was not run", page)
+        self.assertIn("a `west update` with the group on was not run before the S6 job existed", page)
+        self.assertIn("the first CI run of that job is the first fetch with the group on", page)
         self.assertNotIn("which was not run here", page)
 
     def test_the_pinned_crux_revision_matches_the_manifest(self):

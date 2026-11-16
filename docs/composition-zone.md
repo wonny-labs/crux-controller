@@ -88,8 +88,8 @@ page, in one reviewed pull request.
 
 ## The web composition
 
-The HTTPS management interface (Mbed profile) is to be composed in `app/compose`, as File is, and
-no source there does so yet. The reason is that Crux publishes its binding to the Zephyr HTTP server as a composition interface:
+The HTTPS management interface (Mbed profile) is composed in `app/compose`, as File is, by
+`management_start.c` (step S6). The reason is that Crux publishes its binding to the Zephyr HTTP server as a composition interface:
 `<crux/web_zephyr.h>` with the CMake target `crux::web_zephyr`. It declares `crux_web_start()`,
 which binds the web core to Zephyr's HTTP server, its sockets and the TLS security tag, so only the
 platform composition of a product calls it. That is the same reason as for `<crux/file_zephyr.h>`,
@@ -104,8 +104,11 @@ Nothing else widens. The zone still fails on every other Zephyr header, on the S
 Crux private or port headers and on any other composition interface. The portable Web headers
 (`<crux/web.h>`, `<crux/web_session.h>`, `<crux/web_management.h>`), `<crux/tls_certificate.h>`
 and `<crux/tls_certificate_start.h>` were allowed before and are unchanged. `app/src`, `app/os` and `workload` fail on both new headers.
-This change allows the two includes and nothing more. A composition source that uses them is a
-separate change.
+Step S6 is the composition source that uses them: `app/compose/management_start.c` includes the two
+Zephyr and composition headers named above, and no list changed for it. The route sources, the packaged
+page and the route table are not in the zone: they belong to the target `app` and are named by
+`app/management/management.cmake`, which Crux's route function equips with the private include directories of
+Crux's own sources one source at a time, so no build file here adds an include path.
 
 ## The adapter zone
 

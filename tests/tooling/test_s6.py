@@ -1508,6 +1508,125 @@ class S6Contributing(unittest.TestCase):
         self.assertNotRegex(text, r"S6[^.]*(?:ran on a board|log in works|login works)")
 
 
+class S6StepNote(unittest.TestCase):
+    """The note of the step itself. It claims no CI result and says which results are open."""
+
+    NOTE = ROOT / "docs" / "findings" / "s6-https-management.md"
+    PIN = "8e3737d25d048b14a00c01da00494f58a62958c6"
+
+    def text(self):
+        return self.NOTE.read_text()
+
+    def words(self):
+        return " ".join(self.text().split())
+
+    def test_the_note_exists_and_uses_the_three_labels(self):
+        for label in ("**Verified**", "**Inferred**", "**Open**"):
+            self.assertIn(label, self.text())
+
+    def test_the_note_names_the_pin_and_says_nothing_in_it_is_a_ci_result_or_a_board_run(self):
+        text = self.words()
+        self.assertIn(self.PIN, text)
+        self.assertIn("Nothing in this note is a CI result", text)
+        self.assertIn("Nothing has run on a board", text)
+        self.assertIn("the first build of this chain from outside `crux-pilot`", text)
+
+    def test_the_note_says_that_no_zephyr_build_ran_while_the_step_was_written(self):
+        text = self.words()
+        self.assertIn("no Zephyr build ran while the step was written", text)
+        self.assertIn("syntax-only compile", text)
+        self.assertIn("that is not a Zephyr build", text)
+
+    def test_every_open_question_names_the_job_that_answers_it(self):
+        rows = [line for line in self.text().splitlines()
+                if line.startswith("|") and [c.strip() for c in line.split("|")][2].startswith("**Open**")]
+        self.assertGreaterEqual(len(rows), 9)
+        for row in rows:
+            self.assertRegex(row, r"`(?:S6 build|Budget S6)`", row)
+
+    def test_every_verified_row_of_the_work_table_names_a_file(self):
+        rows = [line for line in self.text().splitlines()
+                if line.startswith("|") and "**Verified**" in line and "8e3737d2" in line]
+        self.assertGreaterEqual(len(rows), 6)
+        for row in rows:
+            source = [cell for cell in row.split("|") if cell.strip()][-1]
+            self.assertRegex(source, r"`[A-Za-z0-9_./-]*[/.][A-Za-z0-9_./-]*`", row)
+
+    def test_the_note_names_each_decision_test_and_the_test_exists(self):
+        text = self.text()
+        names = set(re.findall(r"`(S6[A-Za-z]+)(?:\.(test_[a-z0-9_]+))?`", text))
+        self.assertGreaterEqual(len(names), 5)
+        module = (ROOT / "tests" / "tooling" / "test_s6.py").read_text()
+        for cls, method in names:
+            self.assertIn(f"class {cls}(", module, cls)
+            if method:
+                self.assertIn(f"def {method}(", module, method)
+
+    def test_the_note_records_the_gaps_the_limit_and_the_wording_it_changed(self):
+        text = self.words()
+        for needle in ("tests/zephyr/entropy_boot", "no private include workaround", "<crux/cli_zephyr.h>",
+                       "2,000 ms", "select them for themselves", "no request has been filed",
+                       "docs/architecture.md"):
+            self.assertIn(needle.lower(), text.lower(), needle)
+
+    def test_the_note_lists_what_the_scenario_cannot_show_and_what_is_not_verified(self):
+        text = self.words()
+        for needle in ("a successful login", "handshake time", "stack use", "heap peaks", "the strength of any key",
+                       "the page in a browser", "Ethernet", "anything on a board", "the first account",
+                       "Timing:", "Entropy:", "Every Open row"):
+            self.assertIn(needle, text, needle)
+
+    def test_the_note_uses_no_shorthand_or_private_wording_and_qualifies_issue_references(self):
+        text = self.text()
+        self.assertNotRegex(text, r"\b[OB][1-9]\b")
+        self.assertNotRegex(text, r"(?i)\b(claude|assistant|chatgpt|llm|agent)\b")
+        self.assertNotRegex(text, r"(?i)work package|skeleton plan|\b(?:OD|WD)[0-9]+\b")
+        self.assertNotRegex(text, r"/Users/|/home/|/private/|/tmp/|[A-Z]:\\")
+        for number, line in enumerate(text.splitlines(), 1):
+            for match in re.finditer(r"#[0-9]+", line):
+                self.assertRegex(line[: match.start()], r"wonny-labs/crux-(?:pilot|controller)$",
+                                 f"{number}: {line.strip()}")
+
+    def test_the_readme_the_changelog_and_the_roadmap_point_at_the_note(self):
+        for name in ("README.md", "CHANGELOG.md", "docs/roadmap.md"):
+            self.assertIn("s6-https-management.md", (ROOT / name).read_text(), name)
+        changelog = " ".join((ROOT / "CHANGELOG.md").read_text().split())
+        self.assertIn("No firmware image of S0 to S5 changes.", changelog)
+        self.assertIn("built and never run on a board", changelog)
+
+    def test_the_documents_that_listed_the_steps_list_s6(self):
+        for name in ("README.md", "docs/glossary.md", "docs/architecture.md", "docs/roadmap.md"):
+            text = (ROOT / name).read_text()
+            self.assertRegex(text, r"\bS6\b", name)
+        glossary = " ".join((ROOT / "docs" / "glossary.md").read_text().split())
+        self.assertIn("written S0 to S6 on `main`", glossary)
+        roadmap = (ROOT / "docs" / "roadmap.md").read_text()
+        self.assertIn("Seven steps, S0 to S6, are on `main`", roadmap)
+        self.assertNotIn("Six steps, S0 to S5", roadmap)
+
+    def test_the_documents_no_longer_say_that_no_step_selects_thread_and_sync_or_that_no_web_source_exists(self):
+        zone = " ".join((ROOT / "docs" / "composition-zone.md").read_text().split())
+        self.assertNotIn("no source there does so yet", zone)
+        self.assertNotIn("A composition source that uses them is a separate change", zone)
+        architecture = " ".join((ROOT / "docs" / "architecture.md").read_text().split())
+        self.assertNotIn("Thread, Sync, Queue and Serial are not used.", architecture)
+        self.assertIn("select them for themselves", architecture)
+
+    def test_the_manifest_comment_says_who_switches_the_group_on_and_the_group_stays_off(self):
+        manifest = (ROOT / "west.yml").read_text()
+        words = " ".join(manifest.replace("#", " ").split())
+        self.assertIn("only the S6 build job and the Budget row of S6 switch the group on", words)
+        self.assertNotIn("no job enables the group or fetches with it on", words)
+        self.assertNotIn("group-filter", "\n".join(l for l in manifest.splitlines() if not l.strip().startswith("#")))
+
+    def test_west_yml_changed_in_comments_only(self):
+        data = yaml.safe_load((ROOT / "west.yml").read_text())["manifest"]
+        pilot = next(p for p in data["projects"] if p["name"] == "crux-pilot")
+        self.assertEqual(self.PIN, pilot["revision"])
+        self.assertEqual({"name-blocklist": ["wolfssl", "wolfssh", "wolfpsa"]}, pilot["import"])
+        self.assertEqual(["crux-pilot", "picolibc"], [p["name"] for p in data["projects"]])
+
+
 class S6Findings(unittest.TestCase):
     NOTE = ROOT / "docs" / "findings" / "s6-https-management-gaps.md"
     PIN = "8e3737d25d048b14a00c01da00494f58a62958c6"
@@ -1613,9 +1732,13 @@ class S6Findings(unittest.TestCase):
                     before, r"wonny-labs/crux-(?:pilot|controller)$", f"{number}: {line.strip()}"
                 )
 
-    def test_the_note_and_the_readme_do_not_present_s6_as_a_step(self):
+    # Approved behaviour change: step S6 exists now, so the README has its row. The groundwork note
+    # is kept as recorded and still says that S6 was not a step when it was written.
+    def test_the_readme_presents_s6_as_a_step_and_the_groundwork_note_keeps_its_record(self):
         readme = (ROOT / "README.md").read_text()
-        self.assertIsNone(re.search(r"^\|\s*S6\s*\|", readme, re.M))
+        row = re.search(r"^\|\s*S6\s*\|.*$", readme, re.M)
+        self.assertIsNotNone(row)
+        self.assertTrue(row.group(0).rstrip().endswith("| not run |"), row.group(0))
         self.assertIn("not a step", self.words())
 
     def test_the_changelog_records_the_groundwork_and_that_no_image_changes(self):
