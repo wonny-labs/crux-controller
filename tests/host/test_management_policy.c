@@ -23,6 +23,18 @@ static int checks;
         }                                                                                          \
     } while (0)
 
+/* A check that a pointer can be used: when it fails, the test function ends, so the checks after it
+ * never read through a null pointer. */
+#define REQUIRE(condition)                                                                         \
+    do {                                                                                           \
+        checks++;                                                                                  \
+        if (!(condition)) {                                                                        \
+            failures++;                                                                            \
+            printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #condition);                            \
+            return;                                                                                \
+        }                                                                                          \
+    } while (0)
+
 static const char *const valid_text[] = {
     "0.0.0.0", "127.0.0.1", "192.168.77.2",  "255.255.255.255", "1.2.3.4",     "10.0.0.0",
     "0.0.0.1", "1.0.0.0",   "100.200.250.9", "9.99.199.249",    "255.0.255.0",
@@ -194,7 +206,7 @@ static void the_policy_has_exactly_an_administrator_and_a_read_only_role(void)
 {
     const management_policy_t *policy = management_policy_get();
 
-    CHECK(policy != NULL);
+    REQUIRE(policy != NULL);
     CHECK(policy->role_count == 2u);
     CHECK(role_named(policy, "administrator") != NULL);
     CHECK(role_named(policy, "read-only") != NULL);
@@ -206,7 +218,7 @@ static void the_administrator_holds_exactly_manage_status_read_and_config_save(v
 {
     const management_role_t *role = role_named(management_policy_get(), "administrator");
 
-    CHECK(role != NULL);
+    REQUIRE(role != NULL);
     CHECK(role->permission_count == 3u);
     CHECK(has_permission(role, "access.manage"));
     CHECK(has_permission(role, "status.read"));
@@ -217,7 +229,7 @@ static void the_read_only_role_holds_status_read_and_nothing_else(void)
 {
     const management_role_t *role = role_named(management_policy_get(), "read-only");
 
-    CHECK(role != NULL);
+    REQUIRE(role != NULL);
     CHECK(role->permission_count == 1u);
     CHECK(has_permission(role, "status.read"));
     CHECK(!has_permission(role, "access.manage"));
@@ -229,6 +241,7 @@ static void the_session_limits_are_fifteen_minutes_idle_and_eight_hours_absolute
 {
     const management_policy_t *policy = management_policy_get();
 
+    REQUIRE(policy != NULL);
     CHECK(policy->session_idle_limit_s == 15u * 60u);
     CHECK(policy->session_absolute_limit_s == 8u * 3600u);
     CHECK(MANAGEMENT_SESSION_IDLE_LIMIT_S == 900u);
