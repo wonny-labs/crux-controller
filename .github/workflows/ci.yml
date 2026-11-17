@@ -787,6 +787,28 @@ jobs:
           echo "${CHECK_SHA256}  ${script}" | sha256sum --check --strict -
           cd crux-controller
           python3 "$script" --product .
+      # The style kit of crux-pilot (templates/product/style) wraps the same checker. This step
+      # runs the kit's own wrapper, so that a change of the wrapper or of the layout it expects
+      # shows up here. Both files come from an immutable commit and are checked against their
+      # hashes, laid out as in crux-pilot: the wrapper in style/, the checker beside that folder.
+      - name: Run the style kit include check script
+        env:
+          KIT_COMMIT: 751e04aead779ac08e438ec1e2640e57fc50e9fe
+          CHECKER_SHA256: eb297a527da071ed2e863fd456ec80a46c77b446f2544cf984f7a4775b94bf80
+          WRAPPER_SHA256: aa2f4e88a19de1f6838aad70c809f543a79b922f781ee4772f367e0ba49262fa
+        run: |
+          set -euo pipefail
+          kit="$RUNNER_TEMP/style-kit"
+          mkdir -p "$kit/style"
+          base="https://raw.githubusercontent.com/wonny-labs/crux-pilot/${KIT_COMMIT}/templates/product"
+          curl --fail --silent --show-error --location --retry 3 \
+            --output "$kit/check_domain_includes.py" "$base/check_domain_includes.py"
+          curl --fail --silent --show-error --location --retry 3 \
+            --output "$kit/style/check-includes.sh" "$base/style/check-includes.sh"
+          echo "${CHECKER_SHA256}  $kit/check_domain_includes.py" | sha256sum --check --strict -
+          echo "${WRAPPER_SHA256}  $kit/style/check-includes.sh" | sha256sum --check --strict -
+          cd crux-controller
+          bash "$kit/style/check-includes.sh"
 
   # Zephyr's checkpatch.pl (rule BRACES) on the C lines that the change adds, as the style kit of
   # crux-pilot does for a product repository (scripts/check-patch.sh is its copy). The script runs

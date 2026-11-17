@@ -2,6 +2,7 @@
 """Checks that CI runs the three checks of the style work (SPDX headers, checkpatch, the style-kit
 include check) in a way that can fail. These tests read the workflow only and use no network."""
 
+import hashlib
 import os
 import pathlib
 import shutil
@@ -200,6 +201,108 @@ class PatchStyleJob(CannotBeSilenced):
         )
         result = self.run_step(clone, zephyr, "push", before)
         self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+
+
+class KitIncludeStep(CannotBeSilenced):
+    """The include check as the crux-pilot style kit wraps it, from an immutable commit."""
+
+    NAME = "style kit include check"
+
+    def step(self):
+        return only_step("boundary", self.NAME)
+
+    def test_the_commit_is_a_full_hash_and_both_urls_name_it(self):
+        step = self.step()
+        self.assertRegex(step["env"]["KIT_COMMIT"], r"^[0-9a-f]{40}$")
+        run = step["run"]
+        self.assertIn(
+            "https://raw.githubusercontent.com/wonny-labs/crux-pilot/${KIT_COMMIT}/templates/product",
+            run,
+        )
+        self.assertIn("/check_domain_includes.py", run)
+        self.assertIn("/style/check-includes.sh", run)
+
+    def test_both_files_have_a_committed_sha256(self):
+        env = self.step()["env"]
+        for name in ("CHECKER_SHA256", "WRAPPER_SHA256"):
+            self.assertRegex(env[name], r"^[0-9a-f]{64}$", name)
+        self.assertNotEqual(env["CHECKER_SHA256"], env["WRAPPER_SHA256"])
+
+    def test_the_checker_hash_is_the_one_of_the_existing_step(self):
+        existing = only_step("boundary", "product include check")
+        self.assertEqual(existing["env"]["CHECK_SHA256"], self.step()["env"]["CHECKER_SHA256"])
+
+    def test_downloads_fail_on_http_errors_and_are_verified_before_the_run(self):
+        run = self.step()["run"]
+        self.assertEqual(2, len(re.findall(r"curl\b[^\n]*--fail", run)))
+        self.assertEqual(2, run.count("sha256sum --check --strict"))
+        last_download = run.rindex("curl")
+        first_verify = run.index("sha256sum")
+        execution = run.index('bash "$kit/style/check-includes.sh"')
+        self.assertLess(last_download, first_verify)
+        self.assertLess(first_verify, execution)
+
+    def test_the_wrapper_runs_inside_the_checkout_and_the_step_cannot_pass_on_failure(self):
+        step = self.step()
+        self.assertRegex(step["run"], r"\bcd crux-controller\b")
+        self.assertTrue(step["run"].lstrip().startswith("set -euo pipefail"))
+        self.assert_can_fail("boundary", step)
+
+    def test_the_existing_boundary_steps_are_still_there(self):
+        runs = "\n".join(s.get("run", "") for s in steps_of("boundary"))
+        self.assertIn("check_boundary.py --repo crux-controller --crux-root crux-pilot", runs)
+        self.assertIn('python3 "$script" --product .', runs)
+
+    # The step text runs for real with a curl that serves local stand-ins.
+    def run_step(self, wrapper_text, tamper=False):
+        step = self.step()
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        base = pathlib.Path(directory.name)
+        served = base / "served"
+        (served / "style").mkdir(parents=True)
+        (base / "bin").mkdir()
+        (base / "crux-controller").mkdir()
+        checker = "print('checker')\n"
+        (served / "check_domain_includes.py").write_text(checker)
+        shim = base / "bin" / "curl"
+        shim.write_text(
+            "#!/usr/bin/env bash\n"
+            "while [[ $# -gt 0 ]]; do\n"
+            "  case \"$1\" in --output) out=\"$2\"; shift 2;; -*) shift;; *) url=\"$1\"; shift;; esac\n"
+            "done\n"
+            "cp \"$SERVED/${url#*/templates/product/}\" \"$out\"\n"
+        )
+        shim.chmod(0o755)
+        served_wrapper = "#!/usr/bin/env bash\necho tampered\n" if tamper else wrapper_text
+        (served / "style" / "check-includes.sh").write_text(served_wrapper)
+        env = {
+            "PATH": f"{base / 'bin'}:{os.environ['PATH']}", "HOME": str(base),
+            "RUNNER_TEMP": str(base / "tmp"), "SERVED": str(served),
+            "KIT_COMMIT": "0" * 40, "CHECKER_SHA256": hashlib.sha256(checker.encode()).hexdigest(),
+            "WRAPPER_SHA256": hashlib.sha256(wrapper_text.encode()).hexdigest(),
+        }
+        (base / "tmp").mkdir()
+        return subprocess.run(
+            ["bash", "--noprofile", "--norc", "-eo", "pipefail", "-c", step["run"]],
+            cwd=base, env=env, capture_output=True, text=True,
+        )
+
+    def test_a_passing_wrapper_passes_the_step(self):
+        result = self.run_step("#!/usr/bin/env bash\necho wrapper ran\nexit 0\n")
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertIn("wrapper ran", result.stdout)
+
+    def test_a_failing_wrapper_fails_the_step(self):
+        result = self.run_step("#!/usr/bin/env bash\necho include violation >&2\nexit 1\n")
+        self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+        self.assertIn("include violation", result.stderr)
+
+    def test_a_download_that_does_not_match_its_hash_never_runs(self):
+        result = self.run_step("#!/usr/bin/env bash\necho wrapper ran\nexit 0\n", tamper=True)
+        self.assertNotEqual(0, result.returncode)
+        self.assertNotIn("tampered", result.stdout)
+        self.assertNotIn("wrapper ran", result.stdout)
 
 
 if __name__ == "__main__":
