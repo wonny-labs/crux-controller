@@ -211,6 +211,35 @@ S5 was added after S4, in the same order of work. Read from `app/Kconfig`, `app/
 - **The findings note** is `docs/findings/s5-time-synchronisation.md`. Its results table marks the CI
   results as open, to be recorded where CI runs them.
 
+## What S6 did differently
+
+S6 (management over HTTPS) is the largest step and the first that needs a group of the Crux manifest. Read from
+`app/Kconfig`, `app/CMakeLists.txt`, `app/management/`, `app/compose/` and `.github/workflows/`, these are the
+differences that matter to the next step:
+
+- **It needs the Mbed TLS modules.** They are in the optional group `crux-secure-management`, which stays off in
+  `west.yml`. The S6 job and the S6 `Budget` row switch it on in their own runner, after
+  `scripts/check_mbed_only.py` has checked the resolved project list. The scenario is in a sibling directory,
+  `tests/native_sim_mbed`, so that the S1 job never selects it, and a missing module fails the job and does not
+  skip the scenario. Changing `ci.yml`, `budget.yml` and `CONTRIBUTING.md` is a reviewed change of protected files.
+- **It excludes two steps.** `CRUX_CONTROLLER_S6` depends on `!CRUX_CONTROLLER_S3` and `!CRUX_CONTROLLER_S4`, because
+  S3 owns another file provider and S4 clears the reset cause that S6 reads once. S5 may be on, and that image is not
+  built in CI.
+- **The route table belongs to the target `app`.** Crux's route function sets properties on the sources of `app`,
+  so `app/management/management.cmake` is included by `app/CMakeLists.txt` and is not a subdirectory. The tooling
+  tests that forbid include paths and foreign sources read that file too: extend such a rule to a new build file, and
+  never loosen it.
+- **One file starts the services.** `app/compose/management_start.c` implements `app/src/management_port.h` in the
+  order that the header documents. The policy, the address check and the version check are plain C in `app/src`
+  and have a host test.
+- **The scenario is one image with ordered cases**, because the start sequence runs once per program. Its Mbed
+  profile is a copy of the fragment's, and a tooling test compares them.
+- **The CI job reads more of what the build resolved**, including the devicetree alias, the RAM disk and the symbols
+  that the image must not link.
+- **Existing assertions that the step made false were replaced, and the reason is in the commit message**:
+  the `S6NotBuilt` checks of the groundwork, the synthetic Crux tree of three boundary tests (now
+  `tests/tooling/fake_crux.py`), the row lists of the earlier step tests and the guide assertions.
+
 ## 3. Checks before the pull request, and what to write in it
 
 Run the tooling tests and the boundary check locally, and the host tests if you have CMake and a C

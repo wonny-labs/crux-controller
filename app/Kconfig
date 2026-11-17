@@ -10,8 +10,10 @@ config CRUX_CONTROLLER_S1
 	help
 	  Run the workload: a producer and a consumer thread joined by one message queue, created by
 	  the adapter zone app/os with Zephyr kernel calls, reading Crux Time and reporting through
-	  Crux Logging. Steps S2, S3 and S4 build on this one, and S5 builds on S2. The product uses no
-	  Crux Thread, Sync or Queue provider, so none is selected for it.
+	  Crux Logging. Steps S2, S3 and S4 build on this one, and S5 and S6 build on S2. The workload
+	  uses no Crux Thread, Sync or Queue provider. Product code includes none of their headers and
+	  names none of their symbols, in any step. The Crux services of step S6 need Thread and Sync
+	  and select them for themselves, so they are on in that image only.
 
 config CRUX_CONTROLLER_S2
 	bool "Step S2: send each workload message to a TCP peer"
@@ -143,6 +145,30 @@ config CRUX_CONTROLLER_TIME_STACK
 	help
 	  A starting value, not measured: it is the 8192 bytes that the S2 consumer thread uses for the
 	  same reach into the network stack. Stack use of this thread has not been measured.
+
+config CRUX_CONTROLLER_S6
+	bool "Step S6: manage the device over HTTPS"
+	depends on CRUX_CONTROLLER_S2 && !CRUX_CONTROLLER_S3 && !CRUX_CONTROLLER_S4 && CRUX_ACCESS && CRUX_WEB_MANAGEMENT && CRUX_TLS_CERTIFICATE && CRUX_SYSTEM
+	help
+	  Start the Crux management services behind the Zephyr HTTP server, on the network of S2: login
+	  and sessions of Crux Access, the status service, the configuration service and a packaged
+	  page, served as HTTPS on 192.168.77.2 port 443 and nowhere else. The server offers TLS 1.3
+	  only, with one cipher suite. The certificate is self-signed and made on the device at its
+	  first start, from the hardware random source, and a client has to trust it by its
+	  fingerprint, which the image logs. The fragment conf/s6.conf selects the Crux services, the
+	  Mbed TLS profile and the locks of its core; no Crux Thread, Sync or Queue symbol is named,
+	  because the services select those themselves.
+	  The medium is a RAM disk, so nothing persists across a reset: the key, the certificate, the
+	  accounts and the security events are made again at each start. The image has no account, and
+	  nobody can log in: the first account is made from the serial console, in a later change, and
+	  the pages and routes that need a session answer as refused until then. The save route of the
+	  configuration service exists and always ends as not supported, because the image has no
+	  Settings File backend. The image offers no reboot, network or file route, no SSH and no
+	  command line. It does not combine with S3, which owns another file provider, or with S4,
+	  which clears the reset cause that this step reads once. S5 may be on, and that combination
+	  is not built in CI. The stack sizes, the heap of the TLS stack and the network buffers are
+	  starting values that were not measured, and the handshake time is not known. Built and
+	  never run on a board.
 
 config CRUX_CONTROLLER_WORKER_STACK
 	int "Stack bytes of each workload thread"

@@ -52,8 +52,9 @@ jobs:
           fi
       # The Crux import is narrowed by name, so switching the Mbed TLS group on would activate the
       # Mbed modules and not the GPL stacks that share their group. The three steps below read the
-      # resolved project list (west list does not clone anything; no job fetches or builds with
-      # the group on) and run before the control that edits west.yml.
+      # resolved project list (west list does not clone anything) and run before the control that
+      # edits west.yml. This job fetches nothing with the group on. The S6 job does, after the same
+      # check.
       - name: Mbed-only check, default workspace
         run: |
           west list --all -f '{name} {active}' > list-default.txt
@@ -585,6 +586,169 @@ jobs:
               time_sync_port_query time_sync_port_start sntp_simple crux_realtime_init \
               crux_realtime_set crux_realtime_set_synchronized crux_realtime_get_snapshot; do
             grep -qE " [Tt] ${symbol}$" symbols.txt || { echo "not linked: $symbol" >&2; exit 1; }
+          done
+
+  s6:
+    name: S6 build (HTTPS management, native_sim and RT1060-EVKB)
+    runs-on: ubuntu-24.04
+    env:
+      BOARD: mimxrt1060_evk@B//qspi
+      SDK_VERSION: "1.0.1"
+      ZEPHYR_SDK_INSTALL_DIR: ${{ github.workspace }}/sdk/zephyr-sdk-1.0.1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: crux-controller
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install host packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential gcc-multilib ca-certificates device-tree-compiler file gperf git \
+            libmagic1 libsdl2-dev pkg-config python3-dev wget xz-utils
+      - name: Install pinned build tools
+        run: python -m pip install cmake==3.28.4 ninja==1.11.1 west==1.4.0
+      # The first update is the default one that every job runs. West has to resolve the Crux
+      # manifest before it can list anything, as the West pins job does.
+      - name: Fetch the default workspace
+        run: |
+          west init -l crux-controller
+          west update
+      - name: Mbed-only check, default workspace
+        run: |
+          west list --all -f '{name} {active}' > list-default.txt
+          cat list-default.txt
+          python crux-controller/scripts/check_mbed_only.py --mode default < list-default.txt
+      # The Mbed TLS group is switched on in this runner only, never in west.yml. The resolved
+      # project list is checked before anything is fetched with the group on, so a stack that the
+      # group would activate beyond the Mbed modules fails the job first.
+      - name: Mbed-only check, group on
+        run: |
+          west config --local manifest.group-filter -- +crux-secure-management
+          west list --all -f '{name} {active}' > list-mbed.txt
+          cat list-mbed.txt
+          python crux-controller/scripts/check_mbed_only.py --mode mbed --baseline list-default.txt < list-mbed.txt
+      - name: Fetch the Mbed TLS modules and nothing else
+        run: |
+          west update
+          for name in wolfssl wolfssh wolfpsa; do
+            test ! -e "modules/crypto/$name" || { echo "unexpected $name" >&2; exit 1; }
+          done
+          for name in mbedtls tf-psa-crypto; do
+            test -d "modules/crypto/$name" || { echo "missing $name" >&2; exit 1; }
+          done
+          python -m pip install -r zephyr/scripts/requirements-base.txt \
+            -r zephyr/scripts/requirements-build-test.txt \
+            -r zephyr/scripts/requirements-run-test.txt
+      - name: Restore the Zephyr SDK
+        id: sdk_cache
+        uses: actions/cache@v4
+        with:
+          path: sdk
+          key: zephyr-sdk-${{ env.SDK_VERSION }}-arm-zephyr-eabi
+      - name: Install the Zephyr SDK
+        if: steps.sdk_cache.outputs.cache-hit != 'true'
+        working-directory: zephyr
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          west sdk install --version "$SDK_VERSION" --install-base "$GITHUB_WORKSPACE/sdk" \
+            --gnu-toolchains arm-zephyr-eabi --personal-access-token "$GH_TOKEN"
+      # The scenario is in a sibling of tests/native_sim, so the S1 job, which has no Mbed TLS
+      # modules, never selects it.
+      - name: Run the S6 scenario on native_sim
+        env:
+          ZEPHYR_BASE: ${{ github.workspace }}/zephyr
+        run: |
+          west twister -p native_sim/native/64 -T crux-controller/tests/native_sim_mbed \
+            --inline-logs --clobber-output -O twister-out-s6
+      - name: Check that the scenario ran and was not skipped
+        run: |
+          python - <<'PY'
+          import json
+
+          report = json.load(open("twister-out-s6/twister.json"))
+          suites = [suite for suite in report["testsuites"] if "controller.s6.native_sim.https_management" in suite["name"]]
+          statuses = [case["status"] for suite in suites for case in suite["testcases"]]
+          print([suite["name"] for suite in suites], statuses)
+          assert suites, "the S6 scenario is not in the Twister report"
+          assert statuses and all(status == "passed" for status in statuses), statuses
+          assert len(statuses) == 10, statuses
+          PY
+      - name: Cross-build S6 with the baseline gate required
+        env:
+          ZEPHYR_BASE: ${{ github.workspace }}/zephyr
+        run: |
+          west build -p always -b '${{ env.BOARD }}' -d crux-controller/build/s6 \
+            crux-controller/app -- -DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON \
+            "-DEXTRA_CONF_FILE=conf/s1.conf;conf/s2.conf;conf/s6.conf" \
+            "-DEXTRA_DTC_OVERLAY_FILE=boards/s2.overlay;boards/s6.overlay"
+      - name: Check the outputs exist
+        run: |
+          for output in zephyr.bin zephyr.meta; do
+            test -f "crux-controller/build/s6/zephyr/$output" || {
+              echo "missing $output" >&2
+              exit 1
+            }
+          done
+          echo "Built S6 for $BOARD. No flash, reset or hardware command was run."
+      - name: Check the resolved S6 configuration and devicetree
+        run: |
+          build=crux-controller/build/s6/zephyr
+          # An unmet Kconfig dependency only warns, so check what the build resolved, not what
+          # the command line asked for.
+          for option in CONFIG_CRUX_CONTROLLER_S6=y CONFIG_CRUX_CONTROLLER_S2=y CONFIG_CRUX_CONTROLLER_S1=y \
+              CONFIG_CRUX_PSA_THREADING=y CONFIG_PSA_CRYPTO_PROVIDER_MBEDTLS=y CONFIG_MBEDTLS=y \
+              CONFIG_CRUX_ACCESS=y CONFIG_CRUX_CONFIG_SERVICE=y CONFIG_CRUX_MGMT_STATUS=y \
+              CONFIG_CRUX_TLS_CERTIFICATE=y CONFIG_CRUX_WEB=y CONFIG_CRUX_WEB_SESSION=y \
+              CONFIG_CRUX_WEB_MANAGEMENT=y CONFIG_CRUX_SYSTEM=y CONFIG_CRUX_NETIF=y \
+              CONFIG_CRUX_FILE_FATFS_RT1060_RAM_DISK=y CONFIG_DISK_DRIVER_RAM=y \
+              CONFIG_FILE_SYSTEM_MKFS=y CONFIG_ENTROPY_MCUX_TRNG=y \
+              CONFIG_MBEDTLS_PSA_DRIVER_GET_ENTROPY=y CONFIG_CRUX_WEB_PORT=443 \
+              'CONFIG_CRUX_WEB_BIND_ADDRESS="192.168.77.2"' \
+              CONFIG_CRUX_WEB_SESSION_WORKER_PRIORITY=11 CONFIG_CRUX_WEB_MANAGEMENT_WORKER_PRIORITY=11 \
+              CONFIG_CRUX_SECURITY_EVENT_DRAIN_PRIORITY=11 CONFIG_HTTP_SERVER_MAX_CLIENTS=3 \
+              CONFIG_MBEDTLS_HEAP_SIZE=120000; do
+            grep -qxF "$option" "$build/.config" || { echo "missing $option" >&2; exit 1; }
+          done
+          # The Crux services select Thread and Sync for themselves, so they are on here. The
+          # product's sources include neither (the boundary check), and no fragment names them.
+          for option in CONFIG_CRUX_THREAD=y CONFIG_CRUX_SYNC=y; do
+            grep -qxF "$option" "$build/.config" || { echo "missing $option" >&2; exit 1; }
+          done
+          # No reboot, network, file service, SSH, command line, plain HTTP, other step, shell,
+          # card, test entropy or Settings File backend.
+          for option in CONFIG_CRUX_REBOOT=y CONFIG_CRUX_NETWORK_SETTINGS=y CONFIG_CRUX_FILE_SERVICE=y \
+              CONFIG_CRUX_SSH=y CONFIG_CRUX_CLI=y CONFIG_CRUX_CLI_CONSOLE=y \
+              CONFIG_CRUX_WEB_PLAIN_HTTP_FOR_TESTS=y CONFIG_CRUX_DEVELOPMENT_IMAGE=y \
+              CONFIG_CRUX_CONTROLLER_S3=y CONFIG_CRUX_CONTROLLER_S4=y CONFIG_CRUX_CONTROLLER_M3=y \
+              CONFIG_CRUX_QUEUE=y CONFIG_CRUX_SERIAL=y CONFIG_SHELL=y CONFIG_DISK_DRIVER_SDMMC=y \
+              CONFIG_IMX_USDHC=y CONFIG_CRUX_FILE_FATFS_RT1060=y CONFIG_FS_FATFS_MOUNT_MKFS=y \
+              CONFIG_TEST_RANDOM_GENERATOR=y CONFIG_FAKE_ENTROPY_NATIVE_SIM=y \
+              CONFIG_CRUX_CONFIGURATION_SETTINGS_FILE=y CONFIG_TASK_WDT_HW_FALLBACK=y \
+              CONFIG_WDT_SHELL=y CONFIG_HWINFO_SHELL=y; do
+            ! grep -qxF "$option" "$build/.config" || { echo "unexpected $option" >&2; exit 1; }
+          done
+          ! grep -q '^CONFIG_WOLF' "$build/.config" || { echo "unexpected wolf option" >&2; exit 1; }
+          grep -Eq 'crux-watchdog0 = &?wdog0' "$build/zephyr.dts" || { echo "no crux-watchdog0 alias" >&2; exit 1; }
+          grep -q 'zephyr,ram-disk' "$build/zephyr.dts" || { echo "no RAM disk node" >&2; exit 1; }
+          grep -q 'controller_storage' "$build/zephyr.dts" || { echo "no fstab entry" >&2; exit 1; }
+      - name: Check what the image links
+        run: |
+          nm=$(find "$ZEPHYR_SDK_INSTALL_DIR" -name 'arm-zephyr-eabi-nm' -type f | head -n 1)
+          test -n "$nm" || { echo "no nm in the SDK" >&2; exit 1; }
+          "$nm" crux-controller/build/s6/zephyr/zephyr.elf > symbols.txt
+          for symbol in management_port_start management_address_parse storage_port_bind_store \
+              crux_web_start crux_tls_certificate_start crux_tls_certificate_material_take \
+              tls_credential_add crux_access_init crux_credential_start crux_security_event_start \
+              crux_config_service_start crux_mgmt_status_start crux_web_session_init \
+              crux_web_management_init crux_file_zephyr_bind_root crux_system_reset_cause_get; do
+            grep -qE " [Tt] ${symbol}$" symbols.txt || { echo "not linked: $symbol" >&2; exit 1; }
+          done
+          for symbol in crux_reboot_start crux_network_settings_start crux_file_service_start; do
+            ! grep -qE " [Tt] ${symbol}$" symbols.txt || { echo "linked: $symbol" >&2; exit 1; }
           done
 
   boundary:

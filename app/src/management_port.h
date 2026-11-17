@@ -10,12 +10,12 @@
  * tested. The implementation copies the policy into the Crux type and sets no password rule, so
  * that Crux uses its reference rule.
  *
- * Nothing implements or calls this port yet, and no firmware image compiles it. It records the
- * shape that a later change is expected to fill in, and the order that an implementation has to
- * keep. The order is a reading of three Crux sources at the pinned revision, and it has not been
- * run: the "Boot order" section of docs/management-in-a-product.md, the start calls of the module
- * test tests/native/management_module/src/main.c (configuration service, management status and
- * security event start, and only then the TLS certificate start), and the header
+ * The composition zone implements this port in app/compose/management_start.c, and
+ * app/src/composition.c calls it in step S6. The order below is a reading of three Crux sources at
+ * the pinned revision, and it has not run on a board: the "Boot order" section of
+ * docs/management-in-a-product.md, the start calls of the module test
+ * tests/native/management_module/src/main.c (configuration service, management status and security
+ * event start, and only then the TLS certificate start), and the header
  * components/web/ports/zephyr/include/crux/web_zephyr.h (services started, TLS material registered
  * under the security tag, then the session and management init with their workers, then start).
  *

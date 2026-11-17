@@ -4,14 +4,17 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #define ADDRESS_PARTS 4u
 #define PART_DIGITS_MAX 3u
 #define PART_VALUE_MAX 255u
 
-bool management_address_valid(const char *text)
+bool management_address_parse(const char *text, uint8_t octets[4])
 {
-    if (text == NULL) {
+    uint8_t found[ADDRESS_PARTS];
+
+    if (text == NULL || octets == NULL) {
         return false;
     }
 
@@ -29,6 +32,7 @@ bool management_address_valid(const char *text)
         if (digits == 0u || (digits > 1u && text[0] == '0') || value > PART_VALUE_MAX) {
             return false;
         }
+        found[part] = (uint8_t)value;
         text += digits;
 
         if (part + 1u < ADDRESS_PARTS) {
@@ -38,7 +42,20 @@ bool management_address_valid(const char *text)
             text++;
         }
     }
-    return *text == '\0';
+    if (*text != '\0') {
+        return false;
+    }
+    for (unsigned int part = 0; part < ADDRESS_PARTS; part++) {
+        octets[part] = found[part];
+    }
+    return true;
+}
+
+bool management_address_valid(const char *text)
+{
+    uint8_t octets[ADDRESS_PARTS];
+
+    return management_address_parse(text, octets);
 }
 
 /* Both Crux Access limits, as copies: a name is at most 31 bytes, a permission at most 63. */
@@ -104,6 +121,15 @@ static bool text_equal(const char *left, const char *right)
         index++;
     }
     return left[index] == right[index];
+}
+
+bool management_permission_names_match(const char *access_manage, const char *status_read,
+                                       const char *config_save)
+{
+    return access_manage != NULL && status_read != NULL && config_save != NULL &&
+           text_equal(access_manage, MANAGEMENT_PERMISSION_ACCESS_MANAGE) &&
+           text_equal(status_read, MANAGEMENT_PERMISSION_STATUS_READ) &&
+           text_equal(config_save, MANAGEMENT_PERMISSION_CONFIG_SAVE);
 }
 
 static bool role_valid(const management_role_t *role)

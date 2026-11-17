@@ -19,7 +19,7 @@ microSD card, no watchdog peripheral and no RT1060 is involved. A passing `nativ
 run, and the roadmap says so for every step.
 
 In this repository the `native_sim` scenarios are Zephyr ztest applications under `tests/native_sim`, one
-directory per step from S1 to S5. Each one compiles chosen sources of `app/` and `workload/`; none boots the
+directory per step from S1 to S5, and the S6 scenario in `tests/native_sim_mbed`, which needs the Mbed TLS modules of the Crux manifest and is run by its own CI job. Each one compiles chosen sources of `app/` and `workload/`; none boots the
 board image (see the glossary entry for `native_sim`). The scenarios are run through Twister, Zephyr's test
 runner, for the platform `native_sim/native/64`.
 
@@ -80,6 +80,26 @@ west twister -p native_sim/native/64 -T crux-controller/tests/native_sim \
 ```
 
 The repository contains no command that runs one scenario alone, and this page does not invent one.
+
+The S6 scenario is in a sibling directory, `tests/native_sim_mbed`, so that this command never selects it in a
+workspace that has no Mbed TLS modules. The `S6 build` job runs it with the group `crux-secure-management` switched on in
+its own runner, after `scripts/check_mbed_only.py` has checked that only the Mbed TLS modules would be fetched:
+
+```bash
+west twister -p native_sim/native/64 -T crux-controller/tests/native_sim_mbed \
+  --inline-logs --clobber-output -O twister-out-s6
+```
+
+It is one image with ten ordered cases: the start sequence, the certificate, a TLS 1.3 handshake that the client
+verifies, a TLS 1.2-only client that is refused, plain HTTP that is not answered, the page bytes and four requests of
+the login path. It shows none of a successful login, handshake time, stack use, key strength (the simulator's
+entropy is a fake source) or a browser.
+
+Case 4 connects a control client with a TLS 1.3 suite first, and then a client with only a TLS 1.2 suite, which must fail
+with an errno that is neither a refused connection nor a timeout. A refusal on the client side cannot be fully excluded in one
+process, because the client and the server share the TLS library, the credentials and the clock. Crux's own check of the
+version refusal uses `openssl s_client` against its listener (`docs/https-composition.md` in `crux-pilot`, "Checked on the
+wire"), and this case does not replace it.
 
 The scenarios that this command finds, by their ids in the `testcase.yaml` files:
 

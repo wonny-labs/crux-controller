@@ -23,6 +23,22 @@
 #include "time_sync.h"
 #endif
 
+#ifdef CONFIG_CRUX_CONTROLLER_S6
+#include <crux/logging.h>
+
+#include "management_port.h"
+
+/* The versions that the status service reports come from the build
+ * (app/management/management.cmake), and a build without them stops here, because the port refuses
+ * a start without a valid text. */
+#ifndef MANAGEMENT_PLATFORM_VERSION
+#error "step S6 needs MANAGEMENT_PLATFORM_VERSION from app/management/management.cmake"
+#endif
+#ifndef MANAGEMENT_PROJECT_VERSION
+#error "step S6 needs MANAGEMENT_PROJECT_VERSION from app/management/management.cmake"
+#endif
+#endif
+
 #ifdef CONFIG_CRUX_CONTROLLER_S2
 #include <stdio.h>
 
@@ -71,6 +87,24 @@ static void configure_from_storage(workload_config_t *config)
 }
 #endif
 
+#ifdef CONFIG_CRUX_CONTROLLER_S6
+/* S6: HTTPS management. A start that is refused is logged and leaves management off; the
+ * workload starts either way. The sequence runs on this thread and takes the time of key
+ * generation and of formatting the RAM disk, which has not been measured. */
+static void start_management(void)
+{
+    const management_port_config_t config = {
+        .policy = management_policy_get(),
+        .platform_version = MANAGEMENT_PLATFORM_VERSION,
+        .project_version = MANAGEMENT_PROJECT_VERSION,
+    };
+
+    if (management_port_start(&config) != MANAGEMENT_PORT_OK) {
+        (void)crux_log_write(CRUX_LOG_ERROR, "mgmt", "management did not start");
+    }
+}
+#endif
+
 int composition_start(void)
 {
     crux_monotonic_time_t now;
@@ -110,6 +144,12 @@ int composition_start(void)
      * thread is the only writer of the clock. A start that fails is reported by time_sync.c and
      * leaves the product without time synchronisation; the workload starts either way. */
     (void)time_sync_start();
+#endif
+#ifdef CONFIG_CRUX_CONTROLLER_S6
+    /* S6: start HTTPS management after the network step has configured the interface and after
+     * every other step, and before the workload threads. The listener binds the address of the
+     * board, which S2's network configuration has already set before the main thread runs. */
+    start_management();
 #endif
     return workload_thread_start(&config);
 #else

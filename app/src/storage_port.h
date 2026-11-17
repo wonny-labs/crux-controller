@@ -14,6 +14,14 @@
  *   storage_port_bind()   makes File ready. Until it succeeds, every File call returns
  *                         CRUX_FILE_ERR_NOT_READY.
  *
+ * Step S6 does not bind the directory "files". It makes the volume available with
+ * storage_port_mount() and then calls, once, from thread context:
+ *
+ *   storage_port_bind_store()  creates the two directories of the credential store on the mounted
+ *                              volume and binds them as the File roots STORAGE_PORT_STORE_ROOT_A
+ *                              and STORAGE_PORT_STORE_ROOT_B. It is the only call that makes File
+ *                              ready in that step, and it comes after storage_port_mount().
+ *
  * A failed call leaves the other state as it was, with one exception: with
  * STORAGE_PORT_FORMAT_ON_FAILED_MOUNT, a call that formatted and mounted the volume and then could
  * not create the directory returns STORAGE_PORT_ERR_LAYOUT with the volume still mounted. A failed
@@ -47,5 +55,24 @@ storage_port_status_t storage_port_mount(storage_port_policy_t policy);
 
 /* Bind the directory "files" of the mounted volume as File's root. */
 storage_port_status_t storage_port_bind(void);
+
+/* The File roots that the credential store of Crux uses: two slots on two directories that do not
+ * overlap, as the store requires. The numbers are the product's choice and are given to the store
+ * by the composition. */
+#define STORAGE_PORT_STORE_ROOT_A 1
+#define STORAGE_PORT_STORE_ROOT_B 2
+
+/*
+ * Create the directories "secure-a" and "secure-b" of the mounted volume, if they are not there
+ * yet, and bind them as the File roots STORAGE_PORT_STORE_ROOT_A and STORAGE_PORT_STORE_ROOT_B.
+ * Neither is the directory that storage_port_bind() uses, and neither contains the other. A failed
+ * directory leaves File unbound (STORAGE_PORT_ERR_LAYOUT); a root that File refuses, or one that
+ * is already bound, returns STORAGE_PORT_ERR_BIND or STORAGE_PORT_ERR_ALREADY_BOUND. There is no
+ * unbind and no second bind of a root. A consequence: root A stays bound when root B fails,
+ * because there is no unbind, and a second call then answers STORAGE_PORT_ERR_ALREADY_BOUND for
+ * root A. The caller treats any failure as the end of the
+ * management start (management_start.c does), and does not retry.
+ */
+storage_port_status_t storage_port_bind_store(void);
 
 #endif

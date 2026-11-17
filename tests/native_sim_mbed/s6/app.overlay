@@ -1,0 +1,34 @@
+/* Crux Logging writes to an emulated UART here, so that the test can read what it wrote. The RAM
+ * disk and the fstab entry are the ones that boards/s6.overlay declares for the board, with the
+ * same names, because the composition zone looks up the entry controller_storage. The disk is
+ * blank at every start: the zone formats it. */
+/ {
+    chosen { zephyr,log-uart = &logging_uarts; };
+    logging_uarts: logging-uarts {
+        compatible = "zephyr,log-uart";
+        uarts = <&logging_test>;
+    };
+    logging_test: logging-test {
+        compatible = "zephyr,uart-emul";
+        current-speed = <115200>;
+        rx-fifo-size = <16>;
+        tx-fifo-size = <8192>;
+        status = "okay";
+    };
+
+    ramdisk0 {
+        compatible = "zephyr,ram-disk";
+        disk-name = "RAM";
+        sector-size = <512>;
+        sector-count = <1024>;
+    };
+
+    fstab {
+        compatible = "zephyr,fstab";
+        controller_storage: controller-storage {
+            compatible = "zephyr,fstab,fatfs";
+            mount-point = "/RAM:";
+            disk-access;
+        };
+    };
+};

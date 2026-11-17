@@ -3,9 +3,9 @@
 Crux Controller is an Apache-2.0 reference consumer firmware of
 [Crux](https://github.com/wonny-labs/crux-pilot), an embedded software platform, for the NXP
 RT1060-EVKB Rev B on the Zephyr RTOS. It is built the way a product is built, on top of Crux's public
-interfaces and one small step at a time, S0 to S5: S0 is the clock of Crux Time, S1 adds a small synthetic
+interfaces and one small step at a time, S0 to S6: S0 is the clock of Crux Time, S1 adds a small synthetic
 workload on Zephyr threads, and each later step adds one capability that uses a Crux component (a TCP
-exchange, a configuration file, a watchdog, a clock set from the network). Each step has its own build and
+exchange, a configuration file, a watchdog, a clock set from the network, management over HTTPS). Each step has its own build and
 resource budget, and each step after S0 has its own tests. It is not a product and has no real control
 logic.
 
@@ -34,12 +34,13 @@ no local Zephyr build. Contribution rules and the Python tooling tests are in
 
 ## Status
 
-Steps S0 to S5 are on `main`, and there is no release. The repository builds in CI for the NXP
+Steps S0 to S6 are on `main`, and there is no release. The repository builds in CI for the NXP
 RT1060-EVKB Rev B with the Zephyr baseline gate required: a synthetic workload on Zephyr threads and a
 message queue behind an adapter zone, with Crux Time and Logging (step S1), a TCP exchange over the Crux Sockets profile (step S2), a
 configuration record kept in a file through Crux File (step S3, built and never run on a board),
 the reset cause and a single-owner watchdog through Crux System (step S4, built and never run on a board),
 the Crux Time realtime clock set from an SNTP server (step S5, built and never run on a board),
+HTTPS management on the Mbed TLS profile with Crux Access and a packaged page (step S6, built and never run on a board, with no account and no login),
 and static resource use checked against declared limits. Step S2 ran twice on a board, on
 9 and 12 November 2026: both times the Ethernet link came up without the MDIO correction that the
 Crux sample applies, the board answered ping, and one TCP exchange with a host peer was echoed. The
@@ -55,12 +56,14 @@ has run on a board.
 | S3 | A configuration record in a file through Crux File, mounted by the composition zone | yes, simulator provider on a RAM disk | yes, FatFs provider, microSD, no card used | not run |
 | S4 | The reset cause logged at boot and a watchdog fed once for each pass of the workload that has cycles due, through Crux System | yes, the boot line and a watchdog that the simulator does not have; no feed cycle | yes, WDOG1 named by a devicetree alias | not run |
 | S5 | The Crux Time realtime clock set from an SNTP server by a low-priority thread, with a product policy for what an answer may do (on the S2 network) | yes, a responder over loopback: seven cases, no failed native write | yes, on the S2 base | not run |
+| S6 | Management over HTTPS on the S2 network: Crux Access, the web server on the Mbed TLS profile, the status and configuration services and a packaged page, on a RAM disk (no account, so no login) | yes, one image of ten cases with an in-process TLS client; no successful login, fake entropy | yes, on the S2 base, with the Mbed TLS group switched on in the job's own runner | not run |
 
 Every step is checked against its declared resource limits (`budgets/limits.json`,
-placeholders). What S3 needed from the product is recorded in `docs/findings/s3-file-composition.md`, what S4 needed in `docs/findings/s4-system-composition.md` and what S5 decides and leaves open in `docs/findings/s5-time-synchronisation.md`;
+placeholders). What S3 needed from the product is recorded in `docs/findings/s3-file-composition.md`, what S4 needed in `docs/findings/s4-system-composition.md` and what S5 decides and leaves open in `docs/findings/s5-time-synchronisation.md`, and what S6 composed and what it leaves open in `docs/findings/s6-https-management.md`;
 what the two board runs of S2 show and do not show is recorded in `docs/findings/s2-first-board-run.md`.
-Why none of the Crux management features (HTTPS, serial and SSH command line, SFTP) is built here is
-recorded in `docs/findings/management-has-no-public-composition.md`.
+Why the serial and SSH command lines and SFTP are not built here, and what stood between this repository and
+HTTPS management before step S6, is recorded in `docs/findings/management-has-no-public-composition.md` and
+`docs/findings/s6-https-management-gaps.md`.
 
 It is meant to exercise the Crux features together in one image on the NXP RT1060-EVKB Rev B, with
 declared resource budgets, a release bundle and an SBOM, using only independently written code.

@@ -67,10 +67,13 @@ compares with the default listing: the projects that become active must be exact
 project that the group would activate beyond the Mbed pair fails the check. The `West pins` job runs it in
 both states and runs a negative control (the import without the blocklist, group on) that must fail.
 
-The proof is at the project-list level. The only real `west update` in any job runs on the default
-workspace with the group off, and no job fetches or builds with the group on. That enabling the group would
-clone only the Mbed pair rests on west cloning only active projects, and a `west update` with the group on
-was not run. A build with the group on is not run either. A blocklist is used and not an allowlist because
+The proof is at the project-list level, and one CI job adds the fetch. Every job but two runs `west update` on
+the default workspace with the group off. The `S6 build` job and the `Budget` row of S6 switch the group on in their
+own runner, only after this check has passed on the project list, and then run `west update` and assert that no
+wolf project is in the workspace and that both Mbed modules are. That enabling the group would clone only the Mbed
+pair rests on west cloning only active projects, and a `west update` with the group on was not run before the S6
+job existed: the first CI run of that job is the first fetch with the group on, and no result of it is recorded
+here. The build with the group on is the S6 build. A blocklist is used and not an allowlist because
 an allowlist drops Zephyr and everything it imports if `zephyr` is left out of it, while a blocklist leaves
 the rest of the import alone; the cost is that it names what is known today, so when a pin moves, read the groups of the new Crux
 manifest, which the delta check also helps to catch.

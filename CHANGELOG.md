@@ -58,6 +58,19 @@ twice on a board (see `docs/findings/s2-first-board-run.md`); nothing else has r
   `app/src/time_sync.c` is the only caller of the Crux Time authority. SNTP here is unauthenticated, the clock
   is stepped and not slewed, nothing persists time, and S5 is built and never run on a board. Defaults and
   limits are in `docs/findings/s5-time-synchronisation.md`.
+- CI also builds step S6 (management over HTTPS on the S2 network) and the Budget job has an S6 row against limits
+  declared first. The composition zone starts Crux Access, the credential store, the security events, the status and
+  configuration services, the TLS certificate (made on the device at its first start and registered with Zephyr's
+  TLS credentials) and the web server on Zephyr's HTTP server with Mbed TLS, in the order of
+  `app/src/management_port.h`. The route sources of the session and management services are Crux's own, named by
+  `app/management/management.cmake` and handed their private include directories by Crux's route function, so no
+  build file here adds an include path. The packaged page, the reviewed route list, a RAM disk, the entropy rules of
+  the board image and a `native_sim` scenario of ten cases in `tests/native_sim_mbed` come with it. The image has no
+  account, so nobody can log in until a first-account console exists, and nothing persists across a reset. The Mbed
+  TLS group `crux-secure-management` is switched on in the runners of the S6 job and the S6 Budget row only, after
+  `scripts/check_mbed_only.py` has checked the project list, and stays off in `west.yml`. S6 is built and never run on
+  a board, and the first CI run is the first build of this chain from outside `crux-pilot`: see
+  `docs/findings/s6-https-management.md` for what is open. No firmware image of S0 to S5 changes.
 - A `native_sim` scenario runs S1, one for S2 uses the test-only `picolibc`, and one for S3 runs the
   file through the simulator provider on a RAM disk. Host tests with and
   without sanitizers cover the portable workload core.

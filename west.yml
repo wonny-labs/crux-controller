@@ -28,8 +28,9 @@ manifest:
       # (crux-secure-management) as wolfSSL, wolfSSH and wolfPSA, which are GPL or commercial.
       # Blocking the three wolf projects by name keeps them out of the resolved manifest, so
       # enabling that group would activate the Mbed modules and no GPL stack (checked at the
-      # project-list level; no job enables the group or fetches with it on). The group itself
-      # stays off. scripts/check_mbed_only.py checks this, and the West pins job runs it.
+      # project-list level; only the S6 build job and the Budget row of S6 switch the group on, in
+      # their own runner, and they run that check first). The group itself stays off here.
+      # scripts/check_mbed_only.py checks this, and the West pins job runs it.
       import:
         name-blocklist:
           - wolfssl
