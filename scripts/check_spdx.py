@@ -5,8 +5,8 @@
 The convention is the one the existing files follow: the first line of the file, or the second
 when the first is a shebang, is exactly
 
-    /* SPDX-License-Identifier: Apache-2.0 */     C and C++ sources and headers
-    # SPDX-License-Identifier: Apache-2.0         everything else that is covered
+    /* SPDX-License-Identifier: Apache-2.0 */     files with the suffix .c or .h
+    # SPDX-License-Identifier: Apache-2.0         the other covered files
 
 Covered files are the tracked and the untracked, not ignored, files named CMakeLists.txt or
 Kconfig, and the files with the suffix .c, .h, .py, .sh or .cmake. Configuration (.conf), device
