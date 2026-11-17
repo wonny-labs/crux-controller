@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Checks that the workload's build switch belongs to the product, not to a Crux provider.
 
 The workload runs on Zephyr threads and a message queue behind the adapter zone app/os, so the

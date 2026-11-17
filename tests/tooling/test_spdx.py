@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Tests of release/parse_spdx.py, the parser for the tag-value SPDX files of west spdx."""
 
 import pathlib

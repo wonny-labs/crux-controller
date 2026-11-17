@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Checks that CI runs the Crux Pilot product include check from a verified, immutable download.
 
 The revision of crux-pilot that west.yml pins predates check_domain_includes.py, so the

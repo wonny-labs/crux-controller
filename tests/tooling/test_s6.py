@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Checks of the groundwork for step S6 (management over HTTPS): the declared limits, the address
 validator, the management policy data and port, the findings note, and that no image build names any
 of it yet. Written test first, one slice at a time. Nothing here builds or runs Zephyr."""

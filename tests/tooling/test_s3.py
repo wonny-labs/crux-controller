@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Checks of step S3 (File): its configuration, build files, CI jobs, budget and scenario."""
 
 import json

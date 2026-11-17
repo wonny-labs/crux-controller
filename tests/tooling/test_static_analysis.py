@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Checks of the format and static-analysis setup: the criteria files, the two scripts and the CI
 job that runs them. The criteria are the ones that the Crux repository applies to its own code."""
 
