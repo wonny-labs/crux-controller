@@ -788,6 +788,50 @@ jobs:
           cd crux-controller
           python3 "$script" --product .
 
+  # Zephyr's checkpatch.pl (rule BRACES) on the C lines that the change adds, as the style kit of
+  # crux-pilot does for a product repository (scripts/check-patch.sh is its copy). The script runs
+  # from the Zephyr checkout that west fetches at the revision the manifest resolves to.
+  patch-style:
+    name: Patch style
+    runs-on: ubuntu-24.04
+    steps:
+      # Two commits are enough: for a pull request the checkout is a merge commit and its first
+      # parent is the base. A push compares with the commit before the push.
+      - uses: actions/checkout@v4
+        with:
+          path: crux-controller
+          fetch-depth: 2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install west==1.4.0
+      - name: Fetch Zephyr at the pinned revision
+        run: |
+          west init -l crux-controller
+          west update zephyr
+      - name: Check the patch style of the changed C lines
+        working-directory: crux-controller
+        env:
+          ZEPHYR_BASE: ${{ github.workspace }}/zephyr
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+            if [[ -z "$PUSH_BEFORE" || "$PUSH_BEFORE" =~ ^0+$ ]]; then
+              echo "Missing previous push SHA for the patch-style comparison." >&2
+              exit 2
+            fi
+            if ! git cat-file -e "${PUSH_BEFORE}^{commit}" 2>/dev/null; then
+              git fetch --no-tags --depth=1 origin "$PUSH_BEFORE"
+            fi
+            scripts/check-patch.sh "$PUSH_BEFORE" HEAD
+          elif [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            scripts/check-patch.sh HEAD^ HEAD
+          else
+            echo "Unsupported event $GITHUB_EVENT_NAME: no comparison range is defined." >&2
+            exit 2
+          fi
+
   s0:
     name: S0 build (RT1060-EVKB)
     runs-on: ubuntu-24.04
