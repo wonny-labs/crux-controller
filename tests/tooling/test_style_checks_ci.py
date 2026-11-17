@@ -88,8 +88,26 @@ class PatchStyleJob(CannotBeSilenced):
         self.assertEqual(2, checkout["with"]["fetch-depth"])
         runs = "\n".join(s.get("run", "") for s in job["steps"])
         self.assertIn("west init -l crux-controller", runs)
-        self.assertRegex(runs, r"west update zephyr\b")
+        # west refuses to update a project that comes through an import, so Zephyr is not
+        # updated by name: west updates crux-pilot, and the job fetches only the commit that the
+        # Crux manifest names for Zephyr.
+        self.assertNotRegex(runs, r"west update zephyr\b")
+        self.assertRegex(runs, r"west update crux-pilot\b")
         self.assertIn("west==1.4.0", runs)
+
+    def fetch_step(self):
+        return only_step("patch-style", "Fetch Zephyr")
+
+    def test_the_fetch_step_resolves_the_pinned_zephyr_commit_and_fetches_only_it(self):
+        run = self.fetch_step()["run"]
+        self.assertTrue(run.lstrip().startswith("set -euo pipefail"))
+        self.assertIn("west init -l crux-controller", run)
+        self.assertIn("west list -f '{revision}' zephyr", run)
+        self.assertIn("west list -f '{abspath}' zephyr", run)
+        self.assertIn("--depth=1 https://github.com/zephyrproject-rtos/zephyr", run)
+        self.assertRegex(run, r"\^\[0-9a-f\]\{40\}\$")
+        self.assertNotRegex(run, r"west update zephyr\b")
+        self.assertNotIn("continue-on-error", self.fetch_step())
 
     def test_the_step_runs_the_script_from_the_repository_with_zephyr_base(self):
         step = only_step("patch-style", self.STEP)
@@ -141,6 +159,94 @@ class PatchStyleJob(CannotBeSilenced):
             ["bash", "--noprofile", "--norc", "-eo", "pipefail", "-c", step["run"]],
             cwd=repo, env=env, capture_output=True, text=True,
         )
+
+    # The fetch step runs for real with a stub for west, a local repository in place of the
+    # Zephyr remote (git rewrites the URL), and the real git.
+    def run_fetch(self, west_list_fails_before_update=False, cloned=False, revision=None,
+                  path_name="zephyr", wrong_remote_commit=False):
+        step = self.fetch_step()
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        base = pathlib.Path(directory.name)
+        remote = base / "remote"
+        (remote / "scripts").mkdir(parents=True)
+        (remote / "scripts" / "checkpatch.pl").write_text("#!/usr/bin/perl\n")
+        subprocess.run(["git", "init", "-q", "-b", "main", str(remote)], check=True)
+        git(remote, "add", "-A")
+        git(remote, "commit", "-q", "-m", "zephyr")
+        commit = git(remote, "rev-parse", "HEAD")
+        if wrong_remote_commit:
+            commit = "1" * 40
+        (base / "crux-controller").mkdir()
+        (base / "bin").mkdir()
+        zephyr = base / path_name
+        if cloned:
+            (zephyr / "scripts").mkdir(parents=True)
+            (zephyr / "scripts" / "checkpatch.pl").write_text("#!/usr/bin/perl\n")
+        west = base / "bin" / "west"
+        # `west list` fails in the stub until a plain `west update` has run, when the scenario
+        # says the import does not resolve before that.
+        west.write_text(
+            "#!/usr/bin/env bash\n"
+            "echo \"west $*\" >> \"$WEST_LOG\"\n"
+            "case \"$1\" in\n"
+            "  init) exit 0;;\n"
+            "  update) [[ \"$*\" == update ]] && touch \"$WEST_STATE\"; exit 0;;\n"
+            "  list)\n"
+            "    if [[ \"$WEST_FAIL_FIRST\" == 1 && ! -f \"$WEST_STATE\" ]]; then exit 1; fi\n"
+            "    case \"$*\" in\n"
+            "      *revision*) echo \"$ZEPHYR_REVISION\";;\n"
+            "      *abspath*) echo \"$ZEPHYR_PATH\";;\n"
+            "    esac;;\n"
+            "esac\n"
+        )
+        west.chmod(0o755)
+        env = {
+            "PATH": f"{base / 'bin'}:{os.environ['PATH']}", "HOME": str(base),
+            "GITHUB_WORKSPACE": str(base), "WEST_LOG": str(base / "west.log"),
+            "WEST_STATE": str(base / "west.state"),
+            "WEST_FAIL_FIRST": "1" if west_list_fails_before_update else "0",
+            "ZEPHYR_REVISION": revision or commit, "ZEPHYR_PATH": str(zephyr),
+            "GIT_CONFIG_COUNT": "1",
+            "GIT_CONFIG_KEY_0": f"url.file://{remote}.insteadOf",
+            "GIT_CONFIG_VALUE_0": "https://github.com/zephyrproject-rtos/zephyr",
+        }
+        result = subprocess.run(
+            ["bash", "--noprofile", "--norc", "-eo", "pipefail", "-c", step["run"]],
+            cwd=base, env=env, capture_output=True, text=True,
+        )
+        log = (base / "west.log").read_text() if (base / "west.log").exists() else ""
+        return result, zephyr, log
+
+    def test_the_fetch_step_gets_exactly_the_named_commit_with_checkpatch(self):
+        result, zephyr, log = self.run_fetch()
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertTrue((zephyr / "scripts" / "checkpatch.pl").is_file())
+        self.assertIn("west update crux-pilot", log)
+        self.assertNotIn("west update zephyr", log)
+        self.assertNotRegex(log, r"(?m)^west update$")
+
+    def test_a_zephyr_that_the_import_already_cloned_is_not_fetched_again(self):
+        result, zephyr, log = self.run_fetch(cloned=True, wrong_remote_commit=True)
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+
+    def test_a_revision_that_is_not_a_full_hash_fails(self):
+        result, _, _ = self.run_fetch(revision="v4.4.2")
+        self.assertNotEqual(0, result.returncode)
+
+    def test_a_zephyr_outside_the_workspace_folder_fails(self):
+        result, _, _ = self.run_fetch(path_name="elsewhere")
+        self.assertNotEqual(0, result.returncode)
+
+    def test_a_commit_that_cannot_be_fetched_fails_the_step(self):
+        result, zephyr, _ = self.run_fetch(revision="1" * 40)
+        self.assertNotEqual(0, result.returncode)
+        self.assertFalse((zephyr / "scripts" / "checkpatch.pl").exists())
+
+    def test_when_the_import_does_not_resolve_before_a_full_update_plain_west_update_runs(self):
+        result, zephyr, log = self.run_fetch(west_list_fails_before_update=True)
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertRegex(log, r"(?m)^west update$")
 
     def test_a_pull_request_with_a_bad_change_fails(self):
         _, repo, zephyr = self.make_repo()
