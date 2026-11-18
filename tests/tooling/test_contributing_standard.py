@@ -1,6 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
 """Checks that CONTRIBUTING.md states the coding and analysis position of the repository: the prefix
 of the product's Kconfig symbols, and the section on static analysis and the coding standard with
-the facts that were measured on main at merge 26c78a3.
+the facts that were measured on main at merge e11e971.
 
 The numbers in the section are pinned against the repository itself, so they cannot drift without a
 failing test: the host-built sources are read from tests/host/CMakeLists.txt and the tracked sources
@@ -10,6 +11,8 @@ import pathlib
 import re
 import subprocess
 import unittest
+
+import yaml
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 PLATFORM_GUIDELINES = (
@@ -86,7 +89,7 @@ class StaticAnalysisSection(unittest.TestCase):
 
     def test_the_measurement_is_dated_and_tied_to_the_merge(self):
         body = flat(section())
-        self.assertIn("26c78a3", body)
+        self.assertIn("e11e971", body)
         self.assertIn("18 November 2026", body)
 
     def test_format_gate(self):
@@ -147,6 +150,70 @@ class StaticAnalysisSection(unittest.TestCase):
         body = flat(section())
         self.assertIn("known gaps, not scheduled", body.lower())
         self.assertNotRegex(body.lower(), r"\b(will be|we will|planned|roadmap|soon|later)\b")
+
+
+def ci_row():
+    for line in contributing().splitlines():
+        if line.startswith("| `ci.yml` |"):
+            return flat(line)
+    raise AssertionError("the ci.yml row of the workflow table is missing")
+
+
+class CiJobTable(unittest.TestCase):
+    def setUp(self):
+        workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())
+        self.jobs = workflow["jobs"]
+
+    def test_the_row_names_every_job_of_ci_yml(self):
+        row = ci_row()
+        for job_id, job in self.jobs.items():
+            # The row shortens a name to its first words: "S1 (native_sim and ...)" is `S1`.
+            short = job["name"].split(" (")[0]
+            self.assertIn(f"`{short}`", row, job_id)
+
+    def test_the_patch_style_job_and_its_rule_are_in_the_row(self):
+        row = ci_row()
+        self.assertIn("`Patch style`", row)
+        self.assertIn("checkpatch", row)
+        self.assertIn("BRACES", row)
+        self.assertIn("`scripts/check-patch.sh`", row)
+
+    def test_the_spdx_step_is_in_the_tooling_job(self):
+        steps = [s.get("name") for s in self.jobs["tooling"]["steps"]]
+        self.assertIn("Check SPDX headers", steps)
+        row = ci_row()
+        self.assertIn("`Check SPDX headers`", row)
+        self.assertIn("`scripts/check_spdx.py`", row)
+
+    def test_the_kit_step_is_in_the_boundary_job(self):
+        steps = [s.get("name") for s in self.jobs["boundary"]["steps"]]
+        self.assertIn("Run the style kit include check script", steps)
+        self.assertIn("style kit", ci_row())
+
+
+class SpdxAndPatchStyleFacts(unittest.TestCase):
+    def test_the_section_states_the_spdx_check_as_the_script_defines_it(self):
+        body = flat(section())
+        self.assertIn("`scripts/check_spdx.py`", body)
+        self.assertIn("first-party C, CMake, Kconfig, Python and shell files", body)
+        script = (ROOT / "scripts/check_spdx.py").read_text()
+        for suffix in ('".c"', '".h"', '".py"', '".sh"', '".cmake"', '"CMakeLists.txt"', '"Kconfig"'):
+            self.assertIn(suffix, script)
+
+    def test_the_section_states_the_checkpatch_gate_as_the_script_defines_it(self):
+        body = flat(section())
+        self.assertIn("`scripts/check-patch.sh`", body)
+        self.assertIn("BRACES", body)
+        self.assertIn("changed C lines", body)
+        script = (ROOT / "scripts/check-patch.sh").read_text()
+        self.assertIn('types="${CHECKPATCH_TYPES:-BRACES}"', script)
+        self.assertIn("'*.c' '*.h'", script)
+        workflow = (ROOT / ".github/workflows/ci.yml").read_text()
+        self.assertIn("scripts/check-patch.sh", workflow)
+
+    def test_the_not_done_line_still_holds_for_python_shell_yaml_and_cmake(self):
+        # Header and brace checks are not linting of the languages: no linter is configured.
+        self.assertIn("no linting of Python, shell, YAML and CMake", flat(section()))
 
 
 if __name__ == "__main__":

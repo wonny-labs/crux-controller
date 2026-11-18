@@ -62,7 +62,7 @@ the pull request says so. CI is configured in `.github/workflows/`:
 
 | Workflow | Jobs | When |
 |---|---|---|
-| `ci.yml` | `Tooling tests`, `West pins`, `Host tests` (sanitizer off and on), `S1` (Twister on `native_sim` for the scenarios in `tests/native_sim`, then the RT1060-EVKB build), `S2 build`, `S3 build`, `S4 build`, `S5 build`, `S6 build` (Twister on `native_sim` for the scenario in `tests/native_sim_mbed`, then the RT1060-EVKB build; the only job that fetches the Mbed TLS modules, with the group switched on in its own runner), `S0 build`, `Boundary check`, `Static analysis` (clang-format 18.1.8 over every tracked C file with `scripts/check-format.sh`, then clang-tidy 18 over the host-built sources with `scripts/analyze_host.py`, which prints the list of tracked sources not analysed; any difference or finding fails the job) (names shortened) | pull requests and pushes to `main` |
+| `ci.yml` | `Tooling tests` (with the step `Check SPDX headers`: `scripts/check_spdx.py`), `West pins`, `Host tests` (sanitizer off and on), `S1` (Twister on `native_sim` for the scenarios in `tests/native_sim`, then the RT1060-EVKB build), `S2 build`, `S3 build`, `S4 build`, `S5 build`, `S6 build` (Twister on `native_sim` for the scenario in `tests/native_sim_mbed`, then the RT1060-EVKB build; the only job that fetches the Mbed TLS modules, with the group switched on in its own runner), `S0 build`, `Boundary check` (with the include check script of the Crux style kit as one more step), `Patch style` (Zephyr's checkpatch, rule BRACES, on the changed C lines, with `scripts/check-patch.sh`), `Static analysis` (clang-format 18.1.8 over every tracked C file with `scripts/check-format.sh`, then clang-tidy 18 over the host-built sources with `scripts/analyze_host.py`, which prints the list of tracked sources not analysed; any difference or finding fails the job) (names shortened) | pull requests and pushes to `main` |
 | `budget.yml` | `Budget` for S0 to S6: static resource use against `budgets/limits.json` (the S6 row fetches the Mbed TLS modules in its own runner) | pull requests and pushes to `main` |
 | `rebuild.yml` | builds S2 twice at different paths and compares `zephyr.bin` and `firmware_identity` | by hand, and pull requests that change the workflow or `release/` |
 | `release.yml` | dry run of the release flow, publishes nothing | by hand, and pull requests that change the workflow, `release/` or `west.yml` |
@@ -108,7 +108,7 @@ of your own.
 
 ## Static analysis and coding standard
 
-Measured on `main` at merge `26c78a3`, on 18 November 2026. If the scripts and workflows named here
+Measured on `main` at merge `e11e971`, on 18 November 2026. If the scripts and workflows named here
 have changed since, they are the source of truth.
 
 - **Format.** clang-format 18.1.8 over every tracked C file is a gate: `scripts/check-format.sh`, in the
@@ -121,6 +121,10 @@ have changed since, they are the source of truth.
   board and `native_sim` builds.
 - **Other gates.** The include rules (`scripts/check_boundary.py` and the Crux product include check,
   both in the `Boundary check` job) and the resource limits (`.github/workflows/budget.yml`).
+- **Headers and patch style.** `scripts/check_spdx.py` (the `Check SPDX headers` step of `Tooling tests`)
+  requires the licence identifier line in first-party C, CMake, Kconfig, Python and shell files, and
+  keeps a list of two older scripts that lack it. `scripts/check-patch.sh` (the `Patch style` job) runs
+  Zephyr's checkpatch with the rule BRACES on the changed C lines of a change.
 - **Not done.** There is no coverage measurement, and no linting of Python, shell, YAML and CMake.
 
 These are the configured automated checks of this repository, not a claim of MISRA C, CERT C, security
