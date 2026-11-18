@@ -33,6 +33,11 @@ def ci_step(job, fragment):
     return matches[0]
 
 
+def norm(text):
+    """Collapse whitespace and line continuations so that a command compares by its words."""
+    return " ".join(text.replace("\\", " ").split())
+
+
 def requirement_pins(text):
     return dict(re.findall(r"^([A-Za-z0-9_.-]+)==(\S+)$", text, re.MULTILINE))
 
@@ -125,9 +130,12 @@ class DevcontainerJson(unittest.TestCase):
         target = re.search(r"target=([^,]+)", self.data["workspaceMount"]).group(1)
         self.assertEqual(f"{target}/crux-controller", self.data["workspaceFolder"])
 
-    def test_the_sdk_and_the_virtual_environment_live_in_a_named_volume(self):
+    def test_the_sdk_and_the_virtual_environment_live_in_a_named_volume_of_this_container(self):
+        # One volume for each dev container, so that two workspaces with different Zephyr
+        # requirements do not share (and keep replacing) one virtual environment.
         self.assertTrue(any(
-            "target=/opt/crux-cache" in mount and "type=volume" in mount for mount in self.data["mounts"]
+            "target=/opt/crux-cache" in mount and "type=volume" in mount
+            and "${devcontainerId}" in mount for mount in self.data["mounts"]
         ), self.data["mounts"])
 
     def test_the_setup_script_runs_after_creation(self):
@@ -152,6 +160,22 @@ class SetupScript(unittest.TestCase):
         update = self.text.index("west update\n", init)
         self.assertLess(guard, init)
         self.assertLess(init, update)
+
+    def test_an_interrupted_update_is_run_again(self):
+        # The pending marker is written after west init and removed only after west update ends.
+        self.assertIn('pending="$workspace/.west/crux-devcontainer-update.pending"', self.text)
+        guard = self.text.index('if [[ ! -d "$workspace/.west"')
+        condition = self.text[guard:self.text.index("then", guard)]
+        self.assertIn('-f "$pending"', condition)
+        init = self.text.index("west init -l crux-controller", guard)
+        touch = self.text.index('touch "$pending"', init)
+        update = self.text.index("west update\n", touch)
+        remove = self.text.index('rm -f "$pending"', update)
+        self.assertLess(init, touch)
+        self.assertLess(update, remove)
+
+    def test_the_setup_does_not_read_the_standard_input_of_the_caller(self):
+        self.assertIn("</dev/null", read(ROOT / "scripts" / "dev-shell.sh"))
 
     def test_it_runs_the_sdk_install_of_the_s1_job_with_the_same_toolchain(self):
         run = ci_step("s1", "Install the Zephyr SDK")["run"]
@@ -193,8 +217,12 @@ class DevShell(unittest.TestCase):
         data = json.loads(read(DEVCONTAINER / "devcontainer.json"))
         target = re.search(r"target=([^,]+)", data["workspaceMount"]).group(1)
         self.assertIn(target, self.text)
-        volume = re.search(r"source=([^,]+),target=/opt/crux-cache", " ".join(data["mounts"])).group(1)
+        volume = re.search(r"source=([^,$]+)", " ".join(data["mounts"])).group(1)
         self.assertIn(volume, self.text)
+        self.assertIn('volume="$volume_prefix-$(', self.text)  # one volume for each workspace folder
+
+    def test_it_passes_a_piped_standard_input_to_the_command(self):
+        self.assertIn("! -t 0", self.text)
 
     def test_it_uses_no_privilege_no_socket_and_no_home_mount(self):
         for word in ("--privileged", "docker.sock", "host.docker.internal", '"$HOME"', "--network host"):
@@ -216,10 +244,14 @@ class DevcontainerWorkflow(unittest.TestCase):
         cls.job = next(iter(cls.data["jobs"].values()))
         cls.commands = "\n".join(step.get("run", "") for step in cls.job["steps"])
 
-    def test_it_runs_on_the_files_of_the_dev_container_and_by_hand(self):
-        self.assertEqual({"pull_request", "workflow_dispatch"}, set(self.on))
+    def test_it_runs_on_the_files_that_decide_the_container_and_by_hand(self):
+        self.assertEqual({"pull_request", "push", "workflow_dispatch"}, set(self.on))
+        self.assertEqual(["main"], self.on["push"]["branches"])
+        self.assertEqual(self.on["pull_request"]["paths"], self.on["push"]["paths"])
         paths = self.on["pull_request"]["paths"]
-        for path in (".devcontainer/**", "scripts/dev-shell.sh", ".github/workflows/devcontainer.yml"):
+        # west.yml moves the pin, and with it the Zephyr requirement files that setup.sh installs.
+        for path in (".devcontainer/**", "scripts/dev-shell.sh", "west.yml",
+                     ".github/workflows/devcontainer.yml"):
             self.assertIn(path, paths)
 
     def test_the_permissions_are_read_only_and_set_once(self):
@@ -246,16 +278,74 @@ class DevcontainerWorkflow(unittest.TestCase):
         run = " ".join(ci_step("s1", "Run the S1 scenario on native_sim")["run"].replace("\\", " ").split())
         self.assertIn(run, " ".join(self.commands.replace("\\", " ").split()))
 
-    def test_the_product_include_check_uses_the_commit_and_hash_of_ci_yml(self):
-        step = ci_step("boundary", "Run the Crux Pilot product include check")["env"]
-        env = [s for s in self.job["steps"] if "CHECK_COMMIT" in str(s.get("env", ""))]
-        self.assertEqual(1, len(env))
-        self.assertEqual(step["CHECK_COMMIT"], env[0]["env"]["CHECK_COMMIT"])
-        self.assertEqual(step["CHECK_SHA256"], env[0]["env"]["CHECK_SHA256"])
+    def test_the_product_include_check_runs_the_script_of_the_pin_after_checking_its_hash(self):
+        # The pinned crux-pilot contains the script, with the hash that ci.yml checks the download
+        # against. The container job runs that copy instead of downloading a second one.
+        expected = ci_step("boundary", "Run the Crux Pilot product include check")["env"]["CHECK_SHA256"]
+        steps = [step for step in self.job["steps"] if "product include check" in step.get("name", "")]
+        self.assertEqual(1, len(steps))
+        step = steps[0]
+        self.assertEqual(expected, step["env"]["CHECK_SHA256"])
+        run = step["run"]
+        self.assertNotIn("curl", run)
+        self.assertLess(run.index("sha256sum --check"), run.index("dev-shell.sh"))
+        self.assertIn("crux-pilot/templates/product/check_domain_includes.py", run)
+        self.assertIn("--product", run)
+
+    def test_the_s1_steps_after_twister_are_those_of_the_s1_job(self):
+        board = ci_job("s1")["env"]["BOARD"]
+        commands = norm(self.commands)
+        for fragment in ("Cross-build S1 with the baseline gate required", "Check the outputs exist",
+                         "Check the resolved S1 configuration"):
+            run = ci_step("s1", fragment)["run"].replace("${{ env.BOARD }}", board)
+            self.assertIn(norm(run), commands, fragment)
+        self.assertIn("-DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON", self.commands)
+
+    def test_the_host_tests_run_with_the_sanitizers_off_and_on_as_ci_does(self):
+        matrix = ci_job("host")["strategy"]["matrix"]["sanitize"]
+        self.assertEqual(["OFF", "ON"], matrix)
+        for value in matrix:
+            self.assertIn(f"-DWORKLOAD_SANITIZE={value}", self.commands)
 
     def test_the_job_has_a_time_limit_and_the_ubuntu_runner_of_ci(self):
         self.assertEqual("ubuntu-24.04", self.job["runs-on"])
         self.assertIn("timeout-minutes", self.job)
+
+
+class Documentation(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.page = read(ROOT / "docs" / "try-on-native-sim.md")
+        cls.section = cls.page[cls.page.index("## Dev container"):cls.page.index("## If something fails")]
+        cls.readme = read(ROOT / "README.md")
+
+    def test_the_section_says_that_nobody_ran_it_on_wsl2_and_only_x86_64_ran_in_ci(self):
+        self.assertIn("Nobody has run it on WSL2 yet", self.section)
+        self.assertIn("x86_64", self.section)
+        self.assertIn("binfmt", self.section)
+        self.assertNotIn("emulated and slow", self.section)
+
+    def test_the_readme_does_not_promise_other_architectures(self):
+        line = self.readme[self.readme.index("On Windows with WSL2"):]
+        line = line[:line.index("yet)")]
+        self.assertIn("x86_64", line)
+        self.assertNotIn("any host", line)
+
+    def test_the_section_names_the_differences_from_the_ci_runner(self):
+        for word in ("actions/setup-python", "python3-venv", "curl", "sudo", "clang-tidy-18"):
+            self.assertIn(word, self.section)
+
+    def test_the_section_says_what_the_container_job_builds_and_runs(self):
+        self.assertIn("RT1060-EVKB", self.section)
+        self.assertIn("cross-build", self.section)
+
+    def test_the_section_covers_a_failed_setup_and_the_wsl_resources(self):
+        self.assertIn("bash .devcontainer/setup.sh", self.section)
+        self.assertIn(".wslconfig", self.section)
+        self.assertIn("processors", self.section)
+
+    def test_the_product_include_check_is_not_said_to_predate_the_pin_in_the_workflow(self):
+        self.assertNotIn("predates", read(WORKFLOW))
 
 
 if __name__ == "__main__":

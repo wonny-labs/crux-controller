@@ -9,7 +9,7 @@
   "workspaceMount": "source=${localWorkspaceFolder}/..,target=/workspaces/ws,type=bind",
   "workspaceFolder": "/workspaces/ws/crux-controller",
   "mounts": [
-    "source=crux-controller-dev-cache,target=/opt/crux-cache,type=volume"
+    "source=crux-controller-dev-cache-${devcontainerId},target=/opt/crux-cache,type=volume"
   ],
   "remoteUser": "vscode",
   "updateRemoteUserUID": true,

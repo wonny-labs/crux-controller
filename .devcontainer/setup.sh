@@ -5,7 +5,7 @@
 #
 # The layout is a workspace folder that holds the clone (named crux-controller), the .west folder,
 # zephyr/ and modules/. The workspace folder is bind-mounted at /workspaces/ws. The virtual
-# environment and the Zephyr SDK are in /opt/crux-cache, a named volume.
+# environment and the Zephyr SDK are in /opt/crux-cache, a named volume of this workspace folder.
 #
 # The steps are those of the S1 job of .github/workflows/ci.yml with local values: west init -l
 # crux-controller, west update, the Python requirements of Zephyr and west sdk install. West is not
@@ -55,14 +55,20 @@ if [[ "$(cat "$stamp.tools" 2>/dev/null || true)" != "$tools_hash" ]]; then
     printf '%s\n' "$tools_hash" >"$stamp.tools"
 fi
 
-# 2. The workspace, only when it is not initialised yet. ZEPHYR_BASE points into the workspace
-# and does not exist before the update.
+# 2. The workspace, only when it is not initialised yet, or when an earlier update did not finish.
+# ZEPHYR_BASE points into the workspace and does not exist before the update. The pending marker
+# is written after west init and removed only after west update has ended, so an interrupted first
+# run (a network failure, a closed terminal) is run again. A workspace that was set up another way
+# has no marker and is left alone.
 cd "$workspace"
-if [[ ! -d "$workspace/.west" || ! -d "$workspace/zephyr" ]]; then
+pending="$workspace/.west/crux-devcontainer-update.pending"
+if [[ ! -d "$workspace/.west" || ! -d "$workspace/zephyr" || -f "$pending" ]]; then
     (
         unset ZEPHYR_BASE
         [[ -d "$workspace/.west" ]] || west init -l crux-controller
+        touch "$pending"
         west update
+        rm -f "$pending"
     )
 else
     printf 'setup: the workspace is initialised; run `west update` yourself after the pin in west.yml moves.\n'
