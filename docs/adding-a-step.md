@@ -3,8 +3,7 @@
 This is a recipe for adding a *step* to the firmware, worked through with step S4 (Crux System: the
 reset cause and a watchdog) because it is the smallest step that touches every part. Step S5 (SNTP time
 synchronisation) is newer and follows the same order, with differences that the section
-[What S5 did differently](#what-s5-did-differently) lists. Every file named here exists on `main`. The commits are the ones that added S4
-(`git log --oneline` shows them; the hashes are given so that you can run `git show` on each). Read the
+[What S5 did differently](#what-s5-did-differently) lists. Every file named here exists on `main`. S4 was added in small commits, in the order of the table in section 2. Read the
 [architecture](architecture.md) and the [glossary](glossary.md) first if the terms are new, and
 [CONTRIBUTING.md](../CONTRIBUTING.md) for the rules that apply to every change.
 
@@ -21,8 +20,8 @@ Ground rules that shape the order of work:
   or a Crux private header in `app/src`, stop: that is either a new zone entry (a separate reviewed pull
   request) or a *finding*. S4 needed neither.
 - **A step is not a release and not a board run.** A green CI build does not mean the step ran on a board,
-  and the pull request must not say so. Merging needs the owner's approval; a green CI and a review `PASS`
-  do not give it.
+  and the pull request must not say so. Merging needs the owner's approval (see [the owner](glossary.md#people-and-board-procedures)); a green CI and a
+  review `PASS` do not give it.
 
 ## 1. Decide the shape
 
@@ -51,10 +50,9 @@ Answer these before writing any file. S4's answers are in brackets.
 | 5 | CI build job and Budget row | `.github/workflows/ci.yml` (job `s4`), `.github/workflows/budget.yml` (matrix row `S4`) | `S4Workflows` in `test_s4.py` | The new job and the new `Budget S4` job |
 | 6 | Documents | `docs/findings/s4-system-composition.md`, `README.md`, `CHANGELOG.md`, `CONTRIBUTING.md` | `S4Findings` in `test_s4.py`; `Contributing` in `tests/tooling/test_docs.py` | `Tooling tests` |
 
-S4's history follows that order: the limits row `cbef076`, the policy `edd0bb3`, the glue with its
-option, fragment, overlay and scenario `521d8db`, the CI job and Budget row `3551eab`, the findings note
-with the README and changelog `8556444`. `CONTRIBUTING.md` was updated later, in `f4c66e9`, because it was
-missed; do it in the same pull request as the rest.
+S4 was added in that order: the limits row, the policy, the glue with its option, fragment, overlay and
+scenario, the CI job and Budget row, then the findings note with the README and changelog. `CONTRIBUTING.md` was
+updated in a later commit, because it was missed; do it in the same pull request as the rest.
 
 Each step in the table is a small commit with its test first. The tooling tests are ordinary
 `unittest` files that read the repository's files as text (Kconfig, CMake, `.conf`, the workflows,
@@ -177,7 +175,8 @@ uploads an artifact. No job flashes, resets or runs anything on a board.
 - **Findings note**, `docs/findings/s4-system-composition.md`. Label each statement Measured (you ran it
   and name the command), Inferred (read from `crux-pilot` source at the pinned commit, not run) or Open.
   Results that only CI can produce are written as Open with the CI job named, and recorded in the pull
-  request afterwards. The note lists what the product had to write, the friction, the decisions made
+  request afterwards; once CI has run, update the note with the result, the revision it was read at and the label
+  Recorded, as the S6 note does. The note lists what the product had to write, the friction, the decisions made
   (with the test that pins each) and what the step does not show. It carries no line counts, because they
   go stale.
 - **`README.md`**: a row in the step table and a clause in the status paragraph. The status must say
@@ -196,8 +195,8 @@ S5 was added after S4, in the same order of work. Read from `app/Kconfig`, `app/
   `SNTP`, `NET_UDP` and `NET_IPV4`. Its CI build uses `conf/s1.conf;conf/s2.conf;conf/s5.conf` and
   `boards/s2.overlay`, and the Budget row says the same.
 - **It uses an existing zone entry.** `zephyr/net/sntp.h` had been allowed in `app/os` by a separate
-  reviewed pull request ([wonny-labs/crux-controller#49](https://github.com/wonny-labs/crux-controller/pull/49))
-  before S5, as the ground rules above ask. The adapter zone gained a second source,
+  reviewed pull request ([pull request 49](https://github.com/wonny-labs/crux-controller/pull/49) of the public
+  repository) before S5, as the ground rules above ask. The adapter zone gained a second source,
   `app/os/time_sync_zephyr.c`, which `app/os/CMakeLists.txt` builds only when S5 is on.
 - **Three files instead of two for the logic.** The plain-C policy is `app/src/time_sync_policy.[ch]`, the
   glue that calls the Crux Time authority is `app/src/time_sync.[ch]`, and the port that the glue calls is
@@ -209,8 +208,8 @@ S5 was added after S4, in the same order of work. Read from `app/Kconfig`, `app/
 - **The CI build job checks more.** `.github/workflows/ci.yml` job `s5` also checks that no RTC adapter
   (`CONFIG_CRUX_TIME_RTC`) and no SNTP uncertainty option are on, and that the glue, the policy and the
   adapter are linked.
-- **The findings note** is `docs/findings/s5-time-synchronisation.md`. Its results table marks the CI
-  results as open, to be recorded where CI runs them.
+- **The findings note** is `docs/findings/s5-time-synchronisation.md`. Its results table first marked the CI
+  results as open; it now records what CI showed at the commit that merged S5.
 
 ## What S6 did differently
 
@@ -251,7 +250,7 @@ the Budget numbers come from CI (a local Twister run is optional); nothing ran o
 
 - A local compile with the host compiler is necessary and not sufficient. GCC in CI rejected a comparison
   between constants of two different anonymous enums (`-Werror=enum-compare`) that the local Apple clang
-  accepted (`1cbf399`).
+  accepted.
 - The Crux behaviour you rely on is read from the pinned source. Say so in the findings (Inferred), name
   the file, and do not assume a later Crux revision behaves the same.
 
