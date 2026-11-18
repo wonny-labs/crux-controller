@@ -17,7 +17,10 @@
 #include <unistd.h>
 
 #include "net_client.h"
+#include "test_peer_port.h"
 #include "workload.h"
+
+unsigned short test_peer_port;
 
 static int failures;
 static int checks;
@@ -52,20 +55,35 @@ static void pause_ms(long milliseconds)
     nanosleep(&duration, NULL);
 }
 
-static int open_listener(void)
+/* Bind the socket to the loopback address with a port that the system chooses, and make that
+ * port the peer port of the client. Returns 0, or -1 with a message. */
+static int bind_free_port(int descriptor)
 {
     struct sockaddr_in address;
-    const int one = 1;
-    const int listener = socket(AF_INET, SOCK_STREAM, 0);
+    socklen_t length = sizeof address;
 
     memset(&address, 0, sizeof address);
     address.sin_family = AF_INET;
-    address.sin_port = htons(CONFIG_CRUX_CONTROLLER_PEER_PORT);
+    address.sin_port = htons(0);
     inet_pton(AF_INET, CONFIG_CRUX_CONTROLLER_PEER_ADDRESS, &address.sin_addr);
-    setsockopt(listener, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one);
-    if (bind(listener, (struct sockaddr *)&address, sizeof address) != 0 ||
-        listen(listener, 1) != 0) {
-        printf("cannot listen on the test port: %s\n", strerror(errno));
+    if (bind(descriptor, (struct sockaddr *)&address, sizeof address) != 0 ||
+        getsockname(descriptor, (struct sockaddr *)&address, &length) != 0) {
+        printf("cannot bind a test port: %s\n", strerror(errno));
+        return -1;
+    }
+    test_peer_port = ntohs(address.sin_port);
+    return 0;
+}
+
+static int open_listener(void)
+{
+    const int listener = socket(AF_INET, SOCK_STREAM, 0);
+
+    if (listener < 0 || bind_free_port(listener) != 0 || listen(listener, 1) != 0) {
+        printf("cannot listen on a test port: %s\n", strerror(errno));
+        if (listener >= 0) {
+            close(listener);
+        }
         return -1;
     }
     return listener;
@@ -148,10 +166,17 @@ int main(void)
     CHECK(exchange_with(PEER_EARLY_CLOSE) == NET_CLIENT_ERR_RECEIVE);
     CHECK(exchange_with(PEER_SILENT) == NET_CLIENT_ERR_TIMEOUT);
 
-    /* No listener: the connection is refused. */
+    /* No listener: the connection is refused. The port is one that the system just assigned and
+     * that nothing listens on. (A port that is bound but not listened on would not do: some
+     * systems drop the connection attempt instead of refusing it.) */
     {
         const workload_message_t message = {.cycle = 1, .value = 2};
+        const int unused = socket(AF_INET, SOCK_STREAM, 0);
 
+        CHECK(unused >= 0 && bind_free_port(unused) == 0);
+        if (unused >= 0) {
+            close(unused);
+        }
         CHECK(net_client_exchange(&message) == NET_CLIENT_ERR_CONNECT);
         CHECK(net_client_exchange(NULL) == NET_CLIENT_ERR_PROTOCOL);
     }
