@@ -570,6 +570,10 @@ init)
 update)
     if [ "${FAKE_UPDATE_FAIL:-}" = 1 ]; then exit 1; fi
     mkdir -p zephyr/scripts modules
+    if grep -q '^group-filter = ' .west/config 2>/dev/null && [ "${FAKE_NO_MBED:-}" != 1 ]; then
+        mkdir -p modules/crypto/mbedtls modules/crypto/tf-psa-crypto
+    fi
+    if [ -n "${FAKE_WOLF_FETCHED:-}" ]; then mkdir -p "modules/crypto/$FAKE_WOLF_FETCHED"; fi
     for name in base build-test run-test; do echo "pytest" >"zephyr/scripts/requirements-$name.txt"; done
     ;;
 config)
@@ -784,6 +788,28 @@ class SetupRuns(unittest.TestCase):
         self.assertEqual([], self.fixture.calls("west config --local -d"))
         self.assertEqual(2, len(self.fixture.calls("west update")))
         self.assertIn("already switched on", result.stderr)
+
+    def test_the_fetch_message_says_that_every_project_goes_to_the_pin(self):
+        result = self.ok()
+        self.assertIn("west update (adds the Mbed TLS modules and brings every project to the pin of west.yml)",
+                      result.stderr)
+        self.assertNotIn("and nothing else", result.stderr)
+
+    def test_the_fetch_is_checked_like_the_s6_job_does(self):
+        step = ci_step("s6", "Fetch the Mbed TLS modules and nothing else")["run"]
+        self.assertIn("wolfssl wolfssh wolfpsa", step)
+        self.assertIn("mbedtls tf-psa-crypto", step)
+        result = self.fixture.run(FAKE_NO_MBED="1")
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("missing mbedtls", result.stderr)
+        self.assertIn("failed during the Mbed TLS group", result.stderr)
+        self.assertEqual([], self.fixture.sdk_installs())
+
+    def test_a_wolf_directory_after_the_fetch_stops_the_setup(self):
+        result = self.fixture.run(FAKE_WOLF_FETCHED="wolfssh")
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("unexpected wolfssh", result.stderr)
+        self.assertFalse((self.fixture.workspace / ".west" / "crux-devcontainer-s6.done").exists())
 
     def test_a_guard_error_in_the_default_workspace_stops_before_the_group_is_switched_on(self):
         result = self.fixture.run(FAKE_GUARD_FAIL="default")
