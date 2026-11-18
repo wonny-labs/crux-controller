@@ -16,10 +16,11 @@
  *                    read from that header at the pinned revision.
  *   "status.read"    CRUX_MGMT_STATUS_PERMISSION_READ in crux/management_status.h, read from that
  *                    header at the pinned revision; no second source states the value.
- * The two strings that rest on that reading are confirmed against the headers by the
- * composition that passes this data to Crux. An earlier version of this comment asked that
- * composition to assert the equality at build time. It is a start-time refusal instead: the
- * composition passes the three Crux macros to management_permission_names_match() below and
+ * Both readings are backed at run time: the composition checks all three names against the Crux
+ * macros with management_permission_names_match() at start and refuses on a mismatch, and the S6
+ * native_sim scenario, which runs that start, passes in CI. An earlier version of this comment
+ * asked the composition to assert the equality at build time. It is a start-time refusal instead:
+ * the composition passes the three Crux macros to management_permission_names_match() below and
  * refuses to start on a false answer. Two string literals cannot be compared by the preprocessor
  * or the compiler in ISO C, so no build-time check does it. The mismatch path of the function has a
  * host test; the composition's refusal on it has no test that runs without Zephyr.

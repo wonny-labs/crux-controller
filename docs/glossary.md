@@ -72,7 +72,7 @@ under `components/*/ports/*/include/crux/`, apart from the public headers. `app/
 not include one.
 
 **Port header.** A header in `app/src` that the application declares and a zone implements:
-`workload_os.h` and `time_sync_port.h` (both implemented in `app/os`) `storage_port.h` and `management_port.h` (S6) (both implemented in `app/compose`). It includes
+`workload_os.h` and `time_sync_port.h` (both implemented in `app/os`), and `storage_port.h` and `management_port.h` (S6) (both implemented in `app/compose`). It includes
 ISO C only, so it stays inside the rules of `app/src`. The application calls it; the linker joins the
 two sides.
 

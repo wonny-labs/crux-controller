@@ -13,9 +13,10 @@ Ground rules that shape the order of work:
 - **Tests first.** Write the test, watch it fail, then write the code. CONTRIBUTING.md asks for this
   for new behaviour and for fixes, and says that an existing test or check is never weakened or deleted
   to make a change pass.
-- **CI is the build.** This repository describes no local Zephyr build. Zephyr builds, Twister runs and the
-  budget numbers come from CI. What you can run locally is the tooling tests, the boundary check and the
-  host tests.
+- **CI is the reference.** Zephyr builds, Twister runs and the budget numbers that a pull request cites come
+  from CI. [try-on-native-sim.md](try-on-native-sim.md) gives the CI commands for a local `native_sim` run, and
+  a local result does not replace CI. You can also run the tooling tests, the boundary check and the host
+  tests locally.
 - **Public means only.** A step uses public Crux headers and targets. If it seems to need a Zephyr header
   or a Crux private header in `app/src`, stop: that is either a new zone entry (a separate reviewed pull
   request) or a *finding*. S4 needed neither.
@@ -279,17 +280,21 @@ Use this at the end. `<n>` is the step number.
 
 ## Files that need a reviewed change
 
-This page and [try-on-native-sim.md](try-on-native-sim.md) say "reviewed-change files". They are the files below.
-[CONTRIBUTING.md](../CONTRIBUTING.md) states each rule; the repository has no separate list. A change to one of
-them goes in its own pull request, gets an independent review, and says in the description why it is needed.
+This is a reading aid, collected from [CONTRIBUTING.md](../CONTRIBUTING.md) and from comments in the files.
+CONTRIBUTING.md is the authority; where this list and it differ, follow it. CONTRIBUTING asks for an
+independent review of a material change, and asks for a separate pull request only for a pin move and for the
+three boundary files together.
 
-- `scripts/check_boundary.py`, `tests/tooling/test_boundary.py` and `docs/composition-zone.md`, which change
-  together (CONTRIBUTING, "The boundary").
-- `app/CMakeLists.txt`, `app/management/management.cmake` and `app/management/entropy.cmake`, which may add no
-  include path.
-- `west.yml` and `tests/tooling/test_manifest.py` for the pin, and the places that quote it
-  (`docs/dependencies.md`, `RELEASE.md`, `CHANGELOG.md`), as CONTRIBUTING, "The pin and the manifest", describes.
-- `budgets/limits.json`, whose own comment says that a change there is a reviewed change.
-- `.github/workflows/*.yml` and `CONTRIBUTING.md`.
-- `scripts/check_mbed_only.py`, the gate on the licence boundary of the Mbed TLS group.
-- `CODEOWNERS`.
+- `scripts/check_boundary.py`, `tests/tooling/test_boundary.py` and `docs/composition-zone.md`: change together
+  in one reviewed pull request (CONTRIBUTING, "The boundary").
+- `app/CMakeLists.txt`, `app/management/management.cmake` and `app/management/entropy.cmake`: the boundary check
+  reads them, and they may add no include path (CONTRIBUTING, "The boundary").
+- `west.yml` and `tests/tooling/test_manifest.py`: a pin moves in its own small pull request (CONTRIBUTING, "The
+  pin and the manifest"). `docs/dependencies.md`, `RELEASE.md` and `CHANGELOG.md` are covered only where they
+  quote the pin.
+- `budgets/limits.json`: its own `_comment` says that a change there is a reviewed change; CONTRIBUTING says a
+  limit is not changed in a pin-bump pull request.
+- `.github/workflows/*.yml`, `scripts/check_mbed_only.py` and `CODEOWNERS`: CONTRIBUTING does not state a
+  rule for them. They are listed because they hold the checks, the licence gate of the Mbed TLS group and the
+  ownership, and a reviewer should look at a change to them.
+- `CONTRIBUTING.md` itself.

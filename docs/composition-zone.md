@@ -1,8 +1,8 @@
 # The composition zone
 
 Status: a rule of the boundary check. Step S3 (File) is its first user: `app/compose/storage_mount.c`
-implements the port `app/src/storage_port.h`. The check skips one tree that is absent, so an image
-without the zone has no zone to check. It fails when none of the four trees exists, which means
+implements the port `app/src/storage_port.h`. The check skips each absent tree, as long as at least one of the four exists, so an image
+without the zone has no zone to check. It fails when none exists, which means
 that it was run from the wrong directory (see [Running the check](#running-the-check)). The zone also admits the headers that the HTTPS management
 interface (Mbed profile) needs, see [The web composition](#the-web-composition).
 

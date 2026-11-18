@@ -41,7 +41,7 @@ flowchart TD
     WL["workload/<br/>portable core, ISO C only"]
     OS["app/os<br/>adapter zone<br/>threads, queue, sleep"]
     COMP["app/compose<br/>composition zone<br/>mount and bind File, start management"]
-    CRUX["Crux public targets<br/>crux::time, logging, sockets, netif, file, system,<br/>access, config_service, mgmt_status, tls_certificate;<br/>composition: crux::file_zephyr, crux::web_zephyr"]
+    CRUX["Crux public targets<br/>crux::time, logging, sockets, netif, file, system,<br/>access, config_service, mgmt_status, tls_certificate;<br/>web: crux::web, web_session, web_management,<br/>credential_store, security_event;<br/>composition: crux::file_zephyr, crux::web_zephyr"]
     ZEPHYR["Zephyr kernel and file system"]
     SRC -->|includes| WL
     SRC -->|includes| CRUX
@@ -127,8 +127,9 @@ Points that the table cannot carry:
   repository names their symbols. In steps S1 to S5 nothing selects them. The Crux services of S6 need Thread and Sync
   and select them for themselves, so the S6 image has them on. This repository adds no Crux public interface.
 - **Build and board.** Every CI build of the image is for `mimxrt1060_evk@B//qspi` with the *baseline
-  gate* required. The `native_sim` scenarios are the exception: they run on the simulated board. The Zephyr builds and Twister runs happen in CI only; this repository documents no local
-  Zephyr build.
+  gate* required. The `native_sim` scenarios are the exception: they run on the simulated board. CI is the reference for the Zephyr builds and Twister runs;
+  [try-on-native-sim.md](try-on-native-sim.md) gives the CI commands for a local `native_sim` run, and a local
+  result does not replace CI.
 
 ## What runs in the image: threads and scheduling
 

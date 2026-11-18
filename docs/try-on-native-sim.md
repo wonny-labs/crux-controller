@@ -4,7 +4,7 @@ This page is for a teammate who wants to see the firmware's tests run and has no
 Terms are in the [glossary](glossary.md), the layout is in the [architecture](architecture.md), and what has
 and has not run on a board is in the [roadmap](roadmap.md).
 
-Everything below runs on Linux: Ubuntu 22.04 or 24.04, native or under WSL2. On Windows use WSL2 and work
+Everything below runs on Linux: Ubuntu 24.04 (the CI image), native or under WSL2. On Windows use WSL2 and work
 in the Linux file system (your home directory), not under `/mnt/c`: the builds are slow and file modes can
 differ there. Clone with `git clone -c core.autocrlf=false` if your Git for Windows settings could reach the
 clone, because CRLF line ends make `scripts/check-format.sh` fail. CI runs on x86_64 only.
@@ -54,7 +54,8 @@ sudo apt-get install -y --no-install-recommends \
   libmagic1 libsdl2-dev pkg-config python3-dev python3-venv wget xz-utils
 ```
 
-`gcc-multilib` is in the CI list. It does not exist on arm64 hosts, so leave it out there.
+`gcc-multilib` is in the CI list, and CI runs on x86_64 only. The package does not exist on arm64 hosts, and
+whether `native_sim/native/64` builds and runs on an arm64 host was not checked.
 
 ```bash
 mkdir -p ~/crux-ws && cd ~/crux-ws
@@ -115,7 +116,8 @@ INFO    - 31 of 31 executed test cases passed (100.00%) on 1 out of total ... pl
 ```
 
 Counts change when a scenario is added, so read them as an example. The tail of the Twister output is what to
-compare, and any other count of passed configurations than "all executed" is a failure.
+compare, together with the Twister ids in the table below: all 17 must be present and passed, and a count
+lower than the table lists means that a scenario did not run.
 
 The S6 scenario is in a sibling directory, `tests/native_sim_mbed`, so that this command never selects it in a
 workspace that has no Mbed TLS modules. The default workspace above does not have them: the group
@@ -131,12 +133,15 @@ west config --local manifest.group-filter -- +crux-secure-management
 west list --all -f '{name} {active}' > list-mbed.txt
 python crux-controller/scripts/check_mbed_only.py --mode mbed --baseline list-default.txt < list-mbed.txt
 west update
+for name in wolfssl wolfssh wolfpsa; do test ! -e "modules/crypto/$name" || echo "unexpected $name"; done
+for name in mbedtls tf-psa-crypto; do test -d "modules/crypto/$name" || echo "missing $name"; done
 west twister -p native_sim/native/64 -T crux-controller/tests/native_sim_mbed \
   --inline-logs --clobber-output -O twister-out-s6
 west config --local -d manifest.group-filter
 ```
 
-The checks before `west update` stop the run if the group would fetch anything beyond the Mbed TLS modules. The
+The two `for` loops are CI's check after the fetch (CI exits on a finding; here they print a line): no wolf
+project may be on disk and both Mbed modules must be. The checks before `west update` stop the run if the group would fetch anything beyond the Mbed TLS modules. The
 fetch adds Mbed TLS and TF-PSA-Crypto, which are distributed as Apache-2.0 OR GPL-2.0-or-later. The last line
 puts the workspace back to the default filter; the fetched modules stay on disk. CI also installs the same
 Python requirement files after this `west update`, which the first setup already did. A passing run prints
@@ -219,9 +224,10 @@ python scripts/check_boundary.py
 A pass ends the test run with `Ran <n> tests` and `OK`, and the check prints `boundary check passed`.
 
 CI runs a stronger form of the boundary check, against the headers of the pinned `crux-pilot`, and a second
-check from `crux-pilot`. From the workspace directory (`~/crux-ws`):
+check from `crux-pilot`. From the workspace directory:
 
 ```bash
+cd ~/crux-ws
 python crux-controller/scripts/check_boundary.py --repo crux-controller --crux-root crux-pilot
 python crux-pilot/templates/product/check_domain_includes.py --product crux-controller
 ```
@@ -234,16 +240,19 @@ it does not print a pass. [composition-zone.md](composition-zone.md#running-the-
 CI is the reference. The checks of a commit on GitHub show the same jobs that these commands come from. A
 failure that appears only on your machine may be a difference in the host, the toolchain or the workspace
 that this page cannot predict; it has no list of such differences. Any change to the boundary lists, the
-workflows or the other reviewed-change files (listed in
+workflows or the other files that CONTRIBUTING.md treats as reviewed (a reading aid is in
 [adding-a-step.md](adding-a-step.md#files-that-need-a-reviewed-change)) is a reviewed change under
 [CONTRIBUTING.md](../CONTRIBUTING.md), not a fix for a local failure.
 
 ## What has been checked
 
-- The first block of commands (the virtual environment, `pip install` of the pinned tools and `west init -l`)
-  was run in a fresh `ubuntu:24.04` container on 18 November 2026 (an arm64 container, Python 3.12.3). It
-  confirmed that there is no `python` command before the virtual environment exists, that `west 1.4.0`
-  installs in it and that `west init -l crux-controller` creates `.west` in the workspace directory.
+- At revision `33619dd`, the venv block (`python3 -m venv`, `pip install` of the pinned tools, `west init -l`)
+  was run in a fresh `ubuntu:24.04` container on 18 November 2026 (arm64, Python 3.12.3), after
+  `apt-get install python3-venv python3-dev git ca-certificates`. The clone was copied in from a local checkout,
+  so the `git clone` command and the full `apt-get` package list were not run. It confirmed that there is no
+  `python` command before the virtual environment exists, that `west 1.4.0` installs in it and that
+  `west init -l crux-controller` creates `.west` in the workspace directory.
+- WSL2 was not tested. Only that arm64 `ubuntu:24.04` container ran those steps.
 - Not run for this page: `west update`, the SDK install, Twister, the S6 group steps and the host tests on
   a fresh machine. Their commands are those of the CI jobs with the variables replaced, and the tooling
   tests and the boundary commands ran on a macOS host. If a step here fails on your machine, open an issue
