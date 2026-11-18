@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """The product must not define identifiers in the namespaces that belong to Crux and to Kconfig.
 
 The platform's product code standard keeps product identifiers out of the ``crux_`` and ``CRUX_``
