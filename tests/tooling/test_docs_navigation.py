@@ -368,6 +368,39 @@ class Changelog(unittest.TestCase):
         self.assertIn("No firmware image changes.", " ".join(unreleased.split()))
 
 
+class ReviewingProvenance(unittest.TestCase):
+    """Every checklist item of the reviewer page names a CONTRIBUTING.md section or says Practice."""
+
+    def test_each_item_cites_contributing_or_is_marked_practice(self):
+        items = re.findall(r"(?ms)^- \[ \] (.*?)(?=^- \[ \]|^## |\Z)", read("docs/reviewing.md"))
+        self.assertGreaterEqual(len(items), 30)
+        # Items of sections 4 (documents) are marked practice as a group by the section introduction.
+        in_docs = set()
+        body = read("docs/reviewing.md")
+        start = body.index("## 4. Documentation changes")
+        end = body.index("## 5.")
+        for item in re.findall(r"(?ms)^- \[ \] (.*?)(?=^- \[ \]|^## |\Z)", body[start:end]):
+            in_docs.add(item)
+        for item in items:
+            flat_item = " ".join(item.split())
+            if item in in_docs:
+                continue
+            self.assertTrue("Practice" in flat_item or "CONTRIBUTING.md" in flat_item,
+                            flat_item[:80])
+
+    def test_the_items_that_the_review_found_uncited_are_now_marked(self):
+        body = " ".join(read("docs/reviewing.md").split())
+        for needle in ("CI results were read for the head commit.** Practice.",
+                       "Practice, from [adding-a-step.md](adding-a-step.md), section 2.1",
+                       "Practice: it also reads the resolved configuration",
+                       "\"Extend a check rather than loosen it.\"",
+                       "Practice: it also gives the command or configuration",
+                       "Practice: the kinds of result are kept apart",
+                       "Practice: failures and skipped checks are listed too"):
+            self.assertIn(needle, body, needle)
+        self.assertIn("Extend a check rather than loosen it.", read("CONTRIBUTING.md"))
+
+
 class NewPages(unittest.TestCase):
     def test_the_first_change_tutorial_names_the_steps_and_the_commands(self):
         body = read("docs/first-change.md")
@@ -419,6 +452,18 @@ class KnownLimits(unittest.TestCase):
         return sorted(ROOT / n for n in names if (ROOT / n).is_file())
 
     @staticmethod
+    def repository_files():
+        """Tracked and untracked, not ignored, files. Without Git: the files outside dot and build folders."""
+        try:
+            out = subprocess.run(["git", "-C", str(ROOT), "ls-files", "-z", "--cached", "--others",
+                                  "--exclude-standard"], check=True, capture_output=True).stdout
+            return [n.decode() for n in out.split(b"\0") if n]
+        except (OSError, subprocess.CalledProcessError):
+            return [str(p.relative_to(ROOT)) for p in ROOT.rglob("*")
+                    if p.is_file() and not any(part.startswith(".") or part == "build"
+                                               for part in p.relative_to(ROOT).parts[:-1])]
+
+    @staticmethod
     def host_built():
         sys.path.insert(0, str(ROOT / "tests" / "tooling"))
         import test_contributing_standard as standard
@@ -454,13 +499,24 @@ class KnownLimits(unittest.TestCase):
         self.assertRegex(tidy, r"(?m)^\s*readability-identifier-naming\s*$")
         self.assertNotIn("CheckOptions", tidy)
         self.assertIn("`readability-identifier-naming` is listed without options and enforces no naming rule", part)
-        names = " ".join(p.name for p in ROOT.rglob("*") if p.is_file() and ".git" not in p.parts)
+        names = " ".join(pathlib.PurePosixPath(n).name for n in self.repository_files())
         for config in (".yamllint", ".shellcheckrc", ".flake8", ".pylintrc", "ruff.toml", ".cmake-format"):
             self.assertNotIn(config, names)
         workflows = " ".join(p.read_text() for p in (ROOT / ".github" / "workflows").glob("*.yml"))
         for tool in ("shellcheck", "yamllint", "ruff", "flake8", "pylint", "cmake-lint"):
             self.assertNotIn(tool, workflows)
         self.assertIn("no lint for Python, shell, YAML or CMake", part)
+
+    def test_the_untested_glue_statement_does_not_claim_all_glue(self):
+        # S4 compiles health.c and S5 compiles the product's own glue, so only parts are untested.
+        part = self.part()
+        self.assertIn("Parts of the Zephyr-side glue are not run by any test", part)
+        self.assertNotIn("**Zephyr-side glue is not run", read("docs/README.md"))
+        self.assertIn("health.c", read("tests/native_sim/s4/CMakeLists.txt"))
+
+    def test_the_estimate_says_what_it_counts(self):
+        self.assertIn("estimate of tests per module", self.part())
+        self.assertIn("at the head of this change", self.part())
 
     def test_the_untested_glue_statements_are_true(self):
         part = self.part()
