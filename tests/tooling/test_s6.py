@@ -177,7 +177,8 @@ class S6Policy(unittest.TestCase):
         text = self.header()
         for needle in ("access.manage", "crux/access.h", "config.save",
                        "docs/management-in-a-product.md", "status.read",
-                       "to be confirmed against the header"):
+                       "read from that header at the pinned revision",
+                       "management_permission_names_match() at start"):
             self.assertIn(needle, text, needle)
 
     def test_the_header_labels_what_it_has_not_verified_in_a_source(self):
@@ -1598,13 +1599,13 @@ class S6StepNote(unittest.TestCase):
         for label in ("**Verified**", "**Inferred**", "**Open**", "**Recorded**"):
             self.assertIn(label, self.text())
 
-    # Approved behaviour change: CI ran at bb3ffefd and the main session read the results, so the
+    # Approved behaviour change: CI ran at bb3ffefd and the results were read from the job logs, so the
     # sentence that nothing in the note is a CI result is replaced by the recorded results. The
     # board claim stays.
     def test_the_note_records_the_ci_results_at_the_reviewed_head_and_who_read_them(self):
         text = self.words()
         self.assertIn("bb3ffefd", text)
-        self.assertIn("read by the main session from the GitHub job logs", text)
+        self.assertIn("read from the GitHub job logs at that revision", text)
         self.assertIn("all 21 checks passed", text)
         self.assertIn("10 of 10 cases", text)
         self.assertIn("288872", text)

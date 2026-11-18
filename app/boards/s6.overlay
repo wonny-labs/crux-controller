@@ -9,7 +9,8 @@
  * boards/s4.overlay, because the status service reads System; the image never arms the watchdog.
  *
  * Used only by the S6 image, through EXTRA_DTC_OVERLAY_FILE after boards/s2.overlay, which sets
- * the Ethernet composition and the logging UART. It is configuration, not code.
+ * the Ethernet composition. The logging UART comes from
+ * boards/mimxrt1060_evk_mimxrt1062_qspi.overlay. It is configuration, not code.
  */
 / {
     aliases {

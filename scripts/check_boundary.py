@@ -299,6 +299,10 @@ def check(repo, crux_root=None):
     crux_headers = public_crux_headers(crux_root) if crux_root else None
     composition_headers = composition_crux_headers(crux_root) if crux_root else None
     violations = []
+    if not any((repo / rule.directory).is_dir() for rule in RULES):
+        raise ValueError(
+            f"no checked tree under {repo.resolve()}; run from the repository root or pass --repo"
+        )
     for rule in RULES:
         tree = repo / rule.directory
         if not tree.is_dir():

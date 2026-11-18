@@ -28,8 +28,9 @@ is not a mandatory exit criterion for any of them.
 
 You do not need a board to see the firmware's tests run: the `native_sim` scenarios run on a host.
 [docs/try-on-native-sim.md](docs/try-on-native-sim.md) lists what is needed and the commands, and what a
-passing run does and does not show. Zephyr builds and Twister runs happen in CI; this repository describes
-no local Zephyr build. Contribution rules and the Python tooling tests are in
+passing run does and does not show. CI is the reference for Zephyr builds and Twister runs; the page gives the
+CI commands for a local `native_sim` run on Linux or WSL2, and a local result does not replace the CI result
+in a pull request. Contribution rules and the Python tooling tests are in
 [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Status
@@ -54,7 +55,7 @@ has run on a board.
 | S1 | The workload on Zephyr threads and a message queue (adapter zone `app/os`), with Crux Time and Logging | yes | yes | not run |
 | S2 | A TCP exchange over the Crux Sockets profile | yes, over loopback | yes | ran twice, reproduced on one bench (link up, ping answered, one exchange echoed) |
 | S3 | A configuration record in a file through Crux File, mounted by the composition zone | yes, simulator provider on a RAM disk | yes, FatFs provider, microSD, no card used | not run |
-| S4 | The reset cause logged at boot and a watchdog fed once for each pass of the workload that has cycles due, through Crux System | yes, the boot line and a watchdog that the simulator does not have; no feed cycle | yes, WDOG1 named by a devicetree alias | not run |
+| S4 | The reset cause logged at boot and a watchdog fed once for each pass of the workload that has cycles due, through Crux System | yes, the boot line and a watchdog that the scenario does not enable; no feed cycle | yes, WDOG1 named by a devicetree alias | not run |
 | S5 | The Crux Time realtime clock set from an SNTP server by a low-priority thread, with a product policy for what an answer may do (on the S2 network) | yes, a responder over loopback: seven cases, no failed native write | yes, on the S2 base | not run |
 | S6 | Management over HTTPS on the S2 network: Crux Access, the web server on the Mbed TLS profile, the status and configuration services and a packaged page, on a RAM disk (no account, so no login) | yes, one image of ten cases with an in-process TLS client; no successful login, fake entropy | yes, on the S2 base, with the Mbed TLS group switched on in the job's own runner | not run |
 

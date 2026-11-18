@@ -112,7 +112,7 @@ class Dependencies(unittest.TestCase):
         self.assertIn("a project that the group would activate", page)
         self.assertNotIn("a project that Crux adds to the group later", page)
         self.assertIn("a `west update` with the group on was not run before the S6 job existed", page)
-        self.assertIn("the first CI run of that job is the first fetch with the group on", page)
+        self.assertIn("the first CI run of that job was the first fetch with the group on", page)
         self.assertNotIn("which was not run here", page)
 
     def test_the_pinned_crux_revision_matches_the_manifest(self):

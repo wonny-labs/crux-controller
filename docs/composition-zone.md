@@ -1,9 +1,29 @@
 # The composition zone
 
 Status: a rule of the boundary check. Step S3 (File) is its first user: `app/compose/storage_mount.c`
-implements the port `app/src/storage_port.h`. The check skips a tree that is absent, so an image
-without the zone has no zone to check. The zone also admits the headers that the HTTPS management
+implements the port `app/src/storage_port.h`. The check skips each absent tree, as long as at least one of the four exists, so an image
+without the zone has no zone to check. It fails when none exists, which means
+that it was run from the wrong directory (see [Running the check](#running-the-check)). The zone also admits the headers that the HTTPS management
 interface (Mbed profile) needs, see [The web composition](#the-web-composition).
+
+## Running the check
+
+CI runs the check in the `Boundary check` job, with the headers that the pinned Crux publishes and with a
+second check for product repositories. From the west workspace directory (the one that holds `crux-controller`
+and `crux-pilot`; see [try-on-native-sim.md](try-on-native-sim.md)):
+
+```bash
+python crux-controller/scripts/check_boundary.py --repo crux-controller --crux-root crux-pilot
+python3 crux-pilot/templates/product/check_domain_includes.py --product crux-controller
+```
+
+The first command checks `app/src`, `app/compose`, `app/os` and `workload` against the public `<crux/NAME.h>`
+headers of the checkout. The second is the Crux product include check. CI downloads that script by hash;
+the pinned `crux-pilot` already contains the same file, so a local run uses it. Both print nothing
+but a pass line on success. Without `--crux-root`, `python scripts/check_boundary.py` from the repository
+root checks the same rules but cannot tell that a `<crux/NAME.h>` name is not a public header. If none
+of the four trees exists under `--repo`, for example because the command ran in the workspace directory
+without `--repo`, the script exits with status 2 and says so, and it does not report a pass.
 
 ## Why a zone
 
@@ -38,7 +58,7 @@ carry a Zephyr or composition include back into the application.
 | `app/src` (unchanged) | yes | yes | yes | no | none | yes | `workload/include` |
 | `workload` (unchanged) | yes | no | no | no | none | yes | none |
 | `app/compose` | yes | no | yes | exactly those two (`COMPOSITION_CRUX_HEADERS`) | the allow-list below, nothing else | yes | header files (`.h`) of `app/src` (the port header) |
-| `app/os` (the adapter zone, new) | yes | no | yes | no | `zephyr/kernel.h` and `zephyr/net/sntp.h`, nothing else | yes | header files (`.h`) of `app/src` (the port header) |
+| `app/os` (the adapter zone) | yes | no | yes | no | `zephyr/kernel.h` and `zephyr/net/sntp.h`, nothing else | yes | header files (`.h`) of `app/src` (the port header) |
 
 The zone fails on a Crux private or port header (`file_native.h`, a nested `<crux/ports/...>` path),
 on a Zephyr header that is not on the list, on any vendor or third-party header (`fsl_*.h`, `ff.h`,
@@ -156,7 +176,7 @@ source to the product, because its Time contract designates the product as the o
 Authority. A product that wants SNTP has two choices. It can reuse the Zephyr SNTP library, which
 this entry allows, or it can write its own SNTP packet parser, which is more product code to
 review and test than a call into a maintained library. The public Crux interface is not enough
-because it offers no time-source client at all. The adapter will use the library's simple string-based query
+because it offers no time-source client at all. The adapter uses the library's simple string-based query
 (`sntp_simple()`, which takes a host name and a timeout), so it includes no socket type and no socket
 header itself, and the rule keeps `allow_sockets` off for the zone: `zephyr/net/socket.h`, the
 Sockets profile headers and every other network header still fail there. The check reads direct

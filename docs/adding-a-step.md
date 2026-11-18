@@ -13,9 +13,10 @@ Ground rules that shape the order of work:
 - **Tests first.** Write the test, watch it fail, then write the code. CONTRIBUTING.md asks for this
   for new behaviour and for fixes, and says that an existing test or check is never weakened or deleted
   to make a change pass.
-- **CI is the build.** This repository describes no local Zephyr build. Zephyr builds, Twister runs and the
-  budget numbers come from CI. What you can run locally is the tooling tests, the boundary check and the
-  host tests.
+- **CI is the reference.** Zephyr builds, Twister runs and the budget numbers that a pull request cites come
+  from CI. [try-on-native-sim.md](try-on-native-sim.md) gives the CI commands for a local `native_sim` run, and
+  a local result does not replace CI. You can also run the tooling tests, the boundary check and the host
+  tests locally.
 - **Public means only.** A step uses public Crux headers and targets. If it seems to need a Zephyr header
   or a Crux private header in `app/src`, stop: that is either a new zone entry (a separate reviewed pull
   request) or a *finding*. S4 needed neither.
@@ -69,8 +70,8 @@ another step's limit in the same pull request to make a build pass. Write `S4Lim
 
 Known catch: the tooling tests of earlier steps pin the exact list of rows. `test_s4.py` pinned
 `["S0", "S1", "S2", "S3", "S4"]` in `test_the_s4_row_equals_the_s3_row_and_no_other_row_changed` and again in
-`test_the_budget_rows_of_the_other_steps_are_unchanged`; on `main` those lists now read `["S0"` to `"S5"]`,
-because S5 extended them (a comment in `test_s4.py` says so), and `test_s5.py` pins the same list. The next
+`test_the_budget_rows_of_the_other_steps_are_unchanged`; on `main` those lists now read `["S0", ..., "S6"]`,
+because S5 and S6 extended them (a comment in `test_s4.py` says so), and `test_s5.py` pins the same list. The next
 step has to extend them again, and should say so in its pull request.
 
 ### 2. The policy as plain C
@@ -135,12 +136,12 @@ check fails, do not look for an exception. There is none; read
 `tests/native_sim/s4/` is a Zephyr ztest application with a `testcase.yaml` for Twister. It compiles the
 application's own `health.c` and `health_policy.c`, not copies, against the real Crux System provider. It
 uses one image per case (`S4_CASE`, passed as `extra_args` in `testcase.yaml`) because Crux System allows
-one watchdog start per boot. Write down what the simulator cannot show: it has no watchdog, so S4's
+one watchdog start per boot. Write down what the scenario cannot show: it enables no watchdog, so S4's
 scenario shows the boot line and an unavailable watchdog, and no feed cycle. That limit is stated in the
 test source's header comment and in the findings note, and a test checks both.
 
-You cannot run Twister locally. Open the pull request and let the `S1` job run it; say in the pull request
-that the scenario had not run before CI.
+A local Twister run (see [try-on-native-sim.md](try-on-native-sim.md)) is optional. The `S1` job's result is the one
+the pull request cites; say in the pull request whether the scenario ran locally before CI.
 
 ### 5. The CI job and the Budget row
 
@@ -221,7 +222,8 @@ differences that matter to the next step:
   `west.yml`. The S6 job and the S6 `Budget` row switch it on in their own runner, after
   `scripts/check_mbed_only.py` has checked the resolved project list. The scenario is in a sibling directory,
   `tests/native_sim_mbed`, so that the S1 job never selects it, and a missing module fails the job and does not
-  skip the scenario. Changing `ci.yml`, `budget.yml` and `CONTRIBUTING.md` is a reviewed change of protected files.
+  skip the scenario. Changing `ci.yml`, `budget.yml` and `CONTRIBUTING.md` is a reviewed change of the files listed under
+  [Files that need a reviewed change](#files-that-need-a-reviewed-change).
 - **It excludes two steps.** `CRUX_CONTROLLER_S6` depends on `!CRUX_CONTROLLER_S3` and `!CRUX_CONTROLLER_S4`, because
   S3 owns another file provider and S4 clears the reset cause that S6 reads once. S5 may be on, and that image is not
   built in CI.
@@ -245,7 +247,7 @@ differences that matter to the next step:
 Run the tooling tests and the boundary check locally, and the host tests if you have CMake and a C
 compiler. List each check in the pull request with the revision it ran on and who ran it (you, CI or a
 reviewer), and name what was not run. For S4 that list ends with: Zephyr builds, Twister scenarios and
-the Budget numbers run in CI only; nothing ran on a board. Two cautions from S4's history:
+the Budget numbers come from CI (a local Twister run is optional); nothing ran on a board. Two cautions from S4's history:
 
 - A local compile with the host compiler is necessary and not sufficient. GCC in CI rejected a comparison
   between constants of two different anonymous enums (`-Werror=enum-compare`) that the local Apple clang
@@ -268,10 +270,31 @@ Use this at the end. `<n>` is the step number.
       include path.
 - [ ] `app/src/composition.c` starts the step, at a position that is argued in a comment.
 - [ ] `tests/native_sim/s<n>/` has a `testcase.yaml` with `platform_allow: native_sim/native/64`.
-- [ ] `tests/tooling/test_s<n>.py` exists, and the exact row lists of `test_s4.py` and `test_s5.py` are extended.
+- [ ] `tests/tooling/test_s<n>.py` exists, and the exact row lists of `test_s4.py`, `test_s5.py` and `test_s6.py` are extended.
 - [ ] `ci.yml` has the job `s<n>`, named `S<n> build (...)`; `budget.yml` has the row.
 - [ ] The findings note, the README row, the changelog entry and the three statements of
       `CONTRIBUTING.md` are updated.
 - [ ] `python -m unittest discover -s tests/tooling` and `python scripts/check_boundary.py` pass.
 - [ ] The pull request lists each check with its revision and who ran it, and says that CI builds are
       not board runs.
+
+## Files that need a reviewed change
+
+This is a reading aid, collected from [CONTRIBUTING.md](../CONTRIBUTING.md) and from comments in the files.
+CONTRIBUTING.md is the authority; where this list and it differ, follow it. CONTRIBUTING asks for an
+independent review of a material change, and asks for a separate pull request only for a pin move and for the
+three boundary files together.
+
+- `scripts/check_boundary.py`, `tests/tooling/test_boundary.py` and `docs/composition-zone.md`: change together
+  in one reviewed pull request (CONTRIBUTING, "The boundary").
+- `app/CMakeLists.txt`, `app/management/management.cmake` and `app/management/entropy.cmake`: the boundary check
+  reads them, and they may add no include path (CONTRIBUTING, "The boundary").
+- `west.yml` and `tests/tooling/test_manifest.py`: a pin moves in its own small pull request (CONTRIBUTING, "The
+  pin and the manifest"). `docs/dependencies.md`, `RELEASE.md` and `CHANGELOG.md` are covered only where they
+  quote the pin.
+- `budgets/limits.json`: its own `_comment` says that a change there is a reviewed change; CONTRIBUTING says a
+  limit is not changed in a pin-bump pull request.
+- `.github/workflows/*.yml`, `scripts/check_mbed_only.py` and `CODEOWNERS`: CONTRIBUTING does not state a
+  rule for them. They are listed because they hold the checks, the licence gate of the Mbed TLS group and the
+  ownership, and a reviewer should look at a change to them.
+- `CONTRIBUTING.md` itself.

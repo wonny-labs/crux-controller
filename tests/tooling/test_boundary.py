@@ -161,16 +161,34 @@ class CruxPublicHeaders(unittest.TestCase):
 
 
 class Scope(unittest.TestCase):
-    def test_missing_directories_are_skipped(self):
-        self.assertEqual([], run({"README.md": ""}))
+    def test_a_single_missing_tree_is_skipped(self):
+        self.assertEqual([], run({"app/src/main.c": "#include <stdio.h>\n"}))
+
+    def test_no_checked_tree_at_all_is_an_error(self):
+        with self.assertRaises(ValueError) as caught:
+            run({"README.md": ""})
+        self.assertIn("run from the repository root or pass --repo", str(caught.exception))
+
+    def test_the_command_fails_with_exit_2_and_a_message_from_the_wrong_directory(self):
+        repo = Repo({"README.md": ""})
+        self.addCleanup(repo.close)
+        result = subprocess.run(
+            [sys.executable, str(SCRIPTS / "check_boundary.py"), "--repo", str(repo.root)],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(2, result.returncode)
+        self.assertNotIn("boundary check passed", result.stdout)
+        self.assertIn("no checked tree", result.stderr)
 
     def test_files_outside_the_scanned_directories_are_not_checked(self):
-        files = {"tests/host/test.c": "#include <zephyr/kernel.h>\n"}
+        # app/src is present so that the run has a checked tree; the file outside it is ignored.
+        files = {"tests/host/test.c": "#include <zephyr/kernel.h>\n", "app/src/main.c": ""}
         self.assertEqual([], run(files))
 
 
 class Reviewed(unittest.TestCase):
-    """Cases the independent review of Gate A asked for."""
+    """Cases that an independent review of the boundary check asked for."""
 
     def test_crux_private_path_fails(self):
         files = {"app/src/main.c": '#include "../../crux-pilot/components/time/src/x.h"\n'}
@@ -241,7 +259,7 @@ class Reviewed(unittest.TestCase):
 
 
 class Hardening(unittest.TestCase):
-    """The non-blocking findings of the Gate A review."""
+    """The non-blocking findings of that review."""
 
     def test_a_split_inside_the_keyword_is_joined_as_c_joins_it(self):
         files = {"app/src/a.c": "#inc\\\nlude <zephyr/kernel.h>\n"}
