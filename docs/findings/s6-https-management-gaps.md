@@ -1,5 +1,9 @@
 # Finding: what stands between this repository and HTTPS management (groundwork for step S6)
 
+**Superseded.** Step S6 has been built since this note was written; what the step did about each gap, and the CI
+results, are in [s6-https-management.md](s6-https-management.md). This note is kept as recorded: its status line and
+its statements describe the repository at the time of the groundwork.
+
 Status: recorded as groundwork. S6 is not a step yet: there is no Kconfig option, no configuration fragment, no
 build, no budget job and no CI job for it, and the README step table has no row for it. This note records the
 gaps that were found by reading, and the groundwork files that this change adds. Those files are not compiled into

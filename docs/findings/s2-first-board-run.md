@@ -16,11 +16,11 @@ criterion of any Crux milestone; this run is supporting evidence at most.
 |---|---|
 | Image | S2 `zephyr.bin`, SHA-256 `e7c588c79c31d113ef3b0464731f17dfb4cc453874831b8bc20f9dd7da55b56c`, 103,180 bytes |
 | Firmware identity | `8493243091295c6d9ec305b6e5b097df738ee226550394a5ab0fdac388f73164` |
-| Source | `crux-controller` `d123620` (main after pull request 28), with `crux-pilot` pinned at `37c92b18` |
+| Source | `crux-controller` at the merge of pull request 28 (short hash `d123620` in the public repository history), with `crux-pilot` pinned at `37c92b18` |
 | Board | NXP RT1060-EVKB Rev B |
 | Network | board static IPv4 `192.168.77.2/24`, no gateway; host peer `192.168.77.1:42420`; the board's locally administered MAC from the devicetree is `02:43:52:55:58:20` |
-| Reviewed driver | the `crux-pilot` target test driver at `3b2dce56` (the merges of pull requests 352 and 353) with its S2 image profile: one start, a raw passive UART capture of 180 s |
-| Restored afterwards | the accepted normal image, BIN SHA-256 `ad729684749181f0c26853828550187a2c3e60dbb28cf3ee2194a7984141e02f`, 107,872 bytes |
+| Reviewed driver | the `crux-pilot` target test driver at `3b2dce56` (the merges of pull requests 352 and 353 of `crux-pilot`) with its S2 image profile: one start, a raw passive UART capture of 180 s. It is not in this repository |
+| Restored afterwards | the accepted normal image (the firmware that was on the board before the run; it is not part of this repository), BIN SHA-256 `ad729684749181f0c26853828550187a2c3e60dbb28cf3ee2194a7984141e02f`, 107,872 bytes |
 
 The S2 hash is the value the run was approved for. Before the run, a local rebuild at `d123620`
 gave this hash, and two local builds were byte-identical (Measured by the preparation of the run;
@@ -66,7 +66,7 @@ or the correction in general. Run 2 below repeats it once.
 
 ## Friction
 
-1. **The restore's first step ends with the accepted J-Link diagnostic.** In the load step the
+1. **The restore's first step ends with the accepted probe diagnostic.** In the load step the
    probe tool loaded and verified the normal image (`Verify successful.`, exit status 0) and then
    printed `****** Error: Could not start CPU core. (ErrorCode: -1)` as the last line. The run's
    rules accept exactly this diagnostic when the exit status is 0 and the read-back succeeded, as in
@@ -79,7 +79,7 @@ or the correction in general. Run 2 below repeats it once.
    Zephyr log timestamp format `[hh:mm:ss.mmm,uuu]` that every line of the S2 image has. The S2
    image's own lines start after that mark. Counts of the capture above include these lines.
 3. **A shell word-splitting error on the host, once, before the first tool run.** The operator's
-   command was rejected by the shell (`command too long`), the driver did not start and nothing ran;
+   (the person who ran the procedure) command was rejected by the shell (`command too long`), the driver did not start and nothing ran;
    the same command was then run as a plain command line. It did not affect the board.
 
 ## Not shown
@@ -132,7 +132,8 @@ window, another bench or board, and statistical repeatability.
 
 ## Method
 
-The owner approved one run of a written plan for this image, hashes and capture time. Run 2 followed
+The owner (the repository maintainer; see the [glossary](../glossary.md#people-and-board-procedures)) approved one run
+of a written plan for this image, hashes and capture time. Run 2 followed
 the same gated procedure. The plan was
 reviewed independently before it was approved. An operator then ran only the reviewed driver in
 four gated steps (identify, program, host checks, restore), under the owner's written approval, with an
@@ -142,6 +143,6 @@ The evidence of the run (host command output, probe logs, the raw capture, the p
 kept privately; this note quotes only what those files print and states the hashes above so that
 the images can be recognised.
 
-Sources that are public: `crux-controller` main at `d123620` (including pull request 28),
+Sources that are public: `crux-controller` at the merge of pull request 28 (short hash `d123620`),
 `crux-pilot` at `37c92b18` for the pinned build and `3b2dce56` for the driver (pull requests 352 and
-353).
+353 of `crux-pilot`). The hashes and numbers name the history of those repositories on GitHub.
