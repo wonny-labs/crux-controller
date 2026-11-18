@@ -535,12 +535,29 @@ class S4Findings(unittest.TestCase):
         self.assertIn("a feed cycle", text)
         self.assertIn("system_binding.c", text)
 
-    def test_the_note_claims_no_ci_result_it_does_not_have(self):
+    # Approved behaviour change: CI ran at the merge commit of S4 and its results were read from the job
+    # logs, so the rows that said "not yet known" now record them, with the revision and the source. The
+    # claim about the board stays.
+    def test_the_note_records_the_ci_results_with_their_revision_and_source(self):
         text = self.NOTE.read_text()
-        for claim in ("CI job \"S4 build", "CI job \"Budget S4"):
+        words = " ".join(text.split())
+        self.assertIn("**Recorded**", text)
+        self.assertIn("9a906b1", words)
+        self.assertIn("read from the GitHub job logs", words)
+        self.assertNotIn("not yet known", text)
+        for claim in ("CI job \"S4 build", "CI job \"Budget S4", "CI job \"S1 (native_sim"):
             line = next(line for line in text.splitlines() if claim in line)
-            self.assertIn("Open", line)
-            self.assertIn("not yet known", line)
+            self.assertIn("Recorded", line)
+        budget = next(line for line in text.splitlines() if "CI job \"Budget S4" in line)
+        self.assertIn("45236", budget)
+        self.assertIn("22720", budget)
+        scenarios = next(line for line in text.splitlines() if "CI job \"S1 (native_sim" in line)
+        self.assertIn("24 of 24", scenarios)
+
+    def test_the_note_keeps_its_board_row_open(self):
+        line = next(line for line in self.NOTE.read_text().splitlines() if "on a board" in line and line.startswith("|"))
+        self.assertIn("not run", line)
+        self.assertIn("Open", line)
 
     def test_the_readme_lists_s4_as_built_and_never_run_on_a_board(self):
         readme = (ROOT / "README.md").read_text()

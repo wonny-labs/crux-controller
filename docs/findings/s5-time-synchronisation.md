@@ -1,10 +1,12 @@
 # Finding: time synchronisation over SNTP (step S5)
 
-Status: step S5 is written and its local checks pass. Its Zephyr builds, the `native_sim` scenarios and its
-budget numbers run in CI and are recorded in the pull request, not here. Nothing ran on a board.
+Status: step S5 is written and merged, and its local checks passed when it was written. Its Zephyr build, the
+`native_sim` scenarios and its budget numbers ran in CI. They are recorded below with the label Recorded, with the
+revision they were read at. Nothing ran on a board.
 
-Every statement is labelled **Measured** (the author ran it, and the command is named), **Inferred** (read from
-`crux-pilot` or Zephyr source, not run on its own here) or **Open**. The `crux-pilot` revision is the pinned commit
+Every statement is labelled **Measured** (run locally while the step was written, and the command is named),
+**Inferred** (read from `crux-pilot` or Zephyr source, not run on its own here), **Recorded** (a CI result at a
+named revision, read from the GitHub job logs) or **Open**. The `crux-pilot` revision is the pinned commit
 `37c92b18b44b7dfb95c2109f036f23d00f05cb4c`. The Zephyr source was read at `v4.4.0` (a local clone); the pin goes
 through Crux to `v4.4.2`, and between the two tags the only change under `subsys/net/lib/sntp` and
 `include/zephyr/net/sntp.h` is a fix in `sntp_close_async()`, which this step does not call (**Inferred**, from
@@ -26,15 +28,21 @@ step. The product adds no Crux interface and selects no Crux symbol.
 
 | What | Result | Label | Source |
 |---|---|---|---|
-| Tooling tests (limits row, policy files, configuration, build files, glue, port, adapter, scenario files, CI jobs, this note) | all pass; the S5 tests were written first and were red before each change | Measured | `python -m unittest discover -s tests/tooling`, run by the author |
-| Host test of the policy | 131426 checks, 0 failures, also built with the address and undefined-behaviour sanitizers; five boundary mutations of the policy (the two limit comparisons, the stale comparison, the end of the range, the fraction shift) each failed it (the mutation runs were made before the unreadable-snapshot case was added and were not repeated) | Measured | compiled with the host `cc` (clang, `-std=c17 -Wall -Wextra -Wpedantic -Werror`) and run by the author; the Host tests job runs the same file through CMake |
-| Boundary check against the pinned Crux headers | passes with the S5 files in the tree | Measured | `scripts/check_boundary.py --crux-root <the pinned tree, exported with git archive>`, run by the author |
-| The glue against the real pinned Crux headers | compiles with `-Wall -Wextra -Wpedantic -Werror -Wdouble-promotion -Werror=enum-compare`; run against a fake Crux Time and a fake port in a throwaway harness outside the repository it set, confirmed, corrected, refused, marked stale and re-synchronised as the policy table says, and reported a failed native write | Measured | host `cc` with the `components/*/include` directories of the pin; not a Zephyr build, and the fake is the author's reading of the header |
+| Tooling tests (limits row, policy files, configuration, build files, glue, port, adapter, scenario files, CI jobs, this note) | all pass; the S5 tests were written first and were red before each change | Measured | `python -m unittest discover -s tests/tooling`, run locally when the step was written |
+| Host test of the policy | 131426 checks, 0 failures, also built with the address and undefined-behaviour sanitizers; five boundary mutations of the policy (the two limit comparisons, the stale comparison, the end of the range, the fraction shift) each failed it (the mutation runs were made before the unreadable-snapshot case was added and were not repeated) | Measured | compiled with the host `cc` (clang, `-std=c17 -Wall -Wextra -Wpedantic -Werror`) and run locally when the step was written; the Host tests job runs the same file through CMake |
+| Boundary check against the pinned Crux headers | passes with the S5 files in the tree | Measured | `scripts/check_boundary.py --crux-root <the pinned tree, exported with git archive>`, run locally when the step was written |
+| The glue against the real pinned Crux headers | compiles with `-Wall -Wextra -Wpedantic -Werror -Wdouble-promotion -Werror=enum-compare`; run against a fake Crux Time and a fake port in a throwaway harness outside the repository it set, confirmed, corrected, refused, marked stale and re-synchronised as the policy table says, and reported a failed native write | Measured | host `cc` with the `components/*/include` directories of the pin; not a Zephyr build, and the fake is a reading of the header, not Crux's own test double |
 | The adapter | passes `-fsyntax-only -Werror` against stand-in declarations of the two Zephyr headers; this checks the C and not the Zephyr types | Measured | host `cc`; **Open** until the CI build |
-| RT1060-EVKB build with the baseline gate required, resolved configuration, linked symbols | not yet known | Open | CI job "S5 build (RT1060-EVKB, SNTP time synchronisation)" |
-| Static size of S5 against the declared limits | not yet known | Open | CI job "Budget S5" |
-| `native_sim` scenarios: seven S5 cases | not yet known | Open | CI job "S1 (native_sim and RT1060-EVKB)", which runs every scenario under `tests/native_sim` |
+| RT1060-EVKB build with the baseline gate required, resolved configuration, linked symbols | the job passed at `29a2d8f`: the cross-build with the baseline gate, the check that the outputs exist, the check of the resolved S5 configuration, and the check of what the image links | Recorded | CI job "S5 build (RT1060-EVKB, SNTP time synchronisation)" |
+| Static size of S5 against the declared limits | `FLASH` 105908 bytes (1.26 % of 8 MB) and `RAM` 80876 bytes (0.24 % of 32 MB), and the job printed its budget check as passed; the limits are placeholders | Recorded | CI job "Budget S5" |
+| `native_sim` scenarios: seven S5 cases | passed at `29a2d8f`: the Twister run of the whole `tests/native_sim` directory ended with 17 of 17 test configurations and 31 of 31 test cases passed, which includes the seven S5 cases | Recorded | CI job "S1 (native_sim and RT1060-EVKB)", which runs every scenario under `tests/native_sim` |
 | A query to a real server, a clock set on a board, a reset | not run | Open | no hardware, no real server |
+
+The Recorded rows were read from the GitHub job logs of the `ci` run (43708532389) and the `budget` run (43708532328)
+for the push of the merge commit `29a2d8f` to `main` on 15 November 2026, which is a revision of the public
+repository. All jobs of both runs ended in success. The `Budget S5` job printed the `FLASH` and `RAM` rows of the
+Zephyr memory region table; the other regions printed 0 bytes. Later commits moved the `FLASH` figure of S5 (see the
+table in [docs/roadmap.md](../roadmap.md#static-size-per-step)).
 
 ## The policy
 
