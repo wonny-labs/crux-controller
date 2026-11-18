@@ -64,7 +64,7 @@ CI is configured in `.github/workflows/`:
 
 | Workflow | Jobs | When |
 |---|---|---|
-| `ci.yml` | `Tooling tests`, `West pins`, `Host tests` (sanitizer off and on), `S1` (Twister on `native_sim` for the scenarios in `tests/native_sim`, then the RT1060-EVKB build), `S2 build`, `S3 build`, `S4 build`, `S5 build`, `S6 build` (Twister on `native_sim` for the scenario in `tests/native_sim_mbed`, then the RT1060-EVKB build; the only job that fetches the Mbed TLS modules, with the group switched on in its own runner), `S0 build`, `Boundary check`, `Static analysis` (clang-format 18.1.8 over every tracked C file with `scripts/check-format.sh`, then clang-tidy 18 over the host-built sources with `scripts/analyze_host.py`, which prints the list of tracked sources not analysed; any difference or finding fails the job) (names shortened) | pull requests and pushes to `main` |
+| `ci.yml` | `Tooling tests` (with the step `Check SPDX headers`: `scripts/check_spdx.py`), `West pins`, `Host tests` (sanitizer off and on), `S1` (Twister on `native_sim` for the scenarios in `tests/native_sim`, then the RT1060-EVKB build), `S2 build`, `S3 build`, `S4 build`, `S5 build`, `S6 build` (Twister on `native_sim` for the scenario in `tests/native_sim_mbed`, then the RT1060-EVKB build; the only job that fetches the Mbed TLS modules, with the group switched on in its own runner), `S0 build`, `Boundary check` (with the include check script of the Crux style kit as a further step), `Patch style` (Zephyr's checkpatch, rule BRACES, on the changed C lines, with `scripts/check-patch.sh`), `Static analysis` (clang-format 18.1.8 over every tracked C file with `scripts/check-format.sh`, then clang-tidy 18 over the host-built sources with `scripts/analyze_host.py`, which prints the list of tracked sources not analysed; any difference or finding fails the job) (names shortened) | pull requests and pushes to `main` |
 | `budget.yml` | `Budget` for S0 to S6: static resource use against `budgets/limits.json` (the S6 row fetches the Mbed TLS modules in its own runner) | pull requests and pushes to `main` |
 | `devcontainer.yml` | `Dev container`: builds the image of `.devcontainer/` and runs in it, through `scripts/dev-shell.sh`, the tooling tests, the format check, the static analysis, the host tests (sanitizer off and on), both boundary checks, the `native_sim` scenarios and the RT1060-EVKB cross-build of S1 with its output and configuration checks. Its pins are those of `ci.yml`, and `tests/tooling/test_devcontainer.py` compares them | pull requests and pushes to `main` that change `.devcontainer/`, `scripts/dev-shell.sh`, `west.yml` or the workflow, and by hand |
 | `rebuild.yml` | builds S2 twice at different paths and compares `zephyr.bin` and `firmware_identity` | by hand, and pull requests that change the workflow or `release/` |
@@ -108,6 +108,49 @@ changes, and say so in the pull request. Extend a check rather than loosen it.
 
 Keep one logical change in a pull request. Reuse what Zephyr and Crux provide rather than adding a layer
 of your own.
+
+## Static analysis and coding standard
+
+Measured on `main` at merge `e11e971`, on 18 November 2026. If the scripts and workflows named here
+have changed since, they are the source of truth.
+
+- **Format.** clang-format 18.1.8 over every tracked C file is a gate: `scripts/check-format.sh`, in the
+  `Static analysis` job of `ci.yml`.
+- **clang-tidy.** clang-tidy 18 with `.clang-tidy` (checks from `bugprone`, `clang-analyzer`,
+  `performance` and `portability`; warnings are errors) runs over the 12 sources that the host tests
+  build: `scripts/analyze_host.py`, in the same job. `.clang-tidy` also lists
+  `readability-identifier-naming` without options, so it checks no naming rule. The script prints the
+  tracked sources that it did not analyse, 16 today: the sources that the host tests do not build,
+  because they need Zephyr or Crux headers or Kconfig values. It does so without failing.
+- **The 16 not analysed.** 10 of those 16 are product sources (`app/src`, `app/compose`, `app/os`).
+  They are built with `-Wall -Wextra -Werror` in the board and `native_sim` builds, as
+  `app/CMakeLists.txt`, `app/compose/CMakeLists.txt` and `app/os/CMakeLists.txt` set. The other 6 are
+  the `native_sim` scenario sources (`tests/native_sim*/*/src/test_s*.c`): the CMake files of the
+  scenarios set those flags on the product sources that they pull in, not on the scenario source.
+- **Other gates.** The include rules (`scripts/check_boundary.py` and the Crux product include check,
+  both in the `Boundary check` job) and the resource limits (`.github/workflows/budget.yml`).
+- **Headers and patch style.** `scripts/check_spdx.py` (the `Check SPDX headers` step of `Tooling tests`)
+  requires the licence identifier line in first-party C, CMake, Kconfig, Python and shell files, and
+  keeps a list of two older scripts that lack it. `scripts/check-patch.sh` (the `Patch style` job) runs
+  Zephyr's checkpatch with the rule BRACES on the changed C lines of a change.
+- **Not done.** There is no coverage measurement, and no linting of Python, shell, YAML and CMake.
+
+These are the configured automated checks of this repository, not a claim of MISRA C, CERT C, security
+or functional-safety compliance. The Crux platform states its own position in its
+[coding guidelines](https://github.com/wonny-labs/crux-pilot/blob/751e04aead779ac08e438ec1e2640e57fc50e9fe/docs/coding-guidelines.md),
+read at that commit.
+
+Known gaps, not scheduled: the 16 sources above have no clang-tidy analysis, and nothing measures how much
+of the code the tests run.
+
+The product's own Kconfig symbols use the prefix `CRUX_CONTROLLER_`; they are the product's names, not
+Crux platform symbols.
+
+The Crux platform's sample uses the same prefix. Crux System refuses a configuration that enables the
+sample's `CONFIG_CRUX_CONTROLLER_M3`, as a further owner of the native watchdog next to `WDT_SHELL`,
+`HWINFO_SHELL` and `TASK_WDT_HW_FALLBACK`, not because of the prefix. The note
+`docs/findings/s4-system-composition.md` records this as read at `crux-pilot` `37c92b18`, and the same
+check is in the Crux source at `8e3737d2`. This repository never defines that symbol.
 
 ## Commits and pull requests
 
