@@ -126,7 +126,7 @@ the body when it is not obvious:
 
 ```bash
 git add tests/host/test_workload.c
-git commit -m "test: cover a zero period in the workload validator" -m "The validator rejects periods below 10 ms. The host tests check 9 ms and values above the maximum directly, 1 ms only through `workload_cycle_init()`, and 0 ms not at all."
+git commit -m "test: cover a zero period in the workload validator" -m "The validator rejects periods below 10 ms. The host tests check 9 ms and values above the maximum directly, 1 ms only through workload_cycle_init(), and 0 ms not at all."
 ```
 
 ## 7. Push and open the pull request

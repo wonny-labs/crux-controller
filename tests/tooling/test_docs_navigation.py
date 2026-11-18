@@ -550,5 +550,21 @@ class KnownLimits(unittest.TestCase):
         self.assertIn("never on a board", part)
 
 
+class ShellExamples(unittest.TestCase):
+    """A bash block must paste into a shell as written."""
+
+    def test_no_double_quoted_commit_message_contains_a_backtick(self):
+        # Backticks inside double quotes run a command in bash and zsh.
+        pattern = re.compile(r"^git commit .*-m \"[^\"]*`", re.M)
+        offenders = []
+        files = ["README.md", "CONTRIBUTING.md"]
+        files += [f"docs/{name}" for name in documents()]
+        for name in files:
+            for block in re.findall(r"```bash\n(.*?)```", read(name), re.S):
+                if pattern.search(block):
+                    offenders.append(name)
+        self.assertEqual([], sorted(set(offenders)))
+
+
 if __name__ == "__main__":
     unittest.main()
