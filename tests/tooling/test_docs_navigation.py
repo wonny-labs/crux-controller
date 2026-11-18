@@ -7,6 +7,8 @@ words that the pages use, and the headings of the step recipe must follow one nu
 
 import pathlib
 import re
+import subprocess
+import sys
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -399,6 +401,97 @@ class NewPages(unittest.TestCase):
                        "#44", "pull request 50"):
             self.assertIn(needle, body, needle)
         self.assertIn("whoever approves merges and releases", body)
+
+
+class KnownLimits(unittest.TestCase):
+    """The index states what the checks do not cover, and its numbers agree with the files."""
+
+    HEADING = "Known limits, not scheduled"
+
+    def part(self):
+        return " ".join(section("docs/README.md", self.HEADING).split())
+
+    @staticmethod
+    def production_sources():
+        out = subprocess.run(["git", "-C", str(ROOT), "ls-files", "-z", "--", "app", "workload"],
+                             check=True, capture_output=True).stdout
+        names = [n.decode() for n in out.split(b"\0") if n.endswith(b".c")]
+        return sorted(ROOT / n for n in names if (ROOT / n).is_file())
+
+    @staticmethod
+    def host_built():
+        sys.path.insert(0, str(ROOT / "tests" / "tooling"))
+        import test_contributing_standard as standard
+        return sorted(standard.host_built_sources())
+
+    def test_the_section_is_in_the_index_and_labelled(self):
+        self.assertRegex(read("docs/README.md"), rf"(?m)^## {self.HEADING}$")
+        part = self.part()
+        self.assertIn("known limits, not scheduled", part.lower())
+        self.assertNotRegex(part, r"\b(will be|we will|planned|roadmap|soon|later)\b")
+        self.assertIn("../CONTRIBUTING.md#static-analysis-and-coding-standard",
+                      section("docs/README.md", self.HEADING))
+        self.assertIn("docs/README.md#known-limits-not-scheduled", {a for a in [
+            f"{p}#{an}" for p, an, _ in links("README.md")]})
+
+    def test_the_numbers_agree_with_the_files(self):
+        production = self.production_sources()
+        built = self.host_built()
+        built_production = [p for p in built if p.relative_to(ROOT).parts[0] in ("app", "workload")]
+        self.assertEqual(17, len(production))
+        self.assertEqual(12, len(built))
+        self.assertEqual(7, len(built_production))
+        part = self.part()
+        self.assertIn(f"{len(built)} sources that the host tests build", part)
+        self.assertIn(f"{len(built_production)} of the {len(production)} production C files", part)
+
+    def test_the_analysis_statements_are_true(self):
+        part = self.part()
+        script = read("scripts/analyze_host.py")
+        self.assertIn("return 1 if status else 0", script)
+        self.assertIn("is printed but does not fail", part)
+        tidy = read(".clang-tidy")
+        self.assertRegex(tidy, r"(?m)^\s*readability-identifier-naming\s*$")
+        self.assertNotIn("CheckOptions", tidy)
+        self.assertIn("`readability-identifier-naming` is listed without options and enforces no naming rule", part)
+        names = " ".join(p.name for p in ROOT.rglob("*") if p.is_file() and ".git" not in p.parts)
+        for config in (".yamllint", ".shellcheckrc", ".flake8", ".pylintrc", "ruff.toml", ".cmake-format"):
+            self.assertNotIn(config, names)
+        workflows = " ".join(p.read_text() for p in (ROOT / ".github" / "workflows").glob("*.yml"))
+        for tool in ("shellcheck", "yamllint", "ruff", "flake8", "pylint", "cmake-lint"):
+            self.assertNotIn(tool, workflows)
+        self.assertIn("no lint for Python, shell, YAML or CMake", part)
+
+    def test_the_untested_glue_statements_are_true(self):
+        part = self.part()
+        scenarios = " ".join(p.read_text() for pattern in ("tests/native_sim/**/CMakeLists.txt",
+                             "tests/native_sim_mbed/**/CMakeLists.txt")
+                             for p in ROOT.glob(pattern))
+        self.assertNotIn("composition.c", scenarios)
+        self.assertIn("composition.c", part)
+        self.assertIn("watchdog feed path", part)
+        self.assertIn("web page script", part)
+        self.assertIn("never run in any test", part)
+        s4 = read("tests/native_sim/s4/src/test_s4.c")
+        self.assertIn("a feed cycle and a missed feed cannot be shown here", " ".join(s4.split()))
+        self.assertEqual([], [p for p in (ROOT / "tests").rglob("*.js")])
+
+    def test_the_tooling_tests_statement_names_its_method_and_says_estimate(self):
+        part = self.part()
+        self.assertIn("estimate", part)
+        self.assertRegex(part, r"between about \d+ and \d+ percent")
+        self.assertIn("by module", part)
+
+    def test_the_board_and_environment_statements_match_the_other_pages(self):
+        part = self.part()
+        self.assertIn("Step S2 ran twice, on one bench", part)
+        self.assertIn("twice, on one bench", flat("README.md"))
+        self.assertIn("was not started on a developer machine", part)
+        self.assertIn("was not started on a developer machine at all", flat("docs/try-on-native-sim.md"))
+        self.assertIn("WSL2", part)
+        self.assertIn("proxy", part)
+        self.assertIn("x86_64", part)
+        self.assertIn("never on a board", part)
 
 
 if __name__ == "__main__":
