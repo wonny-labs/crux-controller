@@ -153,6 +153,33 @@ class Tracking(unittest.TestCase):
         self.assertNotIn("Implementation is tracked in this repository's own milestones", body)
 
 
+class CiEvidenceRationale(unittest.TestCase):
+    """The try-on page explains why evidence comes from CI, in agreement with CONTRIBUTING.md."""
+
+    def section(self):
+        page = text("docs/try-on-native-sim.md")
+        start = page.index("## Why the evidence comes from CI")
+        return page[start:page.index("## What `native_sim` is")]
+
+    def test_the_section_reports_what_contributing_says_now(self):
+        contributing = text("CONTRIBUTING.md")
+        self.assertIn("CI is the reference for the Zephyr builds and the Twister runs", contributing)
+        self.assertNotIn("describes no local Zephyr build", contributing)
+        section = self.section()
+        self.assertIn("CI is the reference for the Zephyr builds and the Twister runs", section)
+        self.assertIn("a local result does not replace CI", section)
+        self.assertIn("gives no reason", section)
+
+    def test_the_section_does_not_claim_a_conflict_with_contributing(self):
+        section = self.section()
+        for phrase in ("describes no local Zephyr build", "predates this page", "separate reviewed change"):
+            self.assertNotIn(phrase, section)
+
+    def test_the_section_agrees_with_the_dev_container_about_wsl2(self):
+        self.assertIn("nobody has run the dev container on WSL2", self.section())
+        self.assertIn("Nobody has run it on WSL2 yet", text("docs/try-on-native-sim.md"))
+
+
 class Contributing(unittest.TestCase):
     """The guide names the CI jobs and the steps that the workflows actually define."""
 
