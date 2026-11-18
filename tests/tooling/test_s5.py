@@ -769,9 +769,15 @@ class S5Findings(unittest.TestCase):
                        "across a step", "shifted"):
             self.assertIn(needle, text, needle)
 
-    def test_the_note_states_the_four_duties_as_consult_results_and_where_each_is_met(self):
+    # Approved behaviour change: the note no longer cites a private consult. It states the question
+    # and the answer neutrally and points at the Crux Time contract that supports each duty.
+    def test_the_note_states_the_four_duties_as_a_question_and_answer_and_where_each_is_met(self):
         text = self.words()
-        self.assertIn("consult", text)
+        self.assertNotIn("consult", text)
+        self.assertNotIn("Crux Pilot was asked", text)
+        self.assertIn("The question was whether a product thread may call `crux_realtime_set`", text)
+        self.assertIn("not a Crux decision", text)
+        self.assertIn("docs/time-contract.md", text)
         for needle in ("staleness is the product's", "write failure", "one writer of the native clock",
                        "events"):
             self.assertIn(needle, text, needle)
