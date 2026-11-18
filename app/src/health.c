@@ -41,7 +41,7 @@ static struct {
     bool watchdog_allowed;
 } state = {.feed = {.state = HEALTH_FEED_IDLE}, .watchdog_allowed = true};
 
-static crux_log_level_t crux_level(health_log_level_t level)
+static crux_log_level_t to_platform_level(health_log_level_t level)
 {
     switch (level) {
     case HEALTH_LOG_ERROR:
@@ -56,7 +56,7 @@ static crux_log_level_t crux_level(health_log_level_t level)
 
 static void say(health_log_level_t level, const char *text)
 {
-    (void)crux_log_write(crux_level(level), HEALTH_TAG, text);
+    (void)crux_log_write(to_platform_level(level), HEALTH_TAG, text);
 }
 
 int health_report_reset_cause(void)
