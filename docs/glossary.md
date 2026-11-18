@@ -67,9 +67,9 @@ records how they use it. `docs/findings/management-has-no-public-composition.md`
 "recorded after Stage 1 step S3", so S3 is a Stage 1 step. The tracking paragraph of `README.md` says
 that "Stage 2 steps and their findings" are tracked in the repository's own issues under an epic, and
 lists S4 among the epic's children, so S4 is a Stage 2 step. Nothing places S5 in a stage: its README
-text names no stage, and it arrived with
+text names no stage, and the pull request that added it is
 [pull request 50](https://github.com/wonny-labs/crux-controller/pull/50) of the public repository. The header
-comment of `west.yml` ("No optional group is enabled in Stage 1") is historical. One use differs from the rest:
+comment of `west.yml` ("No optional group is enabled in Stage 1") uses the word in its earliest sense. One use differs from the rest:
 `docs/findings/file-binding-has-no-public-header.md` says S3 "is not built in Stage 1",
 a note from before S3 was built. Treat the stage number as a label of when something was planned, not
 as a property of the code. One other use is unrelated: `docs/findings/s2-first-board-run.md` says "an
