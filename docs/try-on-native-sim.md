@@ -50,6 +50,10 @@ says what CI does run.
 For a teammate on Windows 11 with WSL2 and an Ubuntu 22.04 distribution; the same steps apply to a Linux machine
 with Docker Engine. Run the commands in a WSL terminal, not in PowerShell, unless a step says PowerShell.
 
+Behind a company proxy? Do the host part of
+[Behind a proxy or with a company certificate](#behind-a-proxy-or-with-a-company-certificate) first: step 2 already
+pulls an image.
+
 1. Install Docker Engine in the distribution, as Docker describes for Ubuntu
    (<https://docs.docker.com/engine/install/ubuntu/>). Do not install Docker Desktop. Add yourself to the
    `docker` group, then close the terminal, run `wsl --shutdown` in PowerShell and open the distribution again,
@@ -78,15 +82,39 @@ with Docker Engine. Run the commands in a WSL terminal, not in PowerShell, unles
    cd crux-controller
    ```
 
-   From a zip copy, unpack it so that `west.yml` and `README.md` are directly in that folder (install `unzip`
-   with `sudo apt-get install unzip` if it is missing). If `ls west.yml` fails, the zip holds one more folder:
-   move its content up one level.
+   From a zip copy, unpack it so that `west.yml` and the hidden files (`.devcontainer`, `.clang-format`,
+   `.github`) are directly in that folder (install `unzip` with `sudo apt-get install unzip` if it is missing).
+   `unzip -l /path/to/the-copy.zip | head` shows whether the zip has one top-level folder. If it has, unzip into the
+   parent folder and rename that folder to `crux-controller`:
+
+   ```bash
+   mkdir -p ~/work/controller-ws && cd ~/work/controller-ws
+   unzip /path/to/the-copy.zip
+   mv <the extracted folder> crux-controller
+   cd crux-controller
+   ls -a
+   ```
+
+   If the zip has no top-level folder, unzip into `crux-controller` itself:
 
    ```bash
    mkdir -p ~/work/controller-ws/crux-controller && cd ~/work/controller-ws/crux-controller
    unzip /path/to/the-copy.zip
-   ls west.yml
+   ls -a
    ```
+
+   If you unpacked it into `crux-controller` and the files are in one more folder inside it, move them with the
+   hidden files (a plain `mv sub/* .` leaves `.devcontainer`, `.github`, `.clang-format` and `.gitattributes`
+   behind), then check:
+
+   ```bash
+   shopt -s dotglob
+   mv sub/* .
+   rmdir sub
+   ls -a
+   ```
+
+   `ls -a` must list `.devcontainer`, `.clang-format`, `.github` and `west.yml`.
 
 4. Only for a copy without a `.git` folder: make it a Git repository, because the format check, the static
    analysis, the SPDX check and several tooling tests ask Git for the file list. Set `core.autocrlf` before
@@ -244,7 +272,7 @@ more hosts. A firewall or proxy must allow them.
 | PyPI (`pypi.org` and its file host) | `pip install` of `.devcontainer/requirements-tools.txt` and of the Zephyr requirement files | the first setup, and when a requirements file changes |
 | `github.com` | `west update`: this repository's manifest projects from `github.com/wonny-labs` and `github.com/zephyrproject-rtos` | the first setup, and `west update` after a pin change |
 | `api.github.com` and the GitHub release downloads | `west sdk install`, the Zephyr SDK | the first setup, and after an SDK version change |
-| Docker Hub | the `hello-world` check of the quick start only | once |
+| Docker Hub | the `hello-world` check of the quick start and the `curlimages/curl` test of the proxy section | once each |
 
 The SDK install uses GitHub release downloads, and an anonymous request limit of the GitHub API can apply (not
 verified for this setup). If the install fails with a rate-limit error, set a GitHub token before the run; both
@@ -271,8 +299,10 @@ Which route passes what, as the files are written (none of it was run behind a p
 
 - The VS Code route passes the proxy variables `http_proxy`, `https_proxy` and `no_proxy` (and the upper-case
   names) from the host environment, as build arguments of the image and as environment of the container, and it
-  passes `GH_TOKEN` too. `devcontainer.json` reads them from the environment of the process that starts VS Code,
-  so export them in a WSL shell and start `code .` from that shell.
+  passes `GH_TOKEN` too. `devcontainer.json` reads them from the environment of the process that starts VS Code
+  (general knowledge), so export them in a WSL shell and start `code .` from that shell. A VS Code server that
+  already runs in WSL keeps its old environment: close all VS Code windows of that distribution, or run
+  `wsl --shutdown`, first.
 - `scripts/dev-shell.sh` passes only `GH_TOKEN` and your user and group ids. A proxy variable that you export in
   your shell does not reach its container. For this route use Docker's own client configuration: the `proxies`
   section of `~/.docker/config.json` makes the Docker command line add the variables to the build and to the
@@ -326,9 +356,11 @@ not see the file.
 Some of it nobody can do for you, because it is on the host and not in the container (all of this is general
 knowledge, not checked against these files):
 
-- The Docker daemon pulls the base image and gives the image build its network access, so it needs its own
-  proxy setting: the `proxies` key of `/etc/docker/daemon.json`, or a systemd drop-in for the `docker` service. If the
-  proxy re-signs HTTPS, the daemon also needs the CA in the distribution's trust store
+- The Docker daemon needs its own proxy setting for its own pulls, such as the base image: the `proxies` key of
+  `/etc/docker/daemon.json`, or a systemd drop-in for the `docker` service. That setting covers the daemon's pulls,
+  not the `apt-get` steps of the image build: those run in a container and get the proxy from build arguments (the
+  VS Code route passes them) or from the client configuration in the next item. A user of `scripts/dev-shell.sh`
+  needs both, so do not stop after `daemon.json`. If the proxy re-signs HTTPS, the daemon also needs the CA in the distribution's trust store
   (`/usr/local/share/ca-certificates/`, then `sudo update-ca-certificates` and a restart of Docker).
 - The Docker command line can add the proxy variables to builds and containers itself, from the `proxies`
   section of `~/.docker/config.json`.
@@ -390,6 +422,10 @@ A copy is a zip or any folder without a `.git` folder. It runs the same, with th
 - **The folder name and place.** The files go directly in a folder named `crux-controller`, in a parent folder of
   its own, as in the quick start. The copy keeps nothing of the Git history, so a short hash, a pull request number
   or an issue number in the text cannot be opened from it.
+- **Unpacking.** A zip with one top-level folder is unzipped into the parent folder, and the extracted folder is
+  renamed `crux-controller`. If you moved the files up by hand, include the hidden ones:
+  `shopt -s dotglob; mv sub/* .; rmdir sub`, and check with `ls -a` that `.devcontainer`, `.clang-format` and
+  `.github` are there. A plain `mv sub/* .` leaves them behind.
 - **A Git repository.** These need one: `scripts/check-format.sh`, `scripts/analyze_host.py` and
   `scripts/check_spdx.py`, which ask Git for the file list, and several tooling tests that do the same (eight of
   them failed in a copy without `.git` in the author's run). `scripts/check_boundary.py` and the host tests did
@@ -832,7 +868,8 @@ a reason to change a check.
 ## What has been checked
 
 - The venv block (`python3 -m venv`, `pip install` of the pinned tools, `west init -l`)
-  was run in a fresh `ubuntu:24.04` container on 18 November 2026 (arm64, Python 3.12.3), after
+  was run in a fresh `ubuntu:24.04` container on 18 November 2026 (arm64, Python 3.12.3; the revision of the
+  clone is not recorded), after
   `apt-get install python3-venv python3-dev git ca-certificates`. The clone was copied in from a local checkout,
   so the `git clone` command and the full `apt-get` package list were not run. It confirmed that there is no
   `python` command before the virtual environment exists, that `west 1.4.0` installs in it and that
@@ -841,17 +878,18 @@ a reason to change a check.
 - Not run for this page: `west update`, the SDK install, Twister, the S6 group steps and the host tests on
   a fresh Linux machine. Their commands are those of the CI jobs with the variables replaced.
 - On macOS on 18 November 2026 (Apple clang 17.0.0, CMake 4.4.5, Ninja, Python 3.9 with PyYAML, clang-format 18.1.8
-  from pip) these ran and passed in a Git repository: the host tests with the sanitizers off and on (six CTest tests
-  each), the tooling tests (983 tests at that revision, 3 skipped), the boundary check, the SPDX check and `scripts/check-format.sh`.
-- Also on macOS, one-off runs of the failures that [troubleshooting.md](troubleshooting.md) lists, with the counts
-  of that day at that revision (they drift as tests are added). In a copy without `.git`, one tooling test failed and seven stopped
+  from pip), at `f7d3fab`, these ran and passed in a Git repository. `f7d3fab` is a local revision of that day (main
+  plus the pull requests that were open then), not a published commit. The host tests with the sanitizers off and on
+  (six CTest tests each), the tooling tests (983 tests, 3 skipped), the boundary check, the SPDX check and `scripts/check-format.sh`.
+- Also on macOS, at the same local revision `f7d3fab`, one-off runs of the failures that
+  [troubleshooting.md](troubleshooting.md) lists, with the counts of that day (they drift as tests are added). In a copy without `.git`, one tooling test failed and seven stopped
   with a Git error, and `scripts/check_spdx.py` exited with status 2; `scripts/check_boundary.py` passed. After
   `git init` and `git add -A` all of them passed. With CRLF line ends in every text file, 21 tooling tests
   failed (the ones that run the shell scripts), a script started directly failed with
   `env: bash\r: No such file or directory`, and clang-format 18.1.8 itself accepted a CRLF C file. With the exec bits
   removed, five tooling tests failed. Without `.clang-format`, clang-format 18.1.8 reported errors for a file that
   it accepts with it.
-- `.devcontainer/check-host.sh` ran on macOS on 18 November 2026 in a scratch folder: it passed a layout of its own,
+- `.devcontainer/check-host.sh`, as at `f9342b3` of `main`, ran on macOS on 18 November 2026 in a scratch folder: it passed a layout of its own,
   refused a wrong folder name, a parent that holds `.bashrc` and a parent that is the home directory (exit status 2),
   and only warned about another entry, not about `.crux-extra-ca.crt`. What `setup.sh` does with a proxy, a
   certificate, a failed step or an old SDK folder, and what `devcontainer.json` passes, is read from the files and was
@@ -861,7 +899,9 @@ a reason to change a check.
   tooling tests (versions against `ci.yml`, the base image digest, no Docker Desktop feature, no write permission or
   upload in the workflow), and the workflow `devcontainer.yml` runs the image and `scripts/dev-shell.sh` on an
   Ubuntu 24.04 x86_64 GitHub runner (the checks listed in the dev container section, including the S1 cross-build).
-  The result of that job for the revision that you are reading is in the checks of the commit on GitHub.
+  That job runs when a pull request or a push changes `.devcontainer/`, `scripts/dev-shell.sh`, `west.yml` or the
+  workflow file, and when it is started by hand. Its latest result is in the Actions tab, under the `devcontainer`
+  workflow, for the pull request that last changed those paths; a docs-only revision has no result of its own.
 - Not tested by anyone, and so written as general knowledge or as the interface of the container files: the proxy
   and company-certificate settings, a run with no network, systemd in `/etc/wsl.conf`, the GitHub rate-limit
   message, and how much disk and time a first run takes on a developer machine.

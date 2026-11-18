@@ -331,7 +331,7 @@ class Proxy(Page):
     def test_the_section_names_the_variables_the_files_and_the_host_side_settings(self):
         for name in ("http_proxy", "https_proxy", "no_proxy", "CRUX_EXTRA_CA_FILE", ".crux-extra-ca.crt",
                      "~/.docker/config.json", "GH_TOKEN"):
-            self.assertIn(f"`{name}`", self.proxy + " `GH_TOKEN`")
+            self.assertIn(f"`{name}`", self.proxy)
         self.assertIn("docker run --rm curlimages/curl -I https://github.com", self.proxy)
         self.assertIn("general knowledge", self.proxy)
 
@@ -345,9 +345,11 @@ class Proxy(Page):
 
     def test_dev_shell_passes_no_proxy_variable_and_no_certificate_and_the_page_does_not_say_it_does(self):
         # If the script starts to pass them, this test fails and the page has to change with it.
-        self.assertNotIn("proxy", self.shell_lower)
-        self.assertNotIn("CRUX_EXTRA_CA_FILE", self.shell)
-        self.assertNotIn("check-host", self.shell)
+        message = ("a change to dev-shell.sh adds these features: update docs/try-on-native-sim.md and "
+                   "docs/troubleshooting.md in the same change")
+        self.assertNotIn("proxy", self.shell_lower, message)
+        self.assertNotIn("CRUX_EXTRA_CA_FILE", self.shell, message)
+        self.assertNotIn("check-host", self.shell, message)
         self.assertIn("-e GH_TOKEN", self.shell)
         self.assertRegex(self.proxy, r"`scripts/dev-shell\.sh` passes only `GH_TOKEN`")
         for phrase in ("passes it into the image build", "Give `scripts/dev-shell.sh` the certificate",
@@ -487,6 +489,64 @@ class OnMain(Page):
 
     def test_the_page_does_not_call_a_changed_behaviour_planned(self):
         self.assertNotIn("planned", self.text.lower())
+
+
+class Review(Page):
+    """Statements that a review of the first version found false or unsafe."""
+
+    def test_no_sentence_promises_a_dev_container_result_for_every_revision(self):
+        self.assertNotIn("for the revision that you are reading", self.text)
+        checked = section(self.text, "What has been checked")
+        self.assertIn("Actions tab", checked)
+        self.assertIn("by hand", checked)
+        workflow = yaml.safe_load(read(WORKFLOWS / "devcontainer.yml"))
+        paths = workflow[True]["pull_request"]["paths"]
+        self.assertNotIn("docs/**", paths)
+        self.assertIn("a docs-only", checked)
+
+    def test_the_runs_of_the_checks_name_their_revision(self):
+        checked = section(self.text, "What has been checked")
+        self.assertIn("f7d3fab", checked)
+        self.assertIn("not a published commit", checked)
+        self.assertNotIn("at that revision", checked)
+
+    def test_a_zip_with_a_top_level_folder_is_moved_with_the_dot_files(self):
+        for text in (self.quick, section(self.text, "From a copy without Git history")):
+            self.assertIn("shopt -s dotglob", text)
+            self.assertIn("ls -a", text)
+        self.assertIn(".devcontainer", self.quick)
+        trouble = read(TROUBLE)
+        self.assertIn("dotglob", trouble)
+        self.assertIn(".devcontainer missing", trouble)
+
+    def test_the_quick_start_sends_a_proxy_user_to_the_host_part_first(self):
+        text = self.text
+        start = self.quick
+        self.assertIn("Behind a company proxy?", start)
+        self.assertLess(start.index("Behind a company proxy?"), start.index("1. Install Docker Engine"))
+        self.assertIn("(#behind-a-proxy-or-with-a-company-certificate)", start)
+
+    def test_the_daemon_proxy_does_not_cover_the_apt_steps_of_the_build(self):
+        proxy = section(self.text, "Behind a proxy or with a company certificate")
+        self.assertIn("not the `apt-get` steps of the image build", proxy)
+        self.assertIn("daemon.json", proxy)
+
+    def test_the_vs_code_environment_is_labelled_and_a_running_server_is_mentioned(self):
+        proxy = section(self.text, "Behind a proxy or with a company certificate")
+        self.assertIn("keeps its old environment", proxy)
+        self.assertIn("wsl --shutdown", proxy)
+        self.assertRegex(proxy, r"environment of the process that starts VS Code[^.]*general knowledge")
+
+    def test_docker_hub_is_listed_for_both_pulls_of_the_page(self):
+        hosts = section(self.text, "Network and prerequisites")
+        row = next(line for line in hosts.splitlines() if line.startswith("| Docker Hub"))
+        self.assertIn("hello-world", row)
+        self.assertIn("curlimages/curl", row)
+
+    def test_the_wsl_daemon_start_failure_row_is_there_and_labelled(self):
+        row = next(line for line in read(TROUBLE).splitlines() if "iptables" in line)
+        self.assertIn("general knowledge", row)
+        self.assertIn("not tested", row)
 
 
 class MarkdownLinks(unittest.TestCase):
