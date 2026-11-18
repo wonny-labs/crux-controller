@@ -2,7 +2,7 @@
 
 This page is a checklist for the person who reviews a pull request in this repository. The rules come from
 [CONTRIBUTING.md](../CONTRIBUTING.md), and each item names the section that states its rule. An item marked
-"practice" is something the repository's own files show but CONTRIBUTING.md does not state as a rule. Where
+"Practice." is something the repository's own files show but CONTRIBUTING.md does not state as a rule. Where
 CONTRIBUTING.md says nothing, the page says so and invents no rule.
 
 The words `PASS`, `REVISE`, `ESCALATE`, "owner" and "reviewer" are in the [glossary](glossary.md#people-and-board-procedures).
@@ -43,27 +43,28 @@ that does not say what it covered is hard to use later.
   revision it ran on and who ran it (CI, a reviewer or the author), and the text names what was not run
   (CONTRIBUTING.md, "Commits and pull requests").
 - [ ] **No check is reported as passing that did not run.** A CI build is not described as a run on a board
-  (same section).
+  (CONTRIBUTING.md, "Commits and pull requests").
 - [ ] **The commit subjects follow the format.** `<type>: <summary>` in English, a lowercase imperative verb, no
-  final full stop, under 72 characters, with a type from the list in CONTRIBUTING.md (same section).
+  final full stop, under 72 characters, with a type from the list in CONTRIBUTING.md ("Commits and pull requests").
 - [ ] **One logical change.** CONTRIBUTING.md, "Changing behaviour", asks for one logical change in a pull
   request.
 - [ ] **Tests came first.** New behaviour and fixes have a test that the author watched fail. No test or check was
   weakened or deleted to make a change pass. An existing assertion changed only because the approved behaviour
-  changed, and the pull request says so ("Changing behaviour").
-- [ ] **CI results were read for the head commit.** A green CI result does not replace review. CI is the reference
-  for the Zephyr builds and the Twister runs, and a local result does not replace it ("Build and test").
+  changed, and the pull request says so (CONTRIBUTING.md, "Changing behaviour").
+- [ ] **CI results were read for the head commit.** Practice. A green CI result does not replace review. CI is the
+  reference for the Zephyr builds and the Twister runs, and a local result does not replace it (CONTRIBUTING.md,
+  "Build and test").
 - [ ] **A claim about a board matches the record.** Only step S2 has run on a board, twice, on one bench
   (CONTRIBUTING.md, "What this repository is, and is not", and `docs/findings/s2-first-board-run.md`). A change must
   not claim otherwise.
 - [ ] **The text is fit for a public repository.** No name of an employer or customer, no proprietary product, runtime
   or private repository, no reference to a private planning document, no memory sizes of a real product, no
   secrets or absolute paths of a personal or build machine, no text that cannot be published under Apache-2.0
-  ("A public repository"). `tests/tooling/test_public_text.py` fails on the usual forms of the planning references
+  (CONTRIBUTING.md, "A public repository"). `tests/tooling/test_public_text.py` fails on the usual forms of the planning references
   and does not catch the rest. Read for those yourself.
 - [ ] **Hashes only.** No firmware image, `.elf` or `.map` file goes into the repository, a release bundle or a CI
-  artefact ("A public repository" and `RELEASE.md`).
-- [ ] **The tooling tests pass.** Run `python -m unittest discover -s tests/tooling` on the head commit, or read the
+  artefact (CONTRIBUTING.md, "A public repository", and `RELEASE.md`).
+- [ ] **The tooling tests pass.** Practice: run `python -m unittest discover -s tests/tooling` on the head commit, or read the
   `Tooling tests` job (CONTRIBUTING.md, "Build and test"). Several documents are pinned by these tests.
 
 ## 4. Documentation changes
@@ -98,8 +99,8 @@ rules. These items are practice, taken from how the tests and the findings are w
 A change that adds a step, a Crux component, a zone entry or a build option. [adding-a-step.md](adding-a-step.md) has
 the recipe and the mechanical checklist; the points below are what a reviewer verifies.
 
-- [ ] **The limits row came first.** `budgets/limits.json` has the row for the step, added before any job names it,
-  and no other step's limit changed to make a build pass. CONTRIBUTING.md says a limit is not changed in the
+- [ ] **The limits row came first.** Practice, from [adding-a-step.md](adding-a-step.md), section 2.1: the row is
+  added before any job names the step. `budgets/limits.json` has the row for the step, and no other step's limit changed to make a build pass. CONTRIBUTING.md says a limit is not changed in the
   same pull request as a pin move to make a bump pass, and the file's own comment says that a change there is a
   reviewed change.
 - [ ] **The boundary lists changed together.** A new allowed include means a change of `scripts/check_boundary.py`,
@@ -107,18 +108,24 @@ the recipe and the mechanical checklist; the points below are what a reviewer ve
   the reason why the public interface is not enough (CONTRIBUTING.md, "The boundary"). There is no exception,
   waiver or per-file opt-out.
 - [ ] **No include path in CMake.** `app/CMakeLists.txt`, `app/management/management.cmake` and
-  `app/management/entropy.cmake` add none, because the check reads includes only ("The boundary").
+  `app/management/entropy.cmake` add none, because the check reads includes only (CONTRIBUTING.md, "The boundary").
 - [ ] **Kconfig dependencies hold in the resolved configuration.** An unmet dependency only prints a warning, and the
   image builds without the step. Look for the job's checks of the resolved `.config` and `zephyr.dts` (options that
   must be on, options that must be off, the devicetree alias) and for the `require` field of the `Budget` row. Practice:
   the CI job `s<n>` and `budget.yml` in [adding-a-step.md](adding-a-step.md), section 2.5.
 - [ ] **The CI job checks what the build resolved.** The job named `S<n> build (...)` builds with the baseline gate
-  required (CONTRIBUTING.md, "Build and test") and reads the resolved configuration, not only the command line.
-- [ ] **The three statements in CONTRIBUTING.md are updated:** the role section ("Steps S0 to S<n> are built in CI"),
+  required (CONTRIBUTING.md, "Build and test"). Practice: it also reads the resolved configuration, not only the
+  command line.
+- [ ] **The three statements in CONTRIBUTING.md are updated.** Practice, from [adding-a-step.md](adding-a-step.md),
+  section 2.6: the role section ("Steps S0 to S<n> are built in CI"),
   the `ci.yml` row (`S<n> build`) and the `budget.yml` row (`Budget` for S0 to S<n>). `tests/tooling/test_docs.py`
   checks them against the workflows.
-- [ ] **The exact row lists of the earlier step tests are extended, not loosened.** Say so in the pull request.
-- [ ] **The findings note labels are honest.** A result that only CI can produce is **Open** with the job named,
+- [ ] **The exact row lists of the earlier step tests are extended, not loosened.** CONTRIBUTING.md, "Changing
+  behaviour", says: "Extend a check rather than loosen it." That the row lists are pinned by `test_s4.py`,
+  `test_s5.py` and `test_s6.py`, and that the pull request says so, is practice
+  ([adding-a-step.md](adding-a-step.md), section 2.1).
+- [ ] **The findings note labels are honest.** Practice, from the README and [adding-a-step.md](adding-a-step.md),
+  section 2.6. A result that only CI can produce is **Open** with the job named,
   until it is recorded with its revision as **Recorded**. A step is described as built and never run on a board
   until a board run is recorded in a finding (README and `docs/adding-a-step.md`).
 - [ ] **A pin move is its own pull request.** It follows the three steps of CONTRIBUTING.md, "The pin and the
@@ -131,12 +138,16 @@ the recipe and the mechanical checklist; the points below are what a reviewer ve
 
 ## 6. Evidence in the pull request
 
-- [ ] Each check names the **revision**, the **command or configuration** and **who ran it**. A check that only the
-  author says passed, with no revision, is not evidence yet (CONTRIBUTING.md, "Commits and pull requests").
-- [ ] The kinds of result are kept apart: tooling tests, host tests, `native_sim` scenarios (CI), the cross-build for
-  the board (CI) and a run on a board. None of them implies another.
-- [ ] Failures and skipped checks are listed. A check that did not run is described as not run.
-- [ ] For a pin move: the hashes are in the pull request, and nothing in the pull request publishes an image.
+- [ ] Each check names the **revision** and **who ran it**, and the pull request names what was not run
+  (CONTRIBUTING.md, "Commits and pull requests"). Practice: it also gives the command or configuration, so that a
+  reviewer can repeat the check. A check that only the author says passed, with no revision, is not evidence yet.
+- [ ] Practice: the kinds of result are kept apart: tooling tests, host tests, `native_sim` scenarios (CI), the
+  cross-build for the board (CI) and a run on a board. None of them implies another. CONTRIBUTING.md says only that
+  a CI build is not described as a run on a board.
+- [ ] A check that did not run is described as not run (CONTRIBUTING.md, "Commits and pull requests"). Practice:
+  failures and skipped checks are listed too.
+- [ ] For a pin move: the hashes are in the pull request (CONTRIBUTING.md, "The pin and the manifest"), and nothing
+  in the pull request publishes an image ("A public repository").
 
 ## 7. Files that need a reviewed change
 

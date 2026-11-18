@@ -75,12 +75,12 @@ These are known limits of what the checks and tests cover. They are facts about 
 - **The naming check enforces nothing.** `readability-identifier-naming` is listed without options and enforces no
   naming rule (`.clang-tidy`).
 - **Other languages are not linted.** There is no lint for Python, shell, YAML or CMake, and no coverage measurement.
-- **Many tooling tests pin text.** Counted by module, the tests in `tests/tooling` that read the repository's
+- **Many tooling tests pin text.** Counted by module (every test of a module counts the same, at the head of this change), the tests in `tests/tooling` that read the repository's
   documents, workflows, CMake and Kconfig files as text, and run no script on synthetic input, are between about 50
-  and 70 percent of all of them. The upper figure counts three modules that mix both kinds. This is an estimate. A
+  and 70 percent of all of them. The upper figure counts three modules that mix both kinds. This is an estimate of tests per module, not of modules. A
   green tooling run shows that the text and the configuration agree with the tests, and not that the firmware
   behaves.
-- **Zephyr-side glue is not run by any test.** The start order and the decisions in `app/src/composition.c`, the
+- **Parts of the Zephyr-side glue are not run by any test.** The start order and the decisions in `app/src/composition.c`, the
   watchdog feed path of step S4 (the S4 scenario cannot show a feed cycle) and the web page script of step S6 (the S6
   scenario serves its bytes, and nothing runs them) are never run in any test.
 - **Steps S5 and S6 run only on `native_sim`, in CI, and never on a board.** Step S2 ran twice on a board, on one bench.

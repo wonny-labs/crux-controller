@@ -126,7 +126,7 @@ the body when it is not obvious:
 
 ```bash
 git add tests/host/test_workload.c
-git commit -m "test: cover a zero period in the workload validator" -m "The validator rejects periods below 10 ms. Only 9 ms and values above the maximum were tested."
+git commit -m "test: cover a zero period in the workload validator" -m "The validator rejects periods below 10 ms. The host tests check 9 ms and values above the maximum directly, 1 ms only through `workload_cycle_init()`, and 0 ms not at all."
 ```
 
 ## 7. Push and open the pull request
@@ -148,7 +148,8 @@ test: cover a zero period in the workload validator
 What changed: one case in tests/host/test_workload.c. A period of 0 ms is rejected with
 WORKLOAD_ERR_RANGE. No source file changed.
 
-Why: only 9 ms and values above the maximum were tested.
+Why: the host tests check 9 ms and values above the maximum directly, 1 ms only through
+workload_cycle_init(), and 0 ms not at all.
 
 What was checked, at which revision, by whom:
 - Host tests, sanitizers off and on, at <short SHA>: me.

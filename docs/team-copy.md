@@ -95,7 +95,7 @@ The zip has no common history with upstream, so a merge has nothing to start fro
 ```bash
 git clone https://github.com/wonny-labs/crux-controller.git ../crux-controller-upstream
 git -C ../crux-controller-upstream switch --detach <upstream commit>
-diff -ru --exclude=.git ../crux-controller-upstream .
+diff -ru --exclude=.git --exclude=.venv --exclude=build ../crux-controller-upstream .
 ```
 
 Read the differences, take the ones you want on a branch of your copy, and run the checks of section 3 again, with
