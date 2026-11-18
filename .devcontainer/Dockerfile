@@ -1,0 +1,58 @@
+# Build environment of Crux Controller for a developer who cannot use Ubuntu 24.04 natively, for
+# example on Windows with WSL2 and Docker Engine (no Docker Desktop). It carries the host packages
+# and tools that the CI jobs of .github/workflows/ci.yml install on ubuntu-24.04. The workspace
+# (Zephyr, the west modules), the virtual environment and the Zephyr SDK are not part of the image:
+# .devcontainer/setup.sh fetches them into the bind-mounted workspace and the named volume, so a
+# rebuilt image does not download them again.
+#
+# The base image is pinned by digest (a multi-architecture index). To move it, resolve the new
+# digest of the tag and change it here in a reviewed pull request. tests/tooling/test_devcontainer.py
+# checks the digest, the SDK version and the tool versions against ci.yml.
+FROM mcr.microsoft.com/devcontainers/base:ubuntu-24.04@sha256:d94c97dd9cacf183d0a6fd12a8e87b526e9e928307674ae9c94139139c0c6eae
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+# The user id and group id of the host user. The Dev Containers extension adjusts the user itself
+# (updateRemoteUserUID in devcontainer.json), so it leaves these at 1000. scripts/dev-shell.sh passes the
+# ids of the caller, so that files written to the bind-mounted workspace belong to that user.
+ARG USER_UID=1000
+ARG USER_GID=1000
+
+# The packages of the "Install host packages" step of the S1 job, plus python3-venv (CI gets its
+# Python from actions/setup-python), curl and sudo for the setup script, and clang-tidy-18 at the
+# version of the "Static analysis" job.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        build-essential \
+        gcc-multilib \
+        ca-certificates \
+        clang-tidy-18=1:18.1.3-1ubuntu1 \
+        curl \
+        device-tree-compiler \
+        file \
+        gperf \
+        git \
+        libmagic1 \
+        libsdl2-dev \
+        pkg-config \
+        python3-dev \
+        python3-venv \
+        sudo \
+        wget \
+        xz-utils \
+    && apt-get clean \
+    && find /var/lib/apt/lists -type f -delete
+
+RUN if [ "$USER_GID" != "$(id -g vscode)" ]; then groupmod -o --gid "$USER_GID" vscode; fi \
+    && if [ "$USER_UID" != "$(id -u vscode)" ]; then usermod -o --uid "$USER_UID" vscode; fi \
+    && chown -R "$USER_UID:$USER_GID" /home/vscode \
+    && install -d -o "$USER_UID" -g "$USER_GID" /opt/crux-cache
+
+# The Zephyr SDK version of the CI jobs. The SDK and the virtual environment are installed by
+# .devcontainer/setup.sh into /opt/crux-cache, which is a named volume.
+ENV ZEPHYR_SDK_VERSION=1.0.1
+ENV ZEPHYR_SDK_INSTALL_DIR=/opt/crux-cache/sdk/zephyr-sdk-${ZEPHYR_SDK_VERSION} \
+    ZEPHYR_BASE=/workspaces/ws/zephyr \
+    CRUX_CACHE_DIR=/opt/crux-cache \
+    CLANG_TIDY=clang-tidy-18 \
+    PATH=/opt/crux-cache/venv/bin:${PATH}
