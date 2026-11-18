@@ -9,6 +9,10 @@ import json
 import os
 import pathlib
 import re
+import shutil
+import stat
+import subprocess
+import tempfile
 import unittest
 
 import yaml
@@ -115,6 +119,117 @@ class RepositoryFiles(unittest.TestCase):
         files = sorted(DEVCONTAINER.iterdir()) + [ROOT / "scripts" / "dev-shell.sh"]
         for path in files:
             self.assertNotIn(b"\r", path.read_bytes(), path.name)
+
+
+class HostFixture:
+    """A throwaway workspace folder with a copy of the files the host-side checks use."""
+
+    def __init__(self, clone="crux-controller", scripts=("check-host.sh",)):
+        self.directory = tempfile.TemporaryDirectory()
+        self.base = pathlib.Path(self.directory.name).resolve()
+        self.workspace = self.base / "ws"
+        self.home = self.base / "home"
+        self.repo = self.workspace / clone
+        for path in (self.home, self.repo / ".devcontainer", self.repo / "scripts"):
+            path.mkdir(parents=True)
+        for name in scripts:
+            source = DEVCONTAINER / name
+            if not source.exists():
+                source = ROOT / "scripts" / name
+            target = (self.repo / ("scripts" if source.parent.name == "scripts" else ".devcontainer") / name)
+            shutil.copy(source, target)
+
+    def close(self):
+        self.directory.cleanup()
+
+    def check_host(self, **env):
+        # Only bash and the coreutils of the host: this is what a WSL distribution is sure to have.
+        environment = {"PATH": "/usr/bin:/bin", "HOME": str(self.home)}
+        environment.update(env)
+        return subprocess.run(["bash", str(self.repo / ".devcontainer" / "check-host.sh")],
+                              env=environment, capture_output=True, text=True)
+
+
+class CheckHostScript(unittest.TestCase):
+    path = DEVCONTAINER / "check-host.sh"
+
+    def setUp(self):
+        self.fixture = HostFixture()
+        self.addCleanup(self.fixture.close)
+
+    def test_the_script_is_an_executable_bash_script_with_the_spdx_line_second(self):
+        lines = read(self.path).splitlines()
+        self.assertEqual("#!/usr/bin/env bash", lines[0])
+        self.assertEqual("# SPDX-License-Identifier: Apache-2.0", lines[1])
+        self.assertIn("set -euo pipefail", lines)
+        self.assertTrue(os.access(self.path, os.X_OK))
+
+    def test_it_accepts_the_layout_of_the_documentation_without_a_word(self):
+        for name in ("crux-controller", ".west", "zephyr", "modules", "bootloader", "tools", "crux-pilot",
+                     "twister-out", "twister-out-s1"):
+            (self.fixture.workspace / name).mkdir(exist_ok=True)
+        result = self.fixture.check_host()
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual("", result.stdout + result.stderr)
+
+    def test_it_refuses_a_clone_that_is_not_named_crux_controller(self):
+        fixture = HostFixture(clone="crux-controller-main")
+        self.addCleanup(fixture.close)
+        result = fixture.check_host()
+        self.assertEqual(2, result.returncode)
+        self.assertIn("check-host:", result.stderr)
+        self.assertIn("crux-controller-main", result.stderr)
+        self.assertIn("named crux-controller", result.stderr)
+
+    def test_it_refuses_the_home_directory_as_the_parent_folder(self):
+        result = self.fixture.check_host(HOME=str(self.fixture.workspace))
+        self.assertEqual(2, result.returncode)
+        self.assertIn("home directory", result.stderr)
+
+    def test_it_refuses_a_home_directory_that_is_reached_through_a_symbolic_link(self):
+        link = self.fixture.base / "link-to-ws"
+        link.symlink_to(self.fixture.workspace)
+        result = self.fixture.check_host(HOME=str(link))
+        self.assertEqual(2, result.returncode)
+        self.assertIn("home directory", result.stderr)
+
+    def test_it_refuses_a_parent_folder_that_holds_a_home_directory_marker(self):
+        for marker in (".ssh", ".gnupg", ".bashrc", ".profile", ".gitconfig"):
+            with self.subTest(marker=marker):
+                path = self.fixture.workspace / marker
+                path.mkdir() if marker in (".ssh", ".gnupg") else path.write_text("x\n")
+                result = self.fixture.check_host()
+                self.assertEqual(2, result.returncode)
+                self.assertIn(marker, result.stderr)
+                self.assertIn("looks like a home directory", result.stderr)
+                shutil.rmtree(path) if path.is_dir() else path.unlink()
+
+    def test_it_refuses_the_root_directory_as_the_parent_folder(self):
+        text = read(self.path)
+        self.assertIn('"/"', text)
+
+    def test_it_only_warns_about_other_entries_in_the_parent_folder(self):
+        (self.fixture.workspace / "zephyr").mkdir()
+        (self.fixture.workspace / "holiday-photos").mkdir()
+        (self.fixture.workspace / ".hidden-notes").write_text("x\n")
+        (self.fixture.workspace / "twister-out-s2").mkdir()
+        result = self.fixture.check_host()
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("warning", result.stderr)
+        self.assertIn("holiday-photos", result.stderr)
+        self.assertIn(".hidden-notes", result.stderr)
+        self.assertNotIn("zephyr", result.stderr)
+        self.assertNotIn("twister-out-s2", result.stderr)
+
+    def test_the_messages_go_to_the_standard_error_stream(self):
+        (self.fixture.workspace / "other").mkdir()
+        result = self.fixture.check_host()
+        self.assertEqual("", result.stdout)
+
+    def test_it_needs_no_tool_beyond_bash_and_the_coreutils(self):
+        text = read(self.path)
+        for tool in ("docker", "git ", "python", "realpath", "readlink -f", "find ", "-printf"):
+            self.assertNotIn(tool, text)
 
 
 class Requirements(unittest.TestCase):
