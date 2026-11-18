@@ -62,7 +62,7 @@ The README table is the maintained summary of the steps and says, per step, whet
 The `Budget` job builds each step for the RT1060-EVKB and reads the Zephyr memory region table. The numbers
 below are the `FLASH` and `RAM` rows of that table, in bytes used, as the `Budget S0` to `Budget S6` job logs
 of GitHub Actions print them. They were read from the job logs of the `budget` workflow run for `main` at
-`26c78a3` (a revision of the public repository), and the run for the head of pull request 59, `8d47942d`, printed the
+`26c78a3` (a revision of the public repository), and the run for `8d47942d`, the head of pull request 59 (the S6 composition change), printed the
 same values. The region sizes are the ones that the table prints: `FLASH` 8 MB and `RAM` 32 MB.
 
 | Step | FLASH used (bytes) | FLASH of region | RAM used (bytes) | RAM of region |
@@ -86,10 +86,10 @@ commit you care about for current values. For example, the `Budget S5` job print
 commit that merged S5, and the step note for S6 records 288872 bytes of `FLASH` at the first CI run of S6; later
 commits moved both to the values above.
 
-The S2 image that CI builds at that revision has the `zephyr.bin` SHA-256
+The S2 image that CI built at `8d47942d` has the `zephyr.bin` SHA-256
 `0551c82576b5b2edbe6e68eef6058882b8899a10119409cbe7c17d7c360d754b` and the `firmware_identity`
 `8c66f4b5c269d56d8dad6f06032802283c99e66619cf976b76de35486024adf4`; both were printed by the release dry run
-job at `8d47942d`. This is not the image that ran on the board: the board runs used the S2 image with the SHA-256
+job at `8d47942d`; they were not read at later revisions. This is not the image that ran on the board: the board runs used the S2 image with the SHA-256
 recorded in [docs/findings/s2-first-board-run.md](findings/s2-first-board-run.md), built when the pin was an earlier
 Crux revision.
 

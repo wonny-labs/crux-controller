@@ -27,7 +27,8 @@ A path of about 30 minutes:
 
 1. This README (5 minutes): what the repository is, its state and its boundary rules.
 2. The "Short version" and the table "What exists on `main`" in [docs/roadmap.md](docs/roadmap.md) (5 minutes):
-   what each step does, what has run on a board and what has not, and the current static sizes.
+   what each step does and what has run on a board and what has not; then its section "Static size per step" for
+   the current static sizes.
 3. [docs/architecture.md](docs/architecture.md) (10 minutes): the four source trees, the threads and how Crux is used.
 4. [docs/try-on-native-sim.md](docs/try-on-native-sim.md) (5 minutes to read): the commands that run the tests without a board.
 5. [CONTRIBUTING.md](CONTRIBUTING.md) (5 minutes): the boundary, the checks, the pin and how a change is reviewed.
@@ -42,8 +43,10 @@ what building each step taught about using Crux, [docs/adding-a-step.md](docs/ad
 - **The owner** (also "the project owner" or "the repository owner") is the maintainer who owns this repository on
   GitHub; the account in `CODEOWNERS` is the owning account. The owner decides what the documents here reserve:
   merging a pull request, tags, GitHub Releases and forks ([CONTRIBUTING.md](CONTRIBUTING.md)), the release approval
-  in `RELEASE.md`, filing a request in `crux-pilot`, a change of the pinned Crux revision, and any run on a board. A
-  review `PASS` and a green CI result inform these decisions and do not replace them. To get a change reviewed, open a
+  in `RELEASE.md`, filing a request in `crux-pilot`, and any run on a board. A
+  review `PASS` and a green CI result inform these decisions and do not replace them. No rule reserves a change of the
+  pinned Crux revision to the owner; in practice the owner has approved each one (`west.yml` and
+  `tests/tooling/test_manifest.py` record the approval of the current pin). To get a change reviewed, open a
   pull request as [CONTRIBUTING.md](CONTRIBUTING.md) describes.
 - **The reviewer** is someone who did not write the change and who reads the files and the check results themselves.
 - **The operator** is the person who runs a board procedure on a bench, for example the S2 runs in
