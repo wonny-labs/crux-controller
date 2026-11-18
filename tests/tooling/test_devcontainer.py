@@ -99,15 +99,16 @@ class Dockerfile(unittest.TestCase):
         for package in ("ca-certificates", "curl"):
             self.assertRegex(self.text, rf"(?m)^\s+{package}( \\)?$")
 
-    def test_the_proxy_settings_are_optional_build_arguments(self):
-        first_run = self.text.index("\nRUN ")
+    def test_the_proxy_settings_are_not_declared_as_build_arguments(self):
+        # Docker predefines the proxy build arguments: `--build-arg http_proxy=...` reaches the RUN
+        # steps without an ARG line, and a predefined argument is left out of `docker history`. A
+        # declared ARG would make a proxy URL with credentials visible in the history of the image.
         for name in self.PROXY_NAMES:
-            match = re.search(rf"(?m)^ARG {name}$", self.text)
-            self.assertIsNotNone(match, name)  # no default value: unset unless the build passes it
-            self.assertLess(match.start(), first_run, name)
+            self.assertNotRegex(self.text, rf"(?m)^ARG {name}\b", name)
+        self.assertIn("predefined", " ".join(self.text.split()))
 
     def test_no_proxy_value_is_stored_in_the_image_environment(self):
-        # ARG only: an ENV line would keep the proxy of the company that built the image in every container.
+        # No ENV line: it would keep the proxy of the company that built the image in every container.
         environment = re.findall(r"(?m)^ENV (?:[^\n]*\\\n)*[^\n]*$", self.text)
         self.assertTrue(environment)
         for block in environment:

@@ -19,17 +19,13 @@ ARG DEBIAN_FRONTEND=noninteractive
 ARG USER_UID=1000
 ARG USER_GID=1000
 
-# Optional proxy settings of the host, for the apt-get below. devcontainer.json and scripts/dev-shell.sh
-# pass them as build arguments when the host has them. They are ARG and never ENV: a proxy of the
-# company that builds the image must not become part of the environment of every container. A build
-# argument that is declared and used in a RUN can still be seen in `docker history` of the local
-# image, so do not push or share an image that was built behind a proxy with credentials in its URL.
-ARG HTTP_PROXY
-ARG http_proxy
-ARG HTTPS_PROXY
-ARG https_proxy
-ARG NO_PROXY
-ARG no_proxy
+# Proxy settings of the host, for the apt-get below: devcontainer.json and scripts/dev-shell.sh pass
+# them as build arguments when the host has them. They are not declared here on purpose. Docker
+# predefines the proxy build arguments (HTTP_PROXY, http_proxy, HTTPS_PROXY, https_proxy, NO_PROXY,
+# no_proxy), so they reach the RUN steps without an ARG line, and a predefined argument is left out
+# of the image history; a declared ARG would show a proxy URL with credentials there. They are never
+# ENV either: the proxy of the company that builds the image must not become part of the environment
+# of every container.
 
 # The packages of the "Install host packages" step of the S1 job, plus python3-venv (CI gets its
 # Python from actions/setup-python), curl and sudo for the setup script, and clang-tidy-18 at the
