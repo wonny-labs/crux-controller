@@ -4,12 +4,15 @@ This page is for a teammate who wants to see the firmware's tests run and has no
 Terms are in the [glossary](glossary.md), the layout is in the [architecture](architecture.md), and what has
 and has not run on a board is in the [roadmap](roadmap.md).
 
-**These commands are copied from the CI workflow (`.github/workflows/ci.yml`) and from
-[CONTRIBUTING.md](../CONTRIBUTING.md); the page's author did not run them locally.** The commands in
-`ci.yml` are the ones CI runs, on `ubuntu-24.04`. [CONTRIBUTING.md](../CONTRIBUTING.md) says: "The Zephyr
-builds and the Twister runs happen in CI only. This repository describes no local Zephyr build". So this
-page does not promise that the Zephyr commands work on your machine, and it makes no statement about how
-long they take or how much disk they use, because nothing in the repository says.
+Everything below runs on Linux: Ubuntu 24.04 (the CI image), native or under WSL2. On Windows use WSL2 and work
+in the Linux file system (your home directory), not under `/mnt/c`: the builds are slow and file modes can
+differ there. Clone with `git clone -c core.autocrlf=false` if your Git for Windows settings could reach the
+clone, because CRLF line ends make `scripts/check-format.sh` fail. CI runs on x86_64 only.
+
+The commands come from the CI workflow (`.github/workflows/ci.yml`, job `S1`, on `ubuntu-24.04`) and from
+[CONTRIBUTING.md](../CONTRIBUTING.md), with the CI-only variables replaced by local values. What was run
+locally, and what was not, is in [What has been checked](#what-has-been-checked). CI stays the reference:
+a local result is a convenience and does not replace the CI result that a pull request cites.
 
 ## What `native_sim` is
 
@@ -25,34 +28,40 @@ runner, for the platform `native_sim/native/64`.
 
 ## What you need first
 
-At a high level, as the workflow sets it up:
-
 - A west workspace. The repository is the west manifest repository: it imports `crux-pilot` at a pinned
   commit, which brings Zephyr and the Zephyr modules, and adds the test-only project `picolibc` for the S2
-  scenario (the S5 scenario's `prj.conf` also selects it). `docs/dependencies.md` explains the manifest and the pin, and the pin section of
-  [CONTRIBUTING.md](../CONTRIBUTING.md) explains how it moves.
+  scenario (the S5 scenario's `prj.conf` also selects it). `docs/dependencies.md` explains the manifest and
+  the pin, and the pin section of [CONTRIBUTING.md](../CONTRIBUTING.md) explains how it moves.
 - The Python packages of Zephyr's base, build-test and run-test requirements, `west` 1.4.0, CMake 3.28.4 and
-  Ninja 1.11.1 (the versions that the `S1` job installs).
-- A host toolchain and the host packages that the `S1` job installs, listed in the first block below.
-- The job also installs a Zephyr SDK, version 1.0.1, with the `arm-zephyr-eabi` toolchain. Whether a
-  `native_sim` run alone needs it is not verified here.
+  Ninja 1.11.1 (the versions that the `S1` job installs), in one virtual environment for the workspace.
+- A host toolchain and the host packages that the `S1` job installs, plus `python3-venv`, which the job does
+  not need because `actions/setup-python` provides Python. Ubuntu 24.04 refuses `pip install` into the system
+  Python (PEP 668), so do not skip the virtual environment.
+- The Zephyr SDK 1.0.1 with the `arm-zephyr-eabi` toolchain, which the `S1` job installs before it runs
+  Twister. It is needed for the board build. Whether a `native_sim` run alone needs it was not tested;
+  install it anyway, as CI does.
+- Free disk space for Zephyr, its modules and the SDK. Nothing in the repository states a size.
 
-The `S1` job's setup, copied from `ci.yml`. In CI the repository is checked out into a directory named
-`crux-controller` in the workspace directory, and the commands below run from the workspace directory, one
-level above the checkout:
+The workspace directory holds the clone, the `.west` directory, `zephyr/`, `modules/` and the virtual
+environment. The clone must be named `crux-controller`, because `west.yml` sets `self: path: crux-controller`
+and a test pins it. Do not clone into your home directory itself: `west init -l` would put `.west`, `zephyr/`
+and `modules/` there.
 
 ```bash
 sudo apt-get update
 sudo apt-get install -y --no-install-recommends \
   build-essential gcc-multilib ca-certificates device-tree-compiler file gperf git \
-  libmagic1 libsdl2-dev pkg-config python3-dev wget xz-utils
+  libmagic1 libsdl2-dev pkg-config python3-dev python3-venv wget xz-utils
 ```
 
+`gcc-multilib` is in the CI list, and CI runs on x86_64 only. The package does not exist on arm64 hosts, and
+whether `native_sim/native/64` builds and runs on an arm64 host was not checked.
+
 ```bash
+mkdir -p ~/crux-ws && cd ~/crux-ws
+git clone https://github.com/wonny-labs/crux-controller.git crux-controller
+python3 -m venv .venv && . .venv/bin/activate
 python -m pip install cmake==3.28.4 ninja==1.11.1 west==1.4.0
-```
-
-```bash
 west init -l crux-controller
 west update
 python -m pip install -r zephyr/scripts/requirements-base.txt \
@@ -60,35 +69,84 @@ python -m pip install -r zephyr/scripts/requirements-base.txt \
   -r zephyr/scripts/requirements-run-test.txt
 ```
 
-The SDK step of the job, which runs from the `zephyr` directory, only when its cache misses, with
-`SDK_VERSION` set to `"1.0.1"` and `GH_TOKEN` set to the workflow's token. `ZEPHYR_SDK_INSTALL_DIR` is
-`<workspace>/sdk/zephyr-sdk-1.0.1`:
+`west update` fetches Zephyr and the modules from GitHub. It takes a while and uses a lot of disk.
+
+The SDK step. CI runs it from the `zephyr` directory, with the version and the install base taken from the
+workflow's variables, and passes the workflow's token. Locally the values are concrete, and the token is not
+needed (it only avoids GitHub's rate limit for anonymous requests; add `--personal-access-token` with your own
+token if you hit it):
 
 ```bash
-west sdk install --version "$SDK_VERSION" --install-base "$GITHUB_WORKSPACE/sdk" \
-  --gnu-toolchains arm-zephyr-eabi --personal-access-token "$GH_TOKEN"
+cd zephyr
+west sdk install --version 1.0.1 --install-base "$HOME" --gnu-toolchains arm-zephyr-eabi
+cd ..
+export ZEPHYR_SDK_INSTALL_DIR="$HOME/zephyr-sdk-1.0.1"
+export ZEPHYR_BASE="$PWD/zephyr"
 ```
+
+The two `export` lines mirror the `env` of the CI steps. Every later command on this page runs from
+`~/crux-ws` with the virtual environment active (`. .venv/bin/activate`) and, for Twister, with these two
+variables set, unless a section says to use the repository root. Paths such as
+`crux-controller/tests/native_sim` are relative to `~/crux-ws`.
 
 ## Run the S1 to S5 scenarios
 
 One command runs every scenario, because it points Twister at the whole `tests/native_sim` directory. The
-job sets `ZEPHYR_BASE` to `<workspace>/zephyr` for it:
+job sets `ZEPHYR_BASE` to `<workspace>/zephyr` for it, as the `export` above does:
 
 ```bash
 west twister -p native_sim/native/64 -T crux-controller/tests/native_sim \
   --inline-logs --clobber-output -O twister-out
 ```
 
-The repository contains no command that runs one scenario alone, and this page does not invent one.
-
-The S6 scenario is in a sibling directory, `tests/native_sim_mbed`, so that this command never selects it in a
-workspace that has no Mbed TLS modules. The `S6 build` job runs it with the group `crux-secure-management` switched on in
-its own runner, after `scripts/check_mbed_only.py` has checked that only the Mbed TLS modules would be fetched:
+To run one scenario, point `-T` at its directory. This is ordinary Twister usage and was not run for this
+page (each directory holds one `testcase.yaml`; S3, S4 and S5 build one image per case):
 
 ```bash
+west twister -p native_sim/native/64 -T crux-controller/tests/native_sim/s1 \
+  --inline-logs --clobber-output -O twister-out-s1
+```
+
+A pass ends with lines like these. They are quoted from the CI log of the `ci` run for `main` at `fa11293`
+(17 November 2026), where Twister ran the whole directory:
+
+```text
+INFO    - 17 of 17 executed test configurations passed (100.00%), 0 built (not run), 0 ...
+INFO    - 31 of 31 executed test cases passed (100.00%) on 1 out of total ... platforms ...
+```
+
+Counts change when a scenario is added, so read them as an example. The tail of the Twister output is what to
+compare, together with the Twister ids in the table below: all 17 must be present and passed, and a count
+lower than the table lists means that a scenario did not run.
+
+The S6 scenario is in a sibling directory, `tests/native_sim_mbed`, so that this command never selects it in a
+workspace that has no Mbed TLS modules. The default workspace above does not have them: the group
+`crux-secure-management` is off in `west.yml`, and the S6 build fails without the modules. The `S6 build` job
+switches the group on in its own runner, after `scripts/check_mbed_only.py` has checked that only the Mbed TLS
+modules would be fetched. To run S6 locally, repeat those steps (from `ci.yml`) in your workspace, with the
+virtual environment active:
+
+```bash
+west list --all -f '{name} {active}' > list-default.txt
+python crux-controller/scripts/check_mbed_only.py --mode default < list-default.txt
+west config --local manifest.group-filter -- +crux-secure-management
+west list --all -f '{name} {active}' > list-mbed.txt
+python crux-controller/scripts/check_mbed_only.py --mode mbed --baseline list-default.txt < list-mbed.txt
+west update
+for name in wolfssl wolfssh wolfpsa; do test ! -e "modules/crypto/$name" || echo "unexpected $name"; done
+for name in mbedtls tf-psa-crypto; do test -d "modules/crypto/$name" || echo "missing $name"; done
 west twister -p native_sim/native/64 -T crux-controller/tests/native_sim_mbed \
   --inline-logs --clobber-output -O twister-out-s6
+west config --local -d manifest.group-filter
 ```
+
+The two `for` loops are CI's check after the fetch (CI exits on a finding; here they print a line): no wolf
+project may be on disk and both Mbed modules must be. The checks before `west update` stop the run if the group would fetch anything beyond the Mbed TLS modules. The
+fetch adds Mbed TLS and TF-PSA-Crypto, which are distributed as Apache-2.0 OR GPL-2.0-or-later. The last line
+puts the workspace back to the default filter; the fetched modules stay on disk. CI also installs the same
+Python requirement files after this `west update`, which the first setup already did. A passing run prints
+`1 of 1 executed test configurations passed` and `10 of 10 executed test cases passed`, as in the CI log of
+the same run.
 
 It is one image with ten ordered cases: the start sequence, the certificate, a TLS 1.3 handshake that the client
 verifies, a TLS 1.2-only client that is refused, plain HTTP that is not answered, the page bytes and four requests of
@@ -113,11 +171,11 @@ The scenarios that this command finds, by their ids in the `testcase.yaml` files
 
 S3, S4 and S5 build one image per case (a build variable such as `S5_CASE`), so one `west twister` run builds
 one image per Twister id in the table. What a scenario can and cannot show is stated in its findings note and in the
-header of its test source; for example, the simulator has no watchdog, so S4's scenario shows no feed cycle.
+header of its test source; for example, S4's scenario does not enable the simulated watchdog of the pinned Crux, so it shows no feed
+cycle.
 
-What a passing run looks like: no file in the repository states what a passing Twister run prints, so this
-page does not either. The CI job runs the command above as one step and its next steps build for the board;
-read the checks of a commit on GitHub for the real outcome.
+The `S1` job runs the command above as one step and its next steps build for the board. Read the checks of
+a commit on GitHub for the real outcome.
 
 ## Run the host tests
 
@@ -132,35 +190,70 @@ ctest --test-dir build/host --output-on-failure
 ```
 
 ```bash
-cmake -S tests/host -B build/host -G Ninja -DWORKLOAD_SANITIZE=ON
-cmake --build build/host
-ctest --test-dir build/host --output-on-failure
+cmake -S tests/host -B build/host-asan -G Ninja -DWORKLOAD_SANITIZE=ON
+cmake --build build/host-asan
+ctest --test-dir build/host-asan --output-on-failure
 ```
 
-In these two commands the second run reuses the build directory of the first (in CI each matrix leg
-starts on a fresh runner); whether to delete it between runs is not stated
-anywhere in the repository. These commands run from the repository root (the `Host tests` job checks the
-repository out without a separate path). The host tests are `tests/host/test_workload.c`,
-`test_net_client.c`, `test_health_policy.c` and `test_time_sync_policy.c`. Each of the four ends by printing
+Use a different build directory for the second run (for example `build/host-asan`) so that it does not reuse the
+first one; CI starts each matrix leg on a fresh runner. These commands run from the repository root
+(`~/crux-ws/crux-controller`; the `Host tests` job checks the repository out without a separate path). They need
+CMake 3.20 or newer, Ninja and a C compiler; the virtual environment above provides the first two. One host
+test, `test_net_client`, listens on the fixed address `127.0.0.1:42431`, so two runs at the same time fail
+with "cannot listen".
+
+The host tests are `tests/host/test_workload.c`, `test_net_client.c`, `test_health_policy.c`,
+`test_time_sync_policy.c` and `test_management_policy.c`. Each of the five ends by printing
 `<n> checks, <m> failures` and returns a non-zero exit status when `m` is not zero; that is what their
-source says. So a passing host test prints `0 failures`.
+source says. A passing run of the five prints `0 failures` for each, and CTest ends with
+`100% tests passed, 0 tests failed out of 5` (the line in the CI log of the run named above).
 
 ## Run the tooling tests and the boundary check
 
 These are Python tests of the scripts, workflows, documents and build files, plus the include check.
-[CONTRIBUTING.md](../CONTRIBUTING.md) describes them as the checks that run locally. The commands, as it
-gives them (CI installs `pyyaml` and runs the same `unittest` command with Python 3.12):
+[CONTRIBUTING.md](../CONTRIBUTING.md) describes them as the checks that run locally. They need only PyYAML. From
+the repository root, with the workspace virtual environment active (or a new one, as CONTRIBUTING shows):
 
 ```bash
-python3 -m venv .venv && . .venv/bin/activate && python -m pip install pyyaml
+cd ~/crux-ws/crux-controller
+python -m pip install pyyaml
 python -m unittest discover -s tests/tooling -v
 python scripts/check_boundary.py
 ```
+
+A pass ends the test run with `Ran <n> tests` and `OK`, and the check prints `boundary check passed`.
+
+CI runs a stronger form of the boundary check, against the headers of the pinned `crux-pilot`, and a second
+check from `crux-pilot`. From the workspace directory:
+
+```bash
+cd ~/crux-ws
+python crux-controller/scripts/check_boundary.py --repo crux-controller --crux-root crux-pilot
+python crux-pilot/templates/product/check_domain_includes.py --product crux-controller
+```
+
+Run from the wrong directory, `check_boundary.py` finds none of its trees and fails with status 2 and a message;
+it does not print a pass. [composition-zone.md](composition-zone.md#running-the-check) explains both commands.
 
 ## If something fails
 
 CI is the reference. The checks of a commit on GitHub show the same jobs that these commands come from. A
 failure that appears only on your machine may be a difference in the host, the toolchain or the workspace
 that this page cannot predict; it has no list of such differences. Any change to the boundary lists, the
-workflows or the other protected files is a reviewed change under [CONTRIBUTING.md](../CONTRIBUTING.md), not
-a fix for a local failure.
+workflows or the other files that CONTRIBUTING.md treats as reviewed (a reading aid is in
+[adding-a-step.md](adding-a-step.md#files-that-need-a-reviewed-change)) is a reviewed change under
+[CONTRIBUTING.md](../CONTRIBUTING.md), not a fix for a local failure.
+
+## What has been checked
+
+- At revision `33619dd`, the venv block (`python3 -m venv`, `pip install` of the pinned tools, `west init -l`)
+  was run in a fresh `ubuntu:24.04` container on 18 November 2026 (arm64, Python 3.12.3), after
+  `apt-get install python3-venv python3-dev git ca-certificates`. The clone was copied in from a local checkout,
+  so the `git clone` command and the full `apt-get` package list were not run. It confirmed that there is no
+  `python` command before the virtual environment exists, that `west 1.4.0` installs in it and that
+  `west init -l crux-controller` creates `.west` in the workspace directory.
+- WSL2 was not tested. Only that arm64 `ubuntu:24.04` container ran those steps.
+- Not run for this page: `west update`, the SDK install, Twister, the S6 group steps and the host tests on
+  a fresh machine. Their commands are those of the CI jobs with the variables replaced, and the tooling
+  tests and the boundary commands ran on a macOS host. If a step here fails on your machine, open an issue
+  with the output.

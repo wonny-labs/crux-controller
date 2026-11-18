@@ -40,8 +40,8 @@ flowchart TD
     SRC["app/src<br/>application: behaviour in plain C<br/>declares the port headers"]
     WL["workload/<br/>portable core, ISO C only"]
     OS["app/os<br/>adapter zone<br/>threads, queue, sleep"]
-    COMP["app/compose<br/>composition zone<br/>mount and bind File"]
-    CRUX["Crux public targets<br/>crux::time, logging, sockets, netif, file, system"]
+    COMP["app/compose<br/>composition zone<br/>mount and bind File, start management"]
+    CRUX["Crux public targets<br/>crux::time, logging, sockets, netif, file, system,<br/>access, config_service, mgmt_status, tls_certificate;<br/>web: crux::web, web_session, web_management,<br/>credential_store, security_event;<br/>composition: crux::file_zephyr, crux::web_zephyr"]
     ZEPHYR["Zephyr kernel and file system"]
     SRC -->|includes| WL
     SRC -->|includes| CRUX
@@ -118,7 +118,6 @@ Points that the table cannot carry:
   | Sockets profile and network interface | `crux::sockets`, `crux::netif`, POSIX socket headers | S2 | `app/src/net_client.c` |
   | File | `crux::file`, `<crux/file.h>` in the application; `crux::file_zephyr` and `<crux/file_zephyr.h>` in the composition zone only | S3 | `app/src/config_store.c`, `app/compose/storage_mount.c` |
   | System | `crux::system`, `<crux/system.h>` | S4 | `app/src/health.c` |
-
   | Access, credential store, security events | `crux::access`, `crux::credential_store`, `crux::security_event`, `<crux/access.h>`, `<crux/credential_store.h>`, `<crux/security_event.h>` | S6 | `app/compose/management_start.c` |
   | Configuration service, status service | `crux::config_service`, `crux::mgmt_status` | S6 | `app/compose/management_start.c` |
   | TLS certificate | `crux::tls_certificate`, `<crux/tls_certificate_start.h>` | S6 | `app/compose/management_start.c`, the one file that takes the key material |
@@ -128,8 +127,9 @@ Points that the table cannot carry:
   repository names their symbols. In steps S1 to S5 nothing selects them. The Crux services of S6 need Thread and Sync
   and select them for themselves, so the S6 image has them on. This repository adds no Crux public interface.
 - **Build and board.** Every CI build of the image is for `mimxrt1060_evk@B//qspi` with the *baseline
-  gate* required. The `native_sim` scenarios are the exception: they run on the simulated board. The Zephyr builds and Twister runs happen in CI only; this repository documents no local
-  Zephyr build.
+  gate* required. The `native_sim` scenarios are the exception: they run on the simulated board. CI is the reference for the Zephyr builds and Twister runs;
+  [try-on-native-sim.md](try-on-native-sim.md) gives the CI commands for a local `native_sim` run, and a local
+  result does not replace CI.
 
 ## What runs in the image: threads and scheduling
 
@@ -185,11 +185,11 @@ Top-level directories and files:
 | `app/` | The Zephyr application, described below. |
 | `workload/` | The portable workload core (`include/workload.h`, `src/config_record.c`, `src/cycle.c`, `src/message.c`) and its `CMakeLists.txt`. |
 | `tests/` | `host/` (C tests that run on the build host), `native_sim/` (one Zephyr test application per step, S1 to S5), `native_sim_mbed/` (the S6 test application, which needs the Mbed TLS modules), `tooling/` (Python tests of the scripts, workflows, documents and build files). |
-| `scripts/` | `check_boundary.py` (the include check) and `check_mbed_only.py` (checks that the Crux import cannot activate the GPL stacks). |
+| `scripts/` | `check_boundary.py` (the include check), `check_mbed_only.py` (checks that the Crux import cannot activate the GPL stacks), `analyze_host.py` (clang-tidy over the host-built sources) and `check-format.sh` (clang-format over every tracked C file). |
 | `budgets/` | `limits.json` (declared minimum free percent per memory region and step), `collect.py` (reads a build log into a measurement), `check.py` (compares a measurement with the limits). |
 | `release/` | The release bundle tools: `assemble_bundle.py`, `check_bundle.py`, `rebuild_compare.py`, `parse_spdx.py` and `release-manifest.schema.json`. Hashes and identities only; no image is ever published. |
 | `docs/` | This documentation: [architecture.md](architecture.md), [glossary.md](glossary.md), [adding-a-step.md](adding-a-step.md), [roadmap.md](roadmap.md), [try-on-native-sim.md](try-on-native-sim.md), [board-bring-up.md](board-bring-up.md), [composition-zone.md](composition-zone.md), [dependencies.md](dependencies.md) and `findings/`. |
-| `.github/workflows/` | `ci.yml` (tooling tests, west pins, host tests, the step builds and the boundary check), `budget.yml`, `rebuild.yml`, `release.yml`, `scheduled-main.yml`. |
+| `.github/workflows/` | `ci.yml` (tooling tests, west pins, host tests, the S0 to S6 builds, the boundary check and static analysis), `budget.yml`, `rebuild.yml`, `release.yml`, `scheduled-main.yml`. |
 | `west.yml` | The west manifest and the pin. |
 | `README.md`, `CONTRIBUTING.md`, `CHANGELOG.md`, `RELEASE.md`, `SECURITY.md`, `LICENSE`, `CODEOWNERS` | Role and status, contribution rules, changes, release flow, vulnerability reporting, licence, ownership. |
 

@@ -146,6 +146,6 @@ doubtful one.
 - Anything that needs authorisation, including the programming, reset and power operations themselves.
 - A qualification, a performance measurement, or the physical behaviour of the board beyond what the S2 note
   records.
-- Any image other than S2 (S3, S4 and S5 are mentioned above only to say they have not run).
+- Any image other than S2 (S3, S4, S5 and S6 are mentioned above only to say they have not run).
 - A cold power cycle. The S2 note lists it as not shown: its runs restarted the image by programming and
   reset.

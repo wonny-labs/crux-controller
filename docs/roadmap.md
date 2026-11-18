@@ -34,12 +34,13 @@ board bring-up would go, not yet run for this controller, is in [board-bring-up.
 | S1 | The synthetic workload on two Zephyr threads and a message queue in the adapter zone `app/os`, with Crux Time and Logging | A `native_sim` scenario that reads the logged messages from an emulated UART, host tests of the portable workload core, and a CI build for the board. |
 | S2 | Each message is also sent to a TCP peer over the Crux Sockets profile | A `native_sim` scenario over loopback (it needs the test-only `picolibc` project), host tests of the exchange against a loopback peer, a CI build for the board. It is the only image that has run on a board. |
 | S3 | The configuration record is kept in a file through Crux File, mounted by the composition zone | A `native_sim` scenario with the simulator provider on a RAM disk, and a CI build for the board with the FatFs provider on microSD. No card was used. |
-| S4 | The reset cause is logged at boot, and a watchdog is fed once for each pass of the workload that has cycles due, through Crux System | A `native_sim` scenario that shows the boot line and an unavailable watchdog (the simulator has none, so no feed cycle), host tests of the policy, and a CI build for the board with WDOG1 named by a devicetree alias. |
+| S4 | The reset cause is logged at boot, and a watchdog is fed once for each pass of the workload that has cycles due, through Crux System | A `native_sim` scenario that shows the boot line and an unavailable watchdog (the scenario does not enable the simulated watchdog of the pinned Crux, so no feed cycle), host tests of the policy, and a CI build for the board with WDOG1 named by a devicetree alias. |
 | S5 | The Crux Time realtime clock is set from an SNTP server on the S2 network, by a low-priority thread, and a product policy decides what an answer may do | `native_sim` scenarios with a UDP responder on loopback, in seven cases (each case is its own image), host tests of the policy, and a CI build for the board on the S2 base. No board run. |
 | S6 | HTTPS management on the S2 network: Crux Access, the web server on the Mbed TLS profile, the status and configuration services and a packaged page, on a RAM disk | One `native_sim` image with ten ordered cases (a TLS 1.3 handshake that an in-process client verifies, the page bytes and the login path up to a rejected attempt), host tests of the address parser, and a CI build for the board with the Mbed TLS group switched on in its own runner. No board run, no account and no successful login. |
 
-On the S4 row: a simulated watchdog exists in Crux at revision 35431b1e, which is after this repository's
-pin. Whether the S4 scenario could use it has not been checked, and nothing is decided or scheduled.
+On the S4 row: a simulated `native_sim` watchdog (`CONFIG_CRUX_SYSTEM_NATIVE_SIM_WATCHDOG`) is in the pinned
+Crux, because Crux revision 35431b1e is an ancestor of the pin. The S4 scenario does not enable it, so it shows no
+feed cycle. Using it is not decided or scheduled.
 
 Around the steps:
 

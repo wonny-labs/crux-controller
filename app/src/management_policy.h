@@ -13,13 +13,14 @@
  *                    "access.self" (not listed here: every role holds it implicitly).
  *   "config.save"    named by the route table of docs/management-in-a-product.md. The macro that
  *                    carries it, CRUX_CONFIG_SERVICE_PERMISSION_SAVE in crux/config_service.h, was
- *                    read by the author only.
- *   "status.read"    CRUX_MGMT_STATUS_PERMISSION_READ in crux/management_status.h, read by the
- *                    author only; no second source states the value.
- * The two strings that rest on the author's reading are to be confirmed against the header by the
- * composition that passes this data to Crux. An earlier version of this comment asked that
- * composition to assert the equality at build time. It is a start-time refusal instead: the
- * composition passes the three Crux macros to management_permission_names_match() below and
+ *                    read from that header at the pinned revision.
+ *   "status.read"    CRUX_MGMT_STATUS_PERMISSION_READ in crux/management_status.h, read from that
+ *                    header at the pinned revision; no second source states the value.
+ * Both readings are backed at run time: the composition checks all three names against the Crux
+ * macros with management_permission_names_match() at start and refuses on a mismatch, and the S6
+ * native_sim scenario, which runs that start, passes in CI. An earlier version of this comment
+ * asked the composition to assert the equality at build time. It is a start-time refusal instead:
+ * the composition passes the three Crux macros to management_permission_names_match() below and
  * refuses to start on a false answer. Two string literals cannot be compared by the preprocessor
  * or the compiler in ISO C, so no build-time check does it. The mismatch path of the function has a
  * host test; the composition's refusal on it has no test that runs without Zephyr.
@@ -48,7 +49,7 @@
 
 /*
  * The longest version text that the status service accepts, without the terminator. Not verified
- * beyond the author's reading of the comment of crux/management_status.h, which says 63 bytes under
+ * beyond the comment of crux/management_status.h at the pinned revision, which says 63 bytes under
  * a character rule; no other source was checked.
  */
 #define MANAGEMENT_VERSION_LENGTH_MAX 63u
