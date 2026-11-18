@@ -40,7 +40,7 @@ Read these five documents in this order. They take about 60 minutes in full.
 [docs/README.md](docs/README.md) is the index: it lists every page with its reading time and gives a short path
 for each task (run it, change code, add a step, review, understand why).
 
-1. This README (about 8 minutes): what the repository is, its state and its boundary rules.
+1. This README (about 10 minutes): what the repository is, its state and its boundary rules.
 2. [docs/roadmap.md](docs/roadmap.md) (about 12 minutes): what each step does, what has run on a board and what
    has not. If you are short of time, read "Short version" and "What exists on `main`" first.
 3. [docs/architecture.md](docs/architecture.md) (about 12 minutes): the four source trees, the threads and how
