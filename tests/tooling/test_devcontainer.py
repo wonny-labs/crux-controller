@@ -87,6 +87,33 @@ class Dockerfile(unittest.TestCase):
         for word in ("COPY ", "ADD ", "docker.sock", "host.docker.internal"):
             self.assertNotIn(word, self.text)
 
+    PROXY_NAMES = ("HTTP_PROXY", "http_proxy", "HTTPS_PROXY", "https_proxy", "NO_PROXY", "no_proxy")
+
+    def test_the_comment_says_what_the_test_checks_about_the_digest(self):
+        # The test checks that the base image is pinned by a digest. It does not compare the digest with
+        # anything, so the comment must not say that it checks the digest.
+        self.assertNotIn("checks the digest", self.text)
+        self.assertIn("checks that the base image is pinned by digest", " ".join(self.text.split()))
+
+    def test_ca_certificates_and_curl_are_installed(self):
+        for package in ("ca-certificates", "curl"):
+            self.assertRegex(self.text, rf"(?m)^\s+{package}( \\)?$")
+
+    def test_the_proxy_settings_are_optional_build_arguments(self):
+        first_run = self.text.index("\nRUN ")
+        for name in self.PROXY_NAMES:
+            match = re.search(rf"(?m)^ARG {name}$", self.text)
+            self.assertIsNotNone(match, name)  # no default value: unset unless the build passes it
+            self.assertLess(match.start(), first_run, name)
+
+    def test_no_proxy_value_is_stored_in_the_image_environment(self):
+        # ARG only: an ENV line would keep the proxy of the company that built the image in every container.
+        environment = re.findall(r"(?m)^ENV (?:[^\n]*\\\n)*[^\n]*$", self.text)
+        self.assertTrue(environment)
+        for block in environment:
+            self.assertNotIn("proxy", block.lower())
+        self.assertNotRegex(self.text, r"(?im)^(ENV|LABEL)\b.*proxy")
+
     def test_the_image_selects_the_sdk_and_the_virtual_environment(self):
         self.assertIn("ZEPHYR_SDK_INSTALL_DIR=/opt/crux-cache/sdk/zephyr-sdk-${ZEPHYR_SDK_VERSION}", self.text)
         self.assertIn("/opt/crux-cache/venv/bin", self.text)
@@ -282,6 +309,33 @@ class DevcontainerJson(unittest.TestCase):
             "target=/opt/crux-cache" in mount and "type=volume" in mount
             and "${devcontainerId}" in mount for mount in self.data["mounts"]
         ), self.data["mounts"])
+
+    PROXY_NAMES = ("HTTP_PROXY", "http_proxy", "HTTPS_PROXY", "https_proxy", "NO_PROXY", "no_proxy")
+
+    def test_it_has_a_clear_name(self):
+        self.assertIn("Crux Controller", self.data["name"])
+
+    def test_the_proxy_settings_of_the_host_reach_the_build_and_the_container(self):
+        # An unset host variable gives an empty string, which the build argument and setup.sh both
+        # treat as "no proxy".
+        for section in (self.data["build"]["args"], self.data["containerEnv"]):
+            for name in self.PROXY_NAMES:
+                self.assertEqual("${localEnv:%s}" % name, section[name], name)
+
+    def test_the_github_token_of_the_host_reaches_the_container_tools(self):
+        self.assertEqual({"GH_TOKEN": "${localEnv:GH_TOKEN}"}, self.data["remoteEnv"])
+
+    def test_the_layout_is_checked_on_the_host_before_the_container_is_created(self):
+        command = self.data["initializeCommand"]
+        self.assertEqual("bash .devcontainer/check-host.sh", command)  # bash, so a lost execute bit does not matter
+        self.assertTrue((DEVCONTAINER / "check-host.sh").is_file())
+
+    def test_the_mounts_and_the_run_arguments_are_unchanged(self):
+        self.assertEqual(["source=crux-controller-dev-cache-${devcontainerId},target=/opt/crux-cache,type=volume"],
+                         self.data["mounts"])
+        self.assertEqual("source=${localWorkspaceFolder}/..,target=/workspaces/ws,type=bind",
+                         self.data["workspaceMount"])
+        self.assertEqual(["--platform=linux/amd64"], self.data["runArgs"])
 
     def test_the_setup_script_runs_after_creation(self):
         self.assertEqual("bash .devcontainer/setup.sh", self.data["postCreateCommand"])
