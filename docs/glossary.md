@@ -38,8 +38,8 @@ this entry records how they use it. `docs/findings/management-has-no-public-comp
 that "Stage 2 steps and their findings" are tracked in the repository's own issues under an epic, and
 lists S4 among the epic's children, so S4 is a Stage 2 step. Nothing places S5 in a stage: its README
 text names no stage, and it arrived with
-[wonny-labs/crux-controller#50](https://github.com/wonny-labs/crux-controller/pull/50). The comment at
-`west.yml` line 18 ("chosen for Stage 1") is historical. One use differs from the rest:
+[wonny-labs/crux-controller#50](https://github.com/wonny-labs/crux-controller/pull/50). The header comment of
+`west.yml` (line 3, "in Stage 1") is historical. One use differs from the rest:
 `docs/findings/file-binding-has-no-public-header.md` (line 21) says S3 "is not built in Stage 1",
 a note from before S3 was built. Treat the stage number as a label of when something was planned, not
 as a property of the code. One other use is unrelated: `docs/findings/s2-first-board-run.md` says "an
@@ -60,7 +60,7 @@ in `scripts/check_boundary.py`), and no Sockets profile, POSIX or composition he
 **Composition zone.** The directory `app/compose`. The one place that mounts a file system and binds it
 to Crux File with the composition interface `<crux/file_zephyr.h>`, and the place that starts HTTPS management with
 the Web composition interface `<crux/web_zephyr.h>` (S6). It may include three Zephyr headers,
-`zephyr/fs/fs.h`, `zephyr/devicetree.h` and `zephyr/net/tls_credentials.h`. It implements the port header `app/src/storage_port.h`.
+`zephyr/fs/fs.h`, `zephyr/devicetree.h` and `zephyr/net/tls_credentials.h`. It implements the port headers `app/src/storage_port.h` and `app/src/management_port.h` (S6).
 "Composition" in this repository's documents means product code that joins Crux components to the
 board and the OS; the Crux definition itself was not read for this page. Do not confuse
 `app/src/composition.c`, which starts the steps, with the zone.
@@ -72,7 +72,7 @@ under `components/*/ports/*/include/crux/`, apart from the public headers. `app/
 not include one.
 
 **Port header.** A header in `app/src` that the application declares and a zone implements:
-`workload_os.h` and `time_sync_port.h` (both implemented in `app/os`) and `storage_port.h` (implemented in `app/compose`). It includes
+`workload_os.h` and `time_sync_port.h` (both implemented in `app/os`) `storage_port.h` and `management_port.h` (S6) (both implemented in `app/compose`). It includes
 ISO C only, so it stays inside the rules of `app/src`. The application calls it; the linker joins the
 two sides.
 
@@ -117,7 +117,7 @@ step (placeholder values, 25 percent). It measures size only, not stack use, hea
 step needs a row in the limits file first, because the checker fails a step that has none.
 
 **`native_sim`.** Zephyr's simulated board, run on the build host. CI runs the scenarios in
-`tests/native_sim` with Twister for `native_sim/native/64`. Each scenario is a Zephyr ztest application
+`tests/native_sim` and `tests/native_sim_mbed` (S6) with Twister for `native_sim/native/64`. Each scenario is a Zephyr ztest application
 that compiles chosen sources of `app/` and `workload/`; none boots the board image. A `native_sim`
 pass is not evidence about the board: for example S4's scenario does not enable the simulated watchdog of the pinned
 Crux, so no feed cycle is shown there.
@@ -149,8 +149,8 @@ written.
 - Step and stage, as above: no document defines the stages, S5 is in none, and
   `docs/findings/file-binding-has-no-public-header.md` line 21 says S3 "is not built in Stage 1", a note
   kept as written from before S3 was built, while the management finding calls S3 a
-  Stage 1 step. The comment at `west.yml` line 18 says the pin was chosen "for Stage 1"; it is historical,
-  and the pin serves all six steps.
+  Stage 1 step. The header comment of `west.yml` (line 3) says that no group is enabled "in Stage 1"; it is historical,
+  and the pin serves all seven steps.
 - `app/conf/s3.conf` line 3 and `app/conf/s4.conf` line 3 say that S3 and S4 are built on S1 without the
   other steps. That agrees with `app/Kconfig`, which says that S2, S3 and S4 build on S1 and S5 on S2.
 - The CI job named `S1 (native_sim and RT1060-EVKB)` (`ci.yml` line 147) also runs the `native_sim`

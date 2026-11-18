@@ -113,6 +113,15 @@ twice on a board (see `docs/findings/s2-first-board-run.md`); nothing else has r
 
 ### Documents
 
+- Corrections of earlier entries of this section, which were true when written and are not rewritten: the
+  entries about the `crux-pilot` pin and the Mbed TLS group ("no job enables the group", "stays off in every
+  job", "no controller code uses them yet") describe the repository before step S6. Since S6, the `S6 build` job
+  and the S6 `Budget` row switch the group on in their own runner, and `app/compose/management_start.c` uses
+  the management headers. The "groundwork for a later step S6" entry also predates S6: `management_policy` and
+  `management_port.h` are now built into the S6 image. The documents `docs/dependencies.md`,
+  `docs/try-on-native-sim.md`, `docs/roadmap.md`, `docs/glossary.md` and `docs/architecture.md` were corrected
+  to match, and the try-on page now gives commands for Ubuntu and WSL2. The boundary check fails, with status
+  2 and a message, when none of its four trees exists under `--repo`.
 - The finding on the S2 board runs (`docs/findings/s2-first-board-run.md`) records a second run on
   12 November 2026 with the same S2 image on the same bench: the link, ping, S2 log and restore
   checks reproduced those of the first run. That is two runs on one bench; it shows no S2 timing,

@@ -32,7 +32,7 @@ flowchart TD
 
 | Project | Revision | Route | Why it is here | Licence as the project states it |
 |---|---|---|---|---|
-| `crux-pilot` | `8e3737d25d048b14a00c01da00494f58a62958c6` (a commit, no Crux tag exists) | The platform itself: pinned in `west.yml`, its manifest is imported | The Crux components, the composition interface `<crux/file_zephyr.h>` and the public management headers; no code of this repository uses the management headers yet. At this pin the Mbed TLS modules of the optional group are at the revisions of Zephyr's v4.4-branch (Mbed TLS 4.1.1 plus 8 commits, TF-PSA-Crypto 1.1.1 plus 24 commits), which are not fetched here | Apache-2.0 |
+| `crux-pilot` | `8e3737d25d048b14a00c01da00494f58a62958c6` (a commit, no Crux tag exists) | The platform itself: pinned in `west.yml`, its manifest is imported | The Crux components, the composition interface `<crux/file_zephyr.h>` and the public management headers, which step S6 uses in `app/compose/management_start.c`. At this pin the Mbed TLS modules of the optional group are at the revisions of Zephyr's v4.4-branch (Mbed TLS 4.1.1 plus 8 commits, TF-PSA-Crypto 1.1.1 plus 24 commits), which only the S6 job and the S6 Budget row fetch, in their own runner | Apache-2.0 |
 | `zephyr` | `dccb09599635bdff17633fa7e9dab014b91dce90` (v4.4.2) | Pinned via the Crux contract | The RTOS the image is built on | Apache-2.0 |
 | `cmsis` | `512cc7e895e8491696b61f7ba8066b4a182569b8` | Pinned via the Crux contract | Arm Cortex-M core headers that Zephyr's Cortex-M support uses | Apache-2.0 |
 | `cmsis_6` | `30a859f44ef8ab4dc8f84b03ed586fd16ccf9d74` | Pinned via the Crux contract | Arm core headers of the newer CMSIS interface, which Zephyr's manifest also names | Apache-2.0 |
@@ -46,12 +46,12 @@ why `west crux-pins` reports it as `OK`.
 
 ## Groups that stay off
 
-The Crux manifest defines three optional groups and filters all of them out. This repository does not enable
-them, and CI would show a change in `west crux-pins` and in the lock.
+The Crux manifest defines three optional groups and filters all of them out. This repository keeps them off in
+`west.yml`, and CI would show a change in `west crux-pins` and in the lock.
 
 | Group | What it would fetch | Why it stays off |
 |---|---|---|
-| `crux-secure-management` | With the narrowed import below, the Mbed TLS modules only. In the Crux manifest the group also holds wolfSSL, wolfSSH and wolfPSA, which are available under GPL or commercial terms | Left off by decision: those terms are not the Apache-2.0 terms of this repository, and the Mbed TLS modules are not needed by any step yet |
+| `crux-secure-management` | With the narrowed import below, the Mbed TLS modules only. In the Crux manifest the group also holds wolfSSL, wolfSSH and wolfPSA, which are available under GPL or commercial terms | Off in `west.yml`, because the wolf projects are not under the Apache-2.0 terms of this repository and stay out by the name blocklist. Step S6 needs the Mbed TLS modules, so the `S6 build` job and the S6 `Budget` row switch the group on in their own runner, after `scripts/check_mbed_only.py` has checked the resolved project list |
 | `crux-reliance` | The Reliance Edge file system | Source under GPLv2, left off by the same decision |
 | `crux-boot` | MCUboot (`mcuboot`), Apache-2.0 | Crux filters it out only to keep an ordinary workspace's fetch small; this repository has no boot step and does not enable it |
 
@@ -82,7 +82,7 @@ At the pin of 16 November 2026 the Crux manifest differs from the previous pin o
 `tf-psa-crypto` (and in the comment above them). The three optional groups and the projects in them are the same, so the
 narrowed import and the checks above did not need a change. The two revisions are not those of Zephyr's own manifest at
 v4.4.2 but those of Zephyr's v4.4-branch after that release (Mbed TLS 4.1.1 plus 8 commits, TF-PSA-Crypto 1.1.1 plus 24 commits); that is Crux's choice
-and is reviewed in `docs/dependency-review-mbed-tls-4.1.1.md` of `crux-pilot`. This repository does not fetch them.
+and is reviewed in `docs/dependency-review-mbed-tls-4.1.1.md` of `crux-pilot`. Only the S6 job and the S6 Budget row fetch them.
 
 ## Changing a pin
 
