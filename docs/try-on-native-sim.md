@@ -20,7 +20,11 @@ a local result is a convenience and does not replace the CI result that a pull r
 ## Why the evidence comes from CI
 
 [CONTRIBUTING.md](../CONTRIBUTING.md) requires that the Zephyr builds, the Twister runs and the budget numbers that
-a pull request cites come from CI. It states the rule and gives no reason. What the repository's own files show:
+a pull request cites come from CI. Its sentence is: "This repository describes no local Zephyr build, so a change to
+`app/`, `conf`, overlays or `tests/native_sim` takes its evidence from CI, and the pull request says so." It gives no
+reason beyond that. This page does give local commands, as a convenience only; the rule that cited evidence comes
+from CI is unchanged. CONTRIBUTING's sentence about describing no local build predates this page and is left for a
+separate reviewed change, because a change to CONTRIBUTING.md is a reviewed change. What the repository's own files show:
 
 - CI is one environment with pinned versions: `ubuntu-24.04` on x86_64, Python 3.12, CMake 3.28.4, Ninja 1.11.1,
   west 1.4.0, the Zephyr SDK 1.0.1 and a fixed package list (`.github/workflows/ci.yml`). A reviewer can open the
@@ -28,9 +32,13 @@ a pull request cites come from CI. It states the rule and gives no reason. What 
   the same conditions as the one before it.
 - A local environment differs in ways that matter. For example, GCC in CI rejected a comparison between constants of two
   anonymous enums (`-Werror=enum-compare`) that the Apple clang on a developer's machine had accepted
-  ([adding-a-step.md](adding-a-step.md)). Only x86_64 Ubuntu is covered: an arm64 host and WSL2 are not tested.
+  ([adding-a-step.md](adding-a-step.md)). CI covers only x86_64 Ubuntu; beyond the setup steps listed under
+  [What has been checked](#what-has-been-checked), arm64 and WSL2 are untested.
 - A Zephyr workspace is large. `west update` and the SDK install take a long time and a lot of disk (see
   [What you need first](#what-you-need-first)), so a local build is optional.
+
+GitHub Actions logs expire (the default retention is 90 days), so the run numbers in the Recorded rows of the
+findings and in the roadmap table will stop resolving; that is why the results themselves are copied into those notes.
 
 So the commands below are a convenience for finding a failure before you push. A local pass does not replace the
 CI result in a pull request, and a local failure that CI does not show is a difference in your host to look at, not
