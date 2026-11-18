@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Checks of the repository's role and release documents: the wording the owner approved is
 present, the promises the owner declined are absent, and the dependency page covers west.yml."""
 

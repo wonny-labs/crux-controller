@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Checks of step S5 (time synchronisation over SNTP): its limits, policy, configuration, build
 files, sources, adapter, CI jobs, scenario and findings. Written test first, one slice at a time."""
 

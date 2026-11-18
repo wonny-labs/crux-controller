@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Checks of the OS adapter zone app/os: its build files, its link to the application, the
 provider constants and assertions in its source, and the port header that joins it to app/src."""
 
