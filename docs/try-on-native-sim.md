@@ -17,6 +17,34 @@ The commands come from the CI workflow (`.github/workflows/ci.yml`, job `S1`, on
 locally, and what was not, is in [What has been checked](#what-has-been-checked). CI stays the reference:
 a local result is a convenience and does not replace the CI result that a pull request cites.
 
+## Why the evidence comes from CI
+
+[CONTRIBUTING.md](../CONTRIBUTING.md) says that CI is the reference for the Zephyr builds and the Twister runs, that
+this page gives the CI commands for a local `native_sim` run, that a local result does not replace CI, and that a
+change to `app/`, `conf`, overlays or `tests/native_sim` takes its evidence from CI, with the pull request saying so.
+It states the rule and gives no reason. What the repository's own files show:
+
+- CI is one environment with pinned versions: `ubuntu-24.04` on x86_64, Python 3.12, CMake 3.28.4, Ninja 1.11.1,
+  west 1.4.0, the Zephyr SDK 1.0.1 and a fixed package list (`.github/workflows/ci.yml`). A reviewer can open the
+  same job logs for every change, and a number in them (a size, a Twister count, an image hash) was produced under
+  the same conditions as the one before it.
+- A local environment differs in ways that matter. For example, GCC in CI rejected a comparison between constants of two
+  anonymous enums (`-Werror=enum-compare`) that the Apple clang on a developer's machine had accepted
+  ([adding-a-step.md](adding-a-step.md)). CI covers only x86_64 Ubuntu, and so does the job that runs the
+  [dev container](#dev-container). Apart from the setup steps listed under
+  [What has been checked](#what-has-been-checked), arm64 and WSL2 are untested, and nobody has run the dev container
+  on WSL2.
+- A Zephyr workspace is large. `west update` and the SDK install take a long time and a lot of disk (see
+  [What you need first](#what-you-need-first)), so a local build is optional.
+
+GitHub Actions logs expire (the default retention is 90 days), so the run numbers in the Recorded rows of the
+findings will stop resolving, and so will the logs behind the roadmap table; that is why the results themselves are
+copied into those notes.
+
+So the commands below are a convenience for finding a failure before you push. A local pass does not replace the
+CI result in a pull request, and a local failure that CI does not show is a difference in your host to look at, not
+a reason to change a check.
+
 ## What `native_sim` is
 
 `native_sim` is a simulated Zephyr board. Zephyr builds the application into an ordinary program that runs
@@ -110,8 +138,8 @@ west twister -p native_sim/native/64 -T crux-controller/tests/native_sim/s1 \
   --inline-logs --clobber-output -O twister-out-s1
 ```
 
-A pass ends with lines like these. They are quoted from the CI log of the `ci` run for `main` at `fa11293`
-(17 November 2026), where Twister ran the whole directory:
+A pass ends with lines like these. They are quoted from the CI log of the `ci` run for `main` at revision `fa11293` of the public
+repository (17 November 2026), where Twister ran the whole directory:
 
 ```text
 INFO    - 17 of 17 executed test configurations passed (100.00%), 0 built (not run), 0 ...
@@ -412,7 +440,7 @@ workflows or the other files that CONTRIBUTING.md treats as reviewed (a reading 
 
 ## What has been checked
 
-- At revision `33619dd`, the venv block (`python3 -m venv`, `pip install` of the pinned tools, `west init -l`)
+- The venv block (`python3 -m venv`, `pip install` of the pinned tools, `west init -l`)
   was run in a fresh `ubuntu:24.04` container on 18 November 2026 (arm64, Python 3.12.3), after
   `apt-get install python3-venv python3-dev git ca-certificates`. The clone was copied in from a local checkout,
   so the `git clone` command and the full `apt-get` package list were not run. It confirmed that there is no

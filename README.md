@@ -14,15 +14,50 @@ evaluation and regression testing of Crux Platform capabilities through public a
 composition interfaces. It may provide supporting evidence for relevant platform milestones, but it
 is not a mandatory exit criterion for any of them.
 
-## Where to read next
+## Who this is for, and where to start
 
-- [docs/architecture.md](docs/architecture.md): how the repository is built (layers, zones, how Crux is used).
-- [docs/glossary.md](docs/glossary.md): the terms used here, such as step, stage, adapter zone and pin.
-- [docs/roadmap.md](docs/roadmap.md): what exists, what has run on a board, and what cannot be done yet.
-- [docs/adding-a-step.md](docs/adding-a-step.md): how a new step is added.
-- [docs/try-on-native-sim.md](docs/try-on-native-sim.md): how to see the tests run without a board.
-- [docs/board-bring-up.md](docs/board-bring-up.md): an outline of a board bring-up (not yet run for this controller).
-- [docs/findings/](docs/findings/): what building each step taught about using Crux, and the board-run note.
+This repository is for engineers who build firmware on Crux, review it or extend it, and who have not seen this
+project before. Crux is a reusable embedded software platform for controller and firmware applications: portable C
+components (time, logging, sockets, file, system, secure management and others) with Zephyr integration. It is
+developed and validated in the separate public repository `crux-pilot`. Crux Controller is the consumer of Crux in this
+sense: a small firmware that uses Crux the way a product would, so that a missing or awkward public interface shows
+up as a finding. Nothing here is a product, and the workload is synthetic.
+
+A path of about 30 minutes:
+
+1. This README (5 minutes): what the repository is, its state and its boundary rules.
+2. The "Short version" and the table "What exists on `main`" in [docs/roadmap.md](docs/roadmap.md) (5 minutes):
+   what each step does and what has run on a board and what has not; then its section "Static size per step" for
+   the current static sizes.
+3. [docs/architecture.md](docs/architecture.md) (10 minutes): the four source trees, the threads and how Crux is used.
+4. [docs/try-on-native-sim.md](docs/try-on-native-sim.md) (5 minutes to read): the commands that run the tests without a board.
+5. [CONTRIBUTING.md](CONTRIBUTING.md) (5 minutes): the boundary, the checks, the pin and how a change is reviewed.
+
+On demand: [docs/glossary.md](docs/glossary.md) for terms and roles, [docs/findings/](docs/findings/README.md) for
+what building each step taught about using Crux, [docs/adding-a-step.md](docs/adding-a-step.md) to add a step,
+[docs/dependencies.md](docs/dependencies.md) for what is fetched and under which licence, and
+[docs/board-bring-up.md](docs/board-bring-up.md) for an outline of a board run (not yet run for this firmware).
+
+## Roles and references
+
+- **The owner** (also "the project owner" or "the repository owner") is the maintainer who owns this repository on
+  GitHub; the account in `CODEOWNERS` is the owning account. The owner decides what the documents here reserve:
+  merging a pull request, tags, GitHub Releases and forks ([CONTRIBUTING.md](CONTRIBUTING.md)), the release approval
+  in `RELEASE.md`, filing a request in `crux-pilot`, and any run on a board. A
+  review `PASS` and a green CI result inform these decisions and do not replace them. No rule reserves a change of the
+  pinned Crux revision to the owner; in practice the owner has approved each one (`west.yml` and
+  `tests/tooling/test_manifest.py` record the approval of the current pin). To get a change reviewed, open a
+  pull request as [CONTRIBUTING.md](CONTRIBUTING.md) describes.
+- **The reviewer** is someone who did not write the change and who reads the files and the check results themselves.
+- **The operator** is the person who runs a board procedure on a bench, for example the S2 runs in
+  [docs/findings/s2-first-board-run.md](docs/findings/s2-first-board-run.md), under the owner's approval for that
+  task. No CI job and no script of this repository touches a board.
+- Short hashes, pull request numbers and issue numbers (for example "pull request 50", "#44") name the history of the
+  public repositories `wonny-labs/crux-controller` and `wonny-labs/crux-pilot` on GitHub. A copy of this repository
+  without that history cannot open them. The facts that matter are stated in the text next to them, and the
+  documents do not depend on the content of an issue.
+- The scripts that call Git (`scripts/check-format.sh`, `scripts/analyze_host.py`) need a Git repository. In a copy
+  without `.git`, run `git init && git add -A` first.
 
 ## How to try it
 
@@ -30,8 +65,9 @@ You do not need a board to see the firmware's tests run: the `native_sim` scenar
 [docs/try-on-native-sim.md](docs/try-on-native-sim.md) lists what is needed and the commands, and what a
 passing run does and does not show. CI is the reference for Zephyr builds and Twister runs; the page gives the
 CI commands for a local `native_sim` run on Linux or WSL2, and a local result does not replace the CI result
-in a pull request. Contribution rules and the Python tooling tests are in
-[CONTRIBUTING.md](CONTRIBUTING.md). On Windows with WSL2 and Docker Engine (no Docker Desktop), or on any x86_64 host without Ubuntu 24.04,
+in a pull request. The reason is that CI builds in one pinned environment that every reviewer can open (see
+[Why the evidence comes from CI](docs/try-on-native-sim.md#why-the-evidence-comes-from-ci)). Contribution rules and
+the Python tooling tests are in [CONTRIBUTING.md](CONTRIBUTING.md). On Windows with WSL2 and Docker Engine (no Docker Desktop), or on any x86_64 host without Ubuntu 24.04,
 a dev container can build and test it: CI runs the tooling tests, the host tests, the boundary checks, the
 `native_sim` scenarios and the S1 board cross-build in it. See
 [docs/try-on-native-sim.md](docs/try-on-native-sim.md#dev-container) (only an x86_64 host was exercised, and only in CI; nobody has run it on WSL2 yet).
@@ -63,7 +99,7 @@ has run on a board.
 | S6 | Management over HTTPS on the S2 network: Crux Access, the web server on the Mbed TLS profile, the status and configuration services and a packaged page, on a RAM disk (no account, so no login) | yes, one image of ten cases with an in-process TLS client; no successful login, fake entropy | yes, on the S2 base, with the Mbed TLS group switched on in the job's own runner | not run |
 
 Every step is checked against its declared resource limits (`budgets/limits.json`,
-placeholders). What S3 needed from the product is recorded in `docs/findings/s3-file-composition.md`, what S4 needed in `docs/findings/s4-system-composition.md` and what S5 decides and leaves open in `docs/findings/s5-time-synchronisation.md`, and what S6 composed and what it leaves open in `docs/findings/s6-https-management.md`;
+placeholders; the static sizes that CI reads for each step are in [docs/roadmap.md](docs/roadmap.md#static-size-per-step)). What S3 needed from the product is recorded in `docs/findings/s3-file-composition.md`, what S4 needed in `docs/findings/s4-system-composition.md` and what S5 decides and leaves open in `docs/findings/s5-time-synchronisation.md`, and what S6 composed and what it leaves open in `docs/findings/s6-https-management.md`;
 what the two board runs of S2 show and do not show is recorded in `docs/findings/s2-first-board-run.md`.
 Why the serial and SSH command lines and SFTP are not built here, and what stood between this repository and
 HTTPS management before step S6, is recorded in `docs/findings/management-has-no-public-composition.md` and
@@ -112,8 +148,9 @@ These documents call S3 a Stage 1 step and S4 a Stage 2 step; they do not place 
 planning label, not a property of the code.
 Stage 2 steps and their findings are tracked in this repository's own issues: the epic #44 and its
 children #40 (the management finding), #41 (S4), #42 and #43. Earlier findings are recorded in
-`docs/findings/`. Step S5 arrived with
-[wonny-labs/crux-controller#50](https://github.com/wonny-labs/crux-controller/pull/50). Nothing has been
+`docs/findings/`. These numbers are issues of the public GitHub repository, and their open or closed state can lag
+behind the code: the documents and the CI checks of a commit are the reference for what exists. Step S5 arrived with
+[pull request 50](https://github.com/wonny-labs/crux-controller/pull/50) of that repository. Nothing has been
 filed in `crux-pilot` yet; filing there needs the owner's approval.
 
 ## Licence, support and ownership

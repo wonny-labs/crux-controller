@@ -769,9 +769,15 @@ class S5Findings(unittest.TestCase):
                        "across a step", "shifted"):
             self.assertIn(needle, text, needle)
 
-    def test_the_note_states_the_four_duties_as_consult_results_and_where_each_is_met(self):
+    # Approved behaviour change: the note no longer cites a private consult. It states the question
+    # and the answer neutrally and points at the Crux Time contract that supports each duty.
+    def test_the_note_states_the_four_duties_as_a_question_and_answer_and_where_each_is_met(self):
         text = self.words()
-        self.assertIn("consult", text)
+        self.assertNotIn("consult", text)
+        self.assertNotIn("Crux Pilot was asked", text)
+        self.assertIn("The question was whether a product thread may call `crux_realtime_set`", text)
+        self.assertIn("not a Crux decision", text)
+        self.assertIn("docs/time-contract.md", text)
         for needle in ("staleness is the product's", "write failure", "one writer of the native clock",
                        "events"):
             self.assertIn(needle, text, needle)
@@ -783,12 +789,30 @@ class S5Findings(unittest.TestCase):
                        "stale_after_silence", "v4.4.0", "v4.4.2"):
             self.assertIn(needle, text, needle)
 
-    def test_the_note_claims_no_ci_result_it_does_not_have(self):
+    # Approved behaviour change: CI ran at the merge commit of S5 and its results were read from the job
+    # logs, so the rows that said "not yet known" now record them, with the revision and the source. The
+    # claim about the board and the real server stays open.
+    def test_the_note_records_the_ci_results_with_their_revision_and_source(self):
         text = self.NOTE.read_text()
+        words = " ".join(text.split())
+        self.assertIn("**Recorded**", text)
+        self.assertIn("29a2d8f", words)
+        self.assertIn("read from the GitHub job logs", words)
+        self.assertNotIn("not yet known", text)
         for claim in ("CI job \"S5 build", "CI job \"Budget S5", "CI job \"S1 (native_sim"):
             line = next(line for line in text.splitlines() if claim in line)
-            self.assertIn("Open", line)
-            self.assertIn("not yet known", line)
+            self.assertIn("Recorded", line)
+        budget = next(line for line in text.splitlines() if "CI job \"Budget S5" in line)
+        self.assertIn("105908", budget)
+        self.assertIn("80876", budget)
+        scenarios = next(line for line in text.splitlines() if "CI job \"S1 (native_sim" in line)
+        self.assertIn("31 of 31", scenarios)
+        self.assertIn("seven", scenarios)
+
+    def test_the_note_keeps_its_real_server_and_board_row_open(self):
+        line = next(line for line in self.NOTE.read_text().splitlines() if "A query to a real server" in line)
+        self.assertIn("not run", line)
+        self.assertIn("Open", line)
 
     def test_the_note_has_no_line_counts_and_no_machine_paths(self):
         text = self.NOTE.read_text()

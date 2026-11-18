@@ -1,11 +1,12 @@
 # Finding: composing Crux System (step S4)
 
-Status: step S4 is written and its local checks pass. Its Zephyr builds, the `native_sim` scenarios and its
-budget numbers run in CI and are recorded in the pull request, not here. Nothing ran on a board.
+Status: step S4 is written and merged, and its local checks passed when it was written. Its Zephyr build, the
+`native_sim` scenarios and its budget numbers ran in CI. They are recorded below with the label Recorded, with the
+revision they were read at. Nothing ran on a board.
 
-Every statement is labelled **Measured** (the author ran it, and the command is named), **Inferred** (read from
-`crux-pilot` source at the pinned commit `37c92b18b44b7dfb95c2109f036f23d00f05cb4c`, not run on its own here) or
-**Open**.
+Every statement is labelled **Measured** (run locally while the step was written, and the command is named),
+**Inferred** (read from `crux-pilot` source at the pinned commit `37c92b18b44b7dfb95c2109f036f23d00f05cb4c`, not run
+on its own here), **Recorded** (a CI result at a named revision, read from the GitHub job logs) or **Open**.
 
 ## Question and answer
 
@@ -25,14 +26,19 @@ and `system_binding.c`, Inferred). A product never includes them, and S4 does no
 
 | What | Result | Label | Source |
 |---|---|---|---|
-| Tooling tests (limits, policy files, configuration, build files, sources, boundary expectations, scenario files, CI jobs) | all pass; the S4 tests were written first and were red before each change | Measured | `python -m unittest discover -s tests/tooling`, run by the author |
-| Boundary check against the pinned Crux headers | passes with `app/src/health.c` in the tree | Measured | `scripts/check_boundary.py --crux-root <the components directory of 37c92b18, exported with git archive>`, run by the author |
-| Host test of the policy | 130528 checks, 0 failures, also built with the address and undefined-behaviour sanitizers | Measured | compiled with the host `cc` (clang, `-std=c17 -Wall -Wextra -Wpedantic -Werror`) and run by the author; the Host tests job runs the same file through CMake |
+| Tooling tests (limits, policy files, configuration, build files, sources, boundary expectations, scenario files, CI jobs) | all pass; the S4 tests were written first and were red before each change | Measured | `python -m unittest discover -s tests/tooling`, run locally when the step was written |
+| Boundary check against the pinned Crux headers | passes with `app/src/health.c` in the tree | Measured | `scripts/check_boundary.py --crux-root <the components directory of 37c92b18, exported with git archive>`, run locally when the step was written |
+| Host test of the policy | 130528 checks, 0 failures, also built with the address and undefined-behaviour sanitizers | Measured | compiled with the host `cc` (clang, `-std=c17 -Wall -Wextra -Wpedantic -Werror`) and run locally when the step was written; the Host tests job runs the same file through CMake |
 | The glue and the policy compile against the pinned public headers | `health.c`, `health_policy.c`, `workload_thread.c` pass `-fsyntax-only -Werror`; the `_Static_assert` lines that tie the policy's flag values to `CRUX_RESET_CAUSE_*` hold | Measured | host `cc` with the `components/*/include` directories of the pin; this is not a Zephyr build and links nothing |
-| RT1060-EVKB build with the baseline gate required, resolved configuration, devicetree alias, linked symbols | not yet known | Open | CI job "S4 build (RT1060-EVKB, System)" |
-| Static size of S4 against the declared limits | not yet known | Open | CI job "Budget S4" |
-| `native_sim` scenarios: three S4 cases and one new S1 case | not yet known | Open | CI job "S1 (native_sim and RT1060-EVKB)", which runs every scenario under `tests/native_sim` |
+| RT1060-EVKB build with the baseline gate required, resolved configuration, devicetree alias, linked symbols | the job passed at `9a906b1`: the cross-build with the baseline gate, the check that the outputs exist, the check of the resolved S4 configuration and devicetree, and the check of what the image links | Recorded | CI job "S4 build (RT1060-EVKB, System)" |
+| Static size of S4 against the declared limits | `FLASH` 45236 bytes (0.54 % of 8 MB) and `RAM` 22720 bytes (0.07 % of 32 MB), and the job printed "S4: budget check passed"; the limits are placeholders | Recorded | CI job "Budget S4" |
+| `native_sim` scenarios: three S4 cases and one new S1 case | passed at `9a906b1`: the Twister run of the whole `tests/native_sim` directory ended with 10 of 10 test configurations and 24 of 24 test cases passed | Recorded | CI job "S1 (native_sim and RT1060-EVKB)", which runs every scenario under `tests/native_sim` |
 | Watchdog start, feed, a missed feed and a reset on a board | not run | Open | no hardware |
+
+The Recorded rows were read from the GitHub job logs of the `ci` run (43620095441) and the `budget` run (43620095628)
+for the push of the merge commit `9a906b1` to `main` on 14 November 2026, which is a revision of the public
+repository. All jobs of both runs ended in success. The `Budget S4` job printed the `FLASH` and `RAM` rows
+of the Zephyr memory region table; the other regions printed 0 bytes.
 
 ## What a product had to write
 

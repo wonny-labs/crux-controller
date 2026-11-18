@@ -4,17 +4,18 @@ This page says honestly what exists, what has run on a board and what cannot be 
 promises no dates and no features. "Not yet possible" does not mean "planned": the finding that
 covers most of these says "Not decided and not scheduled: whether and when any of this is built here."
 Status can go stale, so check the README, the changelog and the open pull requests, and read the
-[architecture](architecture.md) and the [glossary](glossary.md) for the terms.
+[architecture](architecture.md) and the [glossary](glossary.md) for the terms (including "owner" and "operator").
 To see the tests run without a board, read [try-on-native-sim.md](try-on-native-sim.md). An outline of how a
 board bring-up would go, not yet run for this controller, is in [board-bring-up.md](board-bring-up.md).
 
 ## Short version
 
 - Seven steps, S0 to S6, are on `main`. CI builds them for the NXP RT1060-EVKB Rev B and runs
-  `native_sim` scenarios for S1 to S6. This page does not claim a current CI result; look at the checks of
-  the commit you care about.
+  `native_sim` scenarios for S1 to S6. CI results change with every commit, so this page does not claim a
+  current one; look at the checks of the commit you care about. The static sizes read at one revision are in
+  [Static size per step](#static-size-per-step).
 - S5 (the Crux Time realtime clock set from an SNTP server) arrived with
-  [wonny-labs/crux-controller#50](https://github.com/wonny-labs/crux-controller/pull/50). It was never run
+  [pull request 50](https://github.com/wonny-labs/crux-controller/pull/50) of the public repository. It was never run
   on a board.
 - **Nothing here has run on a physical board except what
   [docs/findings/s2-first-board-run.md](findings/s2-first-board-run.md) records**: the S2 image, twice, on
@@ -56,11 +57,47 @@ Around the steps:
 
 The README table is the maintained summary of the steps and says, per step, whether it ran on a board.
 
+## Static size per step
+
+The `Budget` job builds each step for the RT1060-EVKB and reads the Zephyr memory region table. The numbers
+below are the `FLASH` and `RAM` rows of that table, in bytes used, as the `Budget S0` to `Budget S6` job logs
+of GitHub Actions print them. They were read from the job logs of the `budget` workflow run for `main` at
+`26c78a3` (a revision of the public repository), and the run for `8d47942d`, the head of pull request 59 (the S6 composition change), printed the
+same values. The region sizes are the ones that the table prints: `FLASH` 8 MB and `RAM` 32 MB.
+
+| Step | FLASH used (bytes) | FLASH of region | RAM used (bytes) | RAM of region |
+|---|---|---|---|---|
+| S0 | 32440 | 0.39 % | 4288 | 0.01 % |
+| S1 | 40720 | 0.49 % | 22656 | 0.07 % |
+| S2 | 100748 | 1.20 % | 70508 | 0.21 % |
+| S3 | 68296 | 0.81 % | 26656 | 0.08 % |
+| S4 | 45236 | 0.54 % | 22720 | 0.07 % |
+| S5 | 105984 | 1.26 % | 80876 | 0.24 % |
+| S6 | 288984 | 3.44 % | 1265012 | 3.77 % |
+
+**The declared limits are placeholders, and the run-time values are not measured.** `budgets/limits.json` asks
+for at least 25 percent free in every region, which is a placeholder and not a derived figure; every step uses
+far less than the 75 percent that the limit allows, so a pass says that the image fits the placeholder and says
+nothing about margins in a product. These are static sizes of the linked image. Stack use, heap peaks and
+timing are not measured by any job.
+
+The sizes change with the pinned Crux revision, with Kconfig and with the code, so read the `Budget` jobs of the
+commit you care about for current values. For example, the `Budget S5` job printed 105908 bytes of `FLASH` at the
+commit that merged S5, and the step note for S6 records 288872 bytes of `FLASH` at the first CI run of S6; later
+commits moved both to the values above.
+
+The S2 image that CI built at `8d47942d` has the `zephyr.bin` SHA-256
+`0551c82576b5b2edbe6e68eef6058882b8899a10119409cbe7c17d7c360d754b` and the `firmware_identity`
+`8c66f4b5c269d56d8dad6f06032802283c99e66619cf976b76de35486024adf4`; both were printed by the release dry run
+job at `8d47942d`; they were not read at later revisions. This is not the image that ran on the board: the board runs used the S2 image with the SHA-256
+recorded in [docs/findings/s2-first-board-run.md](findings/s2-first-board-run.md), built when the pin was an earlier
+Crux revision.
+
 ## Step S5 in more detail
 
-S5 was added by [wonny-labs/crux-controller#50](https://github.com/wonny-labs/crux-controller/pull/50),
-which is merged; the pull request that put `zephyr/net/sntp.h` on the adapter zone's allow-list,
-[wonny-labs/crux-controller#49](https://github.com/wonny-labs/crux-controller/pull/49), is merged too. What
+S5 was added by [pull request 50](https://github.com/wonny-labs/crux-controller/pull/50) of the public
+repository, which is merged; the pull request that put `zephyr/net/sntp.h` on the adapter zone's allow-list,
+[pull request 49](https://github.com/wonny-labs/crux-controller/pull/49), is merged too. What
 the code on `main` does, read from `app/Kconfig`, `app/src/time_sync*.c` and `app/os/time_sync_zephyr.c`:
 
 - A low-priority thread (Zephyr priority 10) waits five seconds after start, then queries one IPv4 SNTP
@@ -80,9 +117,9 @@ the code on `main` does, read from `app/Kconfig`, `app/src/time_sync*.c` and `ap
   use of the thread and query timing are not measured.
 
 The findings note labels its own results. When it was written, its seven `native_sim` cases, its Zephyr
-build and its budget numbers were still open, to be recorded by CI. This page does not state a result for
-them: look at the checks of the commit you care about. **S5 was never run on a board**, and the only board
-run of this repository is the S2 one below.
+build and its budget numbers were still open, to be recorded by CI; the note now records what CI showed at
+the commit that merged S5. **S5 was never run on a board**, and the only board run of this repository is the S2 one
+below.
 
 ## What has run on a board
 
@@ -109,7 +146,7 @@ bench are evidence collection, not qualification." Its "Not shown" list, kept as
 
 Beyond that note, the README and the S4 note record that S3 and S4 are built and never run on a board,
 and no S0, S1-only, S4 or S5 image has run. The S2 image contains the S1 workload, so the workload lines of S1
-appeared in that capture; the S1 row of the README, "not run", most likely refers to S1 as an image of its own (that is this page's reading of the README, not something the README says). No
+appeared in that capture; the "not run" in the S1 row of the README means S1 as an image of its own. No
 release exists, so no released image has run anywhere. A green `native_sim` run is not a board run and a
 CI build is not a board run.
 
@@ -147,8 +184,9 @@ the recorded positions, not commitments.
 
 A separate question is how the platform request itself is filed. The finding records that nothing has been
 filed in `crux-pilot` and that filing needs the owner's approval. Stage 2 steps and their findings are
-tracked in this repository's own issues, with the epic
-[wonny-labs/crux-controller#44](https://github.com/wonny-labs/crux-controller/issues/44) as the top.
+tracked in this repository's own issues on GitHub, with the epic
+[issue 44](https://github.com/wonny-labs/crux-controller/issues/44) as the top. The open or closed state of those
+issues can lag behind the code.
 
 ## Also not done
 
