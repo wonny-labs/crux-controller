@@ -29,6 +29,35 @@ def read(path):
     return pathlib.Path(path).read_text()
 
 
+def files_with_nul_bytes(root):
+    """The files of `root` that hold NUL bytes: the tracked files of a Git checkout, else a walk.
+
+    A zip copy has no .git. The walk then skips dot-files and the folders the build creates. A
+    developer's untracked leftovers (a macOS .DS_Store) must not fail a teammate's run.
+    """
+    root = pathlib.Path(root).resolve()
+    names = None
+    try:
+        top = subprocess.run(["git", "-C", str(root), "rev-parse", "--show-toplevel"],
+                             capture_output=True, text=True, check=True).stdout.strip()
+        if pathlib.Path(top).resolve() == root:
+            listing = subprocess.run(["git", "-C", str(root), "ls-files", "-z"],
+                                     capture_output=True, check=True).stdout
+            names = [name for name in listing.decode().split("\0") if name]
+    except (OSError, subprocess.CalledProcessError):
+        names = None
+    if names is None:
+        skipped = {"build", ".venv", "__pycache__", ".pytest_cache"}
+        names = []
+        for directory, folders, files in os.walk(root):
+            folders[:] = [f for f in folders if not f.startswith(".") and f not in skipped
+                          and not f.startswith("twister-out")]
+            names += [str((pathlib.Path(directory) / f).relative_to(root)) for f in files
+                      if not f.startswith(".")]
+    return sorted(name for name in names
+                  if (root / name).is_file() and b"\0" in (root / name).read_bytes())
+
+
 def ci_job(name):
     return yaml.safe_load(read(CI))["jobs"][name]
 
@@ -142,16 +171,34 @@ class RepositoryFiles(unittest.TestCase):
             i for i, line in enumerate(self.attributes) if line and not line.startswith("#"))])
 
     def test_no_file_is_binary_so_no_binary_pattern_is_needed(self):
-        skipped = {".git", "build", ".venv", "__pycache__", ".pytest_cache"}
-        binary = []
-        for directory, names, files in os.walk(ROOT):
-            names[:] = [name for name in names if name not in skipped and not name.startswith("twister-out")]
-            for name in files:
-                if b"\0" in (pathlib.Path(directory) / name).read_bytes():
-                    binary.append(str((pathlib.Path(directory) / name).relative_to(ROOT)))
-        self.assertEqual([], binary, "a binary file needs a `binary` line in .gitattributes")
+        self.assertEqual([], files_with_nul_bytes(ROOT), "a binary file needs a `binary` line in .gitattributes")
         marked = [line.split()[0] for line in self.attributes if line.split()[1:] == ["binary"]]
         self.assertEqual([], marked)
+
+    def test_a_local_leftover_with_nul_bytes_is_not_a_tracked_binary_file(self):
+        # A macOS .DS_Store holds NUL bytes. It is untracked on a teammate's machine and must not fail the test.
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory).resolve()
+            subprocess.run(["git", "-C", str(root), "init", "-q"], check=True)
+            (root / "script.sh").write_text("echo ok\n")
+            (root / "image.bin").write_bytes(b"a\0b")
+            subprocess.run(["git", "-C", str(root), "add", "script.sh", "image.bin"], check=True)
+            (root / ".DS_Store").write_bytes(b"\0\0\0")
+            (root / "notes" / "scratch.dat").parent.mkdir()
+            (root / "notes" / "scratch.dat").write_bytes(b"\0")
+            self.assertEqual(["image.bin"], files_with_nul_bytes(root))
+
+    def test_without_a_git_folder_dot_files_and_build_folders_are_skipped(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory).resolve()
+            (root / ".DS_Store").write_bytes(b"\0")
+            (root / "build").mkdir()
+            (root / "build" / "out.bin").write_bytes(b"\0")
+            (root / "twister-out-s1").mkdir()
+            (root / "twister-out-s1" / "x.bin").write_bytes(b"\0")
+            (root / "data.bin").write_bytes(b"\0")
+            (root / "fine.txt").write_text("text\n")
+            self.assertEqual(["data.bin"], files_with_nul_bytes(root))
 
     def test_gitignore_keeps_python_caches_and_twister_output_out_of_the_tree(self):
         for line in ("build/", ".venv/", "__pycache__/", "*.pyc", "twister-out*/", ".pytest_cache/"):
@@ -310,7 +357,7 @@ class CommentsDescribeWhatIsTrue(unittest.TestCase):
     def test_the_setup_header_names_the_route_that_works_and_the_proxy_limits(self):
         header = read(DEVCONTAINER / "setup.sh").split("set -euo pipefail", 1)[0]
         for fragment in (".crux-extra-ca.crt", "/workspaces/ws/.crux-extra-ca.crt", "CRUX_EXTRA_CA_FILE",
-                         "does not yet", "127.0.0.1", "docker inspect"):
+                         "does not yet", "127.0.0.1", "docker inspect", "a terminal that you open later"):
             self.assertIn(fragment, header)
 
 
@@ -959,6 +1006,13 @@ class SetupNetwork(unittest.TestCase):
         self.assertIn("not a PEM certificate", result.stderr)
         self.assertIn(str(fixed), result.stderr)
         self.assertIn("openssl x509 -inform der", result.stderr)
+        self.assertEqual([], self.fixture.calls())
+
+    def test_a_dangling_symbolic_link_as_the_fixed_file_is_an_error_and_not_skipped(self):
+        (self.fixture.workspace / ".crux-extra-ca.crt").symlink_to(self.fixture.base / "gone.crt")
+        result = self.run_setup()
+        self.assertEqual(1, result.returncode)
+        self.assertIn("not a readable file", result.stderr)
         self.assertEqual([], self.fixture.calls())
 
     def test_a_fixed_file_that_is_a_folder_is_refused(self):
