@@ -75,10 +75,10 @@ static void configure_from_storage(workload_config_t *config)
         return;
     }
     switch (config_store_load(&saved)) {
-    case CONFIG_STORE_OK:
+    case CFGSTORE_OK:
         *config = saved;
         break;
-    case CONFIG_STORE_ERR_NOT_FOUND:
+    case CFGSTORE_ERR_NOT_FOUND:
         (void)config_store_save(config);
         break;
     default:

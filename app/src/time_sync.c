@@ -52,7 +52,7 @@ static void say(crux_log_level_t level, const char *text)
     (void)crux_log_write(level, TIME_SYNC_TAG, text);
 }
 
-static crux_log_level_t crux_level(time_sync_log_level_t level)
+static crux_log_level_t to_platform_level(time_sync_log_level_t level)
 {
     return level == TIME_SYNC_LOG_WARN ? CRUX_LOG_WARN : CRUX_LOG_INFO;
 }
@@ -183,7 +183,7 @@ void time_sync_poll(void)
         (void)snprintf(text + length, sizeof text - (size_t)length, " clear_status=%d",
                        (int)clear_status);
     }
-    say(crux_level(time_sync_decision_level(decision)), text);
+    say(to_platform_level(time_sync_decision_level(decision)), text);
 }
 
 /* The thread: a first query after a short wait, then one every interval. It never ends. */

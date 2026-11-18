@@ -11,13 +11,13 @@ static config_store_status_t status_of(crux_file_result_t result)
 {
     switch (result) {
     case CRUX_FILE_OK:
-        return CONFIG_STORE_OK;
+        return CFGSTORE_OK;
     case CRUX_FILE_ERR_NOT_READY:
-        return CONFIG_STORE_ERR_NOT_READY;
+        return CFGSTORE_ERR_NOT_READY;
     case CRUX_FILE_ERR_NOT_FOUND:
-        return CONFIG_STORE_ERR_NOT_FOUND;
+        return CFGSTORE_ERR_NOT_FOUND;
     default:
-        return CONFIG_STORE_ERR_IO;
+        return CFGSTORE_ERR_IO;
     }
 }
 
@@ -31,7 +31,7 @@ static config_store_status_t write_and_sync(crux_file_t *file, const uint8_t *re
         return status_of(crux_file_sync(file));
     }
     if (wrote == CRUX_FILE_OK || wrote == CRUX_FILE_PARTIAL) {
-        return CONFIG_STORE_ERR_IO;
+        return CFGSTORE_ERR_IO;
     }
     return status_of(wrote);
 }
@@ -53,15 +53,15 @@ config_store_status_t config_store_save(const workload_config_t *config)
     crux_file_result_t opened;
 
     if (workload_config_encode(config, record, sizeof record, &length) != WORKLOAD_OK) {
-        return CONFIG_STORE_ERR_RANGE;
+        return CFGSTORE_ERR_RANGE;
     }
-    opened = crux_file_open(CONFIG_STORE_FILE_NAME, CRUX_FILE_CREATE_REPLACE, &file);
+    opened = crux_file_open(CFGSTORE_FILE_NAME, CRUX_FILE_CREATE_REPLACE, &file);
     if (opened != CRUX_FILE_OK) {
         return status_of(opened);
     }
     status = write_and_sync(file, record, length);
-    if (crux_file_close(&file) != CRUX_FILE_OK && status == CONFIG_STORE_OK) {
-        status = CONFIG_STORE_ERR_IO;
+    if (crux_file_close(&file) != CRUX_FILE_OK && status == CFGSTORE_OK) {
+        status = CFGSTORE_ERR_IO;
     }
     return status;
 }
@@ -75,19 +75,19 @@ config_store_status_t config_store_load(workload_config_t *config)
     crux_file_result_t opened;
 
     if (config == NULL) {
-        return CONFIG_STORE_ERR_RANGE;
+        return CFGSTORE_ERR_RANGE;
     }
-    opened = crux_file_open(CONFIG_STORE_FILE_NAME, CRUX_FILE_READ, &file);
+    opened = crux_file_open(CFGSTORE_FILE_NAME, CRUX_FILE_READ, &file);
     if (opened != CRUX_FILE_OK) {
         return status_of(opened);
     }
     status = read_up_to(file, buffer, sizeof buffer, &length);
-    if (crux_file_close(&file) != CRUX_FILE_OK && status == CONFIG_STORE_OK) {
-        status = CONFIG_STORE_ERR_IO;
+    if (crux_file_close(&file) != CRUX_FILE_OK && status == CFGSTORE_OK) {
+        status = CFGSTORE_ERR_IO;
     }
-    if (status != CONFIG_STORE_OK) {
+    if (status != CFGSTORE_OK) {
         return status;
     }
-    return workload_config_decode(buffer, length, config) == WORKLOAD_OK ? CONFIG_STORE_OK
-                                                                         : CONFIG_STORE_ERR_FORMAT;
+    return workload_config_decode(buffer, length, config) == WORKLOAD_OK ? CFGSTORE_OK
+                                                                         : CFGSTORE_ERR_FORMAT;
 }
