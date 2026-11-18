@@ -44,13 +44,18 @@ def flat(text):
     return " ".join(text.split())
 
 
+def without_cmake_comments(text):
+    """The CMake text without its comment lines: a comment may name a file that is not a source."""
+    return "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("#"))
+
+
 def host_built_sources():
     """The sources of this repository that tests/host builds, read from its CMake files."""
     sources = set()
-    host = (ROOT / "tests/host/CMakeLists.txt").read_text()
+    host = without_cmake_comments((ROOT / "tests/host/CMakeLists.txt").read_text())
     for name in re.findall(r"(?<![\w./-])([\w./-]+\.c)\b", host):
         sources.add((ROOT / "tests/host" / name).resolve())
-    workload = (ROOT / "workload/CMakeLists.txt").read_text()
+    workload = without_cmake_comments((ROOT / "workload/CMakeLists.txt").read_text())
     for name in re.findall(r"(?<![\w./-])([\w./-]+\.c)\b", workload):
         sources.add((ROOT / "workload" / name).resolve())
     return sources
@@ -315,3 +320,12 @@ class SpdxAndPatchStyleFacts(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CmakeCommentHelper(unittest.TestCase):
+    def test_a_comment_that_names_a_c_file_is_not_a_source(self):
+        text = "# net_client.c is built unchanged.\nadd_executable(t t.c)  # not a comment line\n"
+        kept = without_cmake_comments(text)
+        self.assertNotIn("net_client.c", kept)
+        self.assertIn("add_executable(t t.c)", kept)
+
