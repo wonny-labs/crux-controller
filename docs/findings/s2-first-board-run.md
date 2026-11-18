@@ -78,9 +78,8 @@ or the correction in general. Run 2 below repeats it once.
    uptimes of the previous image (for example `monotonic_ms=369009`), and none of them has the
    Zephyr log timestamp format `[hh:mm:ss.mmm,uuu]` that every line of the S2 image has. The S2
    image's own lines start after that mark. Counts of the capture above include these lines.
-3. **A shell word-splitting error on the host, once, before the first tool run.** The operator's
-   (the person who ran the procedure) command was rejected by the shell (`command too long`), the driver did not start and nothing ran;
-   the same command was then run as a plain command line. It did not affect the board.
+3. **A shell word-splitting error on the host, once, before the first tool run.** The operator (the person who ran the procedure) typed a command that the shell rejected (`command too long`), the
+   driver did not start and nothing ran; the same command was then run as a plain command line. It did not affect the board.
 
 ## Not shown
 
