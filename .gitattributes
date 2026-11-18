@@ -1,0 +1,15 @@
+# Line endings. The dev container scripts run under Linux bash and break on CRLF, so they are
+# checked out with LF on every platform, also on Windows with core.autocrlf=true.
+* text=auto
+*.sh text eol=lf
+*.py text eol=lf
+.devcontainer/** text eol=lf
+*.cmake text eol=lf
+CMakeLists.txt text eol=lf
+Kconfig text eol=lf
+*.conf text eol=lf
+*.overlay text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+*.md text eol=lf

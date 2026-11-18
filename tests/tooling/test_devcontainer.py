@@ -88,6 +88,35 @@ class Dockerfile(unittest.TestCase):
         self.assertIn("/opt/crux-cache/venv/bin", self.text)
 
 
+class RepositoryFiles(unittest.TestCase):
+    """A zip copy or a Windows checkout must not turn the container scripts into CRLF files."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.attributes = read(ROOT / ".gitattributes").splitlines()
+        cls.ignore = read(ROOT / ".gitignore").splitlines()
+
+    def test_gitattributes_normalises_text_and_pins_lf_for_the_files_the_container_runs(self):
+        for line in ("* text=auto", "*.sh text eol=lf", "*.py text eol=lf", ".devcontainer/** text eol=lf",
+                     "*.cmake text eol=lf", "CMakeLists.txt text eol=lf", "Kconfig text eol=lf",
+                     "*.yml text eol=lf", "*.md text eol=lf"):
+            self.assertIn(line, self.attributes)
+
+    def test_gitattributes_marks_no_binary_pattern_without_such_a_file(self):
+        # The repository tracks no image, archive or other binary file, so no pattern is needed.
+        marked = [line.split()[0] for line in self.attributes if line.split()[1:] == ["binary"]]
+        self.assertEqual([], marked)
+
+    def test_gitignore_keeps_python_caches_and_twister_output_out_of_the_tree(self):
+        for line in ("build/", ".venv/", "__pycache__/", "*.pyc", "twister-out*/", ".pytest_cache/"):
+            self.assertIn(line, self.ignore)
+
+    def test_the_container_files_use_lf_line_endings(self):
+        files = sorted(DEVCONTAINER.iterdir()) + [ROOT / "scripts" / "dev-shell.sh"]
+        for path in files:
+            self.assertNotIn(b"\r", path.read_bytes(), path.name)
+
+
 class Requirements(unittest.TestCase):
     def test_the_tool_pins_are_those_of_the_ci_jobs(self):
         pins = requirement_pins(read(DEVCONTAINER / "requirements-tools.txt"))
