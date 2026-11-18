@@ -3,7 +3,8 @@
 Each entry says how this repository uses the word, with the file where the use can be checked. Where
 the repository is not consistent, the entry says so. Start with the [README](../README.md) and the
 [architecture](architecture.md) if the terms are new to you. The sections are: steps and stages, boundary and
-zones, build, pin and evidence, time, people and board procedures, and terms from outside this repository.
+zones, build, pin and evidence, time, people and board procedures, terms from outside this repository, and wording
+that differs between files.
 
 ## Steps and stages
 
@@ -81,9 +82,10 @@ two sides.
 
 **Frozen headers.** The four public Crux headers `<crux/thread.h>`, `<crux/sync.h>`, `<crux/queue.h>`
 and `<crux/serial.h>` (`FROZEN_CRUX_HEADERS` in `scripts/check_boundary.py`). `app/src` and `app/os` fail
-on them although they are public, because the product uses Zephyr directly for threads and queues. The
-word "frozen" belongs to this repository's rule. It does not describe a state of the Crux headers. Crux's own
-term is "frozen for new product code": no new features, and existing users keep working.
+on them although they are public, because the product uses Zephyr directly for threads and queues. Crux
+marks these four headers "frozen for new product code": no new features, existing users keep working, and any
+deprecation waits for a separate decision (concepts glossary, `docs/README.md` of `crux-pilot` at the pinned
+revision). This repository's rule goes further and refuses them in `app/src` and `app/os`.
 
 **Sockets profile.** The set of standard POSIX socket headers that Crux's networking contract lists
 (`SOCKET_PROFILE` in `scripts/check_boundary.py`: `sys/socket.h`, `netinet/in.h`, `arpa/inet.h`,
@@ -111,10 +113,10 @@ exists. `west crux-pins` checks it in CI. A pin moves in its own pull request. S
 
 **Finding.** A note under `docs/findings/` that records what building a step or asking a question taught
 about the product's use of Crux. Each statement in a finding carries a label, and the label set differs by note: Measured, Inferred and Open
-(the S3, S4 and S5 notes; in S3 "Measured" means that a CI job produced the result, in S4 and S5 that it was run locally
-while the step was written), Verified, Inferred and Not verified (the S6 groundwork note), Verified, Inferred,
-Recorded and Open (the S6 step note; "Recorded" is a CI result read from the job logs at a named revision), and
-Measured and Not shown (the S2 board-run note). A finding is kept as written: when the pin or the facts
+(the S3 note, where "Measured" means that a CI job produced the result), Measured, Inferred, Recorded and Open
+(the S4 and S5 notes, where "Measured" means that it was run locally while the step was written), Verified,
+Inferred and Not verified (the S6 groundwork note), Verified, Inferred, Recorded and Open (the S6 step note), and
+Measured and Not shown (the S2 board-run note). "Recorded" is a CI result read from the job logs at a named revision. A finding is kept as written: when the pin or the facts
 move, a later result is added as a dated update or a banner and the recorded reading is not rewritten, so each
 note names the revision it was read at.
 
@@ -155,7 +157,9 @@ In code, `app/src/time_sync.c` (S5) is the one file that calls the Crux Time aut
 **Owner.** The maintainer who owns this repository on GitHub (the account in `CODEOWNERS`). The documents
 reserve to the owner: merging a pull request, tags, GitHub Releases and forks (`CONTRIBUTING.md`), the release
 approval in `RELEASE.md`, filing a request in `crux-pilot`, and any run on a board (`docs/board-bring-up.md`). A review
-`PASS` or a green CI result informs these decisions and does not make them. "The project owner" and "the
+`PASS` or a green CI result informs these decisions and does not make them. No rule reserves a change of the pinned
+Crux revision to the owner; in practice the owner has approved each one (`west.yml` and
+`tests/tooling/test_manifest.py` record the approval of the current pin). "The project owner" and "the
 repository owner" mean the same role.
 
 **Reviewer.** Someone who did not write the change and who reads the actual files and the check results.
