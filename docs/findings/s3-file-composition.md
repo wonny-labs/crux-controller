@@ -46,7 +46,7 @@ a measurement.
 | Kconfig fragment and devicetree overlay for the board | `app/conf/s3.conf`, `app/boards/s3.overlay`, plus 51 added lines in `app/CMakeLists.txt`, `app/Kconfig` and `app/src/composition.c` | 22 + 20 + 51 |
 | The scenario: sources, overlay, configuration | `tests/native_sim/s3/` | 241 + 23 + 19 + 16 + 17 |
 
-All counts are `wc -l` and `git diff` of this branch (Measured by the author on this branch when the note was last edited; later edits can move them by a few lines). The composition proper, the zone and its port, is about 160 lines (162 at the time of writing).
+All counts are `wc -l` and `git diff` of the branch that added S3 (Measured on that branch when the note was last edited; later edits can move them by a few lines). The composition proper, the zone and its port, is about 160 lines (162 at the time of writing).
 
 ## Friction
 
