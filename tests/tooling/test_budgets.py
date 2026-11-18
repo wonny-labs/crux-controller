@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Tests of budgets/collect.py and budgets/check.py."""
 
 import hashlib

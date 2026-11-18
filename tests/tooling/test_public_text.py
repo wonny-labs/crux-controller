@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Public files must not point at planning documents that readers cannot see."""
 
 import pathlib

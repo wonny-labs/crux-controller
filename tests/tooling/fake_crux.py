@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """A temporary tree that publishes the headers of a Crux checkout, for the boundary check.
 
 ``check_boundary.check(repo, crux_root)`` asks which ``<crux/NAME.h>`` headers Crux publishes: the

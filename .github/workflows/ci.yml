@@ -23,6 +23,10 @@ jobs:
           python-version: "3.12"
       - run: python -m pip install pyyaml
       - run: python -m unittest discover -s tests/tooling -v
+      # Every covered first-party file starts with the licence identifier line. The list of the
+      # files that predate the check is in the script and can only get shorter.
+      - name: Check SPDX headers
+        run: python scripts/check_spdx.py
 
   pins:
     name: West pins
@@ -783,6 +787,97 @@ jobs:
           echo "${CHECK_SHA256}  ${script}" | sha256sum --check --strict -
           cd crux-controller
           python3 "$script" --product .
+      # The style kit of crux-pilot (templates/product/style) wraps the same checker. This step
+      # runs the kit's own wrapper, so that a change of the wrapper or of the layout it expects
+      # shows up here. Both files come from an immutable commit and are checked against their
+      # hashes, laid out as in crux-pilot: the wrapper in style/, the checker beside that folder.
+      - name: Run the style kit include check script
+        env:
+          KIT_COMMIT: 751e04aead779ac08e438ec1e2640e57fc50e9fe
+          CHECKER_SHA256: eb297a527da071ed2e863fd456ec80a46c77b446f2544cf984f7a4775b94bf80
+          WRAPPER_SHA256: aa2f4e88a19de1f6838aad70c809f543a79b922f781ee4772f367e0ba49262fa
+        run: |
+          set -euo pipefail
+          kit="$RUNNER_TEMP/style-kit"
+          mkdir -p "$kit/style"
+          base="https://raw.githubusercontent.com/wonny-labs/crux-pilot/${KIT_COMMIT}/templates/product"
+          curl --fail --silent --show-error --location --retry 3 \
+            --output "$kit/check_domain_includes.py" "$base/check_domain_includes.py"
+          curl --fail --silent --show-error --location --retry 3 \
+            --output "$kit/style/check-includes.sh" "$base/style/check-includes.sh"
+          echo "${CHECKER_SHA256}  $kit/check_domain_includes.py" | sha256sum --check --strict -
+          echo "${WRAPPER_SHA256}  $kit/style/check-includes.sh" | sha256sum --check --strict -
+          cd crux-controller
+          bash "$kit/style/check-includes.sh"
+
+  # Zephyr's checkpatch.pl (rule BRACES) on the C lines that the change adds, as the style kit of
+  # crux-pilot does for a product repository (scripts/check-patch.sh is its copy). Zephyr is not a
+  # project of this manifest: it comes through the crux-pilot import, and west refuses to update
+  # it by name. The job lets west update crux-pilot, reads the Zephyr commit that the Crux
+  # manifest names, and fetches only that commit. The script runs from that checkout.
+  patch-style:
+    name: Patch style
+    runs-on: ubuntu-24.04
+    steps:
+      # Two commits are enough: for a pull request the checkout is a merge commit and its first
+      # parent is the base. A push compares with the commit before the push.
+      - uses: actions/checkout@v4
+        with:
+          path: crux-controller
+          fetch-depth: 2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install west==1.4.0
+      - name: Fetch Zephyr at the pinned revision
+        run: |
+          set -euo pipefail
+          west init -l crux-controller
+          west update crux-pilot
+          # The Crux import of Zephyr may not resolve until a full update has run. Then the plain
+          # update of the other jobs is the fallback: heavier, and known to work here.
+          if ! rev=$(west list -f '{revision}' zephyr 2>/dev/null); then
+            echo "west cannot resolve zephyr yet; running a plain west update" >&2
+            west update
+            rev=$(west list -f '{revision}' zephyr)
+          fi
+          path=$(west list -f '{abspath}' zephyr)
+          if [[ ! "$rev" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "The Zephyr revision is not a full commit hash: $rev" >&2
+            exit 1
+          fi
+          if [[ "$path" != "$GITHUB_WORKSPACE/zephyr" ]]; then
+            echo "Zephyr is at $path, not in $GITHUB_WORKSPACE/zephyr" >&2
+            exit 1
+          fi
+          if [[ ! -f "$path/scripts/checkpatch.pl" ]]; then
+            git init -q "$path"
+            git -C "$path" fetch --no-tags --depth=1 https://github.com/zephyrproject-rtos/zephyr "$rev"
+            git -C "$path" checkout -q FETCH_HEAD
+          fi
+          test -f "$path/scripts/checkpatch.pl"
+      - name: Check the patch style of the changed C lines
+        working-directory: crux-controller
+        env:
+          ZEPHYR_BASE: ${{ github.workspace }}/zephyr
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+            if [[ -z "$PUSH_BEFORE" || "$PUSH_BEFORE" =~ ^0+$ ]]; then
+              echo "Missing previous push SHA for the patch-style comparison." >&2
+              exit 2
+            fi
+            if ! git cat-file -e "${PUSH_BEFORE}^{commit}" 2>/dev/null; then
+              git fetch --no-tags --depth=1 origin "$PUSH_BEFORE"
+            fi
+            scripts/check-patch.sh "$PUSH_BEFORE" HEAD
+          elif [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            scripts/check-patch.sh HEAD^ HEAD
+          else
+            echo "Unsupported event $GITHUB_EVENT_NAME: no comparison range is defined." >&2
+            exit 2
+          fi
 
   s0:
     name: S0 build (RT1060-EVKB)

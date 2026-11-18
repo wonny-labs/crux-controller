@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Checks that the S0 build job keeps the gate required and publishes no build output."""
 
 import pathlib

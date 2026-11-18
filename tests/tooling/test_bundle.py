@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Tests of release/assemble_bundle.py, release/check_bundle.py and release/rebuild_compare.py."""
 
 import hashlib

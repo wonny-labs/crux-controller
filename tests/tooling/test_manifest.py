@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Checks of the option A west manifest (Stage 1, Task 1) and of its Mbed-only import."""
 
 import copy

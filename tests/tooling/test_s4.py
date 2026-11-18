@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Checks of step S4 (Crux System): its limits, policy, configuration, build files, sources, CI
 jobs, scenario and findings. Written test first, one slice at a time."""
 

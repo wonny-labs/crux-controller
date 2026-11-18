@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Checks the scheduled build against crux-pilot main: it is read-only, publishes nothing and
 keeps the pinned tool versions and the gate of ci.yml."""
 
