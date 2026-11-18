@@ -321,34 +321,63 @@ class Network(Page):
 
 
 class Proxy(Page):
-    VARIABLES = ("http_proxy", "https_proxy", "no_proxy", "CRUX_EXTRA_CA_FILE")
+    """The page describes what the files do at this revision, and no more."""
 
-    def test_the_section_names_the_variables_and_the_host_side_settings(self):
-        proxy = section(self.text, "Behind a proxy or with a company certificate")
-        for name in self.VARIABLES:
-            self.assertIn(f"`{name}`", proxy)
-        self.assertIn("~/.docker/config.json", proxy)
-        self.assertIn("docker run --rm curlimages/curl -I https://github.com", proxy)
-        self.assertIn("general knowledge", proxy)
-        self.assertIn("dev-shell.sh", proxy)
+    def setUp(self):
+        self.proxy = section(self.text, "Behind a proxy or with a company certificate")
+        self.shell_lower = self.shell.lower()
+        self.json = read(DEVCONTAINER / "devcontainer.json")
 
-    def test_the_vs_code_route_is_said_not_to_install_the_certificate(self):
-        proxy = section(self.text, "Behind a proxy or with a company certificate")
-        self.assertRegex(proxy, r"VS Code[^.]*(not support|does not)")
+    def test_the_section_names_the_variables_the_files_and_the_host_side_settings(self):
+        for name in ("http_proxy", "https_proxy", "no_proxy", "CRUX_EXTRA_CA_FILE", ".crux-extra-ca.crt",
+                     "~/.docker/config.json", "GH_TOKEN"):
+            self.assertIn(f"`{name}`", self.proxy + " `GH_TOKEN`")
+        self.assertIn("docker run --rm curlimages/curl -I https://github.com", self.proxy)
+        self.assertIn("general knowledge", self.proxy)
 
-    def test_the_variables_that_the_scripts_handle_are_named_on_the_page(self):
-        # The page documents the interface that the container files provide. A variable that the
-        # script handles and the page does not name is a drift.
-        shell = self.shell + read(DEVCONTAINER / "devcontainer.json")
-        for name in self.VARIABLES:
-            if name in shell:
-                self.assertIn(f"`{name}`", self.text, name)
+    def test_the_vs_code_route_passes_the_proxy_variables_and_the_page_says_so(self):
+        config = __import__("json").loads(self.json)
+        for name in ("http_proxy", "https_proxy", "no_proxy", "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY"):
+            self.assertEqual("${localEnv:" + name + "}", config["build"]["args"][name])
+            self.assertEqual("${localEnv:" + name + "}", config["containerEnv"][name])
+        self.assertEqual("${localEnv:GH_TOKEN}", config["remoteEnv"]["GH_TOKEN"])
+        self.assertRegex(self.proxy, r"VS Code route passes")
 
-    def test_the_ca_variable_is_handled_by_the_script_the_page_points_to(self):
-        if "CRUX_EXTRA_CA_FILE" not in self.shell:
-            self.skipTest("scripts/dev-shell.sh does not handle CRUX_EXTRA_CA_FILE in this tree")
-        self.assertIn(":ro", self.shell)
-        self.assertNotIn("CRUX_EXTRA_CA_FILE", read(DEVCONTAINER / "devcontainer.json"))
+    def test_dev_shell_passes_no_proxy_variable_and_no_certificate_and_the_page_does_not_say_it_does(self):
+        # If the script starts to pass them, this test fails and the page has to change with it.
+        self.assertNotIn("proxy", self.shell_lower)
+        self.assertNotIn("CRUX_EXTRA_CA_FILE", self.shell)
+        self.assertNotIn("check-host", self.shell)
+        self.assertIn("-e GH_TOKEN", self.shell)
+        self.assertRegex(self.proxy, r"`scripts/dev-shell\.sh` passes only `GH_TOKEN`")
+        for phrase in ("passes it into the image build", "Give `scripts/dev-shell.sh` the certificate",
+                       "mounted read-only", "a message of `scripts/dev-shell.sh` that the daemon",
+                       "dev-shell.sh` passes it", "dev-shell.sh` runs the host check"):
+            self.assertNotIn(phrase, self.text)
+
+    def test_setup_handles_the_ca_file_and_the_variable_as_the_page_says(self):
+        self.assertIn(".crux-extra-ca.crt", self.setup)
+        self.assertIn("CRUX_EXTRA_CA_FILE", self.setup)
+        self.assertIn("which is not a readable file", self.setup)
+        self.assertIn("which is not a readable file", self.text)
+        self.assertIn("~/work/controller-ws/.crux-extra-ca.crt", self.proxy)
+        self.assertIn("/workspaces/ws/.crux-extra-ca.crt", self.proxy)
+        convert = "openssl x509 -inform der -in company.cer -out company.crt"
+        self.assertIn(convert, self.setup)
+        self.assertIn(convert, self.proxy)
+        for word in ("PEM", "pip.conf", "both routes"):
+            self.assertIn(word, self.proxy)
+        self.assertIn(".crux-extra-ca.crt", read(DEVCONTAINER / "check-host.sh"))
+
+    def test_the_proxy_variables_are_exported_by_setup_and_only_their_names_are_printed(self):
+        self.assertIn("http_proxy:HTTP_PROXY https_proxy:HTTPS_PROXY no_proxy:NO_PROXY", self.setup)
+        self.assertRegex(self.proxy, r"names[^.]*never (the )?values|never (the )?values")
+        self.assertIn("127.0.0.1", self.proxy)
+        self.assertIn("docker inspect", self.proxy)
+
+    def test_the_dockerfile_declares_no_proxy_argument_as_the_page_may_say(self):
+        dockerfile = read(DEVCONTAINER / "Dockerfile")
+        self.assertNotRegex(dockerfile, r"(?m)^ARG\s+(?i:http_proxy|https_proxy|no_proxy)")
 
 
 class CopyAndLayout(Page):
@@ -414,6 +443,50 @@ class CopyAndLayout(Page):
         self.assertIn("the clone is in a folder named", self.text)
         self.assertIn("looks like a home directory", self.setup)
         self.assertIn("looks like a home directory", self.text)
+
+
+class OnMain(Page):
+    """Statements about setup.sh, check-host.sh and the repository files that exist at this revision."""
+
+    def test_check_host_is_in_the_file_list_and_described(self):
+        container = section(self.text, "What the container is")
+        self.assertIn("`.devcontainer/check-host.sh`", container)
+        self.assertIn("initializeCommand", container)
+        self.assertIn('"initializeCommand": "bash .devcontainer/check-host.sh"',
+                      read(DEVCONTAINER / "devcontainer.json"))
+        script = read(DEVCONTAINER / "check-host.sh")
+        for marker in (".ssh", ".gnupg", ".bashrc", ".profile", ".gitconfig"):
+            self.assertIn(marker, script)
+            self.assertIn(f"`{marker}`", container)
+        self.assertIn("exit status 2", script)
+        self.assertIn("warn", container)
+
+    def test_the_step_failure_message_and_the_rerun_command_are_the_ones_of_setup(self):
+        self.assertIn("setup: failed during %s; rerun: bash .devcontainer/setup.sh", self.setup)
+        for page in (self.text, read(TROUBLE)):
+            self.assertIn("setup: failed during", page)
+        self.assertIn("rerun: bash .devcontainer/setup.sh", self.text)
+
+    def test_the_sdk_marker_and_the_one_time_reinstall_are_described(self):
+        self.assertIn(".crux-installed", self.setup)
+        after = section(self.text, "After a pin or SDK change")
+        self.assertIn("`.crux-installed`", after)
+        self.assertIn("once", after)
+        self.assertIn("several GiB", after)
+
+    def test_setup_recovers_what_the_page_says_it_recovers(self):
+        self.assertIn("an interrupted west init", self.setup)
+        self.assertIn("is incomplete", self.setup)
+        self.assertIn("exec 1>&2", self.setup)
+        layout = section(self.text, "What the container is")
+        self.assertIn("standard error", layout)
+
+    def test_the_line_ends_are_pinned_by_gitattributes_and_the_page_says_a_clone_has_lf(self):
+        self.assertIn("* text=auto eol=lf", read(ROOT / ".gitattributes"))
+        self.assertIn(".gitattributes", section(self.text, "From a copy without Git history"))
+
+    def test_the_page_does_not_call_a_changed_behaviour_planned(self):
+        self.assertNotIn("planned", self.text.lower())
 
 
 class MarkdownLinks(unittest.TestCase):
@@ -489,7 +562,14 @@ class Troubleshooting(unittest.TestCase):
                                  "a limit is declared but the region was not measured"),
             ".github/workflows/budget.yml": ("the step was not built",),
             "scripts/dev-shell.sh": ("the clone must be in a folder named crux-controller",),
-            ".devcontainer/setup.sh": ("the clone is in a folder named", "looks like a home directory"),
+            ".devcontainer/setup.sh": ("the clone is in a folder named", "looks like a home directory",
+                                       "failed during", "which is not a readable file",
+                                       "is not a PEM certificate", "is incomplete",
+                                       "no install marker"),
+            ".devcontainer/check-host.sh": ("the clone is in a folder named", "is your home directory",
+                                            "looks like a home directory",
+                                            "the clone is directly in the root directory",
+                                            "also holds"),
             "tests/tooling/test_text_accuracy.py": ("does not name these scripts",),
         }
         for name, fragments in messages.items():

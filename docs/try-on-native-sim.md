@@ -119,8 +119,13 @@ with Docker Engine. Run the commands in a WSL terminal, not in PowerShell, unles
    West version: v1.4.0
    ```
 
-   If it stops with an error, read the message and run the same command again: the setup carries on where it
-   stopped.
+   If it stops, the last line names the step:
+
+   ```text
+   setup: failed during <step>; rerun: bash .devcontainer/setup.sh
+   ```
+
+   Read the lines above it, fix the cause and run the same command again: the setup carries on where it stopped.
 
 6. Run all the `native_sim` scenarios of steps S1 to S5. `scripts/dev-shell.sh` runs a command with the
    repository as the working directory, so the command changes into the workspace folder first
@@ -183,8 +188,24 @@ Zephyr requirement files are not pinned, as in CI.
 
 The files are `.devcontainer/devcontainer.json` (for VS Code), `.devcontainer/Dockerfile` (the image, with the base
 image pinned by digest), `.devcontainer/requirements-tools.txt` (the pinned Python tools),
-`.devcontainer/setup.sh` (the workspace and SDK setup) and `scripts/dev-shell.sh` (the same without VS Code). The
-versions follow `ci.yml`, and a tooling test compares them.
+`.devcontainer/setup.sh` (the workspace and SDK setup), `.devcontainer/check-host.sh` (the check of the folder on
+the host) and `scripts/dev-shell.sh` (the same without VS Code). The versions follow `ci.yml`, and a tooling test
+compares them. `.gitattributes` pins LF line ends, so that a clone checks the scripts out with LF on every platform.
+
+`.devcontainer/check-host.sh` checks the folder layout on the host before the container is created. VS Code runs it
+as the `initializeCommand` of `devcontainer.json`, on the host side, so it needs bash there: open the folder from
+WSL, as [With VS Code](#with-vs-code) says. It refuses, with a line that starts `check-host:` and exit status 2, a
+clone that is not in a folder named `crux-controller`, a parent folder that is your home directory or `/`, and a
+parent folder that holds `.ssh`, `.gnupg`, `.bashrc`, `.profile` or `.gitconfig`. It only warns when the parent
+folder holds other entries, because the container sees them (`.crux-extra-ca.crt` is not one of them).
+`scripts/dev-shell.sh` does not run it. `setup.sh` has a smaller check of its own in the container: the folder name
+and the markers of a home directory.
+
+`.devcontainer/setup.sh` prints to the standard error stream, also what pip, west and git print, so that a command
+which `scripts/dev-shell.sh` runs after it keeps a clean standard output. It names each step as it starts it, and
+when one fails it prints `setup: failed during <step>; rerun: bash .devcontainer/setup.sh`. It does again what an
+interrupt left half done: a virtual environment without pip, a `.west` folder from an interrupted `west init`, and
+an SDK folder without its install marker.
 
 ### What you need
 
@@ -246,31 +267,61 @@ fully offline setup is not supported.
 
 ### Behind a proxy or with a company certificate
 
-If your network uses a proxy, set the proxy variables in the shell that starts the container. Both lower-case and
-upper-case names are read. `proxy.example.com:3128` is a placeholder for your proxy:
+Which route passes what, as the files are written (none of it was run behind a proxy):
+
+- The VS Code route passes the proxy variables `http_proxy`, `https_proxy` and `no_proxy` (and the upper-case
+  names) from the host environment, as build arguments of the image and as environment of the container, and it
+  passes `GH_TOKEN` too. `devcontainer.json` reads them from the environment of the process that starts VS Code,
+  so export them in a WSL shell and start `code .` from that shell.
+- `scripts/dev-shell.sh` passes only `GH_TOKEN` and your user and group ids. A proxy variable that you export in
+  your shell does not reach its container. For this route use Docker's own client configuration: the `proxies`
+  section of `~/.docker/config.json` makes the Docker command line add the variables to the build and to the
+  container (general knowledge, not tested).
+- Inside the container, `.devcontainer/setup.sh` exports both cases of every proxy variable that is set, for pip,
+  west, git and curl, and prints their names and never the values.
+
+`proxy.example.com:3128` is a placeholder for your proxy, in a shell from which you start VS Code:
 
 ```bash
 export http_proxy=http://proxy.example.com:3128
 export https_proxy=http://proxy.example.com:3128
 export no_proxy=localhost,127.0.0.1
+code .
 ```
 
-When `http_proxy`, `https_proxy` or `no_proxy` is set on the host, `scripts/dev-shell.sh` passes it into the image
-build and into the container, and the VS Code route passes it too (`devcontainer.json` reads it from the
-environment of the process that starts VS Code, so run `code .` from a shell where the variables are exported).
+Two limits. A proxy on `127.0.0.1` or `localhost` of the host is not reachable from the container. The proxy
+values that `containerEnv` passes are visible with `docker inspect`, so a proxy URL with a password is visible to
+whoever can run Docker as you.
 
-If the proxy decrypts HTTPS and re-signs it with a company certificate, tools in the container fail with
-certificate errors (for example `certificate verify failed` from pip or git: general knowledge). Give
-`scripts/dev-shell.sh` the certificate authority (CA) file through `CRUX_EXTRA_CA_FILE`, a host file in PEM format.
-It is mounted read-only into the container and installed before the setup runs. Keep the file outside the
-repository:
+If the proxy decrypts HTTPS and re-signs it with a company certificate, tools fail with certificate errors (for
+example `certificate verify failed` from pip or git: general knowledge). Give the setup script the certificate
+authority (CA) certificate as a PEM file, named `.crux-extra-ca.crt`, in the workspace folder, which is the parent
+folder of the clone and outside the repository:
 
 ```bash
-CRUX_EXTRA_CA_FILE="$HOME/company-ca.pem" bash scripts/dev-shell.sh west --version
+cp /path/to/company-ca.pem ~/work/controller-ws/.crux-extra-ca.crt
 ```
 
-Only `scripts/dev-shell.sh` supports `CRUX_EXTRA_CA_FILE`. The VS Code route does not support it: behind a
-proxy that re-signs HTTPS, use `scripts/dev-shell.sh`.
+In the container the file is `/workspaces/ws/.crux-extra-ca.crt`. That folder is mounted in both routes, so this
+works for both. Before any pip, git, west or curl step, `setup.sh` installs the file as a system certificate (with
+`sudo update-ca-certificates`) and points pip, Python's requests and git at the system bundle. It prints which file it
+uses and never the content. If `CRUX_EXTRA_CA_FILE` is set inside the container, `setup.sh` uses the file that it
+names instead; neither route sets it for you.
+
+- A `CRUX_EXTRA_CA_FILE` that names a file which does not exist, or a `.crux-extra-ca.crt` that is a dangling
+  symbolic link, stops the setup with a message that ends in `which is not a readable file`.
+- A file without a `BEGIN CERTIFICATE` line is not PEM, and the setup says so. A DER file (often `.cer`) converts
+  with the command that the message prints; use the result as `.crux-extra-ca.crt`:
+
+  ```bash
+  openssl x509 -inform der -in company.cer -out company.crt
+  ```
+
+The variables that point pip, requests and git at the bundle exist only inside the setup script. A terminal that
+you open later in the container does not have them, so pip there needs them again (`PIP_CERT` set to
+`/etc/ssl/certs/ca-certificates.crt`) or a `cert` entry in a `pip.conf`; curl, git and apt use the system bundle,
+which now holds the certificate. The image build and the pull of the base image happen before the setup and do
+not see the file.
 
 Some of it nobody can do for you, because it is on the host and not in the container (all of this is general
 knowledge, not checked against these files):
@@ -300,7 +351,7 @@ The dev container mounts the parent folder of the clone as the west workspace, s
 `modules/`, `crux-pilot/` and the other projects of the manifest (several GiB together; no size was measured)
 are on your Linux file system and survive a rebuild of the image. Use a folder of its own, empty apart from the clone, and name the clone `crux-controller`,
 because `west.yml` requires that name. The setup script stops with a message if the clone has another name or if
-the parent folder is a home directory. The reason for an empty folder: `west init -l` puts `.west/` there and
+the parent folder is a home directory, and the VS Code route checks the layout earlier still, with `check-host.sh`. The reason for an empty folder: `west init -l` puts `.west/` there and
 `west update` fetches the projects of the manifest next to the clone (`west list` shows each path after the
 setup), and the whole folder is bind-mounted, readable and writable, into the container. Anything else in it is
 exposed to the container and can clash with those folders.
@@ -344,8 +395,9 @@ A copy is a zip or any folder without a `.git` folder. It runs the same, with th
   them failed in a copy without `.git` in the author's run). `scripts/check_boundary.py` and the host tests did
   not need one in the author's runs. Whether `west` itself needs one was not tested. Run
   `git init`, `git config core.autocrlf false` and `git add -A` in the folder, in that order; the configuration
-  comes first so that Git does not rewrite line ends when it adds the files. No commit is needed.
-- **Line ends.** Files with CRLF line ends break the shell scripts: started directly they fail with
+  comes first, so that a global Git setting does not change what `git add` records. No commit is needed.
+- **Line ends.** A clone checks out LF on every platform, because `.gitattributes` pins it. A copy that Git did not
+  make can still have CRLF, and a file with CRLF line ends breaks the shell scripts: started directly they fail with
   `env: bash\r: No such file or directory`, and run as `bash scripts/...` they fail at the line that sets
   `pipefail`. A copy made on Windows, or from a Git for Windows checkout with `core.autocrlf` on, can have them.
   `file scripts/dev-shell.sh` must not say `with CRLF line terminators`. No file of this repository needs a CR, so
@@ -378,7 +430,11 @@ cd ~/work/controller-ws/crux-controller
 code .
 ```
 
-Run "Dev Containers: Reopen in Container". The first start builds the image and runs `.devcontainer/setup.sh`,
+Run "Dev Containers: Reopen in Container". Before it creates the container, VS Code runs
+`.devcontainer/check-host.sh` on the host side (it needs bash there, which is why the folder is opened from WSL) and
+the creation stops if the layout is refused. Start `code .` from a shell where `GH_TOKEN` and the proxy variables
+are exported if you need them: this route passes them on. The first start builds the image and runs
+`.devcontainer/setup.sh`,
 which does `west init -l crux-controller` and `west update` only when the workspace does not exist yet, installs the
 Python requirements of Zephyr and runs `west sdk install` for the SDK version of the CI jobs. That takes a long time
 and downloads several GiB; watch the creation log. Later starts and rebuilds find all of it already there. If the
@@ -396,9 +452,11 @@ bash scripts/dev-shell.sh <command>  # one command, with the repository as worki
 ```
 
 The script builds the image, runs `.devcontainer/setup.sh` and then your command, as the same numeric user as
-yours, so that the files it writes into the workspace belong to you. Set `GH_TOKEN` to avoid GitHub's rate limit
-for the SDK download. It stops with a message if Docker is missing, if you run it as root, or if the clone is not in
-a folder named `crux-controller`.
+yours, so that the files it writes into the workspace belong to you. It passes `GH_TOKEN` (set it to avoid GitHub's
+rate limit for the SDK download) and nothing else of your environment; for a proxy or a company certificate see
+[Behind a proxy or with a company certificate](#behind-a-proxy-or-with-a-company-certificate). It does not run
+`.devcontainer/check-host.sh`. It stops with a message if Docker is missing, if you run it as root, or if the clone
+is not in a folder named `crux-controller`; with the daemon down, you get Docker's own error.
 
 ### Commands inside the container
 
@@ -467,6 +525,10 @@ ls /opt/crux-cache/sdk
 rm -rf /opt/crux-cache/sdk/zephyr-sdk-<old version>
 ```
 
+The setup marks a finished SDK install with the file `.crux-installed` in the SDK folder. An SDK folder without
+it, from an interrupted install or from a volume that was made before the marker existed, is removed and installed
+again once: several GiB and a long time. That is expected, not an error.
+
 To start from nothing, remove the cache volume (see [Layout](#layout)); delete `.west/`, `zephyr/` and `modules/`
 next to the clone only if you also want a new `west init`.
 
@@ -474,8 +536,8 @@ next to the clone only if you also want a new `west init`.
 
 Look the message up in [troubleshooting.md](troubleshooting.md). The cases of this section:
 
-- "Cannot connect to the Docker daemon" (or a message of `scripts/dev-shell.sh` that the daemon cannot be reached):
-  the daemon is not running. Start it (`sudo service docker start`) and check it with `docker info`.
+- "Cannot connect to the Docker daemon" (Docker's own message, which `scripts/dev-shell.sh` does not replace): the
+  daemon is not running. Start it (`sudo service docker start`) and check it with `docker info`.
 - `permission denied` on `/var/run/docker.sock`: you are not in the `docker` group yet, or the session predates the
   change. Restart WSL as in the quick start.
 - `env: bash\r: No such file or directory` or an error at `pipefail`: CRLF line ends. See
@@ -485,8 +547,15 @@ Look the message up in [troubleshooting.md](troubleshooting.md). The cases of th
 - `fatal: not a git repository`, or tooling tests that fail with a Git error: the copy has no `.git`. Run
   `git init`, `git config core.autocrlf false` and `git add -A`.
 - "the clone is in a folder named ...": rename the clone folder to `crux-controller`.
-- "looks like a home directory": the parent of the clone is your home directory (or holds files such as `.bashrc`).
-  Put the clone in a parent folder of its own, as in the quick start.
+- "looks like a home directory" or "is your home directory", from `setup.sh` or from a line that starts
+  `check-host:`: the parent of the clone is your home directory (or holds files such as `.bashrc`). Put the clone in
+  a parent folder of its own, as in the quick start.
+- `setup: failed during <step>; rerun: bash .devcontainer/setup.sh`: a step of the setup failed. The lines above
+  name the cause; fix it and run the command again.
+- "which is not a readable file" or "is not a PEM certificate": the company CA file. See
+  [Behind a proxy or with a company certificate](#behind-a-proxy-or-with-a-company-certificate).
+- "is incomplete (it has no install marker); removing it and installing the SDK again": an interrupted install, or an
+  old volume. Let it finish; it is once.
 - If the creation of the container failed, open a terminal in it (or run `bash scripts/dev-shell.sh`) and run
   `bash .devcontainer/setup.sh` again. It skips what is done and repeats an interrupted `west update`.
 - To start from nothing, remove the cache volume of the workspace (`docker volume ls`, then
@@ -782,6 +851,11 @@ a reason to change a check.
   `env: bash\r: No such file or directory`, and clang-format 18.1.8 itself accepted a CRLF C file. With the exec bits
   removed, five tooling tests failed. Without `.clang-format`, clang-format 18.1.8 reported errors for a file that
   it accepts with it.
+- `.devcontainer/check-host.sh` ran on macOS on 18 November 2026 in a scratch folder: it passed a layout of its own,
+  refused a wrong folder name, a parent that holds `.bashrc` and a parent that is the home directory (exit status 2),
+  and only warned about another entry, not about `.crux-extra-ca.crt`. What `setup.sh` does with a proxy, a
+  certificate, a failed step or an old SDK folder, and what `devcontainer.json` passes, is read from the files and was
+  not run.
 - The dev container (`.devcontainer/`, `scripts/dev-shell.sh`) was not started on a developer machine at all, and
   nobody has used it with WSL2, Docker Engine in WSL2 or the Dev Containers extension. Its files were checked by
   tooling tests (versions against `ci.yml`, the base image digest, no Docker Desktop feature, no write permission or
