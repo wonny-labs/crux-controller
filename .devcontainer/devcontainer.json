@@ -3,7 +3,15 @@
   "build": {
     "dockerfile": "Dockerfile",
     "context": ".",
-    "options": ["--platform=linux/amd64"]
+    "options": ["--platform=linux/amd64"],
+    "args": {
+      "HTTP_PROXY": "${localEnv:HTTP_PROXY}",
+      "http_proxy": "${localEnv:http_proxy}",
+      "HTTPS_PROXY": "${localEnv:HTTPS_PROXY}",
+      "https_proxy": "${localEnv:https_proxy}",
+      "NO_PROXY": "${localEnv:NO_PROXY}",
+      "no_proxy": "${localEnv:no_proxy}"
+    }
   },
   "runArgs": ["--platform=linux/amd64"],
   "workspaceMount": "source=${localWorkspaceFolder}/..,target=/workspaces/ws,type=bind",
@@ -11,6 +19,18 @@
   "mounts": [
     "source=crux-controller-dev-cache-${devcontainerId},target=/opt/crux-cache,type=volume"
   ],
+  "initializeCommand": "bash .devcontainer/check-host.sh",
+  "containerEnv": {
+    "HTTP_PROXY": "${localEnv:HTTP_PROXY}",
+    "http_proxy": "${localEnv:http_proxy}",
+    "HTTPS_PROXY": "${localEnv:HTTPS_PROXY}",
+    "https_proxy": "${localEnv:https_proxy}",
+    "NO_PROXY": "${localEnv:NO_PROXY}",
+    "no_proxy": "${localEnv:no_proxy}"
+  },
+  "remoteEnv": {
+    "GH_TOKEN": "${localEnv:GH_TOKEN}"
+  },
   "remoteUser": "vscode",
   "updateRemoteUserUID": true,
   "postCreateCommand": "bash .devcontainer/setup.sh",

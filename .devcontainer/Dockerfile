@@ -6,8 +6,9 @@
 # rebuilt image does not download them again.
 #
 # The base image is pinned by digest (a multi-architecture index). To move it, resolve the new
-# digest of the tag and change it here in a reviewed pull request. tests/tooling/test_devcontainer.py
-# checks the digest, the SDK version and the tool versions against ci.yml.
+# digest of the tag and change it here in a reviewed pull request.
+# tests/tooling/test_devcontainer.py checks that the base image is pinned by digest, and
+# it compares the SDK version and the tool versions with ci.yml.
 FROM mcr.microsoft.com/devcontainers/base:ubuntu-24.04@sha256:d94c97dd9cacf183d0a6fd12a8e87b526e9e928307674ae9c94139139c0c6eae
 
 ARG DEBIAN_FRONTEND=noninteractive
@@ -17,6 +18,14 @@ ARG DEBIAN_FRONTEND=noninteractive
 # ids of the caller, so that files written to the bind-mounted workspace belong to that user.
 ARG USER_UID=1000
 ARG USER_GID=1000
+
+# Proxy settings of the host, for the apt-get below: devcontainer.json passes them as build arguments
+# when the host has them (scripts/dev-shell.sh does not yet). They are not declared here on purpose. Docker
+# predefines the proxy build arguments (HTTP_PROXY, http_proxy, HTTPS_PROXY, https_proxy, NO_PROXY,
+# no_proxy), so they reach the RUN steps without an ARG line, and a predefined argument is left out
+# of the image history; a declared ARG would show a proxy URL with credentials there. They are never
+# ENV either: the proxy of the company that builds the image must not become part of the environment
+# of every container.
 
 # The packages of the "Install host packages" step of the S1 job, plus python3-venv (CI gets its
 # Python from actions/setup-python), curl and sudo for the setup script, and clang-tidy-18 at the
