@@ -2,9 +2,37 @@
 
 Each entry says how this repository uses the word, with the file where the use can be checked. Where
 the repository is not consistent, the entry says so. Start with the [README](../README.md) and the
-[architecture](architecture.md) if the terms are new to you. The sections are: steps and stages, boundary and
-zones, build, pin and evidence, time, people and board procedures, terms from outside this repository, and wording
-that differs between files.
+[architecture](architecture.md) if the terms are new. The sections are: product, platform and
+composition; steps and stages; boundary and zones; build, pin and evidence; time; people and board
+procedures; terms from outside this repository; and wording that differs between files.
+
+## Product, platform and composition
+
+**Product.** In this repository, the firmware that this repository holds: the code in `app/` and
+`workload/`, as opposed to the Crux platform code that `west.yml` imports. "Product code", a "product-owned"
+header (one that the application declares), the "product's" Kconfig symbols and the "product's" policy all use the
+word this way. It is not a product in the commercial sense: the [README](../README.md) says that the firmware
+has no real control logic, there is no release and no support period is promised. Crux's own documents use
+"product" for any firmware repository built on Crux, for example the product composition guide
+(`docs/product-composition.md` of `crux-pilot` at the pinned revision). Both uses mean "firmware built on Crux".
+
+**Platform.** Crux, the embedded software platform that lives in the repository `crux-pilot`. "Crux Platform"
+(the [README](../README.md) role sentence), "the platform" and "a platform milestone" all mean Crux and the
+work in its repository. They do not mean Zephyr, which is the RTOS that Crux integrates, and they do not mean
+this firmware.
+
+**Composition.** The word has four meanings here. The context says which one is meant:
+
+1. Crux's word, for the board- or project-specific configuration and initialisation that choose OS
+   implementations and bind hardware resources (Kconfig, providers, device bindings). The concepts glossary of
+   `crux-pilot` defines it (`docs/README.md` at the pinned revision). The finding titles that say "composing File"
+   or "composing Crux System" use the verb in this sense.
+2. The [composition zone](#boundary-and-zones), the directory `app/compose`, where this repository holds the
+   product code that does that for File and for HTTPS management.
+3. A [composition interface](#boundary-and-zones), a Crux header such as `<crux/file_zephyr.h>` that only
+   composition code may include.
+4. `app/src/composition.c`, with `composition_start()`. It starts the steps that a build selected. It is not
+   the composition zone and it includes no composition interface.
 
 ## Steps and stages
 
@@ -52,6 +80,13 @@ earlier platform stage", which means a phase of Crux, not of this repository.
 **Boundary.** The include rules of the source trees, enforced by `scripts/check_boundary.py` in the CI
 job `Boundary check`. There is no exception, waiver or per-file opt-out.
 
+**Product include check.** The second include check of the `Boundary check` job: the script
+`templates/product/check_domain_includes.py` of `crux-pilot`, run in product mode. These documents call it "the
+product include check". In product mode it fails on an include of one of the four frozen headers in any C or C++
+source under the repository, tests included. CI runs it twice: from a downloaded copy of the script, and through
+the wrapper `check-includes.sh` of `crux-pilot`, which calls the same script. The first check, `scripts/check_boundary.py`,
+belongs to this repository. See [composition-zone.md](composition-zone.md#running-the-check).
+
 **Adapter zone.** The directory `app/os`. The one place that creates threads, queues messages and
 sleeps, using Zephyr kernel calls directly, and queries an SNTP server for S5. It implements the port headers
 `app/src/workload_os.h` and `app/src/time_sync_port.h`. It may
@@ -63,10 +98,8 @@ in `scripts/check_boundary.py`), and no Sockets profile, POSIX or composition he
 to Crux File with the composition interface `<crux/file_zephyr.h>`, and the place that starts HTTPS management with
 the Web composition interface `<crux/web_zephyr.h>` (S6). It may include three Zephyr headers,
 `zephyr/fs/fs.h`, `zephyr/devicetree.h` and `zephyr/net/tls_credentials.h`. It implements the port headers `app/src/storage_port.h` and `app/src/management_port.h` (S6).
-"Composition" is Crux's word: in the concepts glossary of the Crux documentation (`docs/README.md` of
-`crux-pilot` at the pinned revision) it is the board- or project-specific configuration and initialisation that
-choose OS implementations and bind hardware resources, such as Kconfig, providers and device bindings. Here the
-composition zone holds the product code that does this for File and for HTTPS management. Do not confuse
+"Composition" has [four meanings](#product-platform-and-composition). Here the composition zone holds the
+product code that does what Crux calls composition (meaning 1) for File and for HTTPS management. Do not confuse
 `app/src/composition.c`, which starts the steps, with the zone.
 
 **Composition interface.** A Crux header that names a provider and is meant for composition code only,
@@ -106,9 +139,9 @@ board image passes. It makes the Crux module refuse a Zephyr that is not the ver
 `docs/findings/s3-file-composition.md` (friction 5): CMake prints that the variable was "not used by the
 project" even when the gate passes.
 
-**Pin.** The full commit of `crux-pilot` that `west.yml` imports, currently
-`8e3737d25d048b14a00c01da00494f58a62958c6`. It is a commit and never a branch or a tag; no Crux tag
-exists. `west crux-pins` checks it in CI. A pin moves in its own pull request. See the pin section of
+**Pin.** The full commit of `crux-pilot` that `west.yml` imports; the `revision` of the `crux-pilot` project
+there is the current pin. It is a commit and never a branch or a tag; no Crux tag exists. `west crux-pins`
+checks it in CI. A pin moves in its own pull request. See the pin section of
 [CONTRIBUTING.md](../CONTRIBUTING.md).
 
 **Finding.** A note under `docs/findings/` that records what building a step or asking a question taught
@@ -154,17 +187,42 @@ In code, `app/src/time_sync.c` (S5) is the one file that calls the Crux Time aut
 
 ## People and board procedures
 
-**Owner.** The maintainer who owns this repository on GitHub (the account in `CODEOWNERS`). The documents
-reserve to the owner: merging a pull request, tags, GitHub Releases and forks (`CONTRIBUTING.md`), the release
-approval in `RELEASE.md`, filing a request in `crux-pilot`, and any run on a board (`docs/board-bring-up.md`). A review
+**Owner.** Whoever owns this repository on GitHub: the account in `CODEOWNERS`. The documents reserve to the
+owner: merging a pull request, tags, GitHub Releases and forks (`CONTRIBUTING.md`), the release approval in
+`RELEASE.md`, filing a request in `crux-pilot`, and any run on a board (`docs/board-bring-up.md`). A review
 `PASS` or a green CI result informs these decisions and does not make them. No rule reserves a change of the pinned
 Crux revision to the owner; in practice the owner has approved each one (`west.yml` and
 `tests/tooling/test_manifest.py` record the approval of the current pin). "The project owner" and "the
-repository owner" mean the same role.
+repository owner" (the wording of `RELEASE.md` and `SECURITY.md`) mean the same role. In a
+[team copy](team-copy.md) of this repository the owner is whoever approves merges and releases
+in that copy.
 
-**Reviewer.** Someone who did not write the change and who reads the actual files and the check results.
-`CONTRIBUTING.md`, section "Review", defines `PASS`, `REVISE` and `ESCALATE`; `ESCALATE` sends the decision to the
-owner.
+**Maintainer.** Not a separate role. The S2 board-run note says "the repository maintainer" and means the owner.
+No document gives rights to a "maintainer", and `CODEOWNERS` lists one account for every file.
+
+**Reviewer.** Someone who did not write the change and who reads the actual files and the check results, as
+`CONTRIBUTING.md`, section "Review", describes. The checklist is in [reviewing.md](reviewing.md).
+
+**PASS, REVISE and ESCALATE.** The three results of an independent review, defined in `CONTRIBUTING.md`,
+section "Review". A blocking finding is an unmet acceptance criterion, a broken rule of that guide or a factual
+error.
+
+- `PASS`: there is no blocking finding.
+- `REVISE`: there are blocking findings that the author can fix. The author fixes them and gets one re-check.
+- `ESCALATE`: the owner has to decide.
+
+Other findings go in the pull request. A `PASS` does not grant merge, scope, hardware or release authority:
+merging a pull request needs the owner's approval. A review finding is not the same thing as a *finding* under
+`docs/findings/` (see Finding above).
+
+**Files that need a reviewed change.** This repository's term for the files whose change a reviewer must look at
+with care, because they hold the checks, the boundary lists, the pin, the limits or the rules. The list is in
+[adding-a-step.md](adding-a-step.md#files-that-need-a-reviewed-change). `CONTRIBUTING.md` is the authority for
+that list, and it states a rule for some of the files and none for the others. Other projects call such files
+"protected"; this repository does not use that word.
+
+**Team copy.** A copy of this repository that a team keeps in its own repository, for example as a zip without
+the Git history. [team-copy.md](team-copy.md) says what to change in it.
 
 **Operator.** The person who runs a board procedure on a bench, under the owner's approval for that task. The
 S2 board-run note uses the word for the person who ran the reviewed driver.

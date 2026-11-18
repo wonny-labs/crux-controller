@@ -1,6 +1,7 @@
 # The composition zone
 
-Status: a rule of the boundary check. Step S3 (File) is its first user: `app/compose/storage_mount.c`
+Status: a rule of the boundary check. "Composition" has four meanings; see the
+[glossary](glossary.md#product-platform-and-composition). Step S3 (File) is its first user: `app/compose/storage_mount.c`
 implements the port `app/src/storage_port.h`. The check skips each absent tree, as long as at least one of the four exists, so an image
 without the zone has no zone to check. It fails when none exists, which means
 that it was run from the wrong directory (see [Running the check](#running-the-check)). The zone also admits the headers that the HTTPS management
@@ -8,9 +9,10 @@ interface (Mbed profile) needs, see [The web composition](#the-web-composition).
 
 ## Running the check
 
-CI runs the check in the `Boundary check` job, with the headers that the pinned Crux publishes and with a
-second check for product repositories. From the west workspace directory (the one that holds `crux-controller`
-and `crux-pilot`; see [try-on-native-sim.md](try-on-native-sim.md)):
+CI runs two checks in the `Boundary check` job: this repository's `scripts/check_boundary.py`, with the headers
+that the pinned Crux publishes, and the product include check, which comes from `crux-pilot`. Run them from the
+west workspace directory (the one that holds `crux-controller` and `crux-pilot`; see
+[try-on-native-sim.md](try-on-native-sim.md)):
 
 ```bash
 python crux-controller/scripts/check_boundary.py --repo crux-controller --crux-root crux-pilot
@@ -18,18 +20,18 @@ python3 crux-pilot/templates/product/check_domain_includes.py --product crux-con
 ```
 
 The first command checks `app/src`, `app/compose`, `app/os` and `workload` against the public `<crux/NAME.h>`
-headers of the checkout. The second is the Crux product include check, `templates/product/check_domain_includes.py`
-of `crux-pilot`. In product mode (`--product`) it reads every C and C++ source under the repository and fails on an
+headers of the checkout. The second is the product include check: the script
+`templates/product/check_domain_includes.py` of `crux-pilot` (see [the glossary](glossary.md#boundary-and-zones)). In product mode (`--product`) it reads every C and C++ source under the repository and fails on an
 include of one of the four frozen headers (`<crux/thread.h>`, `<crux/sync.h>`, `<crux/queue.h>`, `<crux/serial.h>`).
 Its stricter rules (no Zephyr header and no composition interface) apply only to a directory named `domain/`, and this
 repository has none, so here it checks the frozen headers across all sources. This overlaps the first command on the
 frozen headers, and it also covers every source file under the repository, including the tests.
 
 CI downloads that script from a fixed commit of `crux-pilot` and checks its SHA-256 before it runs it (the step
-`Run the Crux Pilot product include check` of the `Boundary check` job). A comment in the workflow says that the
-pinned revision predates the script and that moving the pin makes the download unnecessary. That comment is out of
-date: the pinned `crux-pilot` already contains the same file, with the same SHA-256, so a local run uses the pinned
-copy. Both commands print nothing but a pass line on success. Without `--crux-root`, `python scripts/check_boundary.py` from the repository
+`Run the Crux Pilot product include check` of the `Boundary check` job). A second step of the job runs the same
+script through the wrapper `check-includes.sh` of `crux-pilot`, downloaded and checked the same way. A comment in
+the workflow says that the pinned revision predates the script. The comment does not match the files: the pinned
+`crux-pilot` contains the same script with the same SHA-256, so a local run uses the pinned copy. Both commands print nothing but a pass line on success. Without `--crux-root`, `python scripts/check_boundary.py` from the repository
 root checks the same rules but cannot tell that a `<crux/NAME.h>` name is not a public header. If none
 of the four trees exists under `--repo`, for example because the command ran in the workspace directory
 without `--repo`, the script exits with status 2 and says so, and it does not report a pass.
@@ -132,9 +134,10 @@ Zephyr's. The public Crux headers do not wrap it, so the zone includes the Zephy
 Nothing else widens. The zone still fails on every other Zephyr header, on the Sockets profile, on
 Crux private or port headers and on any other composition interface. The portable Web headers
 (`<crux/web.h>`, `<crux/web_session.h>`, `<crux/web_management.h>`), `<crux/tls_certificate.h>`
-and `<crux/tls_certificate_start.h>` were allowed before and are unchanged. `app/src`, `app/os` and `workload` fail on both new headers.
-Step S6 is the composition source that uses them: `app/compose/management_start.c` includes the two
-Zephyr and composition headers named above, and no list changed for it. The route sources, the packaged
+and `<crux/tls_certificate_start.h>` are ordinary public headers. `app/src`, `app/os` and `workload` fail on
+`<crux/web_zephyr.h>` and on `zephyr/net/tls_credentials.h`.
+Step S6 is the composition source that uses them: `app/compose/management_start.c` includes the Zephyr and
+composition headers named above, and no other entry is needed for it. The route sources, the packaged
 page and the route table are not in the zone: they belong to the target `app` and are named by
 `app/management/management.cmake`, which Crux's route function equips with the private include directories of
 Crux's own sources one source at a time, so no build file here adds an include path.
@@ -191,7 +194,7 @@ header itself, and the rule keeps `allow_sockets` off for the zone: `zephyr/net/
 Sockets profile headers and every other network header still fail there. The check reads direct
 includes only, so this relies on the zone not including socket headers itself, which the rule
 continues to forbid; a header that the library header includes in turn is not an include of the
-zone. The rule change allows the include and nothing else. The one source that uses it is
+zone. The allow-list entry allows the include and nothing else. The one source that uses it is
 `app/os/time_sync_zephyr.c` (step S5), which calls `sntp_simple()` and nothing else of the library.
 
 Why `zephyr/kernel.h` is not on the composition zone's list: that zone exists to mount a file system
