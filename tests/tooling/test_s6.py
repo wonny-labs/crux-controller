@@ -1612,12 +1612,22 @@ class S6StepNote(unittest.TestCase):
         self.assertIn("S0 to S5 are identical to main", text)
         self.assertIn("the baseline gate", text)
 
-    def test_the_note_claims_no_board_run_and_no_result_the_author_read(self):
+    # Approved behaviour change: the sentence about who ran or read CI described how the work was
+    # organised and meant nothing to a reader. The note keeps what it showed: the results are read from
+    # the job logs, Zephyr builds happen in CI only, and nothing has run on a board.
+    def test_the_note_claims_no_board_run_and_says_where_zephyr_builds_happen(self):
         text = self.words()
         self.assertIn(self.PIN, text)
         self.assertIn("Nothing has run on a board", text)
-        self.assertIn("the author of this change did not run CI", text)
+        self.assertNotIn("the author of this change", text)
+        self.assertIn("Zephyr builds and Twister runs happen in CI only", text)
         self.assertIn("the first build of this chain from outside `crux-pilot`", text)
+
+    def test_the_note_records_that_the_revised_case_4_ran_in_ci_and_no_longer_calls_it_unrun(self):
+        text = self.words()
+        self.assertIn("The revised case ran at `fa11293` and passed", text)
+        self.assertNotIn("the revised case 4, which has not run", text)
+        self.assertNotIn("the case itself runs in the next CI run", text)
 
     def test_the_note_says_that_a_client_side_refusal_cannot_be_fully_excluded_in_process(self):
         text = self.words()

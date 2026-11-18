@@ -1,9 +1,9 @@
 # Finding: step S6, management over HTTPS
 
 Status: step S6 is wired and builds in CI. The results of the CI run at `bb3ffefd` are recorded below, with the label
-Recorded, and they were read from the GitHub job logs at that revision; the author of this change did not run CI and did not
-read the logs. Zephyr builds and Twister runs happen in CI only, no Zephyr build ran while the step was written, and the
-CI run of the change that added it was the first build of this chain from outside `crux-pilot`. Nothing has run on a
+Recorded, and they were read from the GitHub job logs at that revision. Zephyr builds and Twister runs happen in CI only,
+no Zephyr build ran while the step was written, and the CI run of the change that added it was the first build of this
+chain from outside `crux-pilot`. Nothing has run on a
 board. A result that is still open is marked Open, with the job that gives it.
 
 The groundwork that came before is in [s6-https-management-gaps.md](s6-https-management-gaps.md), which stays as
@@ -28,7 +28,7 @@ in the rows), and Zephyr as read in a v4.4.0 checkout while the pin is v4.4.2.
 HTTPS management on the network of S2, with the Mbed TLS profile of Crux: login and sessions of Crux Access, the status
 service, the configuration service and one packaged page, served on `192.168.77.2` port 443. The certificate is
 self-signed and made on the device at its first start. The medium is a RAM disk, so nothing persists across a reset. The
-image has no account, so nobody can log in until a first-account console exists, which is a later change. The save route
+image has no account, so nobody can log in until a first-account console exists, and none is built here. The save route
 of the configuration service exists and ends as not supported. There is no reboot, network or file route, no SSH and no
 command line.
 
@@ -45,7 +45,7 @@ logs at that revision. The change was then revised after an independent review, 
 | Does the scenario run: the start sequence, the certificate, an in-process TLS 1.3 handshake with peer verification required, the page, the login path? | **Recorded**: 10 of 10 cases passed. That includes a self-signed leaf accepted as its own trust anchor with the hostname `crux-controller`, and a scenario whose `prj.conf` selects picolibc starting the web server | `S6 build`, the Twister step |
 | Static size of the image against the declared limits | **Recorded**: `FLASH` 288872 and `RAM` 1265012, as the budget job reports them, inside the margins; no limit was changed | `Budget S6` |
 | Are the budget rows of S0 to S5 unchanged? | **Recorded**: S0 to S5 are identical to main | `Budget S0` to `Budget S5` |
-| Is a client with only a TLS 1.2 suite refused (case 4)? | **Recorded** at `bb3ffefd` as passed, but the case could pass on any failed connect. The review asked for a positive control and an errno check, which this revision adds; it has not run | `S6 build`, the Twister step |
+| Is a client with only a TLS 1.2 suite refused (case 4)? | **Recorded** at `bb3ffefd` as passed, but the case could pass on any failed connect. The review asked for a positive control and an errno check, which the next revision added. The revised case ran at `fa11293` and passed (10 of 10 cases, read from the `S6 build` job log) | `S6 build`, the Twister step |
 | Are the assets served compressed or as text (case 6)? | **Open**: the case passes either way, and which form the packager chose was not read | `S6 build`, the Twister step |
 
 ### What a refusal in case 4 shows
@@ -57,8 +57,9 @@ cannot be fully excluded in one process: the client and the server share the TLS
 and Zephyr turns both an alert from the server and a local failure into a failed connect. Crux checks the version refusal
 on the wire with `openssl s_client`, which offers one version at a time and reads the alert, against its own listener
 (`docs/https-composition.md` at 8e3737d2, "Checked on the wire"); case 4 does not replace that check. The revised case
-has not run: this change had no local Zephyr, so the new assertions were checked by reading and by the tooling tests, and
-the case itself runs in the next CI run.
+was checked by reading and by the tooling tests when it was written, because no local Zephyr build was available,
+and it ran in CI afterwards: the `S6 build` job at `fa11293` (a revision of the public repository, the merge of
+step S6) ended with 10 of 10 test cases passed, read from its job log.
 
 ## What the product had to write
 
@@ -75,8 +76,8 @@ the case itself runs in the next CI run.
 | The Mbed profile, the PSA algorithms and the sizes are a product-owned copy of Crux's sample for this board, plus the two lines that only that sample has | **Verified** | `samples/management_rt1060_mbed/prj.conf` at 8e3737d2, and `app/conf/s6.conf` |
 | The page is three files, no framework, no external URL, no inline script or style; the packager checks only names, types, size and secrets, so the rest is checked by `S6Page` | **Verified** | `components/web/tools/web_assets.py` at 8e3737d2, and `tests/tooling/test_s6.py` |
 
-The permission names are compared at start, not at build time. An earlier comment in `management_policy.h` asked the
-composition to assert the equality at build time; two string literals cannot be compared that way in ISO C, so the
+The permission names are compared at start, not at build time. Two string literals cannot be compared by the
+preprocessor or the compiler in ISO C, so a build-time assertion is not possible. The
 composition passes the three Crux macros to `management_permission_names_match()` and refuses to start on a false
 answer. That start-time refusal is a plain-C function with a host test of its mismatch path. The composition's own
 refusal when it gets a false answer is not tested, because it needs Zephyr.
@@ -140,4 +141,4 @@ scenario runs on another one, the page in a browser, Ethernet, the address `192.
   of the TLS stack, and the network buffers.
 - Entropy: the strength of the hardware random source and whether `CONFIG_ENTROPY_MCUX_TRNG` resolves on for this
   board, which the job asserts.
-- Every Open row of the table of CI results, and the revised case 4, which has not run.
+- Every Open row of the table of CI results.
