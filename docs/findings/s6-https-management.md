@@ -1,7 +1,7 @@
 # Finding: step S6, management over HTTPS
 
 Status: step S6 is wired and builds in CI. The results of the CI run at `bb3ffefd` are recorded below, with the label
-Recorded, and the main session read them from the GitHub job logs; the author of this change did not run CI and did not
+Recorded, and the maintainer read them from the GitHub job logs; the author of this change did not run CI and did not
 read the logs. Zephyr builds and Twister runs happen in CI only, no Zephyr build ran while the step was written, and the
 CI run of the change that added it was the first build of this chain from outside `crux-pilot`. Nothing has run on a
 board. A result that is still open is marked Open, with the job that gives it.
@@ -17,7 +17,7 @@ Every statement carries one of four labels:
   check ran locally. A syntax-only compile of the new composition source and of `composition.c` ran against the public
   Crux headers at the pin, with a stub of one Zephyr header; that is not a Zephyr build.
 - **Inferred**: a reading of the sources, or a plan, that no file states and nothing has run.
-- **Recorded**: a CI result at the revision named, read by the main session from the GitHub job logs. The job is named.
+- **Recorded**: a CI result at the revision named, read by the maintainer from the GitHub job logs. The job is named.
 - **Open**: a result that only a CI run can give and that no run has given yet. The job is named.
 
 The revisions are `crux-pilot` at `8e3737d25d048b14a00c01da00494f58a62958c6`, the commit that `west.yml` pins ("8e3737d2"

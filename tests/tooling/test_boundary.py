@@ -187,7 +187,7 @@ class Scope(unittest.TestCase):
 
 
 class Reviewed(unittest.TestCase):
-    """Cases the independent review of Gate A asked for."""
+    """Cases that an independent review of the boundary check asked for."""
 
     def test_crux_private_path_fails(self):
         files = {"app/src/main.c": '#include "../../crux-pilot/components/time/src/x.h"\n'}
@@ -258,7 +258,7 @@ class Reviewed(unittest.TestCase):
 
 
 class Hardening(unittest.TestCase):
-    """The non-blocking findings of the Gate A review."""
+    """The non-blocking findings of that review."""
 
     def test_a_split_inside_the_keyword_is_joined_as_c_joins_it(self):
         files = {"app/src/a.c": "#inc\\\nlude <zephyr/kernel.h>\n"}
