@@ -343,10 +343,11 @@ class AddingAStep(unittest.TestCase):
 
     def test_the_drivers_and_hal_section_states_the_rule_and_where_the_reasoning_lives(self):
         titles = [t for level, t in self.headings() if level == "##"]
-        self.assertIn("Drivers and HAL: what the rule is and where the reasoning lives", titles)
-        part = flat_section = " ".join(
-            section(self.PAGE, "6. Drivers and HAL: what the rule is and where the reasoning lives").split()
-        )
+        title = "Drivers and HAL: what the rule is and where the reasoning lives"
+        found = [t for t in titles if t.endswith(title)]
+        self.assertEqual(1, len(found), titles)
+        self.assertRegex(found[0], r"^\d+\. ")
+        part = " ".join(section(self.PAGE, found[0]).split())
         for needle in ("GPIO, I2C and SPI", "roadmap.md", "composition-zone.md", "architecture.md",
                        "docs/choosing-an-api.md", "8e3737d25d048b14a00c01da00494f58a62958c6"):
             self.assertIn(needle, part, needle)
