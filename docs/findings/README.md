@@ -7,6 +7,10 @@ repository) that it was read at. The labels that a note uses (Measured, Inferred
 others) are listed in the [glossary](../glossary.md), under "Finding". Hashes and numbers in these notes name the
 history of the public repositories on GitHub; see the [README](../../README.md#roles-and-references).
 
+A path in a finding that does not exist in this repository (for example under `components/`, `samples/`,
+`tests/native/` or `cmake/`, or a `docs/` page that this repository does not have) is a path in
+`crux-pilot` at the revision that the note names. A header such as `<zephyr/net/sntp.h>` belongs to Zephyr.
+
 | Note | What it records | Crux revision read |
 |---|---|---|
 | [file-binding-has-no-public-header.md](file-binding-has-no-public-header.md) | A product could not bind the File provider with public means. Closed upstream since, by a published composition interface. | `56b5737`; the update names `37c92b18` |
