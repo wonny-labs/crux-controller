@@ -1,6 +1,7 @@
 # Line endings. The dev container scripts run under Linux bash and break on CRLF, so they are
-# checked out with LF on every platform, also on Windows with core.autocrlf=true.
-* text=auto
+# checked out with LF on every platform. The default eol=lf also holds with core.autocrlf=false, where
+# the default core.eol=native would give CRLF on Windows.
+* text=auto eol=lf
 *.sh text eol=lf
 *.py text eol=lf
 .devcontainer/** text eol=lf

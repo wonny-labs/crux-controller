@@ -19,8 +19,8 @@ ARG DEBIAN_FRONTEND=noninteractive
 ARG USER_UID=1000
 ARG USER_GID=1000
 
-# Proxy settings of the host, for the apt-get below: devcontainer.json and scripts/dev-shell.sh pass
-# them as build arguments when the host has them. They are not declared here on purpose. Docker
+# Proxy settings of the host, for the apt-get below: devcontainer.json passes them as build arguments
+# when the host has them (scripts/dev-shell.sh does not yet). They are not declared here on purpose. Docker
 # predefines the proxy build arguments (HTTP_PROXY, http_proxy, HTTPS_PROXY, https_proxy, NO_PROXY,
 # no_proxy), so they reach the RUN steps without an ARG line, and a predefined argument is left out
 # of the image history; a declared ARG would show a proxy URL with credentials there. They are never

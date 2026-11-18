@@ -2,7 +2,8 @@
 """Checks of the dev container: the image is pinned and agrees with the CI jobs it stands in for.
 
 The dev container is a convenience for a developer on Windows with WSL2 and Docker Engine. CI stays the
-reference. These tests read files only; they do not start Docker or use the network.
+reference. Most tests read files. The tests of setup.sh and check-host.sh run the real scripts in temporary
+folders, against stand-ins for west, python3, sudo and docker. None of them starts Docker or uses the network.
 """
 
 import json
@@ -129,13 +130,26 @@ class RepositoryFiles(unittest.TestCase):
         cls.ignore = read(ROOT / ".gitignore").splitlines()
 
     def test_gitattributes_normalises_text_and_pins_lf_for_the_files_the_container_runs(self):
-        for line in ("* text=auto", "*.sh text eol=lf", "*.py text eol=lf", ".devcontainer/** text eol=lf",
+        for line in ("* text=auto eol=lf", "*.sh text eol=lf", "*.py text eol=lf", ".devcontainer/** text eol=lf",
                      "*.cmake text eol=lf", "CMakeLists.txt text eol=lf", "Kconfig text eol=lf",
                      "*.yml text eol=lf", "*.md text eol=lf"):
             self.assertIn(line, self.attributes)
 
-    def test_gitattributes_marks_no_binary_pattern_without_such_a_file(self):
-        # The repository tracks no image, archive or other binary file, so no pattern is needed.
+    def test_the_default_line_ending_is_lf_so_that_core_autocrlf_false_does_not_give_crlf(self):
+        # With core.autocrlf=false (the advice of the documentation) the default core.eol=native applies
+        # to every text file without its own eol attribute. On Windows that is CRLF.
+        self.assertEqual("* text=auto eol=lf", self.attributes[next(
+            i for i, line in enumerate(self.attributes) if line and not line.startswith("#"))])
+
+    def test_no_file_is_binary_so_no_binary_pattern_is_needed(self):
+        skipped = {".git", "build", ".venv", "__pycache__", ".pytest_cache"}
+        binary = []
+        for directory, names, files in os.walk(ROOT):
+            names[:] = [name for name in names if name not in skipped and not name.startswith("twister-out")]
+            for name in files:
+                if b"\0" in (pathlib.Path(directory) / name).read_bytes():
+                    binary.append(str((pathlib.Path(directory) / name).relative_to(ROOT)))
+        self.assertEqual([], binary, "a binary file needs a `binary` line in .gitattributes")
         marked = [line.split()[0] for line in self.attributes if line.split()[1:] == ["binary"]]
         self.assertEqual([], marked)
 
@@ -233,8 +247,31 @@ class CheckHostScript(unittest.TestCase):
                 shutil.rmtree(path) if path.is_dir() else path.unlink()
 
     def test_it_refuses_the_root_directory_as_the_parent_folder(self):
-        text = read(self.path)
-        self.assertIn('"/"', text)
+        # A clone cannot be put in / in a test, so the real check function runs with that path.
+        result = subprocess.run(
+            ["bash", "-c", 'source "$1"; check_layout /crux-controller /crux-controller', "check", str(self.path)],
+            env={"PATH": "/usr/bin:/bin", "HOME": str(self.fixture.home)}, capture_output=True, text=True)
+        self.assertEqual(2, result.returncode, result.stderr)
+        self.assertIn("directly in the root directory", result.stderr)
+
+    def test_it_refuses_a_clone_folder_that_is_a_symbolic_link_hiding_a_home_directory_mount(self):
+        # ~/crux-controller -> /somewhere/crux-controller: the logical parent is the home directory, and
+        # a mount of <folder>/.. may resolve to it, so the logical parent is compared too.
+        real = self.fixture.base / "real"
+        (real / "crux-controller" / ".devcontainer").mkdir(parents=True)
+        shutil.copy(self.path, real / "crux-controller" / ".devcontainer" / "check-host.sh")
+        (self.fixture.home / "crux-controller").symlink_to(real / "crux-controller")
+        script = self.fixture.home / "crux-controller" / ".devcontainer" / "check-host.sh"
+        result = subprocess.run(["bash", str(script)], env={"PATH": "/usr/bin:/bin", "HOME": str(self.fixture.home)},
+                                capture_output=True, text=True)
+        self.assertEqual(2, result.returncode, result.stderr)
+        self.assertIn("home directory", result.stderr)
+
+    def test_the_extra_certificate_file_of_the_workspace_is_not_a_stranger(self):
+        (self.fixture.workspace / ".crux-extra-ca.crt").write_text("x\n")
+        result = self.fixture.check_host()
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual("", result.stdout + result.stderr)
 
     def test_it_only_warns_about_other_entries_in_the_parent_folder(self):
         (self.fixture.workspace / "zephyr").mkdir()
@@ -258,6 +295,23 @@ class CheckHostScript(unittest.TestCase):
         text = read(self.path)
         for tool in ("docker", "git ", "python", "realpath", "readlink -f", "find ", "-printf"):
             self.assertNotIn(tool, text)
+
+
+class CommentsDescribeWhatIsTrue(unittest.TestCase):
+    """The comments of the container files must not present a change of dev-shell.sh as done."""
+
+    def test_no_comment_says_that_dev_shell_passes_proxies_mounts_the_certificate_or_runs_the_host_check(self):
+        for name in ("Dockerfile", "check-host.sh", "setup.sh"):
+            text = " ".join(read(DEVCONTAINER / name).replace("# ", " ").split())
+            for phrase in ("and scripts/dev-shell.sh pass", "scripts/dev-shell.sh mounts it",
+                           "scripts/dev-shell.sh runs it before it builds"):
+                self.assertNotIn(phrase, text, f"{name}: {phrase}")
+
+    def test_the_setup_header_names_the_route_that_works_and_the_proxy_limits(self):
+        header = read(DEVCONTAINER / "setup.sh").split("set -euo pipefail", 1)[0]
+        for fragment in (".crux-extra-ca.crt", "/workspaces/ws/.crux-extra-ca.crt", "CRUX_EXTRA_CA_FILE",
+                         "does not yet", "127.0.0.1", "docker inspect"):
+            self.assertIn(fragment, header)
 
 
 class Requirements(unittest.TestCase):
@@ -475,6 +529,11 @@ sdk)
     fi
     if [ "${FAKE_SDK_NO_COMPILER:-}" = 1 ]; then
         mkdir -p "$target"
+    elif [ "${FAKE_SDK_SYMLINK:-}" = 1 ]; then
+        mkdir -p "$target/gnu/arm-zephyr-eabi/bin"
+        printf '#!/bin/bash\nexit 0\n' >"$target/gnu/arm-zephyr-eabi/bin/gcc-real"
+        chmod +x "$target/gnu/arm-zephyr-eabi/bin/gcc-real"
+        ln -s gcc-real "$target/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gcc"
     else
         mkdir -p "$target/gnu/arm-zephyr-eabi/bin"
         printf '#!/bin/bash\nexit 0\n' >"$target/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gcc"
@@ -528,6 +587,8 @@ class SetupFixture:
         environment = {
             "PATH": f"{self.bin}:{os.environ['PATH']}",
             "HOME": str(self.home),
+            "GIT_CONFIG_GLOBAL": str(self.home / ".gitconfig"),
+            "GIT_CONFIG_NOSYSTEM": "1",
             "CRUX_CACHE_DIR": str(self.cache),
             "ZEPHYR_SDK_VERSION": "1.0.1",
             "ZEPHYR_SDK_INSTALL_DIR": str(self.sdk_dir),
@@ -549,6 +610,18 @@ class SetupFixture:
             if line.startswith(f"ENV {tool} "):
                 name, _, value = line[len(f"ENV {tool} "):].partition("=")
                 found[name] = value
+        return found
+
+    def env_at(self, call_prefix):
+        """The environment variables that the first call starting with `call_prefix` saw."""
+        lines = self.log.read_text().splitlines()
+        start = next(i for i, line in enumerate(lines) if line.startswith(call_prefix))
+        found = {}
+        for line in lines[start + 1:]:
+            if not line.startswith("ENV "):
+                break
+            name, _, value = line.split(" ", 2)[2].partition("=")
+            found[name] = value
         return found
 
     def sdk_installs(self):
@@ -603,13 +676,28 @@ class SetupRuns(unittest.TestCase):
         self.assertIn("incomplete", result.stderr)
         self.assertIn(str(self.fixture.sdk_dir), result.stderr)
 
-    def test_an_sdk_with_the_marker_but_without_the_compiler_is_installed_again(self):
+    def test_an_sdk_with_the_marker_is_complete_and_a_missing_compiler_only_warns(self):
+        # The marker is the test of completeness. A compiler that is not found (a layout the search does
+        # not know) must not start a reinstall of several GiB on every run.
         self.ok()
-        compiler = next(self.fixture.sdk_dir.rglob("arm-zephyr-eabi-gcc"))
-        compiler.unlink()
+        next(self.fixture.sdk_dir.rglob("arm-zephyr-eabi-gcc")).unlink()
+        for _ in range(2):
+            result = self.ok()
+            self.assertIn("warning: no arm-zephyr-eabi-gcc", result.stderr)
+        self.assertEqual(1, len(self.fixture.sdk_installs()))
+        self.assertTrue((self.fixture.sdk_dir / ".crux-installed").is_file())
+
+    def test_a_compiler_that_is_a_symbolic_link_is_found(self):
+        self.ok(FAKE_SDK_SYMLINK="1")
+        result = self.ok(FAKE_SDK_SYMLINK="1")
+        self.assertNotIn("warning", result.stderr)
+        self.assertEqual(1, len(self.fixture.sdk_installs()))
+
+    def test_an_sdk_folder_without_the_marker_is_installed_again_even_if_a_compiler_is_there(self):
+        self.ok()
+        (self.fixture.sdk_dir / ".crux-installed").unlink()
         self.ok()
         self.assertEqual(2, len(self.fixture.sdk_installs()))
-        self.assertTrue(next(self.fixture.sdk_dir.rglob("arm-zephyr-eabi-gcc")).is_file())
 
     def test_a_failed_sdk_install_leaves_no_marker_and_names_the_step(self):
         result = self.fixture.run(FAKE_SDK_FAIL="1")
@@ -622,11 +710,36 @@ class SetupRuns(unittest.TestCase):
         self.assertFalse((self.fixture.sdk_dir / "partial").exists())
         self.assertTrue((self.fixture.sdk_dir / ".crux-installed").is_file())
 
-    def test_a_finished_install_without_the_compiler_is_reported_and_not_marked_as_done(self):
+    def test_a_finished_install_without_a_compiler_warns_and_is_not_repeated_on_every_run(self):
         result = self.fixture.run(FAKE_SDK_NO_COMPILER="1")
-        self.assertNotEqual(0, result.returncode)
-        self.assertIn("compiler", result.stderr)
-        self.assertIn("rerun: bash .devcontainer/setup.sh", result.stderr)
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("warning: no arm-zephyr-eabi-gcc", result.stderr)
+        self.assertTrue((self.fixture.sdk_dir / ".crux-installed").is_file())
+        self.ok(FAKE_SDK_NO_COMPILER="1")
+        self.assertEqual(1, len(self.fixture.sdk_installs()))
+
+    def test_the_sdk_removal_is_refused_for_a_path_that_is_not_a_zephyr_sdk_folder_in_the_cache(self):
+        cache = self.fixture.cache
+        (cache / "sdk" / "x").mkdir(parents=True)
+        outside = self.fixture.base / "outside" / "zephyr-sdk-1.0.1"
+        outside.mkdir(parents=True)
+        cases = {
+            "a dot-dot component": str(cache / "sdk" / "x" / ".." / "zephyr-sdk-1.0.1"),
+            "the cache itself": str(cache),
+            "another name": str(cache / "sdk" / "x"),
+            "outside the cache": str(outside),
+        }
+        for label, path in cases.items():
+            with self.subTest(label):
+                folder = pathlib.Path(path)
+                keep = (folder / "keep-me") if label != "a dot-dot component" else (cache / "sdk" / "zephyr-sdk-1.0.1" / "keep-me")
+                keep.parent.mkdir(parents=True, exist_ok=True)
+                keep.write_text("x\n")
+                result = self.fixture.run(ZEPHYR_SDK_INSTALL_DIR=path)
+                self.assertNotEqual(0, result.returncode, label)
+                self.assertIn("is not removed", result.stderr)
+                self.assertTrue(keep.exists(), label)
+                self.assertEqual([], self.fixture.sdk_installs(), label)
 
     def test_a_virtual_environment_without_pip_is_created_again(self):
         self.ok()
@@ -675,10 +788,14 @@ class SetupRuns(unittest.TestCase):
     def test_the_safe_directory_setting_is_added_once(self):
         self.ok()
         self.ok()
+        # Isolated from the git settings of the machine that runs the test.
         listed = subprocess.run(
             ["git", "config", "--global", "--get-all", "safe.directory"],
-            env={**os.environ, "HOME": str(self.fixture.home)}, capture_output=True, text=True,
+            env={**os.environ, "HOME": str(self.fixture.home), "GIT_CONFIG_NOSYSTEM": "1",
+                 "GIT_CONFIG_GLOBAL": str(self.fixture.home / ".gitconfig")},
+            capture_output=True, text=True,
         ).stdout.split()
+        self.assertTrue((self.fixture.home / ".gitconfig").is_file())
         self.assertEqual(["*"], listed)
 
     def test_a_clone_with_another_name_is_refused_with_the_old_message(self):
@@ -756,11 +873,13 @@ class SetupNetwork(unittest.TestCase):
         self.assertNotIn("proxy.example", result.stderr)
         self.assertIn("proxy settings", result.stderr)
 
-    def test_the_proxy_is_exported_before_west_init_so_that_git_and_curl_inherit_it(self):
+    def test_the_proxy_is_in_the_environment_of_every_tool_from_the_first_call(self):
         # West runs git, and the SDK download may run curl: both read the same variables.
-        text = read(DEVCONTAINER / "setup.sh")
-        self.assertLess(text.index("export \"$lower=$value\" \"$upper=$value\""),
-                        text.index("            west init -l crux-controller\n"))
+        self.run_setup(http_proxy="http://proxy.example:3128")
+        for call in ("python -m pip install", "west init", "west update", "west sdk install"):
+            seen = self.fixture.env_at(call)
+            self.assertEqual("http://proxy.example:3128", seen["http_proxy"], call)
+            self.assertEqual("http://proxy.example:3128", seen["HTTP_PROXY"], call)
 
     def test_an_extra_certificate_is_installed_and_the_system_bundle_is_selected(self):
         result = self.run_setup(CRUX_EXTRA_CA_FILE=str(self.certificate))
@@ -790,6 +909,69 @@ class SetupNetwork(unittest.TestCase):
         self.assertIn("setup: failed during the network settings; rerun: bash .devcontainer/setup.sh",
                       result.stderr)
         self.assertEqual([], self.fixture.calls())
+
+    def fixed_file(self, text=None):
+        path = self.fixture.workspace / ".crux-extra-ca.crt"
+        path.write_text(text if text is not None else self.certificate.read_text())
+        return path
+
+    def test_the_certificate_file_in_the_workspace_folder_is_installed_without_any_variable(self):
+        fixed = self.fixed_file()
+        result = self.run_setup()
+        self.assertEqual(0, result.returncode, result.stderr)
+        sudo = self.fixture.calls("sudo")
+        self.assertIn(f"sudo install -m 0644 {fixed} /usr/local/share/ca-certificates/crux-extra-ca.crt", sudo)
+        self.assertIn("sudo update-ca-certificates", sudo)
+        for tool in ("python", "west"):
+            for name in self.CERTIFICATE_VARIABLES:
+                self.assertEqual(self.BUNDLE, self.fixture.env_seen(tool)[name], f"{tool} {name}")
+        self.assertIn(".crux-extra-ca.crt", result.stderr)  # the source is named
+        self.assertNotIn("MIIB", result.stderr)  # the contents are not printed
+
+    def test_the_fixed_file_is_installed_before_the_first_download_tool_runs(self):
+        self.fixed_file()
+        self.run_setup()
+        calls = self.fixture.calls()
+        update = calls.index("sudo update-ca-certificates")
+        first_tool = min(i for i, call in enumerate(calls) if call.startswith(("python", "west")))
+        self.assertLess(update, first_tool)
+
+    def test_the_variable_wins_over_the_fixed_file(self):
+        fixed = self.fixed_file()
+        result = self.run_setup(CRUX_EXTRA_CA_FILE=str(self.certificate))
+        self.assertEqual(0, result.returncode, result.stderr)
+        installs = [call for call in self.fixture.calls("sudo") if call.startswith("sudo install")]
+        self.assertEqual(1, len(installs), installs)
+        self.assertIn(str(self.certificate), installs[0])
+        self.assertNotIn(str(fixed), installs[0])
+
+    def test_a_variable_that_names_no_readable_file_is_an_error_even_if_the_fixed_file_exists(self):
+        self.fixed_file()
+        result = self.run_setup(CRUX_EXTRA_CA_FILE=str(self.fixture.base / "typo.crt"))
+        self.assertEqual(1, result.returncode)
+        self.assertIn("not a readable file", result.stderr)
+        self.assertEqual([], self.fixture.calls())
+
+    def test_a_fixed_file_that_is_not_pem_is_refused_and_named(self):
+        fixed = self.fixed_file("not a certificate\n")
+        result = self.run_setup()
+        self.assertEqual(1, result.returncode)
+        self.assertIn("not a PEM certificate", result.stderr)
+        self.assertIn(str(fixed), result.stderr)
+        self.assertIn("openssl x509 -inform der", result.stderr)
+        self.assertEqual([], self.fixture.calls())
+
+    def test_a_fixed_file_that_is_a_folder_is_refused(self):
+        (self.fixture.workspace / ".crux-extra-ca.crt").mkdir()
+        result = self.run_setup()
+        self.assertEqual(1, result.returncode)
+        self.assertIn("not a readable file", result.stderr)
+
+    def test_without_the_fixed_file_and_the_variable_no_certificate_is_installed(self):
+        result = self.run_setup()
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual([], [call for call in self.fixture.calls("sudo") if "ca-certificates" in call])
+        self.assertNotIn("certificate", result.stderr)
 
     def test_a_certificate_that_is_not_pem_is_refused_with_the_conversion_command(self):
         der = self.fixture.base / "company.cer"

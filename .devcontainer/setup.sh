@@ -20,9 +20,23 @@
 # interrupted run leaves behind, so it is removed (the message says which) and made again.
 #
 # Network: when http_proxy, https_proxy or no_proxy is set (either case), both cases are exported for
-# pip, west, git and curl. When CRUX_EXTRA_CA_FILE names a readable PEM file (scripts/dev-shell.sh
-# mounts it), it is installed as a system certificate for a proxy that inspects TLS, and the system
-# bundle is selected for pip, requests and git. Without these variables the script behaves as before.
+# pip, west, git and curl. devcontainer.json passes them from the host environment; scripts/dev-shell.sh
+# does not pass them yet. A host proxy on 127.0.0.1 or localhost is not reachable from the container,
+# and proxy values in containerEnv are visible with `docker inspect`.
+#
+# A company proxy that inspects TLS needs its certificate. Before any pip, git, west or curl step the
+# script installs ONE PEM file as a system certificate (/usr/local/share/ca-certificates/
+# crux-extra-ca.crt, then sudo update-ca-certificates) and selects the system bundle for pip, requests
+# and git (SSL_CERT_FILE, REQUESTS_CA_BUNDLE, PIP_CERT, GIT_SSL_CAINFO). The file is, in this order:
+#   1. the file that CRUX_EXTRA_CA_FILE names, if the variable is set (an unreadable file is an error:
+#      a typo must not fall back silently). Nothing at this revision passes the variable into the
+#      container: scripts/dev-shell.sh does not yet. Set it yourself when you run this script by hand.
+#   2. else the file .crux-extra-ca.crt in the workspace folder, the parent folder of the clone (on the
+#      host, for example ~/work/controller-ws/.crux-extra-ca.crt; in the container
+#      /workspaces/ws/.crux-extra-ca.crt). That folder is already mounted, so this route works for
+#      VS Code and for the command line alike.
+#   3. else no certificate is installed and the script behaves as before.
+# The name of the source is printed, never the contents of the certificate.
 #
 # Everything it prints goes to the standard error stream, also what pip, west and git print, so a
 # command that scripts/dev-shell.sh runs after it keeps a clean standard output. When a step fails it
@@ -92,13 +106,22 @@ if [[ -n "$proxies_found" ]]; then
     # Only the names: a proxy URL can hold a password.
     say "using the proxy settings of the host for pip, west, git and curl:$proxies_found"
 fi
+ca_file=""
+ca_source=""
 if [[ -n "${CRUX_EXTRA_CA_FILE:-}" ]]; then
-    [[ -f "$CRUX_EXTRA_CA_FILE" && -r "$CRUX_EXTRA_CA_FILE" ]] \
-        || fail "CRUX_EXTRA_CA_FILE is '$CRUX_EXTRA_CA_FILE', which is not a readable file."
-    grep -q -- '-----BEGIN CERTIFICATE-----' "$CRUX_EXTRA_CA_FILE" \
-        || fail "CRUX_EXTRA_CA_FILE ($CRUX_EXTRA_CA_FILE) is not a PEM certificate (no BEGIN CERTIFICATE line). Convert a DER file (.cer) with: openssl x509 -inform der -in company.cer -out company.crt"
-    say "installing $CRUX_EXTRA_CA_FILE as a system certificate"
-    sudo install -m 0644 "$CRUX_EXTRA_CA_FILE" "$extra_ca_target"
+    ca_file="$CRUX_EXTRA_CA_FILE"
+    ca_source="CRUX_EXTRA_CA_FILE"
+elif [[ -e "$workspace/.crux-extra-ca.crt" ]]; then
+    ca_file="$workspace/.crux-extra-ca.crt"
+    ca_source="the workspace CA file"
+fi
+if [[ -n "$ca_file" ]]; then
+    [[ -f "$ca_file" && -r "$ca_file" ]] \
+        || fail "$ca_source is '$ca_file', which is not a readable file."
+    grep -q -- '-----BEGIN CERTIFICATE-----' "$ca_file" \
+        || fail "$ca_source ($ca_file) is not a PEM certificate (no BEGIN CERTIFICATE line). Convert a DER file (.cer) with: openssl x509 -inform der -in company.cer -out company.crt"
+    say "installing $ca_file ($ca_source) as a system certificate"
+    sudo install -m 0644 "$ca_file" "$extra_ca_target"
     sudo update-ca-certificates
     export SSL_CERT_FILE="$system_ca_bundle" REQUESTS_CA_BUNDLE="$system_ca_bundle"
     export PIP_CERT="$system_ca_bundle" GIT_SSL_CAINFO="$system_ca_bundle"
@@ -178,24 +201,30 @@ fi
 
 # 4. The Zephyr SDK with the arm-zephyr-eabi toolchain, as the S1 job installs it. GH_TOKEN is
 # optional: it only avoids GitHub's rate limit for anonymous requests. The install is complete when
-# the marker exists and the compiler is there; the marker is written only after west sdk install
-# returned. The compiler is looked for by name, so that a change of the SDK's folder layout does not
-# matter.
+# the marker exists, and the marker is written only after west sdk install returned. The compiler is
+# looked for by name (a file or a symbolic link, at most five levels down) only to warn: a layout that
+# the search does not know must not make every run delete and fetch several GiB again. An SDK folder
+# without the marker is removed first, but only a folder that is named zephyr-sdk-*, is inside the
+# cache folder and is reached without a .. component.
 step "the Zephyr SDK install"
 sdk_marker="$sdk_dir/.crux-installed"
 sdk_compiler_present() {
     local found
-    found="$(find "$sdk_dir" -maxdepth 5 -type f -perm -100 -name arm-zephyr-eabi-gcc -print 2>/dev/null || true)"
+    found="$(find "$sdk_dir" -maxdepth 5 \( -type f -o -type l \) -perm -100 -name arm-zephyr-eabi-gcc -print 2>/dev/null || true)"
     [[ -n "$found" ]]
 }
-sdk_complete() {
-    [[ -f "$sdk_marker" ]] && sdk_compiler_present
+sdk_removable() {
+    local cache_root="${cache%/}"
+    [[ "$sdk_dir" == "$cache_root"/* ]] || return 1
+    [[ "/$sdk_dir/" != */../* ]] || return 1
+    [[ "${sdk_dir%/}" != "$cache_root" ]] || return 1
+    [[ "$(basename "$sdk_dir")" == zephyr-sdk-* ]]
 }
-if ! sdk_complete; then
+if [[ ! -f "$sdk_marker" ]]; then
     if [[ -e "$sdk_dir" ]]; then
-        [[ "$sdk_dir" == "$cache"/* ]] \
-            || fail "the Zephyr SDK folder $sdk_dir is incomplete and is not inside $cache, so it is not removed. Remove it yourself and run this script again."
-        say "$sdk_dir is incomplete (no install marker, or no compiler); removing it and installing the SDK again"
+        sdk_removable \
+            || fail "the Zephyr SDK folder $sdk_dir has no install marker, but it is not removed: it must be named zephyr-sdk-*, be inside $cache and contain no .. component. Remove it yourself and run this script again."
+        say "$sdk_dir is incomplete (it has no install marker); removing it and installing the SDK again"
         rm -rf -- "$sdk_dir"
     fi
     token=()
@@ -213,7 +242,9 @@ if ! sdk_complete; then
 fi
 step "the check of the Zephyr SDK"
 [[ -d "$sdk_dir" ]] || fail "the Zephyr SDK is not in $sdk_dir after the install"
-sdk_complete || fail "the Zephyr SDK in $sdk_dir has no install marker or no arm-zephyr-eabi-gcc compiler after the install"
+[[ -f "$sdk_marker" ]] || fail "the Zephyr SDK in $sdk_dir has no install marker after the install"
+sdk_compiler_present \
+    || say "warning: no arm-zephyr-eabi-gcc found under $sdk_dir (the SDK layout may have changed); a build may fail"
 
 step "the final check"
 printf 'setup: workspace %s, Zephyr SDK %s, %s\n' "$workspace" "$sdk_version" "$(west --version)"
