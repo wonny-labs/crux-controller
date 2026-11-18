@@ -6,6 +6,12 @@ namespace, which is the platform's. These tests scan the tracked C and header fi
 enumerator or macro that the file introduces. A call of a Crux function, the use of a Crux type and
 the include of a Crux header are not definitions and are not reported.
 
+The ``CONFIG_`` namespace is Kconfig's. Zephyr's tooling reports every ``CONFIG_`` identifier in
+the source that no Kconfig file declares, so a header guard, macro or enumerator of the product
+that starts with ``CONFIG_`` looks like an undefined Kconfig symbol. No tracked C or header file,
+tests included, may define such an identifier. Using one, in ``#if``, ``#ifdef``, ``IS_ENABLED``
+or ``BUILD_ASSERT``, is how Kconfig values reach the source and is fine.
+
 The scan reads tokens, not lines. It removes comments and string literals, takes the preprocessor
 lines apart, and then reads each statement of the remaining text. It does not parse C. It finds the
 declaration forms that this repository uses, and the tests below pin the forms that it must find
@@ -22,6 +28,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 CRUX_PREFIX = re.compile(r"^(?:crux_|CRUX_)")
 CRUX_TREES = ("app", "workload")
+CONFIG_PREFIX = re.compile(r"^CONFIG_")
 
 TOKEN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*|[0-9][A-Za-z0-9_.]*|\S")
 IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_]*$")
@@ -375,6 +382,73 @@ class ProductTree(unittest.TestCase):
             path.write_text(mutated)
             found = offenders([path], root, CRUX_PREFIX)
         self.assertIn("app/src/health.c:%d: defines crux_added" % (original.count("\n") + 2), found)
+
+
+class ConfigDefinitions(unittest.TestCase):
+    """The CONFIG_ rule: definitions are reported, uses of Kconfig symbols are not."""
+
+    def found(self, text):
+        return [name for name, _ in definitions(text) if CONFIG_PREFIX.match(name)]
+
+    def test_an_include_guard_is_a_definition(self):
+        self.assertEqual(["CONFIG_STORE_H"], self.found("#ifndef CONFIG_STORE_H\n#define CONFIG_STORE_H\n#endif\n"))
+
+    def test_a_macro_an_enumerator_and_a_typedef_name_are_definitions(self):
+        text = (
+            '#define CONFIG_STORE_FILE_NAME "config.rec"\n'
+            "typedef enum {\n    CONFIG_STORE_OK = 0,\n    CONFIG_STORE_ERR = -1, /* note */\n} config_store_status_t;\n"
+            "typedef int CONFIG_handle_t;\n"
+            "static int CONFIG_counter;\n"
+        )
+        self.assertEqual(["CONFIG_STORE_FILE_NAME", "CONFIG_STORE_OK", "CONFIG_STORE_ERR",
+                          "CONFIG_handle_t", "CONFIG_counter"], self.found(text))
+
+    def test_the_use_of_kconfig_symbols_is_not_a_definition(self):
+        text = (
+            "#if defined(CONFIG_CRUX_WEB_MANAGEMENT) && CONFIG_NET_MAX_CONN > 2\n"
+            "#endif\n"
+            "#ifdef CONFIG_FILE_SYSTEM_MKFS\n"
+            "#endif\n"
+            "#ifndef CONFIG_SNTP\n"
+            "#endif\n"
+            'BUILD_ASSERT(CONFIG_NUM_PREEMPT_PRIORITIES > 6, "needs CONFIG_NUM_PREEMPT_PRIORITIES");\n'
+            "BUILD_ASSERT(IS_ENABLED(CONFIG_TIMEOUT_64BIT), \"x\");\n"
+            "_Static_assert(sizeof(CONFIG_CRUX_WEB_BIND_ADDRESS) > 1u, \"set it\");\n"
+            "static void f(void)\n{\n"
+            "    int result = tls_credential_add(CONFIG_CRUX_WEB_TLS_SEC_TAG, 1);\n"
+            "    (void)result;\n"
+            '    snprintf(text, sizeof text, "%s:%d", CONFIG_CRUX_WEB_BIND_ADDRESS, CONFIG_CRUX_WEB_PORT);\n'
+            "}\n"
+            "/* CONFIG_IN_A_COMMENT and #define CONFIG_NOT_CODE */\n"
+        )
+        self.assertEqual([], self.found(text))
+
+    def test_a_neutral_prefix_is_not_a_definition_in_the_namespace(self):
+        self.assertEqual([], self.found("#define CFGSTORE_OK 0\n#define MY_CONFIG_X 1\n#define CONFIGURED 1\n"))
+
+
+class ConfigNamespace(unittest.TestCase):
+    def test_the_scan_covers_headers_sources_and_tests(self):
+        files = [str(f.relative_to(ROOT)) for f in tracked(ROOT, (".",))]
+        for expected in ("app/src/config_store.h", "app/src/config_store.c",
+                         "tests/host/test_net_client.c", "tests/native_sim/s3/src/test_s3.c"):
+            self.assertIn(expected, files)
+
+    def test_no_tracked_c_or_header_file_defines_a_config_identifier(self):
+        self.assertEqual([], offenders(tracked(ROOT, (".",)), ROOT, CONFIG_PREFIX))
+
+    def test_a_config_definition_in_a_copy_of_a_header_is_found(self):
+        original = (ROOT / "app/src/net_client.h").read_text()
+        mutated = original.replace("#define NET_CLIENT_H", "#define CONFIG_NET_CLIENT_H").replace(
+            "#ifndef NET_CLIENT_H", "#ifndef CONFIG_NET_CLIENT_H")
+        self.assertNotEqual(original, mutated)
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            path = root / "app/src/net_client.h"
+            path.parent.mkdir(parents=True)
+            path.write_text(mutated)
+            found = offenders([path], root, CONFIG_PREFIX)
+        self.assertEqual(["app/src/net_client.h:3: defines CONFIG_NET_CLIENT_H"], found)
 
 
 if __name__ == "__main__":
