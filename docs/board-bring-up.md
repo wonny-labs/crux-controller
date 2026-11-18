@@ -45,8 +45,9 @@ that does not show that is a reason to stop (see [Stop conditions](#stop-conditi
    ```
 
    CI uploads no image, and a tooling test fails if a workflow uploads an artifact, so the image has to be
-   built where the board is. [CONTRIBUTING.md](../CONTRIBUTING.md) says this repository describes no local
-   Zephyr build; that part is not covered here. For the S2 runs, the image was approved by its SHA-256 hash,
+   built where the board is, with the recipe above in a west workspace (see
+   [try-on-native-sim.md](try-on-native-sim.md)); a local build is not CI evidence
+   ([why](try-on-native-sim.md#why-the-evidence-comes-from-ci)). For the S2 runs, the image was approved by its SHA-256 hash,
    a local rebuild gave that hash and two local builds were byte-identical (as the S2 note records). Proposed:
    do the same, and stop if the hash of the image to be programmed is not the approved one. Should show:
    `zephyr.bin` and `zephyr.meta` exist in `crux-controller/build/s2/zephyr` (the CI job checks both).
