@@ -106,6 +106,36 @@ changes, and say so in the pull request. Extend a check rather than loosen it.
 Keep one logical change in a pull request. Reuse what Zephyr and Crux provide rather than adding a layer
 of your own.
 
+## Static analysis and coding standard
+
+Measured on `main` at merge `26c78a3`, on 18 November 2026. If the scripts and workflows named here
+have changed since, they are the source of truth.
+
+- **Format.** clang-format 18.1.8 over every tracked C file is a gate: `scripts/check-format.sh`, in the
+  `Static analysis` job of `ci.yml`.
+- **clang-tidy.** clang-tidy 18 with `.clang-tidy` (checks from `bugprone`, `clang-analyzer`,
+  `performance` and `portability`; warnings are errors) runs over the 12 sources that the host tests
+  build: `scripts/analyze_host.py`, in the same job. The script prints the tracked sources that it did
+  not analyse, 16 today because they need Zephyr headers, without failing.
+- **Zephyr-side files.** Those 16 sources get compiler warnings only, `-Wall -Wextra -Werror`, in the
+  board and `native_sim` builds.
+- **Other gates.** The include rules (`scripts/check_boundary.py` and the Crux product include check,
+  both in the `Boundary check` job) and the resource limits (`.github/workflows/budget.yml`).
+- **Not done.** There is no coverage measurement, and no linting of Python, shell, YAML and CMake.
+
+These are the configured automated checks of this repository, not a claim of MISRA C, CERT C, security
+or functional-safety compliance. The Crux platform states its own position in its
+[coding guidelines](https://github.com/wonny-labs/crux-pilot/blob/751e04aead779ac08e438ec1e2640e57fc50e9fe/docs/coding-guidelines.md),
+read at that commit.
+
+Known gaps, not scheduled: the 16 sources above have no static analysis, and nothing measures how much
+of the code the tests run.
+
+The product's own Kconfig symbols use the prefix `CRUX_CONTROLLER_`; they are the product's names, not
+Crux platform symbols, and the Crux platform's own sample uses the same prefix, so Crux System refuses a
+configuration that enables the sample's `CONFIG_CRUX_CONTROLLER_M3` (at the pinned commit; see
+`docs/findings/s4-system-composition.md`), a symbol that this repository never defines.
+
 ## Commits and pull requests
 
 Write in English. Use a short conventional subject, `<type>: <summary>`, with a lowercase imperative
