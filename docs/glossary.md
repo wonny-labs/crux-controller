@@ -119,8 +119,8 @@ step needs a row in the limits file first, because the checker fails a step that
 **`native_sim`.** Zephyr's simulated board, run on the build host. CI runs the scenarios in
 `tests/native_sim` with Twister for `native_sim/native/64`. Each scenario is a Zephyr ztest application
 that compiles chosen sources of `app/` and `workload/`; none boots the board image. A `native_sim`
-pass is not evidence about the board: for example the simulator has no watchdog, so S4's feed cycle
-cannot be shown there.
+pass is not evidence about the board: for example S4's scenario does not enable the simulated watchdog of the pinned
+Crux, so no feed cycle is shown there.
 
 **EVKB.** Short for the board the repository targets, written "NXP RT1060-EVKB Rev B" in prose and
 "RT1060-EVKB" in CI job names. CI passes it to `west build` as `mimxrt1060_evk@B//qspi`. The repository does not explain
