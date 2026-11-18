@@ -202,14 +202,15 @@ Use a different build directory for the second run (for example `build/host-asan
 first one; CI starts each matrix leg on a fresh runner. These commands run from the repository root
 (`~/crux-ws/crux-controller`; the `Host tests` job checks the repository out without a separate path). They need
 CMake 3.20 or newer, Ninja and a C compiler; the virtual environment above provides the first two. One host
-test, `test_net_client`, listens on the fixed address `127.0.0.1:42431`, so two runs at the same time fail
-with "cannot listen".
+test, `test_net_client`, asks the system for a free port on `127.0.0.1` for each exchange, so two runs at the
+same time do not disturb each other (CTest runs two copies together as `net_client_concurrent`).
 
 The host tests are `tests/host/test_workload.c`, `test_net_client.c`, `test_health_policy.c`,
 `test_time_sync_policy.c` and `test_management_policy.c`. Each of the five ends by printing
 `<n> checks, <m> failures` and returns a non-zero exit status when `m` is not zero; that is what their
-source says. A passing run of the five prints `0 failures` for each, and CTest ends with
-`100% tests passed, 0 tests failed out of 5` (the line in the CI log of the run named above).
+source says. A passing run of the five prints `0 failures` for each. CTest lists six tests, the five and
+`net_client_concurrent`, and ends with `100% tests passed, 0 tests failed out of 6`. (The CI log of the run named
+above shows `out of 5`: it is from before `net_client_concurrent` was added.)
 
 ## Run the tooling tests and the boundary check
 
