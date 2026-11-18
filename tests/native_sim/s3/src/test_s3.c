@@ -34,10 +34,10 @@ static void expect_file_is_not_ready(void)
 {
     crux_file_t *file = NULL;
 
-    zassert_equal(crux_file_open(CONFIG_STORE_FILE_NAME, CRUX_FILE_READ, &file),
+    zassert_equal(crux_file_open(CFGSTORE_FILE_NAME, CRUX_FILE_READ, &file),
                   CRUX_FILE_ERR_NOT_READY);
     zassert_is_null(file);
-    zassert_equal(crux_file_remove(CONFIG_STORE_FILE_NAME), CRUX_FILE_ERR_NOT_READY);
+    zassert_equal(crux_file_remove(CFGSTORE_FILE_NAME), CRUX_FILE_ERR_NOT_READY);
 }
 #endif
 
@@ -47,9 +47,9 @@ static void expect_store_is_not_ready(void)
     const workload_config_t config = record(100, 10);
     workload_config_t out = record(1, 1);
 
-    zassert_equal(config_store_load(&out), CONFIG_STORE_ERR_NOT_READY);
+    zassert_equal(config_store_load(&out), CFGSTORE_ERR_NOT_READY);
     zassert_equal(out.period_ms, 1u);
-    zassert_equal(config_store_save(&config), CONFIG_STORE_ERR_NOT_READY);
+    zassert_equal(config_store_save(&config), CFGSTORE_ERR_NOT_READY);
 }
 #endif
 
@@ -130,7 +130,7 @@ static void *setup(void)
 static void remove_the_record(void *fixture)
 {
     ARG_UNUSED(fixture);
-    (void)crux_file_remove(CONFIG_STORE_FILE_NAME);
+    (void)crux_file_remove(CFGSTORE_FILE_NAME);
 }
 
 static void write_raw(const void *bytes, size_t length)
@@ -138,7 +138,7 @@ static void write_raw(const void *bytes, size_t length)
     crux_file_t *file = NULL;
     size_t written = 0;
 
-    zassert_equal(crux_file_open(CONFIG_STORE_FILE_NAME, CRUX_FILE_CREATE_REPLACE, &file),
+    zassert_equal(crux_file_open(CFGSTORE_FILE_NAME, CRUX_FILE_CREATE_REPLACE, &file),
                   CRUX_FILE_OK);
     zassert_equal(crux_file_write(file, bytes, length, &written), CRUX_FILE_OK);
     zassert_equal(written, length);
@@ -153,8 +153,8 @@ ZTEST(s3, test_a_saved_record_reads_back_the_same)
     const workload_config_t config = record(250, 7);
     workload_config_t out = record(1, 1);
 
-    zassert_equal(config_store_save(&config), CONFIG_STORE_OK);
-    zassert_equal(config_store_load(&out), CONFIG_STORE_OK);
+    zassert_equal(config_store_save(&config), CFGSTORE_OK);
+    zassert_equal(config_store_load(&out), CFGSTORE_OK);
     zassert_equal(out.period_ms, 250u);
     zassert_equal(out.message_every, 7u);
 }
@@ -166,13 +166,12 @@ ZTEST(s3, test_a_second_save_replaces_the_first)
     workload_config_t out = record(1, 1);
     crux_file_info_t info;
 
-    zassert_equal(config_store_save(&first), CONFIG_STORE_OK);
-    zassert_equal(config_store_save(&second), CONFIG_STORE_OK);
-    zassert_equal(config_store_load(&out), CONFIG_STORE_OK);
+    zassert_equal(config_store_save(&first), CFGSTORE_OK);
+    zassert_equal(config_store_save(&second), CFGSTORE_OK);
+    zassert_equal(config_store_load(&out), CFGSTORE_OK);
     zassert_equal(out.period_ms, 300u);
     zassert_equal(out.message_every, 3u);
-    zassert_equal(crux_file_stat(CRUX_FILE_ROOT_DEFAULT, CONFIG_STORE_FILE_NAME, &info),
-                  CRUX_FILE_OK);
+    zassert_equal(crux_file_stat(CRUX_FILE_ROOT_DEFAULT, CFGSTORE_FILE_NAME, &info), CRUX_FILE_OK);
     zassert_equal(info.size, (uint64_t)WORKLOAD_CONFIG_RECORD_SIZE);
 }
 
@@ -180,7 +179,7 @@ ZTEST(s3, test_a_load_without_a_saved_record_is_not_found)
 {
     workload_config_t out = record(1, 1);
 
-    zassert_equal(config_store_load(&out), CONFIG_STORE_ERR_NOT_FOUND);
+    zassert_equal(config_store_load(&out), CFGSTORE_ERR_NOT_FOUND);
     zassert_equal(out.period_ms, 1u);
 }
 
@@ -189,10 +188,9 @@ ZTEST(s3, test_a_file_that_is_not_a_record_is_a_format_error)
     workload_config_t out = record(1, 1);
 
     write_raw("hello", 5);
-    zassert_equal(config_store_load(&out), CONFIG_STORE_ERR_FORMAT);
+    zassert_equal(config_store_load(&out), CFGSTORE_ERR_FORMAT);
     write_raw("WCR1\0\0\0\x64\0\0\0\x0a\0", 13);
-    zassert_equal(config_store_load(&out), CONFIG_STORE_ERR_FORMAT,
-                  "a longer file is not a record");
+    zassert_equal(config_store_load(&out), CFGSTORE_ERR_FORMAT, "a longer file is not a record");
     zassert_equal(out.period_ms, 1u);
 }
 
@@ -201,8 +199,8 @@ ZTEST(s3, test_saving_an_invalid_record_writes_nothing)
     const workload_config_t invalid = record(9, 10);
     workload_config_t out = record(1, 1);
 
-    zassert_equal(config_store_save(&invalid), CONFIG_STORE_ERR_RANGE);
-    zassert_equal(config_store_load(&out), CONFIG_STORE_ERR_NOT_FOUND);
+    zassert_equal(config_store_save(&invalid), CFGSTORE_ERR_RANGE);
+    zassert_equal(config_store_load(&out), CFGSTORE_ERR_NOT_FOUND);
 }
 
 ZTEST(s3, test_a_second_bind_is_refused)
@@ -229,11 +227,11 @@ ZTEST(s3, test_a_failed_bind_leaves_file_not_ready_and_a_later_bind_succeeds)
 
     zassert_equal(storage_port_bind(), STORAGE_PORT_ERR_BIND);
     expect_file_is_not_ready();
-    zassert_equal(config_store_load(&out), CONFIG_STORE_ERR_NOT_READY);
+    zassert_equal(config_store_load(&out), CFGSTORE_ERR_NOT_READY);
 
     zassert_ok(fs_mkdir(FILES_DIRECTORY));
     zassert_equal(storage_port_bind(), STORAGE_PORT_OK);
-    zassert_equal(config_store_load(&out), CONFIG_STORE_ERR_NOT_FOUND);
+    zassert_equal(config_store_load(&out), CFGSTORE_ERR_NOT_FOUND);
     zassert_equal(storage_port_bind(), STORAGE_PORT_ERR_ALREADY_BOUND);
 }
 

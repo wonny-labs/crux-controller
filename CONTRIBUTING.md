@@ -56,14 +56,17 @@ scripts/check-format.sh
 CLANG_TIDY=clang-tidy-18 python3 scripts/analyze_host.py
 ```
 
-The Zephyr builds and the Twister runs happen in CI only. This repository describes no local Zephyr
-build, so a change to `app/`, `conf`, overlays or `tests/native_sim` takes its evidence from CI, and
-the pull request says so. CI is configured in `.github/workflows/`:
+CI is the reference for the Zephyr builds and the Twister runs.
+[docs/try-on-native-sim.md](docs/try-on-native-sim.md) gives the CI commands for a local `native_sim` run,
+and a local result does not replace CI. A change to `app/`, `conf`, overlays or `tests/native_sim` takes
+its evidence from CI, and the pull request says so.
+CI is configured in `.github/workflows/`:
 
 | Workflow | Jobs | When |
 |---|---|---|
 | `ci.yml` | `Tooling tests` (with the step `Check SPDX headers`: `scripts/check_spdx.py`), `West pins`, `Host tests` (sanitizer off and on), `S1` (Twister on `native_sim` for the scenarios in `tests/native_sim`, then the RT1060-EVKB build), `S2 build`, `S3 build`, `S4 build`, `S5 build`, `S6 build` (Twister on `native_sim` for the scenario in `tests/native_sim_mbed`, then the RT1060-EVKB build; the only job that fetches the Mbed TLS modules, with the group switched on in its own runner), `S0 build`, `Boundary check` (with the include check script of the Crux style kit as a further step), `Patch style` (Zephyr's checkpatch, rule BRACES, on the changed C lines, with `scripts/check-patch.sh`), `Static analysis` (clang-format 18.1.8 over every tracked C file with `scripts/check-format.sh`, then clang-tidy 18 over the host-built sources with `scripts/analyze_host.py`, which prints the list of tracked sources not analysed; any difference or finding fails the job) (names shortened) | pull requests and pushes to `main` |
 | `budget.yml` | `Budget` for S0 to S6: static resource use against `budgets/limits.json` (the S6 row fetches the Mbed TLS modules in its own runner) | pull requests and pushes to `main` |
+| `devcontainer.yml` | `Dev container`: builds the image of `.devcontainer/` and runs in it, through `scripts/dev-shell.sh`, the tooling tests, the format check, the static analysis, the host tests (sanitizer off and on), both boundary checks, the `native_sim` scenarios and the RT1060-EVKB cross-build of S1 with its output and configuration checks. Its pins are those of `ci.yml`, and `tests/tooling/test_devcontainer.py` compares them | pull requests and pushes to `main` that change `.devcontainer/`, `scripts/dev-shell.sh`, `west.yml` or the workflow, and by hand |
 | `rebuild.yml` | builds S2 twice at different paths and compares `zephyr.bin` and `firmware_identity` | by hand, and pull requests that change the workflow or `release/` |
 | `release.yml` | dry run of the release flow, publishes nothing | by hand, and pull requests that change the workflow, `release/` or `west.yml` |
 | `scheduled-main.yml` | `S2 build against crux-pilot main` | daily, and by hand |
