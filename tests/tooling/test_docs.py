@@ -157,9 +157,9 @@ class CiEvidenceRationale(unittest.TestCase):
     """The try-on page explains why evidence comes from CI, in agreement with CONTRIBUTING.md."""
 
     def section(self):
-        page = text("docs/try-on-native-sim.md")
+        page = (ROOT / "docs" / "try-on-native-sim.md").read_text()
         start = page.index("## Why the evidence comes from CI")
-        return page[start:page.index("## What `native_sim` is")]
+        return " ".join(page[start:page.index("\n## ", start + 1)].split())
 
     def test_the_section_reports_what_contributing_says_now(self):
         contributing = text("CONTRIBUTING.md")
