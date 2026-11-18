@@ -78,6 +78,8 @@ def documents():
 def sentences(text):
     text = re.sub(r"`[^`]*`", "X", text)
     text = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", text)
+    # A list item is a sentence of its own, with or without a final full stop.
+    text = re.sub(r"\s*\n\s*(?:[-*]|\d+\.) ", ". ", text)
     return [s for s in re.split(r"(?<=[.!?])\s+", " ".join(text.split())) if s]
 
 
@@ -273,7 +275,7 @@ class Terminology(unittest.TestCase):
     def test_the_long_readme_passages_are_short_sentences(self):
         body = read("README.md")
         passages = {
-            "first paragraph": body.split("\n\n")[1] + " " + body.split("\n\n")[2],
+            "first paragraphs": " ".join(body.split("\n\n")[1:4]),
             "owner bullet": section("README.md", "Roles and references").split("- **The reviewer")[0],
             "status": section("README.md", "Status").split("| Step |")[0],
         }
