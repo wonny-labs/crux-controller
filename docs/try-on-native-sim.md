@@ -38,7 +38,8 @@ separate reviewed change, because a change to CONTRIBUTING.md is a reviewed chan
   [What you need first](#what-you-need-first)), so a local build is optional.
 
 GitHub Actions logs expire (the default retention is 90 days), so the run numbers in the Recorded rows of the
-findings and in the roadmap table will stop resolving; that is why the results themselves are copied into those notes.
+findings will stop resolving, and so will the logs behind the roadmap table; that is why the results themselves are
+copied into those notes.
 
 So the commands below are a convenience for finding a failure before you push. A local pass does not replace the
 CI result in a pull request, and a local failure that CI does not show is a difference in your host to look at, not
