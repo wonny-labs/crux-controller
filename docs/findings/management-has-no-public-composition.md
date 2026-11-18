@@ -1,6 +1,10 @@
 # Finding: the management features have no public product composition
 
-Status: recorded after Stage 1 step S3. In this repository it is tracked by issue #40 (closed) and the epic #44. Filing it in `crux-pilot` needs the owner's approval and has not happened, and this repository has created no issue there.
+Status: recorded after Stage 1 step S3. In this repository it is tracked by issue #40 (closed) and the epic #44, issues of the public repository on GitHub. Filing it in `crux-pilot` needs the owner's approval and has not happened, and this repository has created no issue there.
+
+**Partly superseded.** Step S6 composes HTTPS management on the Mbed TLS profile with public Crux headers and targets;
+see [s6-https-management.md](s6-https-management.md). The serial and SSH command lines, SFTP, and the network, file
+and reboot routes are not built here. The body below is kept as recorded.
 
 ## State at the pin
 

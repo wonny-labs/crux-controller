@@ -1,6 +1,6 @@
 # Finding: the File binding has no public header for products
 
-Status: recorded for Stage 1. Tracked in issue #6. Filing it in `crux-pilot` needs the owner's approval and has not happened.
+Status: recorded for Stage 1. Tracked in issue #6 of the public repository on GitHub (closed). Filing it in `crux-pilot` needs the owner's approval and has not happened.
 
 **Update, 8 November 2026: the gap is closed upstream.** `crux-pilot` PR 346 (merge commit `37c92b18`) publishes the root binding as a composition interface: the header `<crux/file_zephyr.h>` and the CMake target `crux::file_zephyr` (design note `docs/file-composition-interface.md` in that repository). It is for composition code only, not for application code. This repository answers with a narrow composition zone in the boundary check (`docs/composition-zone.md`) and builds step S3 on it. The text below is the finding as recorded at the time and is kept as written: it describes the pin `db5adca`, which does not have the header. The pin moves in a separate pull request.
 
