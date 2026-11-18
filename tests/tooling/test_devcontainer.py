@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Checks of the dev container: the image is pinned and agrees with the CI jobs it stands in for.
 
 The dev container is a convenience for a developer on Windows with WSL2 and Docker Engine. CI stays the
