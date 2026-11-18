@@ -31,7 +31,9 @@ You do not need a board to see the firmware's tests run: the `native_sim` scenar
 passing run does and does not show. CI is the reference for Zephyr builds and Twister runs; the page gives the
 CI commands for a local `native_sim` run on Linux or WSL2, and a local result does not replace the CI result
 in a pull request. Contribution rules and the Python tooling tests are in
-[CONTRIBUTING.md](CONTRIBUTING.md).
+[CONTRIBUTING.md](CONTRIBUTING.md). On Windows with WSL2 and Docker Engine (no Docker Desktop), or on any host without
+Ubuntu 24.04, a dev container builds and tests it: see
+[docs/try-on-native-sim.md](docs/try-on-native-sim.md#dev-container) (nobody has run it on WSL2 yet).
 
 ## Status
 

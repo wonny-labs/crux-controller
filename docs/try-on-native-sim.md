@@ -9,6 +9,9 @@ in the Linux file system (your home directory), not under `/mnt/c`: the builds a
 differ there. Clone with `git clone -c core.autocrlf=false` if your Git for Windows settings could reach the
 clone, because CRLF line ends make `scripts/check-format.sh` fail. CI runs on x86_64 only.
 
+If your distribution is older than Ubuntu 24.04 (Zephyr 4.4 needs Python 3.12, and Ubuntu 22.04 has 3.10) or you
+would rather not install the tools on the host, use the [dev container](#dev-container) instead of the setup below.
+
 The commands come from the CI workflow (`.github/workflows/ci.yml`, job `S1`, on `ubuntu-24.04`) and from
 [CONTRIBUTING.md](../CONTRIBUTING.md), with the CI-only variables replaced by local values. What was run
 locally, and what was not, is in [What has been checked](#what-has-been-checked). CI stays the reference:
@@ -235,6 +238,135 @@ python crux-pilot/templates/product/check_domain_includes.py --product crux-cont
 Run from the wrong directory, `check_boundary.py` finds none of its trees and fails with status 2 and a message;
 it does not print a pass. [composition-zone.md](composition-zone.md#running-the-check) explains both commands.
 
+## Dev container
+
+A dev container is a Docker image with the host packages and tools of the CI jobs, an Ubuntu 24.04 userland and
+Python 3.12, plus a script that fetches the west workspace and the Zephyr SDK. It is for a teammate whose Linux is
+older than 24.04, for example an Ubuntu 22.04 distribution under WSL2, and it needs **Docker Engine only: no Docker
+Desktop**.
+
+**Nobody has run it on WSL2 yet.** Neither the Dev Containers extension in VS Code nor Docker Engine in a WSL2
+distribution has been used with these files. What does run is CI: the workflow `devcontainer.yml` builds the same
+image on an Ubuntu 24.04 runner, runs `scripts/dev-shell.sh` and, inside the container, the tooling tests, the format
+check, the static analysis, the host tests, both boundary checks and the `native_sim` scenarios of
+[the S1 to S5 section](#run-the-s1-to-s5-scenarios). That is a run of the image and the scripts, not of VS Code or
+of WSL2 (see [What has been checked](#what-has-been-checked)). If a step fails for you, open an issue with the
+output.
+
+The files are `.devcontainer/devcontainer.json` (for VS Code), `.devcontainer/Dockerfile` (the image, with the base
+image pinned by digest), `.devcontainer/requirements-tools.txt` (the pinned Python tools),
+`.devcontainer/setup.sh` (the workspace and SDK setup) and `scripts/dev-shell.sh` (the same without VS Code). The
+versions follow `ci.yml`, and a tooling test compares them.
+
+### What you need
+
+1. WSL2 with a Linux distribution, and your files in its Linux file system (not under `/mnt/c`).
+2. Docker Engine inside the distribution, installed as Docker describes for Ubuntu:
+   <https://docs.docker.com/engine/install/ubuntu/>. Do not install Docker Desktop. Then add yourself to the
+   `docker` group and start a new WSL session, so that `docker` works without `sudo`:
+
+   ```bash
+   sudo usermod -aG docker "$USER"
+   # in PowerShell: wsl --shutdown, then open the distribution again
+   docker run --rm hello-world
+   ```
+
+   The Docker service must be running in the distribution. If it is not started for you (WSL2 needs systemd
+   enabled for that), start it with `sudo service docker start`. The image is `linux/amd64`, which is the
+   architecture of a Windows PC; on another host the build is emulated and slow.
+3. For VS Code: Visual Studio Code on Windows with the WSL extension and the Dev Containers extension.
+
+Nothing in the files uses `host.docker.internal`, the Docker socket or a mount of your home directory.
+
+### Layout
+
+The dev container mounts the parent folder of the clone as the west workspace, so that `.west/`, `zephyr/` and
+`modules/` (several GiB; no size was measured) are on your Linux file system and survive a rebuild of the image.
+Use a folder of its own, and name the clone `crux-controller`, because `west.yml` requires that name. The setup
+script stops with a message if the clone has another name or if the parent folder is a home directory.
+
+```bash
+mkdir -p ~/work/controller-ws && cd ~/work/controller-ws
+git clone -c core.autocrlf=false https://github.com/wonny-labs/crux-controller.git crux-controller
+```
+
+Inside the container the workspace is `/workspaces/ws` and the repository is `/workspaces/ws/crux-controller`. The
+Zephyr SDK and the virtual environment (cmake, ninja, west, clang-format, PyYAML and the Python requirements of
+Zephyr) are in the Docker volume `crux-controller-dev-cache`, mounted at `/opt/crux-cache`. The variables
+`ZEPHYR_BASE` and `ZEPHYR_SDK_INSTALL_DIR` are set, as the CI steps set them.
+
+### With VS Code
+
+Open the clone from a WSL terminal, so that VS Code runs in WSL and finds Docker there:
+
+```bash
+cd ~/work/controller-ws/crux-controller
+code .
+```
+
+Run "Dev Containers: Reopen in Container". The first start builds the image and runs `.devcontainer/setup.sh`,
+which does `west init -l crux-controller` and `west update` only when the workspace does not exist yet, installs the
+Python requirements of Zephyr and runs `west sdk install` for the SDK version of the CI jobs. That takes a long time
+and downloads several GiB; watch the terminal of the creation log. Later starts and rebuilds find all of it
+already there. After a change of the pin in `west.yml`, run `west update` by hand: the setup script does not run it
+again.
+
+### Without VS Code
+
+```bash
+cd ~/work/controller-ws/crux-controller
+scripts/dev-shell.sh            # a shell in the container, in the repository
+scripts/dev-shell.sh <command>  # one command, with the repository as working directory
+```
+
+The script builds the image, runs `.devcontainer/setup.sh` and then your command, as the same numeric user as
+yours, so that the files it writes into the workspace belong to you. Set `GH_TOKEN` to avoid GitHub's rate limit
+for the SDK download.
+
+### Commands inside the container
+
+Run them in the container's terminal (or after `scripts/dev-shell.sh`). The scenarios run from the workspace
+directory, as in the sections above.
+
+```bash
+cd /workspaces/ws
+# S1 to S5, all scenarios of tests/native_sim, as the S1 job does
+west twister -p native_sim/native/64 -T crux-controller/tests/native_sim \
+  --inline-logs --clobber-output -O twister-out
+# S1 only
+west twister -p native_sim/native/64 -T crux-controller/tests/native_sim/s1 \
+  --inline-logs --clobber-output -O twister-out-s1
+# S2 only
+west twister -p native_sim/native/64 -T crux-controller/tests/native_sim/s2 \
+  --inline-logs --clobber-output -O twister-out-s2
+```
+
+From the repository (`/workspaces/ws/crux-controller`):
+
+```bash
+cmake -S tests/host -B build/host -G Ninja -DWORKLOAD_SANITIZE=OFF
+cmake --build build/host && ctest --test-dir build/host --output-on-failure
+python -m unittest discover -s tests/tooling -v
+./scripts/check-format.sh
+python scripts/analyze_host.py
+cd .. && python crux-controller/scripts/check_boundary.py --repo crux-controller --crux-root crux-pilot
+```
+
+`CLANG_TIDY` is set in the image, as the static analysis job needs it. The optional S6 steps, the stronger boundary
+check and the product include check of the sections above work unchanged from `/workspaces/ws`; the container does
+not switch the Mbed TLS group on by itself. The container does not reach a board: there is no USB or probe
+passthrough, and a `native_sim` run is not a board run.
+
+### If the dev container fails
+
+- `permission denied` on `/var/run/docker.sock`: you are not in the `docker` group yet, or the session predates the
+  change. Restart WSL as above.
+- "the clone is in a folder named ...": rename the clone folder to `crux-controller`.
+- To start from nothing, remove the cache with `docker volume rm crux-controller-dev-cache` (with no container using
+  it). The workspace folder next to the clone is yours: delete `.west/`, `zephyr/` and `modules/` there only if you
+  want a new `west init`.
+- CI is still the reference for a pull request. The Native route in the sections above stays valid on Ubuntu 24.04.
+
 ## If something fails
 
 CI is the reference. The checks of a commit on GitHub show the same jobs that these commands come from. A
@@ -257,3 +389,9 @@ workflows or the other files that CONTRIBUTING.md treats as reviewed (a reading 
   a fresh machine. Their commands are those of the CI jobs with the variables replaced, and the tooling
   tests and the boundary commands ran on a macOS host. If a step here fails on your machine, open an issue
   with the output.
+- The dev container (`.devcontainer/`, `scripts/dev-shell.sh`) was not started on a developer machine at all, and
+  nobody has used it with WSL2, Docker Engine in WSL2 or the Dev Containers extension. Its files were checked by
+  tooling tests (versions against `ci.yml`, the base image digest, no Docker Desktop feature, no write permission or
+  upload in the workflow), and the workflow `devcontainer.yml` runs the image and `scripts/dev-shell.sh` on an
+  Ubuntu 24.04 GitHub runner. The result of that job for the revision that you are reading is in the checks of the
+  commit on GitHub.
