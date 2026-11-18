@@ -56,6 +56,7 @@ Then take the page for your task:
   [docs/first-change.md](docs/first-change.md).
 - To add a step: [docs/adding-a-step.md](docs/adding-a-step.md).
 - To review a change: [docs/reviewing.md](docs/reviewing.md).
+- For what the checks and tests do not cover: [known limits](docs/README.md#known-limits-not-scheduled).
 - To keep a copy of this repository in your own repository: [docs/team-copy.md](docs/team-copy.md).
 - For terms and roles: [docs/glossary.md](docs/glossary.md).
 - For what building each step taught about using Crux: [docs/findings/](docs/findings/README.md).

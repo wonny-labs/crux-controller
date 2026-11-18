@@ -123,7 +123,7 @@ twice on a board (see `docs/findings/s2-first-board-run.md`); nothing else has r
   product, platform, composition, the product include check, `PASS`, `REVISE` and `ESCALATE`, and the files that
   need a reviewed change. `docs/adding-a-step.md` has one numbering scheme, moves the S5 and S6 retellings to an
   appendix, lists the licence line, format, clang-tidy and patch-style checks, and has a section on drivers and
-  HAL. No firmware image changes.
+  HAL. The index states the known limits of the checks and tests, which are not scheduled. No firmware image changes.
 - Corrections of earlier entries, which were true when written and are not rewritten: the entries under
   "Build and manifest" about the `crux-pilot` pin and the Mbed TLS group ("no job enables the group", "stays off
   in every job", "no controller code uses them yet") describe the repository before step S6. Since S6, the `S6 build` job

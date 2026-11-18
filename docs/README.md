@@ -63,6 +63,32 @@ CONTRIBUTING.md) take about 60 minutes together.
 - **Tracking**: the issues and pull requests of the public repository. Their open or closed state can lag behind the
   code. The documents and the CI checks of a commit are the reference ([README](../README.md#how-it-is-tracked)).
 
+## Known limits, not scheduled
+
+These are known limits of what the checks and tests cover. They are facts about the files today, not a plan.
+[CONTRIBUTING.md](../CONTRIBUTING.md#static-analysis-and-coding-standard) states the analysis position.
+
+- **clang-tidy covers part of the code.** It runs over the 12 sources that the host tests build. That is 7 of the 17
+  production C files in `app/` and `workload/` (the other 5 of the 12 are test files). The other production files need
+  Zephyr or Crux headers or Kconfig values. `scripts/analyze_host.py` prints the sources that it did not analyse, and
+  the list is printed but does not fail the job.
+- **The naming check enforces nothing.** `readability-identifier-naming` is listed without options and enforces no
+  naming rule (`.clang-tidy`).
+- **Other languages are not linted.** There is no lint for Python, shell, YAML or CMake, and no coverage measurement.
+- **Many tooling tests pin text.** Counted by module, the tests in `tests/tooling` that read the repository's
+  documents, workflows, CMake and Kconfig files as text, and run no script on synthetic input, are between about 50
+  and 70 percent of all of them. The upper figure counts three modules that mix both kinds. This is an estimate. A
+  green tooling run shows that the text and the configuration agree with the tests, and not that the firmware
+  behaves.
+- **Zephyr-side glue is not run by any test.** The start order and the decisions in `app/src/composition.c`, the
+  watchdog feed path of step S4 (the S4 scenario cannot show a feed cycle) and the web page script of step S6 (the S6
+  scenario serves its bytes, and nothing runs them) are never run in any test.
+- **Steps S5 and S6 run only on `native_sim`, in CI, and never on a board.** Step S2 ran twice on a board, on one bench.
+  Nothing else has run on a board ([roadmap](roadmap.md#what-has-run-on-a-board)).
+- **The dev container and WSL2 were not tried by anyone.** The dev container was not started on a developer machine, so
+  WSL2, Docker Engine in WSL2 and the proxy settings of `devcontainer.json` have not run there. The dev container job
+  of CI covers an x86_64 runner only ([try-on-native-sim.md](try-on-native-sim.md#what-has-been-checked)).
+
 ## All documents
 
 ### In `docs/`

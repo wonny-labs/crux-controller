@@ -428,7 +428,7 @@ class KnownLimits(unittest.TestCase):
         self.assertRegex(read("docs/README.md"), rf"(?m)^## {self.HEADING}$")
         part = self.part()
         self.assertIn("known limits, not scheduled", part.lower())
-        self.assertNotRegex(part, r"\b(will be|we will|planned|roadmap|soon|later)\b")
+        self.assertNotRegex(part, r"\b(will be|we will|planned|soon|later)\b")
         self.assertIn("../CONTRIBUTING.md#static-analysis-and-coding-standard",
                       section("docs/README.md", self.HEADING))
         self.assertIn("docs/README.md#known-limits-not-scheduled", {a for a in [
@@ -484,8 +484,8 @@ class KnownLimits(unittest.TestCase):
 
     def test_the_board_and_environment_statements_match_the_other_pages(self):
         part = self.part()
-        self.assertIn("Step S2 ran twice, on one bench", part)
-        self.assertIn("twice, on one bench", flat("README.md"))
+        self.assertIn("Step S2 ran twice on a board, on one bench", part)
+        self.assertIn("Step S2 ran twice on a board", flat("README.md"))
         self.assertIn("was not started on a developer machine", part)
         self.assertIn("was not started on a developer machine at all", flat("docs/try-on-native-sim.md"))
         self.assertIn("WSL2", part)
