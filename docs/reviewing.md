@@ -127,7 +127,7 @@ the recipe and the mechanical checklist; the points below are what a reviewer ve
   the budget tables. A limit does not change in the same pull request.
 - [ ] **A driver or HAL question is raised, not settled in passing.** A change that adds GPIO, I2C or SPI use, or a
   Zephyr driver header in `app/src`, meets the rules in [adding-a-step.md](adding-a-step.md), section 5. The
-  roadmap records GPIO, I2C and SPI as out of scope for now. CONTRIBUTING.md does not rule on them.
+  roadmap records GPIO, I2C and SPI as out of scope. CONTRIBUTING.md does not rule on them.
 
 ## 6. Evidence in the pull request
 
