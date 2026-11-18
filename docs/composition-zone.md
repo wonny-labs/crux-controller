@@ -18,9 +18,18 @@ python3 crux-pilot/templates/product/check_domain_includes.py --product crux-con
 ```
 
 The first command checks `app/src`, `app/compose`, `app/os` and `workload` against the public `<crux/NAME.h>`
-headers of the checkout. The second is the Crux product include check. CI downloads that script by hash;
-the pinned `crux-pilot` already contains the same file, so a local run uses it. Both print nothing
-but a pass line on success. Without `--crux-root`, `python scripts/check_boundary.py` from the repository
+headers of the checkout. The second is the Crux product include check, `templates/product/check_domain_includes.py`
+of `crux-pilot`. In product mode (`--product`) it reads every C and C++ source under the repository and fails on an
+include of one of the four frozen headers (`<crux/thread.h>`, `<crux/sync.h>`, `<crux/queue.h>`, `<crux/serial.h>`).
+Its stricter rules (no Zephyr header and no composition interface) apply only to a directory named `domain/`, and this
+repository has none, so here it checks the frozen headers across all sources. This overlaps the first command on the
+frozen headers, and it also covers every source file under the repository, including the tests.
+
+CI downloads that script from a fixed commit of `crux-pilot` and checks its SHA-256 before it runs it (the step
+`Run the Crux Pilot product include check` of the `Boundary check` job). A comment in the workflow says that the
+pinned revision predates the script and that moving the pin makes the download unnecessary. That comment is out of
+date: the pinned `crux-pilot` already contains the same file, with the same SHA-256, so a local run uses the pinned
+copy. Both commands print nothing but a pass line on success. Without `--crux-root`, `python scripts/check_boundary.py` from the repository
 root checks the same rules but cannot tell that a `<crux/NAME.h>` name is not a public header. If none
 of the four trees exists under `--repo`, for example because the command ran in the workspace directory
 without `--repo`, the script exits with status 2 and says so, and it does not report a pass.
@@ -55,8 +64,8 @@ carry a Zephyr or composition include back into the application.
 
 | Tree | ISO C | Sockets profile | Public `<crux/NAME.h>` | Composition interfaces (`<crux/file_zephyr.h>`, `<crux/web_zephyr.h>`) | Zephyr headers | Own tree | Other trees |
 |---|---|---|---|---|---|---|---|
-| `app/src` (unchanged) | yes | yes | yes | no | none | yes | `workload/include` |
-| `workload` (unchanged) | yes | no | no | no | none | yes | none |
+| `app/src` | yes | yes | yes | no | none | yes | `workload/include` |
+| `workload` | yes | no | no | no | none | yes | none |
 | `app/compose` | yes | no | yes | exactly those two (`COMPOSITION_CRUX_HEADERS`) | the allow-list below, nothing else | yes | header files (`.h`) of `app/src` (the port header) |
 | `app/os` (the adapter zone) | yes | no | yes | no | `zephyr/kernel.h` and `zephyr/net/sntp.h`, nothing else | yes | header files (`.h`) of `app/src` (the port header) |
 
