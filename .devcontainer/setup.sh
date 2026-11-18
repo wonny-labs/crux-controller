@@ -19,6 +19,11 @@
 # west workspace counts as initialised only with .west/config. A folder without its marker is what an
 # interrupted run leaves behind, so it is removed (the message says which) and made again.
 #
+# Network: when http_proxy, https_proxy or no_proxy is set (either case), both cases are exported for
+# pip, west, git and curl. When CRUX_EXTRA_CA_FILE names a readable PEM file (scripts/dev-shell.sh
+# mounts it), it is installed as a system certificate for a proxy that inspects TLS, and the system
+# bundle is selected for pip, requests and git. Without these variables the script behaves as before.
+#
 # Everything it prints goes to the standard error stream, also what pip, west and git print, so a
 # command that scripts/dev-shell.sh runs after it keeps a clean standard output. When a step fails it
 # prints which one, and how to run the script again.
@@ -31,6 +36,8 @@ workspace="$(dirname "$repo")"
 cache="${CRUX_CACHE_DIR:-/opt/crux-cache}"
 sdk_version="${ZEPHYR_SDK_VERSION:?ZEPHYR_SDK_VERSION is not set}"
 sdk_dir="${ZEPHYR_SDK_INSTALL_DIR:?ZEPHYR_SDK_INSTALL_DIR is not set}"
+extra_ca_target=/usr/local/share/ca-certificates/crux-extra-ca.crt
+system_ca_bundle=/etc/ssl/certs/ca-certificates.crt
 
 current_step="starting"
 step() {
@@ -66,6 +73,35 @@ step "the Git settings"
 safe_directories="$(git config --global --get-all safe.directory || true)"
 if ! grep -qxF '*' <<<"$safe_directories"; then
     git config --global --add safe.directory '*'
+fi
+
+# The proxy settings and the certificate of a proxy that inspects TLS, for the steps below.
+step "the network settings"
+proxies_found=""
+for pair in http_proxy:HTTP_PROXY https_proxy:HTTPS_PROXY no_proxy:NO_PROXY; do
+    lower="${pair%%:*}"
+    upper="${pair##*:}"
+    value="${!lower:-}"
+    [[ -n "$value" ]] || value="${!upper:-}"
+    if [[ -n "$value" ]]; then
+        export "$lower=$value" "$upper=$value"
+        proxies_found="$proxies_found $lower"
+    fi
+done
+if [[ -n "$proxies_found" ]]; then
+    # Only the names: a proxy URL can hold a password.
+    say "using the proxy settings of the host for pip, west, git and curl:$proxies_found"
+fi
+if [[ -n "${CRUX_EXTRA_CA_FILE:-}" ]]; then
+    [[ -f "$CRUX_EXTRA_CA_FILE" && -r "$CRUX_EXTRA_CA_FILE" ]] \
+        || fail "CRUX_EXTRA_CA_FILE is '$CRUX_EXTRA_CA_FILE', which is not a readable file."
+    grep -q -- '-----BEGIN CERTIFICATE-----' "$CRUX_EXTRA_CA_FILE" \
+        || fail "CRUX_EXTRA_CA_FILE ($CRUX_EXTRA_CA_FILE) is not a PEM certificate (no BEGIN CERTIFICATE line). Convert a DER file (.cer) with: openssl x509 -inform der -in company.cer -out company.crt"
+    say "installing $CRUX_EXTRA_CA_FILE as a system certificate"
+    sudo install -m 0644 "$CRUX_EXTRA_CA_FILE" "$extra_ca_target"
+    sudo update-ca-certificates
+    export SSL_CERT_FILE="$system_ca_bundle" REQUESTS_CA_BUNDLE="$system_ca_bundle"
+    export PIP_CERT="$system_ca_bundle" GIT_SSL_CAINFO="$system_ca_bundle"
 fi
 
 # The volume may have been created for another user id.

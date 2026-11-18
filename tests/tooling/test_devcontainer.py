@@ -646,6 +646,106 @@ class SetupRuns(unittest.TestCase):
         self.assertEqual([], self.fixture.calls())
 
 
+class SetupNetwork(unittest.TestCase):
+    """Proxy settings and the certificate of a proxy that inspects TLS, in the real setup.sh."""
+
+    BUNDLE = "/etc/ssl/certs/ca-certificates.crt"
+    PROXY_VARIABLES = ("http_proxy", "HTTP_PROXY", "https_proxy", "HTTPS_PROXY", "no_proxy", "NO_PROXY")
+    CERTIFICATE_VARIABLES = ("SSL_CERT_FILE", "REQUESTS_CA_BUNDLE", "PIP_CERT", "GIT_SSL_CAINFO")
+
+    def setUp(self):
+        self.fixture = SetupFixture()
+        self.addCleanup(self.fixture.close)
+        self.certificate = self.fixture.base / "company-ca.crt"
+        self.certificate.write_text("-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\n")
+
+    def run_setup(self, **env):
+        # The test host's own proxy settings must not leak into the run.
+        clean = {name: "" for name in self.PROXY_VARIABLES}
+        clean.update(env)
+        return self.fixture.run(**clean)
+
+    def test_without_the_variables_nothing_changes(self):
+        result = self.run_setup(http_proxy="", HTTP_PROXY="")
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual([], [call for call in self.fixture.calls() if "update-ca-certificates" in call])
+        seen = self.fixture.env_seen("python")
+        for name in self.CERTIFICATE_VARIABLES:
+            self.assertEqual("<unset>", seen[name], name)
+        self.assertNotIn("proxy settings", result.stderr)
+
+    def test_a_lower_case_proxy_is_exported_in_both_cases_to_pip_and_west(self):
+        result = self.run_setup(http_proxy="http://proxy.example:3128", https_proxy="http://proxy.example:3129",
+                                no_proxy="localhost,127.0.0.1")
+        self.assertEqual(0, result.returncode, result.stderr)
+        for tool in ("python", "west"):
+            seen = self.fixture.env_seen(tool)
+            self.assertEqual("http://proxy.example:3128", seen["http_proxy"], tool)
+            self.assertEqual("http://proxy.example:3128", seen["HTTP_PROXY"], tool)
+            self.assertEqual("http://proxy.example:3129", seen["https_proxy"], tool)
+            self.assertEqual("http://proxy.example:3129", seen["HTTPS_PROXY"], tool)
+            self.assertEqual("localhost,127.0.0.1", seen["no_proxy"], tool)
+            self.assertEqual("localhost,127.0.0.1", seen["NO_PROXY"], tool)
+
+    def test_an_upper_case_proxy_is_exported_in_both_cases(self):
+        result = self.run_setup(HTTPS_PROXY="http://upper.example:8080")
+        self.assertEqual(0, result.returncode, result.stderr)
+        seen = self.fixture.env_seen("west")
+        self.assertEqual("http://upper.example:8080", seen["https_proxy"])
+        self.assertEqual("http://upper.example:8080", seen["HTTPS_PROXY"])
+        self.assertEqual("", seen["http_proxy"])  # setup.sh sets no other proxy: empty, as the test passed it
+
+    def test_the_proxy_url_is_never_printed_because_it_can_hold_a_password(self):
+        result = self.run_setup(http_proxy="http://user:secret@proxy.example:3128")
+        self.assertNotIn("secret", result.stderr)
+        self.assertNotIn("proxy.example", result.stderr)
+        self.assertIn("proxy settings", result.stderr)
+
+    def test_the_proxy_is_exported_before_west_init_so_that_git_and_curl_inherit_it(self):
+        # West runs git, and the SDK download may run curl: both read the same variables.
+        text = read(DEVCONTAINER / "setup.sh")
+        self.assertLess(text.index("export \"$lower=$value\" \"$upper=$value\""),
+                        text.index("            west init -l crux-controller\n"))
+
+    def test_an_extra_certificate_is_installed_and_the_system_bundle_is_selected(self):
+        result = self.run_setup(CRUX_EXTRA_CA_FILE=str(self.certificate))
+        self.assertEqual(0, result.returncode, result.stderr)
+        sudo = self.fixture.calls("sudo")
+        install = f"sudo install -m 0644 {self.certificate} /usr/local/share/ca-certificates/crux-extra-ca.crt"
+        self.assertIn(install, sudo)
+        self.assertIn("sudo update-ca-certificates", sudo)
+        self.assertLess(sudo.index(install), sudo.index("sudo update-ca-certificates"))
+        for tool in ("python", "west"):
+            seen = self.fixture.env_seen(tool)
+            for name in self.CERTIFICATE_VARIABLES:
+                self.assertEqual(self.BUNDLE, seen[name], f"{tool} {name}")
+
+    def test_the_certificate_is_installed_before_any_download(self):
+        self.run_setup(CRUX_EXTRA_CA_FILE=str(self.certificate))
+        calls = self.fixture.calls()
+        update = calls.index("sudo update-ca-certificates")
+        first_tool = min(i for i, call in enumerate(calls) if call.startswith(("python", "west")))
+        self.assertLess(update, first_tool)
+
+    def test_a_missing_certificate_file_stops_the_setup_with_the_name_of_the_variable(self):
+        result = self.run_setup(CRUX_EXTRA_CA_FILE=str(self.fixture.base / "missing.crt"))
+        self.assertEqual(1, result.returncode)
+        self.assertIn("CRUX_EXTRA_CA_FILE", result.stderr)
+        self.assertIn("not a readable file", result.stderr)
+        self.assertIn("setup: failed during the network settings; rerun: bash .devcontainer/setup.sh",
+                      result.stderr)
+        self.assertEqual([], self.fixture.calls())
+
+    def test_a_certificate_that_is_not_pem_is_refused_with_the_conversion_command(self):
+        der = self.fixture.base / "company.cer"
+        der.write_bytes(b"\x30\x82\x01\x0a\x02\x82")
+        result = self.run_setup(CRUX_EXTRA_CA_FILE=str(der))
+        self.assertEqual(1, result.returncode)
+        self.assertIn("not a PEM certificate", result.stderr)
+        self.assertIn("openssl x509 -inform der", result.stderr)
+        self.assertEqual([], self.fixture.calls())
+
+
 class DevShell(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
