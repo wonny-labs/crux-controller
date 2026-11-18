@@ -12,10 +12,20 @@ that starts with ``CONFIG_`` looks like an undefined Kconfig symbol. No tracked 
 tests included, may define such an identifier. Using one, in ``#if``, ``#ifdef``, ``IS_ENABLED``
 or ``BUILD_ASSERT``, is how Kconfig values reach the source and is fine.
 
+Only files that git tracks are scanned (``git ls-files``). A new file counts once it is added.
+
 The scan reads tokens, not lines. It removes comments and string literals, takes the preprocessor
 lines apart, and then reads each statement of the remaining text. It does not parse C. It finds the
 declaration forms that this repository uses, and the tests below pin the forms that it must find
 and the forms that it must leave alone.
+
+Known limits, not scheduled to be fixed:
+
+* An object that a macro defines, such as ``K_THREAD_STACK_DEFINE(crux_stack, 512)``, is not a
+  declaration to the scanner, so its name is not reported.
+* A tag in ``typedef struct crux_tag {...} name;`` is not reported, and neither is a declaration
+  that starts with ``__attribute__`` or anything inside a macro body.
+* The scan does not follow ``#if`` branches: it reads all of them.
 """
 
 import pathlib
@@ -256,12 +266,21 @@ def statement_definitions(tokens):
 
 
 def after_brace(tokens, index):
-    """The declarators between a closing brace and its semicolon: "} crux_t, *crux_p;" """
+    """The declarators between a closing brace and its semicolon: "} crux_t, *crux_p;". An
+    identifier is a declarator when it follows the brace, a comma or a star outside every bracket.
+    An initialiser ("= {.level = CRUX_LOG_INFO}") and an array size ("[CRUX_COUNT]") are not."""
     names = []
-    while index < len(tokens) and tokens[index][0] != ";":
+    depth = 0
+    previous = "}"
+    while index < len(tokens) and not (tokens[index][0] == ";" and depth == 0):
         token, line = tokens[index]
-        if is_identifier(token):
+        if token in "([{":
+            depth += 1
+        elif token in ")]}":
+            depth -= 1
+        elif depth == 0 and is_identifier(token) and previous in ("}", ",", "*"):
             names.append((token, line))
+        previous = token
         index += 1
     return names
 
@@ -281,8 +300,7 @@ def definitions(text):
 
 def tracked(root, trees, suffixes=(".c", ".h")):
     out = subprocess.run(
-        ["git", "-C", str(root), "ls-files", "-z", "--cached", "--others", "--exclude-standard",
-         "--", *trees],
+        ["git", "-C", str(root), "ls-files", "-z", "--cached", "--", *trees],
         check=True, capture_output=True,
     )
     names = sorted(name.decode() for name in out.stdout.split(b"\0") if name)
@@ -328,6 +346,13 @@ class Definitions(unittest.TestCase):
         self.assertIn("crux_arg", self.names("static void use(int crux_arg) {}"))
         self.assertIn("crux_second", self.names("static int first = 1, crux_second = 2;"))
 
+    def test_an_initialiser_after_a_closing_brace_is_not_a_declarator(self):
+        names = self.names("static struct {\n    int level;\n} state = {.level = CRUX_LOG_INFO};\n")
+        self.assertEqual([], [n for n in names if CRUX_PREFIX.match(n)])
+        self.assertIn("state", names)
+        names = self.names("enum { ONE } value = CRUX_ONE;\nstruct { int a; } list[CRUX_COUNT], crux_second;\n")
+        self.assertEqual(["crux_second"], [n for n in names if CRUX_PREFIX.match(n)])
+
     def test_a_function_pointer_typedef_is_found(self):
         self.assertEqual(["crux_handler_t"], self.names("typedef void (*crux_handler_t)(int);"))
 
@@ -360,6 +385,17 @@ class Definitions(unittest.TestCase):
     def test_an_identifier_that_merely_contains_crux_is_not_in_the_namespace(self):
         self.assertEqual([], [n for n in self.names("static int my_crux_level(void);\n#define XCRUX_A 1\n")
                               if CRUX_PREFIX.match(n)])
+
+
+class TrackedFiles(unittest.TestCase):
+    def test_only_files_that_git_tracks_are_listed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            subprocess.run(["git", "-C", str(root), "init", "-q"], check=True)
+            (root / "a.c").write_text("int a;\n")
+            (root / "b.c").write_text("int b;\n")
+            subprocess.run(["git", "-C", str(root), "add", "a.c"], check=True)
+            self.assertEqual([root / "a.c"], tracked(root, (".",)))
 
 
 class ProductTree(unittest.TestCase):
