@@ -56,7 +56,7 @@ static void pause_ms(long milliseconds)
 }
 
 /* Bind the socket to the loopback address with a port that the system chooses, and make that
- * port the peer port of the client. Returns 0, or -1 with a message. */
+ * port the peer port of the client. Returns 0, or -1 with errno left as the failed call set it. */
 static int bind_free_port(int descriptor)
 {
     struct sockaddr_in address;
@@ -68,7 +68,6 @@ static int bind_free_port(int descriptor)
     inet_pton(AF_INET, CONFIG_CRUX_CONTROLLER_PEER_ADDRESS, &address.sin_addr);
     if (bind(descriptor, (struct sockaddr *)&address, sizeof address) != 0 ||
         getsockname(descriptor, (struct sockaddr *)&address, &length) != 0) {
-        printf("cannot bind a test port: %s\n", strerror(errno));
         return -1;
     }
     test_peer_port = ntohs(address.sin_port);
@@ -78,9 +77,15 @@ static int bind_free_port(int descriptor)
 static int open_listener(void)
 {
     const int listener = socket(AF_INET, SOCK_STREAM, 0);
+    int failed = listener < 0;
 
-    if (listener < 0 || bind_free_port(listener) != 0 || listen(listener, 1) != 0) {
-        printf("cannot listen on a test port: %s\n", strerror(errno));
+    if (!failed) {
+        failed = bind_free_port(listener) != 0 || listen(listener, 1) != 0;
+    }
+    if (failed) {
+        const int reason = errno;
+
+        printf("cannot listen on a test port: %s\n", strerror(reason));
         if (listener >= 0) {
             close(listener);
         }
@@ -167,8 +172,7 @@ int main(void)
     CHECK(exchange_with(PEER_SILENT) == NET_CLIENT_ERR_TIMEOUT);
 
     /* No listener: the connection is refused. The port is one that the system just assigned and
-     * that nothing listens on. (A port that is bound but not listened on would not do: some
-     * systems drop the connection attempt instead of refusing it.) */
+     * that nothing listens on. */
     {
         const workload_message_t message = {.cycle = 1, .value = 2};
         const int unused = socket(AF_INET, SOCK_STREAM, 0);
