@@ -123,6 +123,15 @@ twice on a board (see `docs/findings/s2-first-board-run.md`); nothing else has r
   `management_port.h` are now built into the S6 image. The documents `docs/dependencies.md`,
   `docs/try-on-native-sim.md`, `docs/roadmap.md`, `docs/glossary.md` and `docs/architecture.md` were corrected
   to match, and the try-on page now gives commands for Ubuntu 24.04 and WSL2.
+- Clarification of the same kind: "the S2 comparison with the earlier runs is still to do", in the entry about the
+  second zone `app/os` under "Boundary and budgets", means that the S2 image built with that zone has not run on
+  a board. The two S2 board runs used an image built before the zone existed, so they are not a comparison with it.
+- The documents now open with an audience statement and a reading order (`README.md`), define the roles
+  "owner", "reviewer" and "operator" and the terms of the board runs (`docs/glossary.md`), index the findings
+  (`docs/findings/README.md`), record the static size of each step (`docs/roadmap.md`), explain why Zephyr build
+  evidence comes from CI (`docs/try-on-native-sim.md`) and document the second check of the `Boundary check` job
+  (`docs/composition-zone.md`). The S4 and S5 findings record their CI results, the S5 and S6 notes no longer
+  describe how the work was organised, and `docs/adding-a-step.md` no longer relies on Git history.
 - The finding on the S2 board runs (`docs/findings/s2-first-board-run.md`) records a second run on
   12 November 2026 with the same S2 image on the same bench: the link, ping, S2 log and restore
   checks reproduced those of the first run. That is two runs on one bench; it shows no S2 timing,

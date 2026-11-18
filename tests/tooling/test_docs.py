@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Checks of the repository's role and release documents: the wording the owner approved is
-present, the promises the owner declined are absent, and the dependency page covers west.yml."""
+"""Checks of the repository's role and release documents: the role wording is present, the promises
+that are not made (a support period, a name reserved for another project) are absent, and the
+dependency page covers west.yml."""
 
 import pathlib
 import re
