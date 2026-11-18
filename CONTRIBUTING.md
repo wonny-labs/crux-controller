@@ -62,7 +62,7 @@ the pull request says so. CI is configured in `.github/workflows/`:
 
 | Workflow | Jobs | When |
 |---|---|---|
-| `ci.yml` | `Tooling tests` (with the step `Check SPDX headers`: `scripts/check_spdx.py`), `West pins`, `Host tests` (sanitizer off and on), `S1` (Twister on `native_sim` for the scenarios in `tests/native_sim`, then the RT1060-EVKB build), `S2 build`, `S3 build`, `S4 build`, `S5 build`, `S6 build` (Twister on `native_sim` for the scenario in `tests/native_sim_mbed`, then the RT1060-EVKB build; the only job that fetches the Mbed TLS modules, with the group switched on in its own runner), `S0 build`, `Boundary check` (with the include check script of the Crux style kit as one more step), `Patch style` (Zephyr's checkpatch, rule BRACES, on the changed C lines, with `scripts/check-patch.sh`), `Static analysis` (clang-format 18.1.8 over every tracked C file with `scripts/check-format.sh`, then clang-tidy 18 over the host-built sources with `scripts/analyze_host.py`, which prints the list of tracked sources not analysed; any difference or finding fails the job) (names shortened) | pull requests and pushes to `main` |
+| `ci.yml` | `Tooling tests` (with the step `Check SPDX headers`: `scripts/check_spdx.py`), `West pins`, `Host tests` (sanitizer off and on), `S1` (Twister on `native_sim` for the scenarios in `tests/native_sim`, then the RT1060-EVKB build), `S2 build`, `S3 build`, `S4 build`, `S5 build`, `S6 build` (Twister on `native_sim` for the scenario in `tests/native_sim_mbed`, then the RT1060-EVKB build; the only job that fetches the Mbed TLS modules, with the group switched on in its own runner), `S0 build`, `Boundary check` (with the include check script of the Crux style kit as a further step), `Patch style` (Zephyr's checkpatch, rule BRACES, on the changed C lines, with `scripts/check-patch.sh`), `Static analysis` (clang-format 18.1.8 over every tracked C file with `scripts/check-format.sh`, then clang-tidy 18 over the host-built sources with `scripts/analyze_host.py`, which prints the list of tracked sources not analysed; any difference or finding fails the job) (names shortened) | pull requests and pushes to `main` |
 | `budget.yml` | `Budget` for S0 to S6: static resource use against `budgets/limits.json` (the S6 row fetches the Mbed TLS modules in its own runner) | pull requests and pushes to `main` |
 | `rebuild.yml` | builds S2 twice at different paths and compares `zephyr.bin` and `firmware_identity` | by hand, and pull requests that change the workflow or `release/` |
 | `release.yml` | dry run of the release flow, publishes nothing | by hand, and pull requests that change the workflow, `release/` or `west.yml` |
@@ -115,10 +115,15 @@ have changed since, they are the source of truth.
   `Static analysis` job of `ci.yml`.
 - **clang-tidy.** clang-tidy 18 with `.clang-tidy` (checks from `bugprone`, `clang-analyzer`,
   `performance` and `portability`; warnings are errors) runs over the 12 sources that the host tests
-  build: `scripts/analyze_host.py`, in the same job. The script prints the tracked sources that it did
-  not analyse, 16 today because they need Zephyr headers, without failing.
-- **Zephyr-side files.** Those 16 sources get compiler warnings only, `-Wall -Wextra -Werror`, in the
-  board and `native_sim` builds.
+  build: `scripts/analyze_host.py`, in the same job. `.clang-tidy` also lists
+  `readability-identifier-naming` without options, so it checks no naming rule. The script prints the
+  tracked sources that it did not analyse, 16 today: the sources that the host tests do not build,
+  because they need Zephyr or Crux headers or Kconfig values. It does so without failing.
+- **The 16 not analysed.** 10 of those 16 are product sources (`app/src`, `app/compose`, `app/os`).
+  They are built with `-Wall -Wextra -Werror` in the board and `native_sim` builds, as
+  `app/CMakeLists.txt`, `app/compose/CMakeLists.txt` and `app/os/CMakeLists.txt` set. The other 6 are
+  the `native_sim` scenario sources (`tests/native_sim*/*/src/test_s*.c`): the CMake files of the
+  scenarios set those flags on the product sources that they pull in, not on the scenario source.
 - **Other gates.** The include rules (`scripts/check_boundary.py` and the Crux product include check,
   both in the `Boundary check` job) and the resource limits (`.github/workflows/budget.yml`).
 - **Headers and patch style.** `scripts/check_spdx.py` (the `Check SPDX headers` step of `Tooling tests`)
@@ -132,13 +137,17 @@ or functional-safety compliance. The Crux platform states its own position in it
 [coding guidelines](https://github.com/wonny-labs/crux-pilot/blob/751e04aead779ac08e438ec1e2640e57fc50e9fe/docs/coding-guidelines.md),
 read at that commit.
 
-Known gaps, not scheduled: the 16 sources above have no static analysis, and nothing measures how much
+Known gaps, not scheduled: the 16 sources above have no clang-tidy analysis, and nothing measures how much
 of the code the tests run.
 
 The product's own Kconfig symbols use the prefix `CRUX_CONTROLLER_`; they are the product's names, not
-Crux platform symbols, and the Crux platform's own sample uses the same prefix, so Crux System refuses a
-configuration that enables the sample's `CONFIG_CRUX_CONTROLLER_M3` (at the pinned commit; see
-`docs/findings/s4-system-composition.md`), a symbol that this repository never defines.
+Crux platform symbols.
+
+The Crux platform's sample uses the same prefix. Crux System refuses a configuration that enables the
+sample's `CONFIG_CRUX_CONTROLLER_M3`, as a further owner of the native watchdog next to `WDT_SHELL`,
+`HWINFO_SHELL` and `TASK_WDT_HW_FALLBACK`, not because of the prefix. The note
+`docs/findings/s4-system-composition.md` records this as read at `crux-pilot` `37c92b18`, and the same
+check is in the Crux source at `8e3737d2`. This repository never defines that symbol.
 
 ## Commits and pull requests
 

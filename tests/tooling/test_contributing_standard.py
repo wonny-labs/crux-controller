@@ -10,11 +10,17 @@ come from git."""
 import pathlib
 import re
 import subprocess
+import sys
 import unittest
 
 import yaml
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "scripts"))
+
+import analyze_host  # noqa: E402
+import check_spdx  # noqa: E402
+
 PLATFORM_GUIDELINES = (
     "https://github.com/wonny-labs/crux-pilot/blob/"
     "751e04aead779ac08e438ec1e2640e57fc50e9fe/docs/coding-guidelines.md"
@@ -51,11 +57,56 @@ def host_built_sources():
 
 
 def tracked_c_sources():
-    out = subprocess.run(
-        ["git", "-C", str(ROOT), "ls-files", "-z", "--", "*.c", "*.cpp"],
-        check=True, capture_output=True,
-    )
-    return {(ROOT / n.decode()).resolve() for n in out.stdout.split(b"\0") if n}
+    """The sources that scripts/analyze_host.py lists: tracked, or new and not ignored."""
+    return {path.resolve() for path in analyze_host.tracked_sources(ROOT)}
+
+
+def not_analysed():
+    return sorted(tracked_c_sources() - host_built_sources())
+
+
+def statements(text, command):
+    """The argument text of each `command(...)` call of a CMake file."""
+    return re.findall(rf"^\s*{command}\((.*?)\)", text, re.MULTILINE | re.DOTALL)
+
+
+def c_names(text):
+    return {pathlib.PurePosixPath(n).name for n in re.findall(r"[\w./${}-]+\.c\b", text)}
+
+
+def product_sources_with_warning_flags():
+    """Basenames of the sources that the application's CMake files build with -Wall -Wextra -Werror."""
+    flags = "-Wall -Wextra -Werror"
+    flagged = set()
+    app = (ROOT / "app/CMakeLists.txt").read_text()
+    if f"target_compile_options(app PRIVATE {flags})" in app:
+        for args in statements(app, "target_sources"):
+            if args.startswith("app "):
+                flagged |= c_names(args)
+    os_zone = (ROOT / "app/os/CMakeLists.txt").read_text()
+    for args in statements(os_zone, "set_source_files_properties"):
+        if 'COMPILE_OPTIONS "-Wall;-Wextra;-Werror"' in args:
+            flagged |= c_names(args)
+    compose = (ROOT / "app/compose/CMakeLists.txt").read_text()
+    if f"target_compile_options(compose PRIVATE {flags})" in compose:
+        for command in ("add_library", "target_sources"):
+            for args in statements(compose, command):
+                if args.startswith("compose "):
+                    flagged |= c_names(args)
+    return flagged
+
+
+def scenario_cmake_files():
+    return sorted((ROOT / "tests").glob("native_sim*/*/CMakeLists.txt"))
+
+
+def sources_given_compile_options_by_scenarios():
+    names = set()
+    for path in scenario_cmake_files():
+        for args in statements(path.read_text(), "set_source_files_properties"):
+            if "COMPILE_OPTIONS" in args:
+                names |= c_names(args)
+    return names
 
 
 class ProductKconfigPrefix(unittest.TestCase):
@@ -64,11 +115,21 @@ class ProductKconfigPrefix(unittest.TestCase):
         self.assertIn("`CRUX_CONTROLLER_`", body)
         self.assertRegex(body, r"not Crux platform symbols")
 
-    def test_the_platform_sample_and_the_refusal_are_stated(self):
-        body = flat(contributing())
+    def test_the_platform_sample_and_the_refusal_are_stated_with_their_reason(self):
+        body = flat(section())
         self.assertIn("`CONFIG_CRUX_CONTROLLER_M3`", body)
         self.assertIn("refuses", body)
+        self.assertIn("as a further owner of the native watchdog", body)
+        self.assertIn("not because of the prefix", body)
         self.assertIn("docs/findings/s4-system-composition.md", body)
+        self.assertIn("37c92b18", body)
+        self.assertIn("8e3737d2", body)
+        self.assertNotIn("at the pinned commit", body)
+        self.assertNotRegex(body, r"same prefix, so")
+        finding = (ROOT / "docs/findings/s4-system-composition.md").read_text()
+        for symbol in ("CRUX_CONTROLLER_M3", "WDT_SHELL", "HWINFO_SHELL", "TASK_WDT_HW_FALLBACK"):
+            self.assertIn(symbol, finding)
+            self.assertIn(symbol, body.replace("CONFIG_", "") if symbol != "CRUX_CONTROLLER_M3" else body)
 
     def test_the_product_defines_no_symbol_of_the_sample(self):
         self.assertNotIn("config CRUX_CONTROLLER_M3", (ROOT / "app/Kconfig").read_text())
@@ -101,7 +162,7 @@ class StaticAnalysisSection(unittest.TestCase):
     def test_tidy_scope_and_the_not_analysed_list_match_the_repository(self):
         body = flat(section())
         analysed = host_built_sources()
-        missing = tracked_c_sources() - analysed
+        missing = set(not_analysed())
         self.assertEqual(12, len(analysed))
         self.assertEqual(16, len(missing))
         self.assertIn("clang-tidy 18", body)
@@ -111,15 +172,49 @@ class StaticAnalysisSection(unittest.TestCase):
         self.assertIn("the 12 sources", body)
         self.assertIn("`scripts/analyze_host.py`", body)
         self.assertIn("16 today", body)
-        self.assertIn("they need Zephyr headers", body)
+        self.assertIn("the sources that the host tests do not build", body)
+        self.assertIn("Zephyr or Crux headers or Kconfig values", body)
+        self.assertNotIn("because they need Zephyr headers", body)
         self.assertIn("without failing", body)
 
-    def test_zephyr_side_files_get_compiler_warnings_only(self):
+    def test_ten_product_sources_get_warning_flags_and_six_scenario_sources_do_not(self):
         body = flat(section())
+        names = {path.name: path for path in not_analysed()}
+        self.assertEqual(16, len(names), "a basename is not unique")
+        flagged = product_sources_with_warning_flags()
+        scenario = {n for n, p in names.items() if "/tests/" in p.as_posix()}
+        product = set(names) - scenario
+        self.assertEqual(6, len(scenario))
+        self.assertEqual(10, len(product))
+        # Each product source is built with the flags by the CMake files that name them.
+        self.assertEqual(product, product & flagged, sorted(product - flagged))
+        # No scenario source is in a COMPILE_OPTIONS list, and no scenario file sets the flags on
+        # a target: they are set only on the product sources that a scenario pulls in.
+        given = sources_given_compile_options_by_scenarios()
+        for name in scenario:
+            self.assertNotIn(name, given)
+            self.assertNotIn(name, flagged)
+        for path in scenario_cmake_files():
+            self.assertNotRegex(path.read_text(), r"target_compile_options\(app", path.name)
+        # The text says exactly that.
+        self.assertIn("10 of those 16 are product sources", body)
         self.assertIn("`-Wall -Wextra -Werror`", body)
-        self.assertIn("native_sim", body)
-        cmake = (ROOT / "app/CMakeLists.txt").read_text()
-        self.assertIn("-Wall -Wextra -Werror", cmake)
+        self.assertIn("The other 6 are the `native_sim` scenario sources", body)
+        self.assertIn("not on the scenario source", body)
+        self.assertNotIn("Those 16 sources get compiler warnings only", body)
+        self.assertNotRegex(body, r"(?i)twister")
+
+    def test_identifier_naming_is_listed_without_options(self):
+        body = flat(section())
+        tidy = (ROOT / ".clang-tidy").read_text()
+        self.assertRegex(tidy, r"(?m)^\s*readability-identifier-naming\s*$")
+        self.assertNotIn("CheckOptions", tidy)
+        self.assertIn("`readability-identifier-naming` without options", body)
+        self.assertIn("checks no naming rule", body)
+
+    def test_the_spdx_allowlist_has_the_length_the_text_gives(self):
+        self.assertEqual(2, len(check_spdx.ALLOWLIST))
+        self.assertIn("a list of two older scripts", flat(section()))
 
     def test_other_checks_are_named_with_where_they_run(self):
         body = flat(section())
@@ -188,7 +283,9 @@ class CiJobTable(unittest.TestCase):
     def test_the_kit_step_is_in_the_boundary_job(self):
         steps = [s.get("name") for s in self.jobs["boundary"]["steps"]]
         self.assertIn("Run the style kit include check script", steps)
-        self.assertIn("style kit", ci_row())
+        row = ci_row()
+        self.assertIn("style kit as a further step", row)
+        self.assertNotIn("one more step", row)
 
 
 class SpdxAndPatchStyleFacts(unittest.TestCase):
