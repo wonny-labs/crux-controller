@@ -7,7 +7,7 @@ import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 PUBLIC = (
-    ".github", "app", "budgets", "docs", "release", "scripts", "workload",
+    ".devcontainer", ".github", "app", "budgets", "docs", "release", "scripts", "workload",
     "tests/host", "tests/native_sim", "tests/native_sim_mbed",
     "README.md", "SECURITY.md", "RELEASE.md", "CHANGELOG.md", "CONTRIBUTING.md",
 )

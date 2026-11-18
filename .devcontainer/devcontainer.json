@@ -1,0 +1,31 @@
+{
+  "name": "Crux Controller (Ubuntu 24.04 amd64)",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".",
+    "options": ["--platform=linux/amd64"]
+  },
+  "runArgs": ["--platform=linux/amd64"],
+  "workspaceMount": "source=${localWorkspaceFolder}/..,target=/workspaces/ws,type=bind",
+  "workspaceFolder": "/workspaces/ws/crux-controller",
+  "mounts": [
+    "source=crux-controller-dev-cache,target=/opt/crux-cache,type=volume"
+  ],
+  "remoteUser": "vscode",
+  "updateRemoteUserUID": true,
+  "postCreateCommand": "bash .devcontainer/setup.sh",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-vscode.cpptools",
+        "ms-vscode.cmake-tools",
+        "ms-python.python",
+        "redhat.vscode-yaml"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/opt/crux-cache/venv/bin/python"
+      }
+    }
+  },
+  "shutdownAction": "stopContainer"
+}

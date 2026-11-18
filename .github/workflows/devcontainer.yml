@@ -1,0 +1,80 @@
+name: devcontainer
+
+# Builds the dev container image from .devcontainer/Dockerfile and runs checks inside it, through
+# scripts/dev-shell.sh (the same image and setup script that VS Code uses). It shows that the
+# container can build and test what the CI jobs of ci.yml build and test, so a teammate on Windows
+# with WSL2 and Docker Engine gets the same result. It does not replace those jobs, and it is not a
+# run in VS Code or in WSL2: only the Dev Containers extension runs devcontainer.json.
+on:
+  pull_request:
+    paths:
+      - ".devcontainer/**"
+      - "scripts/dev-shell.sh"
+      - ".github/workflows/devcontainer.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: devcontainer-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  devcontainer:
+    name: Dev container (tooling tests, boundary check, S1 native_sim)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      # The clone sits in the workspace directory, as in the dev container layout.
+      - uses: actions/checkout@v4
+        with:
+          path: crux-controller
+      - name: Build the image and set up the workspace
+        run: crux-controller/scripts/dev-shell.sh west --version
+      - name: Run the tooling tests
+        run: crux-controller/scripts/dev-shell.sh python -m unittest discover -s tests/tooling -v
+      - name: Check the format
+        run: crux-controller/scripts/dev-shell.sh ./scripts/check-format.sh
+      - name: Analyze the host-built sources
+        run: crux-controller/scripts/dev-shell.sh python scripts/analyze_host.py
+      - name: Run the host tests
+        run: |
+          crux-controller/scripts/dev-shell.sh bash -c '
+            set -euo pipefail
+            cmake -S tests/host -B build/host -G Ninja -DWORKLOAD_SANITIZE=OFF
+            cmake --build build/host
+            ctest --test-dir build/host --output-on-failure
+          '
+      - name: Check the includes of app/src, app/compose and workload
+        run: |
+          crux-controller/scripts/dev-shell.sh bash -c '
+            cd /workspaces/ws
+            python crux-controller/scripts/check_boundary.py --repo crux-controller --crux-root crux-pilot
+          '
+      # The same download and hash check as the "Boundary check" job of ci.yml: the pinned
+      # crux-pilot revision predates this script. A test compares the two values.
+      - name: Run the Crux Pilot product include check
+        env:
+          CHECK_COMMIT: a72032b2f29c8c4579de8de07a43b40f19bb9516
+          CHECK_SHA256: eb297a527da071ed2e863fd456ec80a46c77b446f2544cf984f7a4775b94bf80
+        run: |
+          set -euo pipefail
+          script="$RUNNER_TEMP/check_domain_includes.py"
+          curl --fail --silent --show-error --location --retry 3 --output "$script" \
+            "https://raw.githubusercontent.com/wonny-labs/crux-pilot/${CHECK_COMMIT}/templates/product/check_domain_includes.py"
+          echo "${CHECK_SHA256}  ${script}" | sha256sum --check --strict -
+          cp "$script" "$GITHUB_WORKSPACE/check_domain_includes.py"
+          crux-controller/scripts/dev-shell.sh bash -c '
+            cd /workspaces/ws/crux-controller
+            python3 /workspaces/ws/check_domain_includes.py --product .
+          '
+      - name: Run the S1 scenario on native_sim
+        run: |
+          crux-controller/scripts/dev-shell.sh bash -c '
+            cd /workspaces/ws
+            west twister -p native_sim/native/64 -T crux-controller/tests/native_sim \
+              --inline-logs --clobber-output -O twister-out
+          '
