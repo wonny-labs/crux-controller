@@ -9,6 +9,8 @@ how a tool behaves on a developer machine is not checked here: the page labels t
 import os
 import pathlib
 import re
+import subprocess
+import tempfile
 import unittest
 
 import yaml
@@ -86,6 +88,42 @@ def anchors(text):
 
 def code_blocks(text, language="bash"):
     return re.findall(r"```" + language + r"\n(.*?)```", text, re.DOTALL)
+
+
+SKIPPED_FOLDERS = ("build", ".venv", "__pycache__", ".pytest_cache")
+
+
+def files_with_carriage_return(root):
+    """The text files of the repository that hold a CR byte.
+
+    With Git, only the tracked files count: a runner or a developer machine also holds compiled
+    Python files and build output that were never part of the repository. Without Git the folder is
+    walked, skipping hidden folders, build output and compiled files. A file with a NUL byte is binary.
+    """
+    root = pathlib.Path(root)
+    listing = subprocess.run(["git", "-C", str(root), "ls-files", "-z"], capture_output=True)
+    if listing.returncode == 0:
+        names = [name for name in listing.stdout.decode("utf-8", "surrogateescape").split("\0") if name]
+    else:
+        names = []
+        for directory, folders, files in os.walk(root):
+            folders[:] = [
+                folder for folder in folders
+                if not folder.startswith(".") and folder not in SKIPPED_FOLDERS
+                and not folder.startswith("twister-out")
+            ]
+            for name in files:
+                if not name.endswith(".pyc"):
+                    names.append(str((pathlib.Path(directory) / name).relative_to(root)))
+    found = []
+    for name in sorted(names):
+        path = root / name
+        if not path.is_file():
+            continue
+        data = path.read_bytes()
+        if b"\0" not in data and b"\r" in data:
+            found.append(name)
+    return found
 
 
 def ztest_count(directory):
@@ -412,14 +450,7 @@ class CopyAndLayout(Page):
     def test_no_file_of_the_repository_has_a_carriage_return(self):
         # The fix for a copy with CRLF line ends strips every CR. That is safe only while no file
         # of the repository needs one.
-        offenders = []
-        for directory, names, files in os.walk(ROOT):
-            names[:] = [name for name in names if name not in (".git", "build", ".venv")]
-            for name in files:
-                data = (pathlib.Path(directory) / name).read_bytes()
-                if b"\r" in data:
-                    offenders.append(str((pathlib.Path(directory) / name).relative_to(ROOT)))
-        self.assertEqual([], offenders)
+        self.assertEqual([], files_with_carriage_return(ROOT))
 
     def test_the_hidden_files_that_a_zip_can_lose_exist(self):
         for name in (".clang-format", ".clang-tidy", ".gitignore", ".devcontainer", ".github"):
@@ -489,6 +520,32 @@ class OnMain(Page):
 
     def test_the_page_does_not_call_a_changed_behaviour_planned(self):
         self.assertNotIn("planned", self.text.lower())
+
+
+class CarriageReturnScan(unittest.TestCase):
+    def test_only_a_tracked_file_with_crlf_is_reported(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            (root / "lf.txt").write_bytes(b"one\ntwo\n")
+            (root / "crlf.txt").write_bytes(b"one\r\ntwo\r\n")
+            (root / "image.bin").write_bytes(b"\0\r\n\0")
+            (root / "__pycache__").mkdir()
+            (root / "__pycache__" / "x.cpython-312.pyc").write_bytes(b"\r\n")
+            (root / "untracked.txt").write_bytes(b"a\r\n")
+            subprocess.run(["git", "-C", str(root), "add", "lf.txt", "crlf.txt", "image.bin"], check=True)
+            self.assertEqual(["crlf.txt"], files_with_carriage_return(root))
+
+    def test_without_git_hidden_folders_build_output_and_compiled_files_are_skipped(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            (root / "lf.txt").write_bytes(b"one\n")
+            (root / "crlf.txt").write_bytes(b"one\r\n")
+            for folder in (".hidden", "build", "__pycache__", ".pytest_cache", "twister-out-s1", ".venv"):
+                (root / folder).mkdir()
+                (root / folder / "f.txt").write_bytes(b"\r\n")
+            (root / "mod.pyc").write_bytes(b"\r\n")
+            self.assertEqual(["crlf.txt"], files_with_carriage_return(root))
 
 
 class Review(Page):
