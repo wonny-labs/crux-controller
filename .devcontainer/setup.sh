@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
 # Prepare the workspace inside the dev container. VS Code runs it after the container is created
 # (postCreateCommand) and scripts/dev-shell.sh runs it before every command. It is safe to run again:
 # each step checks whether it is already done and does nothing then.

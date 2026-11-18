@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
 # Run a shell, or one command, in the dev container without VS Code. It needs Docker Engine and
 # nothing else of Docker (no Docker Desktop): Docker Engine inside a WSL2 distribution is enough.
 #
