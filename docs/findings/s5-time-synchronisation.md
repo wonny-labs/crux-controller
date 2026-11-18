@@ -120,13 +120,16 @@ Other choices, each recorded in the code:
 - One log line per round, tag `time`: information for a clock that was set, confirmed or re-synchronised, a warning for
   every failure, refusal and stale mark, an error for a failed native write.
 
-## Duties from the Crux Time contract and the platform consult
+## Duties from the Crux Time contract
 
-`<crux/time_authority.h>` says that applications own stale-callback and source policy. Crux Pilot was asked (2026-11-14,
-answer read on the Crux main branch, not at the pin) whether a product thread may call `crux_realtime_set`. The answer, stated
-here as a consult result and not as a Crux decision: no objection, and four duties for the product: staleness is the
-product's, a write failure has to be handled, there is one writer of the native clock, and events carry a wall time
-that moves. They are met as follows.
+`<crux/time_authority.h>` says that applications own stale-callback and source policy. The question was whether a
+product thread may call `crux_realtime_set`. The answer that this note relies on, which was read on the Crux main
+branch and not at the pin, and which is not a Crux decision, is that a product may, with four duties: staleness is
+the product's, a write failure has to be handled, there is one writer of the native clock, and events carry a wall
+time that moves. The Crux Time contract at the pin supports the first three (`docs/time-contract.md` of `crux-pilot`: the
+Time Authority owns source selection and stale synchronisation callbacks; a native write failure invalidates time
+and synchronisation and keeps the previous source; the lock cannot serialise native clock setters outside Crux),
+and the fourth is the subject of the section on events below. They are met as follows.
 
 | Duty | How S5 meets it |
 |---|---|
