@@ -103,7 +103,7 @@ class Dependencies(unittest.TestCase):
         page = text("docs/dependencies.md")
         # Step S6 added a job that fetches with the group on, so the sentence that no job does is
         # replaced by one that names the two places that do, and the proof level is still stated.
-        for phrase in ("project-list level", "The `S6 build` job and the `Budget` row of S6",
+        for phrase in ("project-list level", "The `S6 build` job, the `Budget` row of S6 and the `Dev container` job",
                        "only active projects", "not run", "allowlist", "drops Zephyr"):
             self.assertIn(phrase, page, phrase)
         self.assertNotIn("no job fetches or builds with the group on", page)
