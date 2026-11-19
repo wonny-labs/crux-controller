@@ -174,9 +174,9 @@ class ReadingTime(unittest.TestCase):
     def test_the_readme_claims_about_sixty_minutes_and_the_index_agrees(self):
         text = flat("README.md")
         self.assertNotIn("30 minutes", text)
-        self.assertIn("about 60 minutes", text)
+        self.assertIn("about 80 minutes", text)
         total = sum(self.index_minutes()[name] for name in FIVE)
-        self.assertLessEqual(abs(total - 60), 5, f"the five pages add up to {total} minutes")
+        self.assertLessEqual(abs(total - 80), 5, f"the five pages add up to {total} minutes")
 
     def test_the_listed_times_follow_the_length_of_each_page(self):
         # About 250 words a minute for technical text. A wide band keeps the check from failing

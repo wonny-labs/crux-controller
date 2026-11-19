@@ -36,7 +36,7 @@ Crux Controller is a consumer of Crux: a small firmware that uses Crux the way a
 awkward public interface then shows up as a *finding*, a recorded note (see
 [docs/findings/](docs/findings/README.md)). The workload is synthetic.
 
-Read these five documents in this order. They take about 60 minutes in full.
+Read these five documents in this order. They take about 80 minutes in full.
 [docs/README.md](docs/README.md) is the index: it lists every page with its reading time and gives a short path
 for each task (run it, change code, add a step, review, understand why).
 
