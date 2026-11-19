@@ -108,15 +108,18 @@ The [glossary](docs/glossary.md) has these terms and more.
 ## How to try it
 
 You do not need a board to see the firmware's tests run: the `native_sim` scenarios run on a host.
-[docs/try-on-native-sim.md](docs/try-on-native-sim.md) lists what is needed and the commands, and what a
-passing run does and does not show. CI is the reference for Zephyr builds and Twister runs; the page gives the
-CI commands for a local `native_sim` run on Linux or WSL2, and a local result does not replace the CI result
-in a pull request. The reason is that CI builds in one pinned environment that every reviewer can open (see
-[Why the evidence comes from CI](docs/try-on-native-sim.md#why-the-evidence-comes-from-ci)). Contribution rules and
-the Python tooling tests are in [CONTRIBUTING.md](CONTRIBUTING.md). On Windows with WSL2 and Docker Engine (no Docker Desktop), or on any x86_64 host without Ubuntu 24.04,
-a dev container can build and test it: CI runs the tooling tests, the host tests, the boundary checks, the
-`native_sim` scenarios and the S1 board cross-build in it. See
-[docs/try-on-native-sim.md](docs/try-on-native-sim.md#dev-container) (only an x86_64 host was exercised, and only in CI; nobody has run it on WSL2 yet).
+[docs/try-on-native-sim.md](docs/try-on-native-sim.md) has the commands and says what a passing run does and does
+not show. CI is the reference for Zephyr builds and Twister runs, and a local result does not replace it
+([why](docs/try-on-native-sim.md#why-the-evidence-comes-from-ci)).
+On Windows with WSL2 and Docker Engine (no Docker Desktop), or on an x86_64 Linux older than Ubuntu 24.04, use the
+dev container (only an x86_64 host was exercised, and only in CI; nobody has run it on WSL2 yet). Its
+[quick start](docs/try-on-native-sim.md#quick-start), in short:
+
+1. Install Docker Engine in the distribution and add yourself to the `docker` group.
+2. Put the sources in an empty folder named `crux-controller` under a parent of its own, such as `~/work/controller-ws/crux-controller` (a copy without `.git` needs `git init` and `git add -A` first).
+3. Run `bash scripts/dev-shell.sh west --version`: the first run downloads several GiB.
+4. Run the Twister command of the quick start for all `native_sim` scenarios.
+5. A proxy, a company certificate or an error: see [docs/troubleshooting.md](docs/troubleshooting.md). Contribution rules and the Python tooling tests are in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Status
 
