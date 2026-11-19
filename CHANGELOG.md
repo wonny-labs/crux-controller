@@ -115,6 +115,15 @@ twice on a board (see `docs/findings/s2-first-board-run.md`); nothing else has r
 
 ### Documents
 
+- Navigation and role pages: an index of every document with a path for each task and a reading time
+  (`docs/README.md`), a tutorial from branch to pull request with a small host-test change
+  (`docs/first-change.md`), a reviewer checklist (`docs/reviewing.md`) and a note for teams that keep a copy of the
+  repository (`docs/team-copy.md`). The README says about 60 minutes for its five-page reading path and defines
+  EVKB, SNTP, MDIO, SBOM, ztest, Twister and the review results where it first uses them. The glossary defines
+  product, platform, composition, the product include check, `PASS`, `REVISE` and `ESCALATE`, and the files that
+  need a reviewed change. `docs/adding-a-step.md` has one numbering scheme, moves the S5 and S6 retellings to an
+  appendix, lists the licence line, format, clang-tidy and patch-style checks, and has a section on drivers and
+  HAL. The index states the known limits of the checks and tests, which are not scheduled. No firmware image changes.
 - Corrections of earlier entries, which were true when written and are not rewritten: the entries under
   "Build and manifest" about the `crux-pilot` pin and the Mbed TLS group ("no job enables the group", "stays off
   in every job", "no controller code uses them yet") describe the repository before step S6. Since S6, the `S6 build` job

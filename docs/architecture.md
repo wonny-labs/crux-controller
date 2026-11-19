@@ -5,7 +5,8 @@ repository before. Terms in italics on first use are defined in the [glossary](g
 exists and what does not is in the [roadmap](roadmap.md). How to run the tests without a board is in
 [try-on-native-sim.md](try-on-native-sim.md), and an outline of a board bring-up is in
 [board-bring-up.md](board-bring-up.md). The rules for changing things are in
-[CONTRIBUTING.md](../CONTRIBUTING.md).
+[CONTRIBUTING.md](../CONTRIBUTING.md). The words "product", "platform" and "composition" are used as the
+glossary explains in [Product, platform and composition](glossary.md#product-platform-and-composition).
 
 ## What the controller is and does
 
@@ -77,10 +78,10 @@ Points that the table cannot carry:
   pull request.
 - **`zephyr/net/sntp.h` is allowed in `app/os`, and one source includes it:
   `app/os/time_sync_zephyr.c` (S5).** That file calls the Zephyr SNTP library's string-based
-  `sntp_simple()` and nothing else of it, so it includes no socket header. The entry was added in
-  [wonny-labs/crux-controller#49](https://github.com/wonny-labs/crux-controller/pull/49) ahead of the code
-  that needed it, which arrived with
-  [wonny-labs/crux-controller#50](https://github.com/wonny-labs/crux-controller/pull/50).
+  `sntp_simple()` and nothing else of it, so it includes no socket header. The entry is
+  [wonny-labs/crux-controller#49](https://github.com/wonny-labs/crux-controller/pull/49) and the code that uses it is
+  [wonny-labs/crux-controller#50](https://github.com/wonny-labs/crux-controller/pull/50): two pull requests of the
+  public repository.
 - **The frozen-header rule covers `app/src` and `app/os`.** `<crux/thread.h>`, `<crux/sync.h>`,
   `<crux/queue.h>` and `<crux/serial.h>` are public Crux headers, and the product still does not use them:
   threads and queues come from Zephyr in `app/os`. The check keeps that from being undone silently. The
@@ -96,7 +97,7 @@ Points that the table cannot carry:
 ## How Crux is consumed
 
 - **Manifest.** `west.yml` makes this repository the west manifest repository. It imports `crux-pilot`
-  at a pinned full commit, `8e3737d25d048b14a00c01da00494f58a62958c6`, never a branch or tag, and adds one
+  at a pinned full commit (the `revision` in `west.yml`), never a branch or tag, and adds one
   test-only project, `picolibc`, for the `native_sim` scenario of S2. Crux's own manifest brings Zephyr and
   the Zephyr modules, so this repository does not name them. The import blocks the three GPL or commercial
   projects (`wolfssl`, `wolfssh`, `wolfpsa`) by name; the optional Crux groups stay off. Details and
@@ -185,7 +186,7 @@ Top-level directories and files:
 | `app/` | The Zephyr application, described below. |
 | `workload/` | The portable workload core (`include/workload.h`, `src/config_record.c`, `src/cycle.c`, `src/message.c`) and its `CMakeLists.txt`. |
 | `tests/` | `host/` (C tests that run on the build host), `native_sim/` (one Zephyr test application per step, S1 to S5), `native_sim_mbed/` (the S6 test application, which needs the Mbed TLS modules), `tooling/` (Python tests of the scripts, workflows, documents and build files). |
-| `scripts/` | `check_boundary.py` (the include check), `check_mbed_only.py` (checks that the Crux import cannot activate the GPL stacks), `check-format.sh` (clang-format over every C file), `analyze_host.py` (clang-tidy over the host-built sources, then the list of sources it did not analyse), `check_spdx.py` (checks that the first-party C, CMake, Kconfig, Python and shell files start with the licence identifier line), `check-patch.sh` (Zephyr's checkpatch, rule BRACES, on the C lines of a Git range; a copy of the script of the crux-pilot style kit), and `dev-shell.sh` (runs a shell or one command in the dev container, see [the try-on page](try-on-native-sim.md#dev-container)). |
+| `scripts/` | `check_boundary.py` (the include check), `check_mbed_only.py` (checks that the Crux import cannot activate the GPL stacks), `check-format.sh` (clang-format over every C file), `analyze_host.py` (clang-tidy over the host-built sources, then the list of sources it did not analyse), `check_spdx.py` (checks that the first-party C, CMake, Kconfig, Python and shell files start with the licence identifier line), `check-patch.sh` (Zephyr's checkpatch, rule BRACES, on the C lines of a Git range; a copy of the checkpatch wrapper that `crux-pilot` publishes for product repositories), and `dev-shell.sh` (runs a shell or one command in the dev container, see [the try-on page](try-on-native-sim.md#dev-container)). |
 | `budgets/` | `limits.json` (declared minimum free percent per memory region and step), `collect.py` (reads a build log into a measurement), `check.py` (compares a measurement with the limits). |
 | `release/` | The release bundle tools: `assemble_bundle.py`, `check_bundle.py`, `rebuild_compare.py`, `parse_spdx.py` and `release-manifest.schema.json`. Hashes and identities only; no image is ever published. |
 | `docs/` | This documentation: [architecture.md](architecture.md), [glossary.md](glossary.md), [adding-a-step.md](adding-a-step.md), [roadmap.md](roadmap.md), [try-on-native-sim.md](try-on-native-sim.md), [board-bring-up.md](board-bring-up.md), [composition-zone.md](composition-zone.md), [dependencies.md](dependencies.md) and `findings/`. |
