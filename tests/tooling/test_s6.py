@@ -1564,7 +1564,7 @@ class S6Contributing(unittest.TestCase):
 
     def test_the_job_list_names_the_s6_build_and_what_it_fetches(self):
         text = self.text()
-        self.assertIn("`S6 build` (Twister on `native_sim` for the scenario in `tests/native_sim_mbed`, then the RT1060-EVKB build; one of the two jobs that fetch the Mbed TLS modules, with the group switched on in its own runner; the other is `Dev container`)", text)
+        self.assertIn("`S6 build` (Twister on `native_sim` for the scenario in `tests/native_sim_mbed`, then the RT1060-EVKB build; one of the three jobs that fetch the Mbed TLS modules, with the group switched on in its own runner; the others are the S6 row of `Budget` and `Dev container`)", text)
         self.assertIn("`Budget` for S0 to S6: static resource use against `budgets/limits.json` (the S6 row fetches the Mbed TLS modules in its own runner)", text)
 
     def test_the_optional_group_sentence_names_the_two_places_that_switch_it_on_and_the_check(self):
