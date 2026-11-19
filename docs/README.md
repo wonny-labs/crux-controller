@@ -14,7 +14,7 @@ CONTRIBUTING.md) take about 80 minutes together.
 - [try-on-native-sim.md](try-on-native-sim.md): set up a workspace and run the `native_sim` scenarios, the host
   tests, the tooling tests and the boundary check without a board.
 - [first-change.md](first-change.md): run the host tests and the checks that need no Zephyr, with a small example.
-- [troubleshooting.md](troubleshooting.md): look up a failure by its message, with its cause, its fix and the page to read next.
+- [troubleshooting.md](troubleshooting.md): look up a failure by its message: its cause, its fix and the page to read next.
 - [board-bring-up.md](board-bring-up.md): only an outline of a board run, which has not been run for this firmware.
 
 ### I want to change code

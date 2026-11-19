@@ -45,7 +45,7 @@ for each task (run it, change code, add a step, review, understand why).
    has not. If you are short of time, read "Short version" and "What exists on `main`" first.
 3. [docs/architecture.md](docs/architecture.md) (about 12 minutes): the four source trees, the threads and how
    Crux is used.
-4. [docs/try-on-native-sim.md](docs/try-on-native-sim.md) (about 17 minutes to read, longer to follow): the
+4. [docs/try-on-native-sim.md](docs/try-on-native-sim.md) (about 35 minutes to read, longer to follow): the
    commands that run the tests without a board.
 5. [CONTRIBUTING.md](CONTRIBUTING.md) (about 9 minutes): the boundary, the checks, the pin and how a change is
    reviewed.
