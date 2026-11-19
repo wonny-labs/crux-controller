@@ -5,7 +5,7 @@ task. If you have not seen this repository before, start with the [README](../RE
 
 The reading times are for reading only, at about 250 words a minute. A page with commands takes longer to follow.
 The five pages of the reading path in the README (the README, the roadmap, the architecture, the try-on page and
-CONTRIBUTING.md) take about 60 minutes together.
+CONTRIBUTING.md) take about 80 minutes together.
 
 ## Paths by task
 
@@ -14,6 +14,7 @@ CONTRIBUTING.md) take about 60 minutes together.
 - [try-on-native-sim.md](try-on-native-sim.md): set up a workspace and run the `native_sim` scenarios, the host
   tests, the tooling tests and the boundary check without a board.
 - [first-change.md](first-change.md): run the host tests and the checks that need no Zephyr, with a small example.
+- [troubleshooting.md](troubleshooting.md): look up a failure by its message: its cause, its fix and the page to read next.
 - [board-bring-up.md](board-bring-up.md): only an outline of a board run, which has not been run for this firmware.
 
 ### I want to change code
@@ -97,7 +98,8 @@ These are known limits of what the checks and tests cover. They are facts about 
 |---|---|---|
 | [architecture.md](architecture.md) | How the repository is built: the four source trees and their include rules, how Crux is consumed, the threads in the image and a map of the files. | 12 min |
 | [roadmap.md](roadmap.md) | What exists on `main`, the static size per step, what has run on a board and what is not yet possible. It promises no dates. | 12 min |
-| [try-on-native-sim.md](try-on-native-sim.md) | How to run the tests without a board: setup, the `native_sim` scenarios, the host and tooling tests, the dev container, and what has and has not been checked. | 17 min |
+| [try-on-native-sim.md](try-on-native-sim.md) | How to run the tests without a board: setup, the `native_sim` scenarios, the host and tooling tests, the dev container, and what has and has not been checked. | 35 min |
+| [troubleshooting.md](troubleshooting.md) | Look a failure up by its message: the cause, the fix and the page that explains more. | 11 min |
 | [first-change.md](first-change.md) | A tutorial from branch to pull request with one small host-test change that needs no Zephyr. | 6 min |
 | [adding-a-step.md](adding-a-step.md) | The recipe for adding a step, its checklist, the rule for drivers and HAL, and the files that need a reviewed change. | 16 min |
 | [reviewing.md](reviewing.md) | A checklist for the reviewer, from CONTRIBUTING.md and from the repository's practice. | 9 min |

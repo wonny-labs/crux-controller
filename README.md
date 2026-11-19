@@ -36,7 +36,7 @@ Crux Controller is a consumer of Crux: a small firmware that uses Crux the way a
 awkward public interface then shows up as a *finding*, a recorded note (see
 [docs/findings/](docs/findings/README.md)). The workload is synthetic.
 
-Read these five documents in this order. They take about 60 minutes in full.
+Read these five documents in this order. They take about 80 minutes in full.
 [docs/README.md](docs/README.md) is the index: it lists every page with its reading time and gives a short path
 for each task (run it, change code, add a step, review, understand why).
 
@@ -45,7 +45,7 @@ for each task (run it, change code, add a step, review, understand why).
    has not. If you are short of time, read "Short version" and "What exists on `main`" first.
 3. [docs/architecture.md](docs/architecture.md) (about 12 minutes): the four source trees, the threads and how
    Crux is used.
-4. [docs/try-on-native-sim.md](docs/try-on-native-sim.md) (about 17 minutes to read, longer to follow): the
+4. [docs/try-on-native-sim.md](docs/try-on-native-sim.md) (about 35 minutes to read, longer to follow): the
    commands that run the tests without a board.
 5. [CONTRIBUTING.md](CONTRIBUTING.md) (about 9 minutes): the boundary, the checks, the pin and how a change is
    reviewed.
