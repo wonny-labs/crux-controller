@@ -246,7 +246,7 @@ class QuickStart(Page):
         self.assertIn("/etc/wsl.conf", self.quick)
 
     def test_the_sources_go_in_a_folder_named_crux_controller_under_a_parent_of_its_own(self):
-        self.assertIn("~/work/controller-ws/crux-controller", self.quick)
+        self.assertIn("~/work/crux-controller-workspace/crux-controller", self.quick)
         self.assertIn("/mnt/c", self.quick)
         self.assertIn("empty", self.quick)
 
@@ -400,7 +400,7 @@ class Proxy(Page):
         self.assertIn("CRUX_EXTRA_CA_FILE", self.setup)
         self.assertIn("which is not a readable file", self.setup)
         self.assertIn("which is not a readable file", self.text)
-        self.assertIn("~/work/controller-ws/.crux-extra-ca.crt", self.proxy)
+        self.assertIn("~/work/crux-controller-workspace/.crux-extra-ca.crt", self.proxy)
         self.assertIn("/workspaces/ws/.crux-extra-ca.crt", self.proxy)
         convert = "openssl x509 -inform der -in company.cer -out company.crt"
         self.assertIn(convert, self.setup)

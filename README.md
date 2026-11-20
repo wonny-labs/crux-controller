@@ -116,7 +116,7 @@ dev container (only an x86_64 host was exercised, and only in CI; nobody has run
 [quick start](docs/try-on-native-sim.md#quick-start), in short:
 
 1. Install Docker Engine in the distribution and add yourself to the `docker` group.
-2. Put the sources in an empty folder named `crux-controller` under a parent of its own, such as `~/work/controller-ws/crux-controller` (a copy without `.git` needs `git init` and `git add -A` first).
+2. Put the sources in an empty folder named `crux-controller` under a parent of its own, such as `~/work/crux-controller-workspace/crux-controller` (a copy without `.git` needs `git init` and `git add -A` first).
 3. Run `bash scripts/dev-shell.sh west --version`: the first run downloads several GiB.
 4. Run the Twister command of the quick start for all `native_sim` scenarios.
 5. A proxy, a company certificate or an error: see [docs/troubleshooting.md](docs/troubleshooting.md). Contribution rules and the Python tooling tests are in [CONTRIBUTING.md](CONTRIBUTING.md).

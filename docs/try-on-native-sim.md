@@ -74,10 +74,10 @@ pulls an image.
 
 3. Choose a parent folder of its own in the Linux home directory (not under `/mnt/c`), empty apart from the
    clone, and put the sources in a folder named exactly `crux-controller` in it, for example
-   `~/work/controller-ws/crux-controller`. From a clone:
+   `~/work/crux-controller-workspace/crux-controller`. From a clone:
 
    ```bash
-   mkdir -p ~/work/controller-ws && cd ~/work/controller-ws
+   mkdir -p ~/work/crux-controller-workspace && cd ~/work/crux-controller-workspace
    git clone -c core.autocrlf=false https://github.com/wonny-labs/crux-controller.git crux-controller
    cd crux-controller
    ```
@@ -88,7 +88,7 @@ pulls an image.
    parent folder and rename that folder to `crux-controller`:
 
    ```bash
-   mkdir -p ~/work/controller-ws && cd ~/work/controller-ws
+   mkdir -p ~/work/crux-controller-workspace && cd ~/work/crux-controller-workspace
    unzip /path/to/the-copy.zip
    mv <the extracted folder> crux-controller
    cd crux-controller
@@ -98,7 +98,7 @@ pulls an image.
    If the zip has no top-level folder, unzip into `crux-controller` itself:
 
    ```bash
-   mkdir -p ~/work/controller-ws/crux-controller && cd ~/work/controller-ws/crux-controller
+   mkdir -p ~/work/crux-controller-workspace/crux-controller && cd ~/work/crux-controller-workspace/crux-controller
    unzip /path/to/the-copy.zip
    ls -a
    ```
@@ -157,7 +157,7 @@ pulls an image.
 
 6. Run all the `native_sim` scenarios of steps S1 to S5. `scripts/dev-shell.sh` runs a command with the
    repository as the working directory, so the command changes into the workspace folder first
-   (`/workspaces/ws` in the container is your `~/work/controller-ws`):
+   (`/workspaces/ws` in the container is your `~/work/crux-controller-workspace`):
 
    ```bash
    bash scripts/dev-shell.sh bash -c 'cd /workspaces/ws && west twister -p native_sim/native/64 -T crux-controller/tests/native_sim --inline-logs --clobber-output -O twister-out'
@@ -190,7 +190,7 @@ pulls an image.
    ```
 
 9. Find the outputs. The Twister folders (`twister-out`, `twister-out-s1`) are in the workspace folder, next to
-   the clone (`~/work/controller-ws`), because the commands ran there; each scenario has its own build folder
+   the clone (`~/work/crux-controller-workspace`), because the commands ran there; each scenario has its own build folder
    in them, and `--inline-logs` prints the output of a failed scenario. Builds of the repository itself
    (for example `build/host` of the host tests) are under `build/` in the clone, which `.gitignore` excludes.
 
@@ -329,7 +329,7 @@ authority (CA) certificate as a PEM file, named `.crux-extra-ca.crt`, in the wor
 folder of the clone and outside the repository:
 
 ```bash
-cp /path/to/company-ca.pem ~/work/controller-ws/.crux-extra-ca.crt
+cp /path/to/company-ca.pem ~/work/crux-controller-workspace/.crux-extra-ca.crt
 ```
 
 In the container the file is `/workspaces/ws/.crux-extra-ca.crt`. That folder is mounted in both routes, so this
@@ -389,7 +389,7 @@ setup), and the whole folder is bind-mounted, readable and writable, into the co
 exposed to the container and can clash with those folders.
 
 ```bash
-mkdir -p ~/work/controller-ws && cd ~/work/controller-ws
+mkdir -p ~/work/crux-controller-workspace && cd ~/work/crux-controller-workspace
 git clone -c core.autocrlf=false https://github.com/wonny-labs/crux-controller.git crux-controller
 ```
 
@@ -412,7 +412,7 @@ docker volume rm crux-controller-dev-cache-<number>
 To see which volume the script uses for a folder, compute the number:
 
 ```bash
-printf '%s' "$HOME/work/controller-ws" | cksum | cut -d' ' -f1
+printf '%s' "$HOME/work/crux-controller-workspace" | cksum | cut -d' ' -f1
 ```
 
 ### From a copy without Git history
@@ -462,7 +462,7 @@ A copy is a zip or any folder without a `.git` folder. It runs the same, with th
 Open the clone from a WSL terminal, so that VS Code runs in WSL and finds Docker there:
 
 ```bash
-cd ~/work/controller-ws/crux-controller
+cd ~/work/crux-controller-workspace/crux-controller
 code .
 ```
 
@@ -482,7 +482,7 @@ and it runs `west update` again if the first one did not finish. After a change 
 ### Without VS Code
 
 ```bash
-cd ~/work/controller-ws/crux-controller
+cd ~/work/crux-controller-workspace/crux-controller
 bash scripts/dev-shell.sh            # a shell in the container, in the repository
 bash scripts/dev-shell.sh <command>  # one command, with the repository as working directory
 ```
