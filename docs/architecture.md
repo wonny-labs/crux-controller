@@ -78,10 +78,7 @@ Points that the table cannot carry:
   pull request.
 - **`zephyr/net/sntp.h` is allowed in `app/os`, and one source includes it:
   `app/os/time_sync_zephyr.c` (S5).** That file calls the Zephyr SNTP library's string-based
-  `sntp_simple()` and nothing else of it, so it includes no socket header. The entry is
-  [wonny-labs/crux-controller#49](https://github.com/wonny-labs/crux-controller/pull/49) and the code that uses it is
-  [wonny-labs/crux-controller#50](https://github.com/wonny-labs/crux-controller/pull/50): two pull requests of the
-  public repository.
+  `sntp_simple()` and nothing else of it, so it includes no socket header.
 - **The frozen-header rule covers `app/src` and `app/os`.** `<crux/thread.h>`, `<crux/sync.h>`,
   `<crux/queue.h>` and `<crux/serial.h>` are public Crux headers, and the product still does not use them:
   threads and queues come from Zephyr in `app/os`. The check keeps that from being undone silently. The

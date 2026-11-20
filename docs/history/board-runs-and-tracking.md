@@ -88,3 +88,10 @@ earlier platform stage", which means a phase of Crux, not of this repository.
 
 Each run needed the owner's written approval, an explicit owner yes before the board was overwritten and
 a guard check before each probe step (`docs/findings/s2-first-board-run.md`, "Method").
+
+## From `docs/architecture.md`: Layers and zones, the `zephyr/net/sntp.h` bullet, the last sentence
+
+The entry is
+[wonny-labs/crux-controller#49](https://github.com/wonny-labs/crux-controller/pull/49) and the code that uses it is
+[wonny-labs/crux-controller#50](https://github.com/wonny-labs/crux-controller/pull/50): two pull requests of the
+public repository.

@@ -46,6 +46,7 @@ statement instead, the last column says what it says now.
 | `docs/roadmap.md` | What is not yet possible, and why, last paragraph | [board-runs-and-tracking.md](board-runs-and-tracking.md) | "What is not yet possible, and why, the last paragraph" | Nothing is filed in `crux-pilot`; filing needs the owner's approval. |
 | `docs/glossary.md` | Stage | [board-runs-and-tracking.md](board-runs-and-tracking.md) | "Stage (whole entry, rewritten in short form)" | A short entry without the tracking paragraph and pull request numbers. |
 | `docs/glossary.md` | Gated procedure, second sentence | [board-runs-and-tracking.md](board-runs-and-tracking.md) | "Gated procedure, the second sentence" | Points at the "Method" section of the S2 finding. |
+| `docs/architecture.md` | Layers and zones, the `zephyr/net/sntp.h` bullet, last sentence | [board-runs-and-tracking.md](board-runs-and-tracking.md) | "Layers and zones, the `zephyr/net/sntp.h` bullet, the last sentence" | The bullet ends with what the source includes. |
 | `docs/glossary.md` | Owner, last sentence | [copy-procedures.md](copy-procedures.md) | "Owner, the last sentence" | Dropped. |
 | `docs/glossary.md` | Team copy | [copy-procedures.md](copy-procedures.md) | "Team copy (whole entry)" | Dropped. |
 | `docs/try-on-native-sim.md` | Quick start, the zip part of step 3 and step 4 | [copy-procedures.md](copy-procedures.md) | "Quick start, the zip part of step 3 and step 4" | Step 3 clones; the later steps are numbered 4 to 8. |
