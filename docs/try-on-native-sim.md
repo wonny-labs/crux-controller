@@ -791,7 +791,7 @@ a reason to change a check.
   plus the pull requests that were open then), not a published commit. The host tests with the sanitizers off and on
   (six CTest tests each), the tooling tests (983 tests, 3 skipped), the boundary check, the SPDX check and `scripts/check-format.sh`.
 - Also on macOS, at the same local revision `f7d3fab`, one-off runs of the failures that
-  [troubleshooting.md](troubleshooting.md) lists, with the counts of that day (they drift as tests are added). In a copy without `.git`, one tooling test failed and seven stopped
+  [troubleshooting.md](troubleshooting.md) listed then, with the counts of that day (they drift as tests are added). In a copy without `.git`, one tooling test failed and seven stopped
   with a Git error, and `scripts/check_spdx.py` exited with status 2; `scripts/check_boundary.py` passed. After
   `git init` and `git add -A` all of them passed. With CRLF line ends in every text file, 21 tooling tests
   failed (the ones that run the shell scripts), a script started directly failed with
