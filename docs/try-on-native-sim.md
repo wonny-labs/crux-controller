@@ -82,55 +82,7 @@ pulls an image.
    cd crux-controller
    ```
 
-   From a zip copy, unpack it so that `west.yml` and the hidden files (`.devcontainer`, `.clang-format`,
-   `.github`) are directly in that folder (install `unzip` with `sudo apt-get install unzip` if it is missing).
-   `unzip -l /path/to/the-copy.zip | head` shows whether the zip has one top-level folder. If it has, unzip into the
-   parent folder and rename that folder to `crux-controller`:
-
-   ```bash
-   mkdir -p ~/work/crux-controller-workspace && cd ~/work/crux-controller-workspace
-   unzip /path/to/the-copy.zip
-   mv <the extracted folder> crux-controller
-   cd crux-controller
-   ls -a
-   ```
-
-   If the zip has no top-level folder, unzip into `crux-controller` itself:
-
-   ```bash
-   mkdir -p ~/work/crux-controller-workspace/crux-controller && cd ~/work/crux-controller-workspace/crux-controller
-   unzip /path/to/the-copy.zip
-   ls -a
-   ```
-
-   If you unpacked it into `crux-controller` and the files are in one more folder inside it, move them with the
-   hidden files (a plain `mv sub/* .` leaves `.devcontainer`, `.github`, `.clang-format` and `.gitattributes`
-   behind), then check:
-
-   ```bash
-   shopt -s dotglob
-   mv sub/* .
-   rmdir sub
-   ls -a
-   ```
-
-   `ls -a` must list `.devcontainer`, `.clang-format`, `.github` and `west.yml`.
-
-4. Only for a copy without a `.git` folder: make it a Git repository, because the format check, the static
-   analysis, the SPDX check and several tooling tests ask Git for the file list. Set `core.autocrlf` before
-   `git add`, check that the scripts have LF line ends, and restore the exec bits that a zip can lose. No commit
-   and no Git identity are needed. [From a copy without Git history](#from-a-copy-without-git-history) says
-   what to do if `file` reports CRLF.
-
-   ```bash
-   git init
-   git config core.autocrlf false
-   git add -A
-   file scripts/dev-shell.sh
-   chmod +x scripts/*.sh .devcontainer/*.sh
-   ```
-
-5. First run. This builds the image, then runs `.devcontainer/setup.sh` in the container: it creates the virtual
+4. First run. This builds the image, then runs `.devcontainer/setup.sh` in the container: it creates the virtual
    environment, fetches Zephyr and the modules with `west init -l` and `west update`, installs the Python
    requirements of Zephyr and installs the Zephyr SDK. It downloads several GiB and takes a long time (see
    [Network and prerequisites](#network-and-prerequisites)). Later runs find all of it already there.
@@ -155,7 +107,7 @@ pulls an image.
 
    Read the lines above it, fix the cause and run the same command again: the setup carries on where it stopped.
 
-6. Run all the `native_sim` scenarios of steps S1 to S5. `scripts/dev-shell.sh` runs a command with the
+5. Run all the `native_sim` scenarios of steps S1 to S5. `scripts/dev-shell.sh` runs a command with the
    repository as the working directory, so the command changes into the workspace folder first
    (`/workspaces/ws` in the container is your `~/work/crux-controller-workspace`):
 
@@ -173,7 +125,7 @@ pulls an image.
    All 17 Twister ids of [the table below](#run-the-s1-to-s5-scenarios) must be there and passed. A lower
    count means that a scenario did not run.
 
-7. Run the tooling tests, the Python tests of the scripts, workflows and documents:
+6. Run the tooling tests, the Python tests of the scripts, workflows and documents:
 
    ```bash
    bash scripts/dev-shell.sh python -m unittest discover -s tests/tooling
@@ -182,14 +134,14 @@ pulls an image.
    It ends with `Ran <n> tests in <t>s` and `OK`; when some tests are skipped the last line reads
    `OK (skipped=<m>)`.
 
-8. Run one scenario, here step S1, by pointing `-T` at its directory (this form is ordinary Twister usage and
+7. Run one scenario, here step S1, by pointing `-T` at its directory (this form is ordinary Twister usage and
    was not run for this page):
 
    ```bash
    bash scripts/dev-shell.sh bash -c 'cd /workspaces/ws && west twister -p native_sim/native/64 -T crux-controller/tests/native_sim/s1 --inline-logs --clobber-output -O twister-out-s1'
    ```
 
-9. Find the outputs. The Twister folders (`twister-out`, `twister-out-s1`) are in the workspace folder, next to
+8. Find the outputs. The Twister folders (`twister-out`, `twister-out-s1`) are in the workspace folder, next to
    the clone (`~/work/crux-controller-workspace`), because the commands ran there; each scenario has its own build folder
    in them, and `--inline-logs` prints the output of a failed scenario. Builds of the repository itself
    (for example `build/host` of the host tests) are under `build/` in the clone, which `.gitignore` excludes.
@@ -415,48 +367,6 @@ To see which volume the script uses for a folder, compute the number:
 printf '%s' "$HOME/work/crux-controller-workspace" | cksum | cut -d' ' -f1
 ```
 
-### From a copy without Git history
-
-A copy is a zip or any folder without a `.git` folder. It runs the same, with these differences.
-
-- **The folder name and place.** The files go directly in a folder named `crux-controller`, in a parent folder of
-  its own, as in the quick start. The copy keeps nothing of the Git history, so a short hash, a pull request number
-  or an issue number in the text cannot be opened from it.
-- **Unpacking.** A zip with one top-level folder is unzipped into the parent folder, and the extracted folder is
-  renamed `crux-controller`. If you moved the files up by hand, include the hidden ones:
-  `shopt -s dotglob; mv sub/* .; rmdir sub`, and check with `ls -a` that `.devcontainer`, `.clang-format` and
-  `.github` are there. A plain `mv sub/* .` leaves them behind.
-- **A Git repository.** These need one: `scripts/check-format.sh`, `scripts/analyze_host.py` and
-  `scripts/check_spdx.py`, which ask Git for the file list, and several tooling tests that do the same (eight of
-  them failed in a copy without `.git` in the author's run). `scripts/check_boundary.py` and the host tests did
-  not need one in the author's runs. Whether `west` itself needs one was not tested. Run
-  `git init`, `git config core.autocrlf false` and `git add -A` in the folder, in that order; the configuration
-  comes first, so that a global Git setting does not change what `git add` records. No commit is needed.
-- **Line ends.** A clone checks out LF on every platform, because `.gitattributes` pins it. A copy that Git did not
-  make can still have CRLF, and a file with CRLF line ends breaks the shell scripts: started directly they fail with
-  `env: bash\r: No such file or directory`, and run as `bash scripts/...` they fail at the line that sets
-  `pipefail`. A copy made on Windows, or from a Git for Windows checkout with `core.autocrlf` on, can have them.
-  `file scripts/dev-shell.sh` must not say `with CRLF line terminators`. No file of this repository needs a CR, so
-  the fix is to strip them and add the files again:
-
-  ```bash
-  git ls-files -z | xargs -0 sed -i 's/\r$//'
-  git add -A
-  ```
-
-- **Exec bits.** A zip can lose the executable bit of the scripts, and `./scripts/check-format.sh` then says
-  `Permission denied`. Either restore the bits (below), or start the scripts as `bash scripts/check-format.sh`:
-
-  ```bash
-  chmod +x scripts/*.sh .devcontainer/*.sh
-  ```
-
-- **Hidden files.** `ls -a` must list `.clang-format`, `.clang-tidy`, `.devcontainer`, `.github` and `.gitignore`.
-  A copy made by a tool that skips hidden files lacks them. Without `.clang-format`, clang-format uses its default
-  style and the format check reports every C file (the author saw this with clang-format 18.1.8).
-- **A newer copy.** Replace the whole `crux-controller` folder and leave the parent folder alone, then follow
-  [After a pin or SDK change](#after-a-pin-or-sdk-change) if `west.yml` changed.
-
 ### With VS Code
 
 Open the clone from a WSL terminal, so that VS Code runs in WSL and finds Docker there:
@@ -539,7 +449,7 @@ passthrough, and a `native_sim` run is not a board run.
 
 ### After a pin or SDK change
 
-A pin change is a new revision of `crux-pilot` in `west.yml`; it arrives with a `git pull` or a newer copy. The
+A pin change is a new revision of `crux-pilot` in `west.yml`; it arrives with a `git pull`. The
 setup script runs `west update` only for a workspace that does not exist yet, so run it yourself, then run the
 setup script again: it installs Zephyr's Python requirements again when their files changed (the next call of
 `scripts/dev-shell.sh` would run it too).
@@ -576,12 +486,11 @@ Look the message up in [troubleshooting.md](troubleshooting.md). The cases of th
   daemon is not running. Start it (`sudo service docker start`) and check it with `docker info`.
 - `permission denied` on `/var/run/docker.sock`: you are not in the `docker` group yet, or the session predates the
   change. Restart WSL as in the quick start.
-- `env: bash\r: No such file or directory` or an error at `pipefail`: CRLF line ends. See
-  [From a copy without Git history](#from-a-copy-without-git-history).
+- `env: bash\r: No such file or directory` or an error at `pipefail`: CRLF line ends. A clone checks out LF,
+  because `.gitattributes` pins it; a checkout with `core.autocrlf` on can still have CRLF. Strip the CRs and add
+  the files again: `git ls-files -z | xargs -0 sed -i 's/\r$//'`, then `git add -A`.
 - `Permission denied` on a script: the exec bit is lost. Run `chmod +x scripts/*.sh .devcontainer/*.sh`, or start
   the script as `bash scripts/...`.
-- `fatal: not a git repository`, or tooling tests that fail with a Git error: the copy has no `.git`. Run
-  `git init`, `git config core.autocrlf false` and `git add -A`.
 - "the clone is in a folder named ...": rename the clone folder to `crux-controller`.
 - "looks like a home directory" or "is your home directory", from `setup.sh` or from a line that starts
   `check-host:`: the parent of the clone is your home directory (or holds files such as `.bashrc`). Put the clone in
