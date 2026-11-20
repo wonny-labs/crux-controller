@@ -568,7 +568,7 @@ class S4Findings(unittest.TestCase):
         self.assertIn("s4-system-composition.md", readme)
 
     def test_the_changelog_names_s4(self):
-        self.assertIn("S4", (ROOT / "CHANGELOG.md").read_text())
+        self.assertIn("S4", (ROOT / "docs" / "history" / "CHANGELOG.md").read_text())
 
     def test_the_manifest_pins_the_approved_commit(self):
         manifest = (ROOT / "west.yml").read_text()
@@ -626,7 +626,7 @@ class S4StartFailureWording(unittest.TestCase):
 
 class S4WordingFixes(unittest.TestCase):
     def test_the_feed_is_once_per_pass_with_due_cycles_everywhere_it_is_described(self):
-        for path in (ROOT / "app" / "Kconfig", ROOT / "CHANGELOG.md", ROOT / "README.md"):
+        for path in (ROOT / "app" / "Kconfig", ROOT / "docs" / "history" / "CHANGELOG.md", ROOT / "README.md"):
             text = " ".join(path.read_text().split())
             self.assertNotRegex(text, r"once (for each|per) (workload )?cycle", path.name)
         self.assertIn("once for each pass that has cycles due",

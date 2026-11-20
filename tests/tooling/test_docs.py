@@ -17,7 +17,7 @@ ROLE = (
     "but it is not a mandatory exit criterion for any of them."
 )
 DOCS = (
-    "README.md", "SECURITY.md", "RELEASE.md", "CHANGELOG.md", "docs/dependencies.md",
+    "README.md", "SECURITY.md", "RELEASE.md", "docs/history/CHANGELOG.md", "docs/dependencies.md",
     "CONTRIBUTING.md",
 )
 
@@ -120,12 +120,16 @@ class Dependencies(unittest.TestCase):
         manifest = yaml.safe_load((ROOT / "west.yml").read_text())["manifest"]
         pilot = next(p for p in manifest["projects"] if p["name"] == "crux-pilot")
         short = pilot["revision"][:8]
-        for name in ("RELEASE.md", "docs/dependencies.md", "CHANGELOG.md"):
+        for name in ("RELEASE.md", "docs/dependencies.md", "docs/history/CHANGELOG.md"):
             self.assertIn(short, text(name), name)
 
 
 class Tracking(unittest.TestCase):
-    """The pages say where the management finding is tracked, and do not promise a filing."""
+    """The pages say where the management finding is tracked, and do not promise a filing.
+
+    The tracking paragraph left the README for the history page, which keeps the README as it was."""
+
+    HISTORY = "docs/history/readme-before-entry-point.md"
 
     def test_the_finding_names_the_issues_that_track_it(self):
         body = text("docs/findings/management-has-no-public-composition.md")
@@ -135,14 +139,14 @@ class Tracking(unittest.TestCase):
         self.assertIn("has not happened", body)
 
     def test_the_readme_names_the_epic_and_its_steps_and_no_trial_issue(self):
-        body = text("README.md")
+        body = text(self.HISTORY)
         self.assertNotIn("trial issue", body)
         for number in ("#44", "#40", "#41", "#42", "#43"):
             self.assertRegex(body, re.escape(number) + r"\b", number)
         self.assertIn("Nothing has been filed in `crux-pilot` yet", body)
 
     def test_the_readme_claims_only_the_stage_2_steps_for_the_epic(self):
-        body = text("README.md")
+        body = text(self.HISTORY)
         self.assertIn(
             "Stage 2 steps and their findings are tracked in this repository's own issues: "
             "the epic #44 and its children #40 (the management finding), #41 (S4), #42 and #43. "
@@ -151,6 +155,11 @@ class Tracking(unittest.TestCase):
         )
         self.assertNotIn("The platform questions and findings are tracked", body)
         self.assertNotIn("Implementation is tracked in this repository's own milestones", body)
+
+    def test_the_main_documents_point_at_the_tracking_history(self):
+        for name in ("docs/roadmap.md", "docs/README.md", "docs/glossary.md"):
+            self.assertIn("history/board-runs-and-tracking.md", text(name), name)
+        self.assertIn("Nothing has been filed in `crux-pilot`", text("docs/roadmap.md"))
 
 
 class CiEvidenceRationale(unittest.TestCase):

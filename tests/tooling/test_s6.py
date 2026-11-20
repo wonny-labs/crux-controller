@@ -1702,9 +1702,9 @@ class S6StepNote(unittest.TestCase):
                                  f"{number}: {line.strip()}")
 
     def test_the_readme_the_changelog_and_the_roadmap_point_at_the_note(self):
-        for name in ("README.md", "CHANGELOG.md", "docs/roadmap.md"):
+        for name in ("README.md", "docs/history/CHANGELOG.md", "docs/roadmap.md"):
             self.assertIn("s6-https-management.md", (ROOT / name).read_text(), name)
-        changelog = " ".join((ROOT / "CHANGELOG.md").read_text().split())
+        changelog = " ".join((ROOT / "docs" / "history" / "CHANGELOG.md").read_text().split())
         self.assertIn("No firmware image of S0 to S5 changes.", changelog)
         self.assertIn("built and never run on a board", changelog)
 
@@ -1856,7 +1856,7 @@ class S6Findings(unittest.TestCase):
         self.assertIn("not a step", self.words())
 
     def test_the_changelog_records_the_groundwork_and_that_no_image_changes(self):
-        text = " ".join((ROOT / "CHANGELOG.md").read_text().split())
+        text = " ".join((ROOT / "docs" / "history" / "CHANGELOG.md").read_text().split())
         self.assertIn("S6", text)
         self.assertIn("s6-https-management-gaps.md", text)
         self.assertIn("no firmware image", text)
