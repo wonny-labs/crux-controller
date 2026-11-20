@@ -5,7 +5,7 @@ interfaces. Findings are kept as written. A later result is added as a dated upd
 reading of the earlier revision is not rewritten, so each note names the revision of `crux-pilot` (the Crux
 repository) that it was read at. The labels that a note uses (Measured, Inferred, Verified, Recorded, Open and
 others) are listed in the [glossary](../glossary.md), under "Finding". Hashes and numbers in these notes name the
-history of the public repositories on GitHub; see the [README](../../README.md#roles-and-references).
+history of the public repositories on GitHub; see the [glossary](../glossary.md#build-pin-and-evidence).
 
 A path in a finding that does not exist in this repository (for example under `components/`, `samples/`,
 `tests/native/` or `cmake/`, or a `docs/` page that this repository does not have) is a path in

@@ -49,7 +49,7 @@ Work in the order of this table. Each row is a small commit with its test first.
 | 3 | Glue, option, fragment, overlay, build block, start | `app/src/health.[ch]`, `app/Kconfig`, `app/conf/s4.conf`, `app/boards/s4.overlay`, `app/CMakeLists.txt`, `app/src/composition.c` | `S4Configuration`, `S4BuildFiles`, `S4Sources` in `test_s4.py` | `Tooling tests`; `Boundary check`; the build job of step 5 |
 | 4 | Scenario on `native_sim` | `tests/native_sim/s4/` (`CMakeLists.txt`, `prj.conf`, `app.overlay`, `testcase.yaml`, `src/test_s4.c`) | `S4Scenario` in `test_s4.py`, then the scenario itself | The `S1` job runs `west twister -p native_sim/native/64 -T crux-controller/tests/native_sim`, which runs every scenario |
 | 5 | CI build job and Budget row | `.github/workflows/ci.yml` (job `s4`), `.github/workflows/budget.yml` (matrix row `S4`) | `S4Workflows` in `test_s4.py` | The new job and the new `Budget S4` job |
-| 6 | Documents | `docs/findings/s4-system-composition.md`, `README.md`, `CHANGELOG.md`, `CONTRIBUTING.md` | `S4Findings` in `test_s4.py`; `Contributing` in `tests/tooling/test_docs.py` | `Tooling tests` |
+| 6 | Documents | `docs/findings/s4-system-composition.md`, `README.md`, `docs/history/CHANGELOG.md`, `CONTRIBUTING.md` | `S4Findings` in `test_s4.py`; `Contributing` in `tests/tooling/test_docs.py` | `Tooling tests` |
 
 Update `CONTRIBUTING.md` in the same pull request as the rest (row 6).
 
@@ -178,7 +178,7 @@ uploads an artifact. No job flashes, resets or runs anything on a board.
   go stale.
 - **`README.md`**: a row in the step table and a clause in the status list. The status must say
   "built and never run on a board" until a board run is recorded in a finding.
-- **`CHANGELOG.md`**: an entry under Unreleased.
+- **`docs/history/CHANGELOG.md`**: an entry under Unreleased.
 - **`CONTRIBUTING.md`**: three statements that `tests/tooling/test_docs.py` (class `Contributing`) checks
   against the workflows: the role section says "Steps S0 to S<n> are built in CI", the `ci.yml` row
   names `S<n> build`, and the `budget.yml` row says `` `Budget` for S0 to S<n>: ``. Its static analysis section also
@@ -312,7 +312,7 @@ three boundary files together.
 - `app/CMakeLists.txt`, `app/management/management.cmake` and `app/management/entropy.cmake`: the boundary check
   reads them, and they may add no include path (CONTRIBUTING, "The boundary").
 - `west.yml` and `tests/tooling/test_manifest.py`: a pin moves in its own small pull request (CONTRIBUTING, "The
-  pin and the manifest"). `docs/dependencies.md`, `RELEASE.md` and `CHANGELOG.md` are covered only where they
+  pin and the manifest"). `docs/dependencies.md`, `RELEASE.md` and `docs/history/CHANGELOG.md` are covered only where they
   quote the pin.
 - `budgets/limits.json`: its own `_comment` says that a change there is a reviewed change; CONTRIBUTING says a
   limit is not changed in a pin-bump pull request.

@@ -62,18 +62,13 @@ adding one is in [adding-a-step.md](adding-a-step.md).
 a job (`ci.yml`, `budget.yml`). In `RELEASE.md` the table "Step, Tool, What fails the run" lists the
 actions of the release dry run. The context says which one is meant.
 
-**Stage.** A phase of the repository's own work, larger than a step. No document defines it; this entry
-records how they use it. `docs/findings/management-has-no-public-composition.md` says it was
-"recorded after Stage 1 step S3", so S3 is a Stage 1 step. The tracking paragraph of `README.md` says
-that "Stage 2 steps and their findings" are tracked in the repository's own issues under an epic, and
-lists S4 among the epic's children, so S4 is a Stage 2 step. Nothing places S5 in a stage: its README
-text names no stage, and the pull request that added it is
-[pull request 50](https://github.com/wonny-labs/crux-controller/pull/50) of the public repository. The header
-comment of `west.yml` ("No optional group is enabled in Stage 1") uses the word in its earliest sense. One use differs from the rest:
-`docs/findings/file-binding-has-no-public-header.md` says S3 "is not built in Stage 1",
-a note from before S3 was built. Treat the stage number as a label of when something was planned, not
-as a property of the code. One other use is unrelated: `docs/findings/s2-first-board-run.md` says "an
-earlier platform stage", which means a phase of Crux, not of this repository.
+**Stage.** A planning label of the repository's own work, larger than a step. It is not a property of the code,
+and no document defines it. `docs/findings/management-has-no-public-composition.md` calls S3 a Stage 1 step, S4 was
+tracked as a Stage 2 step, and nothing places S5 or S6 in a stage. The header comment of `west.yml` ("No optional
+group is enabled in Stage 1") uses the word in its earliest sense, and
+`docs/findings/file-binding-has-no-public-header.md`, a note from before S3 was built, says S3 "is not built in
+Stage 1". `docs/findings/s2-first-board-run.md` says "an earlier platform stage", which means a phase of Crux, not
+of this repository. How the stages were tracked is in [history](history/board-runs-and-tracking.md).
 
 ## Boundary and zones
 
@@ -144,6 +139,11 @@ there is the current pin. It is a commit and never a branch or a tag; no Crux ta
 checks it in CI. A pin moves in its own pull request. See the pin section of
 [CONTRIBUTING.md](../CONTRIBUTING.md).
 
+**Hashes and numbers.** Short hashes, pull request numbers and issue numbers (for example "pull request 50",
+"#44") name the history of the public repositories `wonny-labs/crux-controller` and `wonny-labs/crux-pilot` on
+GitHub. The facts that matter are stated in the text next to them, and the documents do not depend on the content
+of an issue.
+
 **Finding.** A note under `docs/findings/` that records what building a step or asking a question taught
 about the product's use of Crux. Each statement in a finding carries a label, and the label set differs by note: Measured, Inferred and Open
 (the S3 note, where "Measured" means that a CI job produced the result), Measured, Inferred, Recorded and Open
@@ -193,9 +193,7 @@ owner: merging a pull request, tags, GitHub Releases and forks (`CONTRIBUTING.md
 `PASS` or a green CI result informs these decisions and does not make them. No rule reserves a change of the pinned
 Crux revision to the owner; in practice the owner has approved each one (`west.yml` and
 `tests/tooling/test_manifest.py` record the approval of the current pin). "The project owner" and "the
-repository owner" (the wording of `RELEASE.md` and `SECURITY.md`) mean the same role. In a
-[team copy](team-copy.md) of this repository the owner is whoever approves merges and releases
-in that copy.
+repository owner" (the wording of `RELEASE.md` and `SECURITY.md`) mean the same role.
 
 **Maintainer.** Not a separate role. The S2 board-run note says "the repository maintainer" and means the owner.
 No document gives rights to a "maintainer", and `CODEOWNERS` lists one account for every file.
@@ -221,9 +219,6 @@ with care, because they hold the checks, the boundary lists, the pin, the limits
 that list, and it states a rule for some of the files and none for the others. Other projects call such files
 "protected"; this repository does not use that word.
 
-**Team copy.** A copy of this repository that a team keeps in its own repository, for example as a zip without
-the Git history. [team-copy.md](team-copy.md) says what to change in it.
-
 **Operator.** The person who runs a board procedure on a bench, under the owner's approval for that task. The
 S2 board-run note uses the word for the person who ran the reviewed driver.
 
@@ -231,8 +226,8 @@ S2 board-run note uses the word for the person who ran the reviewed driver.
 host peer. "Two runs on one bench" means the same board and the same setup both times.
 
 **Gated procedure.** The fixed sequence of the S2 board runs: identify the board, program it, run the host checks,
-restore. Each run needed the owner's written approval, an explicit owner yes before the board was overwritten and
-a guard check before each probe step (`docs/findings/s2-first-board-run.md`, "Method"). The procedure and its driver are
+restore. Its approvals and guard checks are recorded in `docs/findings/s2-first-board-run.md`, "Method". The
+procedure and its driver are
 not in this repository: the driver is the `crux-pilot` target test driver, and the run records are kept privately.
 
 **Accepted normal image.** The firmware that was on the board before a run and that the procedure puts back and

@@ -3,7 +3,7 @@
 This page says honestly what exists, what has run on a board and what cannot be done yet and why. It
 promises no dates and no features. "Not yet possible" does not mean "planned": the finding that
 covers most of these says "Not decided and not scheduled: whether and when any of this is built here."
-Status can go stale, so check the README, the changelog and the open pull requests, and read the
+Status can go stale, so check the README and the open pull requests, and read the
 [architecture](architecture.md) and the [glossary](glossary.md) for the terms (including "owner" and "operator").
 To see the tests run without a board, read [try-on-native-sim.md](try-on-native-sim.md). An outline of how a
 board bring-up would go, not yet run for this controller, is in [board-bring-up.md](board-bring-up.md).
@@ -14,9 +14,6 @@ board bring-up would go, not yet run for this controller, is in [board-bring-up.
   `native_sim` scenarios for S1 to S6. CI results change with every commit, so this page does not claim a
   current one; look at the checks of the commit you care about. The static sizes read at one revision are in
   [Static size per step](#static-size-per-step).
-- S5 (the Crux Time realtime clock set from an SNTP server) arrived with
-  [pull request 50](https://github.com/wonny-labs/crux-controller/pull/50) of the public repository. It was never run
-  on a board.
 - **Nothing here has run on a physical board except what
   [docs/findings/s2-first-board-run.md](findings/s2-first-board-run.md) records**: the S2 image, twice, on
   one bench. See [What has run on a board](#what-has-run-on-a-board) for the exact scope.
@@ -95,10 +92,7 @@ Crux revision.
 
 ## Step S5 in more detail
 
-S5 was added by [pull request 50](https://github.com/wonny-labs/crux-controller/pull/50) of the public
-repository, which is merged; the pull request that put `zephyr/net/sntp.h` on the adapter zone's allow-list,
-[pull request 49](https://github.com/wonny-labs/crux-controller/pull/49), is merged too. What
-the code on `main` does, read from `app/Kconfig`, `app/src/time_sync*.c` and `app/os/time_sync_zephyr.c`:
+What the code on `main` does, read from `app/Kconfig`, `app/src/time_sync*.c` and `app/os/time_sync_zephyr.c`:
 
 - A low-priority thread (Zephyr priority 10) waits five seconds after start, then queries one IPv4 SNTP
   server and repeats after each interval. The defaults are the server `192.168.77.1` (the S2 peer), 600
@@ -116,39 +110,23 @@ the code on `main` does, read from `app/Kconfig`, `app/src/time_sync*.c` and `ap
   until the first answer; the server must be an IPv4 address because the image has no DNS resolver; stack
   use of the thread and query timing are not measured.
 
-The findings note labels its own results. When it was written, its seven `native_sim` cases, its Zephyr
-build and its budget numbers were still open, to be recorded by CI; the note now records what CI showed at
-the commit that merged S5. **S5 was never run on a board**, and the only board run of this repository is the S2 one
-below.
+The findings note labels its own results and records what CI showed at the commit that merged S5.
+**S5 has never run on a board.**
 
 ## What has run on a board
 
-This is the whole of it, from [docs/findings/s2-first-board-run.md](findings/s2-first-board-run.md). Its
-status paragraph says:
+Only the S2 image has run on a board: twice, on one RT1060-EVKB Rev B on one bench, with the same image and the
+same gated procedure, and the board was restored to the accepted normal image afterwards. Both runs saw the
+Ethernet link come up without the MDIO correction that the Crux sample applies, ping answered 5 of 5 times, and one
+TCP exchange with a host peer was echoed; the exchange was informational, not a pass criterion. Two boots on one bench are evidence
+collection, not qualification: they show nothing about another board or bench, a cold power cycle, run-time values
+or a repeated exchange. The record, with its full "Not shown" list, is
+[docs/findings/s2-first-board-run.md](findings/s2-first-board-run.md). The dates of the runs and the summary that
+this page gave before are in [history](history/board-runs-and-tracking.md).
 
-> the S2 image ran twice on one RT1060-EVKB Rev B on the same bench, on 9 November 2026 (run 1,
-> described first) and on 12 November 2026 (run 2, a reproducibility run, described under "Run 2" below).
-
-Both runs used the same S2 image and the same gated procedure, and the board was restored to the accepted
-normal image afterwards. Both runs observed the Ethernet link come up without the MDIO correction that the
-Crux sample applies, ping answered 5 of 5 times, and one TCP exchange with a host peer echoed. The note says
-the TCP exchange was informational and not a pass criterion. Its verdict on run 2 is: "Two boots on one
-bench are evidence collection, not qualification." Its "Not shown" list, kept as written:
-
-- "Run-time values of S2: stack use, CPU use and timing beyond what the log lines literally print."
-- "Repeatability beyond two boots on one bench: another board, another cable or another bench, and any
-  statistical statement about how often the link comes up."
-- "Behaviour after the 180 s window."
-- "Whether the link comes up the same way after a cold power cycle; the run restarted the image by
-  programming and reset."
-- "An exchange that is repeated, or an exchange when the peer is slow or restarts."
-- "Anything about the S3 image, microSD, or the release bundle: they did not run."
-
-Beyond that note, the README and the S4 note record that S3 and S4 are built and never run on a board,
-and no S0, S1-only, S4 or S5 image has run. The S2 image contains the S1 workload, so the workload lines of S1
-appeared in that capture; the "not run" in the S1 row of the README means S1 as an image of its own. No
-release exists, so no released image has run anywhere. A green `native_sim` run is not a board run and a
-CI build is not a board run.
+No S0, S1-only, S3, S4, S5 or S6 image has run on a board. The S2 image contains the S1 workload, so the "not run"
+in the S1 row of the README means S1 as an image of its own. No release exists, so no released image has run
+anywhere. A green `native_sim` run is not a board run and a CI build is not a board run.
 
 ## What is not yet possible, and why
 
@@ -182,11 +160,8 @@ own resource row and tests first on `native_sim`. What it says is out of scope: 
 of Crux Thread, Sync, Queue and Serial, Reliance Edge, and any firmware image in public form. These are
 the recorded positions, not commitments.
 
-A separate question is how the platform request itself is filed. The finding records that nothing has been
-filed in `crux-pilot` and that filing needs the owner's approval. Stage 2 steps and their findings are
-tracked in this repository's own issues on GitHub, with the epic
-[issue 44](https://github.com/wonny-labs/crux-controller/issues/44) as the top. The open or closed state of those
-issues can lag behind the code.
+Nothing has been filed in `crux-pilot`, and filing a request there needs the owner's approval. How the later
+steps were tracked is in [history](history/board-runs-and-tracking.md).
 
 ## Also not done
 
