@@ -394,12 +394,11 @@ class AddingAStep(unittest.TestCase):
 
 class Changelog(unittest.TestCase):
     def test_the_unreleased_section_records_the_new_pages(self):
-        body = read("docs/history/CHANGELOG.md")
+        body = read("CHANGELOG.md")
         unreleased = body[body.index("## Unreleased"):]
         for name in ("docs/README.md", "docs/first-change.md", "docs/reviewing.md",
                      "docs/team-copy.md"):
             self.assertIn(name, unreleased, name)
-        self.assertFalse((ROOT / "CHANGELOG.md").exists())
         self.assertIn("No firmware image changes.", " ".join(unreleased.split()))
 
 

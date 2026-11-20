@@ -101,7 +101,7 @@ Points that the table cannot carry:
   licences are in [dependencies.md](dependencies.md).
 - **Where the pinned revision is recorded.** `west.yml` is the source. The revision is repeated in
   `tests/tooling/test_manifest.py` (the approved commit), [dependencies.md](dependencies.md),
-  [RELEASE.md](../RELEASE.md) and [history/CHANGELOG.md](history/CHANGELOG.md), and a test (`tests/tooling/test_docs.py`)
+  [RELEASE.md](../RELEASE.md) and [CHANGELOG.md](../CHANGELOG.md), and a test (`tests/tooling/test_docs.py`)
   checks that the last three carry the short hash. The `West pins` job runs `west crux-pins`, which must
   print a `CONTRACT crux-pilot` line and no `MISMATCH`. Moving the *pin* is its own small pull request; the
   steps are in [CONTRIBUTING.md](../CONTRIBUTING.md). Notes under `docs/findings/` keep the revision they
@@ -186,10 +186,10 @@ Top-level directories and files:
 | `scripts/` | `check_boundary.py` (the include check), `check_mbed_only.py` (checks that the Crux import cannot activate the GPL stacks), `check-format.sh` (clang-format over every C file), `analyze_host.py` (clang-tidy over the host-built sources, then the list of sources it did not analyse), `check_spdx.py` (checks that the first-party C, CMake, Kconfig, Python and shell files start with the licence identifier line), `check-patch.sh` (Zephyr's checkpatch, rule BRACES, on the C lines of a Git range; a copy of the checkpatch wrapper that `crux-pilot` publishes for product repositories), and `dev-shell.sh` (runs a shell or one command in the dev container, see [the try-on page](try-on-native-sim.md#dev-container)). |
 | `budgets/` | `limits.json` (declared minimum free percent per memory region and step), `collect.py` (reads a build log into a measurement), `check.py` (compares a measurement with the limits). |
 | `release/` | The release bundle tools: `assemble_bundle.py`, `check_bundle.py`, `rebuild_compare.py`, `parse_spdx.py` and `release-manifest.schema.json`. Hashes and identities only; no image is ever published. |
-| `docs/` | This documentation: [architecture.md](architecture.md), [glossary.md](glossary.md), [adding-a-step.md](adding-a-step.md), [roadmap.md](roadmap.md), [try-on-native-sim.md](try-on-native-sim.md), [board-bring-up.md](board-bring-up.md), [composition-zone.md](composition-zone.md), [dependencies.md](dependencies.md), `findings/` and `history/` (the changelog and the project history). |
+| `docs/` | This documentation: [architecture.md](architecture.md), [glossary.md](glossary.md), [adding-a-step.md](adding-a-step.md), [roadmap.md](roadmap.md), [try-on-native-sim.md](try-on-native-sim.md), [board-bring-up.md](board-bring-up.md), [composition-zone.md](composition-zone.md), [dependencies.md](dependencies.md), `findings/` and `history/` (the project history). |
 | `.github/workflows/` | `ci.yml` (tooling tests, west pins, host tests, the S0 to S6 builds, the boundary check and static analysis), `budget.yml`, `rebuild.yml`, `release.yml`, `scheduled-main.yml`. |
 | `west.yml` | The west manifest and the pin. |
-| `README.md`, `CONTRIBUTING.md`, `RELEASE.md`, `SECURITY.md`, `LICENSE`, `CODEOWNERS` | Role and status, contribution rules, release flow, vulnerability reporting, licence, ownership. |
+| `README.md`, `CONTRIBUTING.md`, `CHANGELOG.md`, `RELEASE.md`, `SECURITY.md`, `LICENSE`, `CODEOWNERS` | Role and status, contribution rules, changes, release flow, vulnerability reporting, licence, ownership. |
 
 Inside `app/`:
 

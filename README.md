@@ -76,7 +76,8 @@ Read these five documents in this order. They take about 70 minutes in full.
 - [CONTRIBUTING.md](CONTRIBUTING.md): the boundary, the checks, the pin, commits, pull requests and review.
 - [docs/composition-zone.md](docs/composition-zone.md): the include rules in detail.
 - [docs/dependencies.md](docs/dependencies.md): what `west.yml` fetches, at which pinned commit and licence.
-- [docs/history/](docs/history/README.md): the changelog and the project history.
+- [CHANGELOG.md](CHANGELOG.md): what each change added.
+- [docs/history/](docs/history/README.md): the project history that left the main documents.
 
 ## Licence, support and ownership
 

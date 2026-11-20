@@ -9,10 +9,6 @@ Each section names the page and the section that the text came from. The text is
 relative links were rewritten so that they resolve from this folder. The tracking paragraph and the board-run
 summary of the README are in [readme-before-entry-point.md](readme-before-entry-point.md).
 
-## From `docs/roadmap.md`: Opening paragraph, one sentence (the words "the changelog" removed)
-
-Status can go stale, so check the README, the changelog and the open pull requests, and read the
-
 ## From `docs/roadmap.md`: Short version, the S5 bullet
 
 - S5 (the Crux Time realtime clock set from an SNTP server) arrived with
@@ -69,7 +65,7 @@ tracked in this repository's own issues on GitHub, with the epic
 [issue 44](https://github.com/wonny-labs/crux-controller/issues/44) as the top. The open or closed state of those
 issues can lag behind the code.
 
-## From `docs/glossary.md`: Stage (whole entry, rewritten in short form)
+## From `docs/glossary.md`: Stage (whole entry as it was)
 
 **Stage.** A phase of the repository's own work, larger than a step. No document defines it; this entry
 records how they use it. `docs/findings/management-has-no-public-composition.md` says it was

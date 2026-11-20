@@ -10,7 +10,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 PUBLIC = (
     ".devcontainer", ".github", "app", "budgets", "docs", "release", "scripts", "workload",
     "tests/host", "tests/native_sim", "tests/native_sim_mbed",
-    "README.md", "SECURITY.md", "RELEASE.md", "CONTRIBUTING.md",
+    "README.md", "SECURITY.md", "RELEASE.md", "CHANGELOG.md", "CONTRIBUTING.md",
 )
 PRIVATE_REFERENCE = re.compile(r"\b(?:OD|WD)[0-9]+\b|skeleton plan|work package", re.IGNORECASE)
 

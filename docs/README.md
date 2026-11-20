@@ -42,8 +42,7 @@ CONTRIBUTING.md) take about 70 minutes together.
 - [findings/README.md](findings/README.md): what building each step taught about using Crux, with the revision
   that each note was read at.
 - [roadmap.md](roadmap.md): what exists, what has run on a board, what is not yet possible and why.
-- [history/README.md](history/README.md): the changelog and the project history that left the main documents, with a
-  move log.
+- [history/README.md](history/README.md): the project history that left the main documents, with a move log.
 - [composition-zone.md](composition-zone.md#why-a-zone): why the boundary has zones and an exact allow-list.
 
 ## Where decisions are recorded
@@ -58,7 +57,7 @@ CONTRIBUTING.md) take about 70 minutes together.
 - **What exists, what ran on a board and what is not possible**: [roadmap.md](roadmap.md). Its "not yet possible" rows
   are recorded positions, not plans.
 - **The pinned Crux revision**: the `revision` in `west.yml`. The comment above it and `tests/tooling/test_manifest.py`
-  record the approved commit, and [history/CHANGELOG.md](history/CHANGELOG.md) records each move.
+  record the approved commit, and [CHANGELOG.md](../CHANGELOG.md) records each move.
 - **Tracking**: the issues and pull requests of the public repository. Their open or closed state can lag behind the
   code. The documents and the CI checks of a commit are the reference. How the steps were tracked is in
   [history](history/board-runs-and-tracking.md).
@@ -128,7 +127,6 @@ These pages keep text that left the main documents. They are history, not instru
 | Document | What it is | Reading time |
 |---|---|---|
 | [history/README.md](history/README.md) | What the history folder holds, and the move log: each moved section, its source and its destination. | 5 min |
-| [history/CHANGELOG.md](history/CHANGELOG.md) | What each change added. Everything is unreleased. | 8 min |
 | [history/board-runs-and-tracking.md](history/board-runs-and-tracking.md) | The board-run summary, the approval wording and the tracking notes that the roadmap and the glossary carried. | 4 min |
 | [history/copy-procedures.md](history/copy-procedures.md) | The steps for a copy without the Git history (a zip), as the install guides had them. | 6 min |
 | [history/readme-before-entry-point.md](history/readme-before-entry-point.md) | The whole README before it became an entry point. | 10 min |
@@ -139,6 +137,7 @@ These pages keep text that left the main documents. They are history, not instru
 | Document | What it is | Reading time |
 |---|---|---|
 | [README.md](../README.md) | What the repository is, its state, how to try it, the reading path and where the rules are. | 4 min |
+| [CHANGELOG.md](../CHANGELOG.md) | What each change added. Everything is unreleased. | 8 min |
 | [CONTRIBUTING.md](../CONTRIBUTING.md) | The boundary, build and test, the CI jobs, the pin, how to change behaviour, commits and pull requests, review, and the rules of a public repository. | 9 min |
 | [RELEASE.md](../RELEASE.md) | The release dry run, what the bundle holds (hashes only) and what a tag needs. | 2 min |
 | [SECURITY.md](../SECURITY.md) | How to report a vulnerability, and what the repository promises about support. | 1 min |

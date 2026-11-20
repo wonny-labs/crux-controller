@@ -17,7 +17,7 @@ ROLE = (
     "but it is not a mandatory exit criterion for any of them."
 )
 DOCS = (
-    "README.md", "SECURITY.md", "RELEASE.md", "docs/history/CHANGELOG.md", "docs/dependencies.md",
+    "README.md", "SECURITY.md", "RELEASE.md", "CHANGELOG.md", "docs/dependencies.md",
     "CONTRIBUTING.md",
 )
 
@@ -120,7 +120,7 @@ class Dependencies(unittest.TestCase):
         manifest = yaml.safe_load((ROOT / "west.yml").read_text())["manifest"]
         pilot = next(p for p in manifest["projects"] if p["name"] == "crux-pilot")
         short = pilot["revision"][:8]
-        for name in ("RELEASE.md", "docs/dependencies.md", "docs/history/CHANGELOG.md"):
+        for name in ("RELEASE.md", "docs/dependencies.md", "CHANGELOG.md"):
             self.assertIn(short, text(name), name)
 
 

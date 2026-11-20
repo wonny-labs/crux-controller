@@ -3,7 +3,7 @@
 This page says honestly what exists, what has run on a board and what cannot be done yet and why. It
 promises no dates and no features. "Not yet possible" does not mean "planned": the finding that
 covers most of these says "Not decided and not scheduled: whether and when any of this is built here."
-Status can go stale, so check the README and the open pull requests, and read the
+Status can go stale, so check the README, the changelog and the open pull requests, and read the
 [architecture](architecture.md) and the [glossary](glossary.md) for the terms (including "owner" and "operator").
 To see the tests run without a board, read [try-on-native-sim.md](try-on-native-sim.md). An outline of how a
 board bring-up would go, not yet run for this controller, is in [board-bring-up.md](board-bring-up.md).

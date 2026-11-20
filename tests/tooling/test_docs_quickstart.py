@@ -144,7 +144,7 @@ def backticked_repository_paths(text):
     """Tokens in backticks that name a file or folder of this repository."""
     top = ("scripts/", "docs/", "tests/", ".devcontainer/", ".github/", "budgets/", "app/", "workload/",
            "release/")
-    roots = ("west.yml", "CONTRIBUTING.md", "README.md", "RELEASE.md", ".clang-format",
+    roots = ("west.yml", "CONTRIBUTING.md", "README.md", "RELEASE.md", "CHANGELOG.md", ".clang-format",
              ".clang-tidy", ".gitignore")
     paths = set()
     for token in re.findall(r"`([^`\n]+)`", text):

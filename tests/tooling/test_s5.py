@@ -828,7 +828,7 @@ class S5Findings(unittest.TestCase):
         self.assertIn("step S5", " ".join(readme.split()))
 
     def test_the_changelog_names_s5_and_its_limits(self):
-        text = " ".join((ROOT / "docs" / "history" / "CHANGELOG.md").read_text().split())
+        text = " ".join((ROOT / "CHANGELOG.md").read_text().split())
         self.assertIn("S5", text)
         self.assertIn("SNTP", text)
         self.assertIn("unauthenticated", text)
