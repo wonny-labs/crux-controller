@@ -205,7 +205,11 @@ class RepositoryFiles(unittest.TestCase):
             self.assertIn(line, self.ignore)
 
     def test_the_container_files_use_lf_line_endings(self):
-        files = sorted(DEVCONTAINER.iterdir()) + [ROOT / "scripts" / "dev-shell.sh"]
+        # Every file under .devcontainer, including the optional board container in a subfolder. A J-Link
+        # package that a developer put into .devcontainer/board/jlink/ is a local binary, ignored by Git.
+        files = sorted(p for p in DEVCONTAINER.rglob("*") if p.is_file() and p.suffix != ".deb")
+        files += [ROOT / "scripts" / "dev-shell.sh", ROOT / "scripts" / "board-shell.sh"]
+        self.assertIn(DEVCONTAINER / "Dockerfile", files)
         for path in files:
             self.assertNotIn(b"\r", path.read_bytes(), path.name)
 
