@@ -4,7 +4,7 @@ Status: no release exists and no tag has been made. The only release flow that r
 CI. It builds, assembles the bundle and checks it, and it publishes nothing.
 
 The general rules for releasing a product on Crux are in the Crux composition guide, section
-"Release": [`docs/product-composition.md` at the pinned revision `8e3737d2`](https://github.com/wonny-labs/crux-pilot/blob/8e3737d25d048b14a00c01da00494f58a62958c6/docs/product-composition.md).
+"Release": [`docs/product-composition.md` at the pinned revision `89c25934`](https://github.com/wonny-labs/crux-pilot/blob/89c25934ce5837896aad73cb5beab73dc75dcb50/docs/product-composition.md).
 This page does not copy it. It says only what this repository does.
 
 ## The flow

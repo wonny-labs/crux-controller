@@ -1587,7 +1587,9 @@ class S6StepNote(unittest.TestCase):
     """The note of the step itself. It claims no CI result and says which results are open."""
 
     NOTE = ROOT / "docs" / "findings" / "s6-https-management.md"
-    PIN = "8e3737d25d048b14a00c01da00494f58a62958c6"
+    # The note records its results at the pin it was written at; the manifest has moved on since.
+    NOTE_PIN = "8e3737d25d048b14a00c01da00494f58a62958c6"
+    PIN = "89c25934ce5837896aad73cb5beab73dc75dcb50"
 
     def text(self):
         return self.NOTE.read_text()
@@ -1618,7 +1620,7 @@ class S6StepNote(unittest.TestCase):
     # the job logs, Zephyr builds happen in CI only, and nothing has run on a board.
     def test_the_note_claims_no_board_run_and_says_where_zephyr_builds_happen(self):
         text = self.words()
-        self.assertIn(self.PIN, text)
+        self.assertIn(self.NOTE_PIN, text)
         self.assertIn("Nothing has run on a board", text)
         self.assertNotIn("the author of this change", text)
         self.assertIn("Zephyr builds and Twister runs happen in CI only", text)

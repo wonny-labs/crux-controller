@@ -8,7 +8,7 @@ twice on a board (see `docs/findings/s2-first-board-run.md`); nothing else has r
 
 ### Build and manifest
 
-- The west manifest imports `crux-pilot` at a pinned commit (`8e3737d2`, which publishes the File
+- The west manifest imports `crux-pilot` at a pinned commit (`89c25934`, which publishes the File
   composition interface `<crux/file_zephyr.h>`) and adds `picolibc` as a test-only project. A CI job
   checks the pins with `west crux-pins` and has a negative control that must fail.
 - The `crux-pilot` pin moved from `37c92b18` to `dfd3ad7d`, which adds the public management headers
@@ -28,6 +28,14 @@ twice on a board (see `docs/findings/s2-first-board-run.md`); nothing else has r
   default), `<crux/cli_zephyr.h>` and an RT1060 management sample on the Mbed TLS profile. No controller
   code uses them yet. The S2 firmware hash and the budget tables are in the pull request, because they
   come from CI.
+- The `crux-pilot` pin moved from `8e3737d2` to `89c25934`, the squash commit of wonny-labs/crux-pilot#526.
+  The Crux manifest is unchanged in this range, so the Zephyr revision (v4.4.2), the module revisions and
+  the optional groups stay as they were. The range adds `CONFIG_CRUX_WEB_HEADER_DEADLINE_MS` (default
+  10000, which step S6 keeps), makes `crux_web_start()` refuse a second start and a bind text that is no
+  address, and adds `CONFIG_CRUX_FILE_POOL_SIZE` (default 4) and `CONFIG_CRUX_FILE_DIR_POOL_SIZE`
+  (default 2), which the FatFs settings of S3 and S6 (`CONFIG_FS_FATFS_NUM_FILES=6`) cover. No controller
+  code changes. The S2 firmware hash and the budget tables are in the pull request, because they come
+  from CI.
 - The `crux-pilot` import blocks wolfSSL, wolfSSH and wolfPSA by name, so enabling the Mbed TLS group
   would activate Mbed TLS and TF-PSA-Crypto and no GPL stack (checked on the project list; no job
   enables the group or fetches with it on, and it stays off in every job).
