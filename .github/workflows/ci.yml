@@ -777,8 +777,8 @@ jobs:
       # download unnecessary.
       - name: Run the Crux Pilot product include check
         env:
-          CHECK_COMMIT: a72032b2f29c8c4579de8de07a43b40f19bb9516
-          CHECK_SHA256: eb297a527da071ed2e863fd456ec80a46c77b446f2544cf984f7a4775b94bf80
+          CHECK_COMMIT: cd66b9e5a2f90009e7f4b5de9f6f3bb4efc5b3ea
+          CHECK_SHA256: 1e19b0aa3e300cfe7a542a06fe348343ad0963883ca822d7d1355be1af6b1e37
         run: |
           set -euo pipefail
           script="$RUNNER_TEMP/check_domain_includes.py"
@@ -793,8 +793,8 @@ jobs:
       # hashes, laid out as in crux-pilot: the wrapper in style/, the checker beside that folder.
       - name: Run the style kit include check script
         env:
-          KIT_COMMIT: 751e04aead779ac08e438ec1e2640e57fc50e9fe
-          CHECKER_SHA256: eb297a527da071ed2e863fd456ec80a46c77b446f2544cf984f7a4775b94bf80
+          KIT_COMMIT: cd66b9e5a2f90009e7f4b5de9f6f3bb4efc5b3ea
+          CHECKER_SHA256: 1e19b0aa3e300cfe7a542a06fe348343ad0963883ca822d7d1355be1af6b1e37
           WRAPPER_SHA256: aa2f4e88a19de1f6838aad70c809f543a79b922f781ee4772f367e0ba49262fa
         run: |
           set -euo pipefail
