@@ -30,13 +30,15 @@ class ScriptsRow(unittest.TestCase):
 
 
 class ModuleSwitchComment(unittest.TestCase):
-    """app/conf/s3.conf says why it does not repeat CONFIG_CRUX_PILOT_MODULE."""
+    """app/conf/s3.conf says why it does not repeat CONFIG_CRUX_MODULE."""
 
     def test_the_comment_does_not_claim_that_prj_conf_sets_it(self):
         text = (ROOT / "app" / "conf" / "s3.conf").read_text()
         self.assertNotIn("prj.conf keeps it on", text)
         self.assertTrue((ROOT / "app" / "prj.conf").is_file())
-        self.assertNotIn("CONFIG_CRUX_PILOT_MODULE", (ROOT / "app" / "prj.conf").read_text())
+        prj = (ROOT / "app" / "prj.conf").read_text()
+        self.assertNotIn("CONFIG_CRUX_MODULE", prj)
+        self.assertNotIn("CONFIG_CRUX_PILOT_MODULE", prj)
 
     def test_the_comment_gives_the_real_reason(self):
         header = "\n".join(
@@ -44,7 +46,7 @@ class ModuleSwitchComment(unittest.TestCase):
             if line.startswith("#")
         )
         flat = " ".join(header.replace("# ", " ").split())
-        self.assertRegex(flat, r"CONFIG_CRUX_PILOT_MODULE is not repeated \(it defaults to y")
+        self.assertRegex(flat, r"CONFIG_CRUX_MODULE is not repeated \(it defaults to y")
 
     def test_no_file_of_the_application_sets_it(self):
         # The comment says that no file of this repository sets the switch. Comments do not count.
@@ -56,7 +58,7 @@ class ModuleSwitchComment(unittest.TestCase):
             for line in path.read_text().splitlines():
                 if line.lstrip().startswith("#"):
                     continue
-                if re.search(r"\bCONFIG_CRUX_PILOT_MODULE\b|\bCRUX_PILOT_MODULE\b", line):
+                if re.search(r"\bCONFIG_CRUX_MODULE\b|\bCRUX_MODULE\b|\bCONFIG_CRUX_PILOT_MODULE\b|\bCRUX_PILOT_MODULE\b", line):
                     setters.append(f"{path.relative_to(ROOT)}: {line.strip()}")
         self.assertEqual([], setters)
 

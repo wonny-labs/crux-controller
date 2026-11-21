@@ -61,7 +61,7 @@ class Promises(unittest.TestCase):
         body = text("RELEASE.md")
         self.assertIn("never published", body)
         self.assertIn("approval", body)
-        self.assertIn("cd66b9e5", body)
+        self.assertIn("5fa99839", body)
         self.assertIn("docs/product-composition.md", body)
 
 
