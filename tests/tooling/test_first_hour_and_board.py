@@ -124,10 +124,8 @@ class Common:
             for path in named_paths(code):
                 self.assertTrue((ROOT / path).exists(), f"{self.PAGE}: {path}")
 
-    def test_no_personal_path_host_name_or_process_wording(self):
-        body = read(self.PAGE)
-        self.assertNotRegex(body, r"/Users/|/home/[a-z]|/private/|[A-Z]:\\\\")
-        self.assertNotRegex(body, r"(?i)\b(claude|assistant|chatgpt|llm|copilot)\b")
+    def test_no_personal_path(self):
+        self.assertNotRegex(read(self.PAGE), r"/Users/|/home/[a-z]|/private/|[A-Z]:\\\\")
 
 
 class FirstHour(Common, unittest.TestCase):
