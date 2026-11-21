@@ -287,8 +287,9 @@ class ScriptRules(unittest.TestCase):
                 names.update(alias.name.split(".")[0] for alias in node.names)
             elif isinstance(node, ast.ImportFrom):
                 names.add(node.module.split(".")[0])
+        stdlib = {"argparse", "hashlib", "json", "os", "pathlib", "re", "subprocess", "sys"}
         self.assertTrue(names)
-        self.assertTrue(names <= set(sys.stdlib_module_names), names - set(sys.stdlib_module_names))
+        self.assertEqual(set(), names - stdlib, "import outside the reviewed standard modules")
 
 
 def sibling_crux():
