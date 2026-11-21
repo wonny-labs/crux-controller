@@ -113,7 +113,9 @@ and `<crux/serial.h>` (`FROZEN_CRUX_HEADERS` in `scripts/check_boundary.py`). `a
 on them although they are public, because the product uses Zephyr directly for threads and queues. Crux
 marks these four headers "frozen for new product code": no new features, existing users keep working, and any
 deprecation waits for a separate decision (concepts glossary, `docs/README.md` of `crux-pilot` at the pinned
-revision). This repository's rule goes further and refuses them in `app/src` and `app/os`.
+revision). This repository's rule goes further and refuses them in `app/src` and `app/os`. Crux removed
+`<crux/queue.h>` at the pinned revision (Crux pull request 530), so three of the four still exist; the check
+still refuses all four.
 
 **Sockets profile.** The set of standard POSIX socket headers that Crux's networking contract lists
 (`SOCKET_PROFILE` in `scripts/check_boundary.py`: `sys/socket.h`, `netinet/in.h`, `arpa/inet.h`,

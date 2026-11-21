@@ -80,7 +80,8 @@ Points that the table cannot carry:
   `app/os/time_sync_zephyr.c` (S5).** That file calls the Zephyr SNTP library's string-based
   `sntp_simple()` and nothing else of it, so it includes no socket header.
 - **The frozen-header rule covers `app/src` and `app/os`.** `<crux/thread.h>`, `<crux/sync.h>`,
-  `<crux/queue.h>` and `<crux/serial.h>` are public Crux headers, and the product still does not use them:
+  `<crux/queue.h>` and `<crux/serial.h>` were public Crux headers (Crux removed `<crux/queue.h>` at the pinned
+  revision), and the product still does not use them:
   threads and queues come from Zephyr in `app/os`. The check keeps that from being undone silently. The
   rule is not applied to `workload/` (which may include no Crux header at all) or to `app/compose`.
 - **The check reads includes only.** It cannot see include paths that CMake adds, so no build file here
