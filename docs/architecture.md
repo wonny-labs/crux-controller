@@ -61,8 +61,8 @@ zone, `app/management`, which holds build files and data for the web route table
 | Tree | Role | May include | Fails on, among others |
 |---|---|---|---|
 | `workload/` | The portable core of the workload: configuration record, periodic cycle, message wire form. Built for the image and for the host tests. | ISO C and its own tree | any Crux, Sockets profile or Zephyr header |
-| `app/src` | The application: composition, thread glue, and the code of each step. Plain C. | ISO C, the Sockets profile headers, public `<crux/NAME.h>` headers except the frozen four, its own tree, `workload/include` | any Zephyr header, the *frozen headers*, `<crux/file_zephyr.h>`, `<crux/web_zephyr.h>`, a quoted include of a header of a zone |
-| `app/os` | The adapter zone. The one place that creates threads, queues messages and sleeps, with Zephyr kernel calls, and the one place that queries an SNTP server (S5). | ISO C, public `<crux/NAME.h>` headers except the frozen four, `zephyr/kernel.h`, `zephyr/net/sntp.h`, its own tree, header files (`.h`) of `app/src` | the Sockets profile and other POSIX headers, any composition interface, every other Zephyr header, vendor headers, the frozen four |
+| `app/src` | The application: composition, thread glue, and the code of each step. Plain C. | ISO C, the Sockets profile headers, public `<crux/NAME.h>` headers except the frozen three, its own tree, `workload/include` | any Zephyr header, the *frozen headers*, `<crux/file_zephyr.h>`, `<crux/web_zephyr.h>`, a quoted include of a header of a zone |
+| `app/os` | The adapter zone. The one place that creates threads, queues messages and sleeps, with Zephyr kernel calls, and the one place that queries an SNTP server (S5). | ISO C, public `<crux/NAME.h>` headers except the frozen three, `zephyr/kernel.h`, `zephyr/net/sntp.h`, its own tree, header files (`.h`) of `app/src` | the Sockets profile and other POSIX headers, any composition interface, every other Zephyr header, vendor headers, the frozen three |
 | `app/compose` | The composition zone. The one place that mounts a file system and binds it to Crux File, and the one place that starts HTTPS management with the Web composition interface and registers its TLS material (S6). | ISO C, public `<crux/NAME.h>` headers, `<crux/file_zephyr.h>`, `<crux/web_zephyr.h>`, `zephyr/fs/fs.h`, `zephyr/devicetree.h`, `zephyr/net/tls_credentials.h`, its own tree, header files (`.h`) of `app/src` | the Sockets profile, Crux private or port headers, every other Zephyr header, vendor headers |
 
 Points that the table cannot carry:
@@ -79,11 +79,12 @@ Points that the table cannot carry:
 - **`zephyr/net/sntp.h` is allowed in `app/os`, and one source includes it:
   `app/os/time_sync_zephyr.c` (S5).** That file calls the Zephyr SNTP library's string-based
   `sntp_simple()` and nothing else of it, so it includes no socket header.
-- **The frozen-header rule covers `app/src` and `app/os`.** `<crux/thread.h>`, `<crux/sync.h>`,
-  `<crux/queue.h>` and `<crux/serial.h>` were public Crux headers (Crux removed `<crux/queue.h>` at the pinned
-  revision), and the product still does not use them:
-  threads and queues come from Zephyr in `app/os`. The check keeps that from being undone silently. The
-  rule is not applied to `workload/` (which may include no Crux header at all) or to `app/compose`.
+- **The frozen-header rule covers `app/src` and `app/os`.** `<crux/thread.h>`, `<crux/sync.h>` and
+  `<crux/serial.h>` are public Crux headers, and the product does not use them: threads and queues come
+  from Zephyr in `app/os`. The check keeps that from being undone silently. The rule is not applied to
+  `workload/` (which may include no Crux header at all) or to `app/compose`. Crux removed `<crux/queue.h>`
+  at the pinned revision, so the check refuses it as a name that Crux does not publish, not as a frozen
+  header.
 - **The check reads includes only.** It cannot see include paths that CMake adds, so no build file here
   adds one, and `tests/tooling` checks that. An include whose operand is a macro fails, because it cannot
   be checked.

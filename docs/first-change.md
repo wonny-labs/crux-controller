@@ -20,8 +20,11 @@ work in the Linux file system, as the try-on page explains.
 
 ## 2. Get the repository and make a branch
 
+Replace `<repository-url>` with the address you were given for this repository. The last argument names the
+folder that the commands below use.
+
 ```bash
-git clone https://github.com/wonny-labs/crux-controller.git
+git clone <repository-url> crux-controller
 cd crux-controller
 git switch -c test/workload-zero-period
 python3 -m venv .venv && . .venv/bin/activate && python -m pip install pyyaml clang-format==18.1.8
@@ -133,7 +136,7 @@ git commit -m "test: cover a zero period in the workload validator" -m "The vali
 git push -u origin test/workload-zero-period
 ```
 
-Then open a pull request on GitHub from the branch. CONTRIBUTING.md does not say how a contributor gets permission
+Then open a pull request from the branch. CONTRIBUTING.md does not say how a contributor gets permission
 to push a branch to this repository. Ask the owner. This page does not cover that step, and the commands above
 stop at the push.
 

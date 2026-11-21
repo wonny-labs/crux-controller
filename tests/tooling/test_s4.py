@@ -347,7 +347,7 @@ class S4Sources(unittest.TestCase):
         self.assertEqual(frozenset({"crux/file_zephyr.h", "crux/web_zephyr.h"}),
                          check_boundary.COMPOSITION_CRUX_HEADERS)
         self.assertEqual(
-            frozenset({"crux/thread.h", "crux/sync.h", "crux/queue.h", "crux/serial.h"}),
+            frozenset({"crux/thread.h", "crux/sync.h", "crux/serial.h"}),
             check_boundary.FROZEN_CRUX_HEADERS,
         )
         self.assertEqual(["app/src", "workload", "app/compose", "app/os"],
@@ -464,9 +464,10 @@ class S4Workflows(unittest.TestCase):
         for needle in (
             "CONFIG_TASK_WDT=y", "CONFIG_WDT_SHELL=y", "CONFIG_HWINFO_SHELL=y",
             "CONFIG_CRUX_CONTROLLER_M3=y", "CONFIG_CRUX_THREAD=y", "CONFIG_CRUX_SYNC=y",
-            "CONFIG_CRUX_QUEUE=y",
         ):
             self.assertIn(needle, commands, needle)
+        # Crux no longer has a Queue provider, so the job does not name its symbol.
+        self.assertNotIn("CONFIG_CRUX_QUEUE", commands)
 
     def test_the_s4_job_checks_what_the_image_links(self):
         commands = self.commands("s4")

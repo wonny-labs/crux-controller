@@ -153,7 +153,7 @@ Everything under `.github/workflows/` is GitHub Actions and runs on GitHub-hoste
 
 - Do not weaken or delete a test or a check to make your CI pass, and do not add an exception, waiver or per-file
   opt-out to the boundary check. CONTRIBUTING.md says to extend a check, not to loosen it.
-- Do not publish private names. A change that you send to the public repository follows "A public repository" in
+- Do not publish private names. A change that you send to the public repository follows "Content rules" in
   CONTRIBUTING.md: no employer, customer or proprietary product names, no private repository or link, no memory sizes of
   a real product, no secrets and no absolute paths of a personal or build machine.
 - Do not merge a change in your copy on a review `PASS` or a green CI alone.

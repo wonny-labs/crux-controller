@@ -1433,7 +1433,7 @@ class S6Workflows(unittest.TestCase):
             "CONFIG_CRUX_REBOOT=y", "CONFIG_CRUX_NETWORK_SETTINGS=y", "CONFIG_CRUX_FILE_SERVICE=y",
             "CONFIG_CRUX_SSH=y", "CONFIG_CRUX_CLI=y", "CONFIG_CRUX_CLI_CONSOLE=y",
             "CONFIG_CRUX_WEB_PLAIN_HTTP_FOR_TESTS=y", "CONFIG_CRUX_DEVELOPMENT_IMAGE=y",
-            "CONFIG_CRUX_CONTROLLER_S3=y", "CONFIG_CRUX_CONTROLLER_S4=y", "CONFIG_CRUX_QUEUE=y",
+            "CONFIG_CRUX_CONTROLLER_S3=y", "CONFIG_CRUX_CONTROLLER_S4=y",
             "CONFIG_CRUX_SERIAL=y", "CONFIG_SHELL=y", "CONFIG_DISK_DRIVER_SDMMC=y", "CONFIG_IMX_USDHC=y",
             "CONFIG_FS_FATFS_MOUNT_MKFS=y", "CONFIG_TEST_RANDOM_GENERATOR=y",
             "CONFIG_FAKE_ENTROPY_NATIVE_SIM=y", "CONFIG_CRUX_CONFIGURATION_SETTINGS_FILE=y",
@@ -1441,6 +1441,8 @@ class S6Workflows(unittest.TestCase):
         ):
             self.assertIn(option, run, option)
         self.assertIn("'^CONFIG_WOLF'", run)
+        # Crux no longer has a Queue provider, so the job does not name its symbol.
+        self.assertNotIn("CONFIG_CRUX_QUEUE", run)
         # The sentence that explains why Thread and Sync are on and nothing of the product names them.
         self.assertIn("The product's sources include neither", " ".join(run.replace("#", " ").split()))
 

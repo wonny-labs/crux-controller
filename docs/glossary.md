@@ -58,7 +58,7 @@ repository therefore means "depends on" a lower step. CI builds each step as its
 combines S2, S3 and S4; the S5 and S6 images are built on S2 (and so on S1). What each step has and has not run is in [roadmap.md](roadmap.md), and the procedure for
 adding one is in [adding-a-step.md](adding-a-step.md).
 
-"Step" has two other meanings that share the word. In a GitHub Actions workflow a step is one entry of
+"Step" has two other meanings that share the word. In a CI workflow a step is one entry of
 a job (`ci.yml`, `budget.yml`). In `RELEASE.md` the table "Step, Tool, What fails the run" lists the
 actions of the release dry run. The context says which one is meant.
 
@@ -77,8 +77,8 @@ job `Boundary check`. There is no exception, waiver or per-file opt-out.
 
 **Product include check.** The second include check of the `Boundary check` job: the script
 `templates/product/check_domain_includes.py` of `crux-pilot`, run in product mode. These documents call it "the
-product include check". In product mode it fails on an include of one of the four frozen headers in any C or C++
-source under the repository, tests included. CI runs it twice: from a downloaded copy of the script, and through
+product include check". In product mode it fails on an include of one of the three frozen headers, or of the removed
+`<crux/queue.h>`, in any C or C++ source under the repository, tests included. CI runs it twice: from a downloaded copy of the script, and through
 the wrapper `check-includes.sh` of `crux-pilot`, which calls the same script. The first check, `scripts/check_boundary.py`,
 belongs to this repository. See [composition-zone.md](composition-zone.md#running-the-check).
 
@@ -108,14 +108,14 @@ not include one.
 ISO C only, so it stays inside the rules of `app/src`. The application calls it; the linker joins the
 two sides.
 
-**Frozen headers.** The four public Crux headers `<crux/thread.h>`, `<crux/sync.h>`, `<crux/queue.h>`
-and `<crux/serial.h>` (`FROZEN_CRUX_HEADERS` in `scripts/check_boundary.py`). `app/src` and `app/os` fail
-on them although they are public, because the product uses Zephyr directly for threads and queues. Crux
-marks these four headers "frozen for new product code": no new features, existing users keep working, and any
-deprecation waits for a separate decision (concepts glossary, `docs/README.md` of `crux-pilot` at the pinned
-revision). This repository's rule goes further and refuses them in `app/src` and `app/os`. Crux removed
-`<crux/queue.h>` at the pinned revision (Crux pull request 530), so three of the four still exist; the check
-still refuses all four.
+**Frozen headers.** The three public Crux headers `<crux/thread.h>`, `<crux/sync.h>` and `<crux/serial.h>`
+(`FROZEN_CRUX_HEADERS` in `scripts/check_boundary.py`). `app/src` and `app/os` fail on them although they
+are public, because the product uses Zephyr directly for threads and queues. Crux marks these headers
+"frozen for new product code": no new features, existing users keep working, and any deprecation waits for a
+separate decision (concepts glossary, `docs/README.md` of `crux-pilot` at the pinned revision). This
+repository's rule goes further and refuses them in `app/src` and `app/os`. Crux removed `<crux/queue.h>`, the
+fourth header of that group, at the pinned revision, so it is no longer on the list; the check refuses it with
+`--crux-root` as a name that Crux does not publish.
 
 **Sockets profile.** The set of standard POSIX socket headers that Crux's networking contract lists
 (`SOCKET_PROFILE` in `scripts/check_boundary.py`: `sys/socket.h`, `netinet/in.h`, `arpa/inet.h`,

@@ -60,16 +60,16 @@ that does not say what it covered is hard to use later.
 - [ ] **The text is fit for a public repository.** No name of an employer or customer, no proprietary product, runtime
   or private repository, no reference to a private planning document, no memory sizes of a real product, no
   secrets or absolute paths of a personal or build machine, no text that cannot be published under Apache-2.0
-  (CONTRIBUTING.md, "A public repository"). `tests/tooling/test_public_text.py` fails on the usual forms of the planning references
+  (CONTRIBUTING.md, "Content rules"). `tests/tooling/test_public_text.py` fails on the usual forms of the planning references
   and does not catch the rest. Read for those yourself.
 - [ ] **Hashes only.** No firmware image, `.elf` or `.map` file goes into the repository, a release bundle or a CI
-  artefact (CONTRIBUTING.md, "A public repository", and `RELEASE.md`).
+  artefact (CONTRIBUTING.md, "Content rules", and `RELEASE.md`).
 - [ ] **The tooling tests pass.** Practice: run `python -m unittest discover -s tests/tooling` on the head commit, or read the
   `Tooling tests` job (CONTRIBUTING.md, "Build and test"). Several documents are pinned by these tests.
 
 ## 4. Documentation changes
 
-CONTRIBUTING.md states no separate rules for documents except the public-repository rules above and the review
+CONTRIBUTING.md states no separate rules for documents except the content rules above and the review
 rules. These items are practice, taken from how the tests and the findings are written.
 
 - [ ] **Each fact matches a file.** Open every file, command, number and name that a changed sentence cites.
@@ -80,7 +80,7 @@ rules. These items are practice, taken from how the tests and the findings are w
   not say it.
 - [ ] **No claim that a CI build is a board run,** and no claim that a `native_sim` pass shows board behaviour
   (CONTRIBUTING.md, "Commits and pull requests", and the glossary entry for `native_sim`).
-- [ ] **No private names.** The same rule as in section 3, applied to quoted approvals and to examples.
+- [ ] **No private names.** The same rule as in section 3 (CONTRIBUTING.md, "Content rules"), applied to quoted approvals and to examples.
 - [ ] **The pinned text and its pin changed together.** Several tests pin sentences, for example the role sentence in
   `README.md` (`tests/tooling/test_docs.py`). Change a pin only together with the text, and only when the approved
   behaviour changes ("Changing behaviour"). The tooling tests show which sentence is pinned.
@@ -147,7 +147,7 @@ the recipe and the mechanical checklist; the points below are what a reviewer ve
 - [ ] A check that did not run is described as not run (CONTRIBUTING.md, "Commits and pull requests"). Practice:
   failures and skipped checks are listed too.
 - [ ] For a pin move: the hashes are in the pull request (CONTRIBUTING.md, "The pin and the manifest"), and nothing
-  in the pull request publishes an image ("A public repository").
+  in the pull request publishes an image (CONTRIBUTING.md, "Content rules").
 
 ## 7. Files that need a reviewed change
 

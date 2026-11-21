@@ -58,8 +58,8 @@ The README table is the maintained summary of the steps and says, per step, whet
 
 The `Budget` job builds each step for the RT1060-EVKB and reads the Zephyr memory region table. The numbers
 below are the `FLASH` and `RAM` rows of that table, in bytes used, as the `Budget S0` to `Budget S6` job logs
-of GitHub Actions print them. They were read from the job logs of the `budget` workflow run for `main` at
-`26c78a3` (a revision of the public repository), and the run for `8d47942d`, the head of pull request 59 (the S6 composition change), printed the
+of the CI print them. They were read from the job logs of the `budget` workflow run for `main` at
+`26c78a3` (a revision of the public repository), and the run for `8d47942d`, the head of the S6 composition change, printed the
 same values. The region sizes are the ones that the table prints: `FLASH` 8 MB and `RAM` 32 MB.
 
 | Step | FLASH used (bytes) | FLASH of region | RAM used (bytes) | RAM of region |
