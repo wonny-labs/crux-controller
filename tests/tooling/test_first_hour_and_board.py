@@ -84,7 +84,7 @@ def links(name):
 def section(name, heading_pattern):
     """The text of the first `##` section whose heading matches the pattern, up to the next `##`."""
     body = read(name)
-    match = re.search(rf"(?m)^## .*{heading_pattern}.*$", body)
+    match = re.search(rf"^## .*{heading_pattern}.*$", body, re.M | re.I)
     assert match, f"{name}: no section matching {heading_pattern!r}"
     end = body.find("\n## ", match.end())
     return body[match.start():end if end != -1 else len(body)]
@@ -145,12 +145,12 @@ class FirstHour(Common, unittest.TestCase):
             position = matches[0]
 
     def test_it_has_a_section_with_the_times_and_says_where_they_come_from(self):
-        part = section(FIRST_HOUR, r"(?i)how long")
+        part = section(FIRST_HOUR, r"how long")
         self.assertRegex(part, r"\d+ min")
         self.assertIn("CI", part)
 
     def test_both_container_routes_are_named(self):
-        part = section(FIRST_HOUR, r"(?i)dev container")
+        part = section(FIRST_HOUR, r"dev container")
         self.assertIn("scripts/dev-shell.sh", part)
         self.assertIn("Reopen in Container", part)
 
