@@ -8,7 +8,7 @@ twice on a board (see `docs/findings/s2-first-board-run.md`); nothing else has r
 
 ### Build and manifest
 
-- The west manifest imports `crux-pilot` at a pinned commit (`cd66b9e5`, which publishes the File
+- The west manifest imports `crux-pilot` at a pinned commit (`5fa99839`, which publishes the File
   composition interface `<crux/file_zephyr.h>`) and adds `picolibc` as a test-only project. A CI job
   checks the pins with `west crux-pins` and has a negative control that must fail.
 - The `crux-pilot` pin moved from `37c92b18` to `dfd3ad7d`, which adds the public management headers
@@ -43,6 +43,14 @@ twice on a board (see `docs/findings/s2-first-board-run.md`); nothing else has r
   repository never used it, and the boundary check and the CI option checks still refuse both. No
   controller code changes. The S2 firmware hash and the budget tables are in the pull
   request, because they come from CI.
+- The `crux-pilot` pin moved from `cd66b9e5` to `5fa99839`, the squash commit of wonny-labs/crux-pilot#532.
+  The Crux manifest is unchanged in this range. #532 renames the Kconfig switch of the Crux module from
+  `CONFIG_CRUX_PILOT_MODULE` to `CONFIG_CRUX_MODULE`, still on by default and without an alias, so the old
+  name is an unknown symbol now. No file of this repository sets either name; the comment in
+  `app/conf/s3.conf` and the tests that guard the switch name the new one. `ZEPHYR_CRUX_PILOT_MODULE_DIR`,
+  which `app/management/*.cmake` read, is made by Zephyr from the module folder name and is not part of
+  the rename. The range also holds a documentation change (#531). No controller code changes. The S2
+  firmware hash and the budget tables are in the pull request, because they come from CI.
 - The `crux-pilot` import blocks wolfSSL, wolfSSH and wolfPSA by name, so enabling the Mbed TLS group
   would activate Mbed TLS and TF-PSA-Crypto and no GPL stack (checked on the project list; no job
   enables the group or fetches with it on, and it stays off in every job).

@@ -16,7 +16,7 @@ release dry run are the record.
 ```mermaid
 flowchart TD
     CC["crux-controller<br/>west.yml, the manifest repository"]
-    CP["crux-pilot<br/>pinned commit cd66b9e5"]
+    CP["crux-pilot<br/>pinned commit 5fa99839"]
     ZP["zephyr v4.4.2<br/>pinned by Crux"]
     MOD["cmsis, cmsis_6, hal_nxp, littlefs, fatfs<br/>Zephyr modules Crux lets through"]
     PL["picolibc<br/>product-only, native_sim test"]
@@ -32,7 +32,7 @@ flowchart TD
 
 | Project | Revision | Route | Why it is here | Licence as the project states it |
 |---|---|---|---|---|
-| `crux-pilot` | `cd66b9e5a2f90009e7f4b5de9f6f3bb4efc5b3ea` (a commit, no Crux tag exists) | The platform itself: pinned in `west.yml`, its manifest is imported | The Crux components, the composition interface `<crux/file_zephyr.h>` and the public management headers, which step S6 uses in `app/compose/management_start.c`. At this pin the Mbed TLS modules of the optional group are at the revisions of Zephyr's v4.4-branch (Mbed TLS 4.1.1 plus 8 commits, TF-PSA-Crypto 1.1.1 plus 24 commits), which only the S6 job and the S6 Budget row fetch, in their own runner | Apache-2.0 |
+| `crux-pilot` | `5fa998398b3557551cd7995ed44119f1c483cab9` (a commit, no Crux tag exists) | The platform itself: pinned in `west.yml`, its manifest is imported | The Crux components, the composition interface `<crux/file_zephyr.h>` and the public management headers, which step S6 uses in `app/compose/management_start.c`. At this pin the Mbed TLS modules of the optional group are at the revisions of Zephyr's v4.4-branch (Mbed TLS 4.1.1 plus 8 commits, TF-PSA-Crypto 1.1.1 plus 24 commits), which only the S6 job and the S6 Budget row fetch, in their own runner | Apache-2.0 |
 | `zephyr` | `dccb09599635bdff17633fa7e9dab014b91dce90` (v4.4.2) | Pinned via the Crux contract | The RTOS the image is built on | Apache-2.0 |
 | `cmsis` | `512cc7e895e8491696b61f7ba8066b4a182569b8` | Pinned via the Crux contract | Arm Cortex-M core headers that Zephyr's Cortex-M support uses | Apache-2.0 |
 | `cmsis_6` | `30a859f44ef8ab4dc8f84b03ed586fd16ccf9d74` | Pinned via the Crux contract | Arm core headers of the newer CMSIS interface, which Zephyr's manifest also names | Apache-2.0 |
