@@ -32,7 +32,7 @@
 #      a typo must not fall back silently). Nothing at this revision passes the variable into the
 #      container: scripts/dev-shell.sh does not yet. Set it yourself when you run this script by hand.
 #   2. else the file .crux-extra-ca.crt in the workspace folder, the parent folder of the clone (on the
-#      host, for example ~/work/controller-ws/.crux-extra-ca.crt; in the container
+#      host, for example ~/work/crux-controller-workspace/.crux-extra-ca.crt; in the container
 #      /workspaces/ws/.crux-extra-ca.crt). That folder is already mounted, so this route works for
 #      VS Code and for the command line alike.
 #   3. else no certificate is installed and the script behaves as before.
@@ -80,7 +80,7 @@ step "the check of the workspace folder"
     || fail "the clone is in a folder named '$(basename "$repo")'. West needs it to be named crux-controller (west.yml, self: path). Clone it as <workspace>/crux-controller."
 for marker in .bashrc .profile .ssh .gnupg .gitconfig; do
     [[ ! -e "$workspace/$marker" ]] \
-        || fail "'$workspace' looks like a home directory ($marker is in it). Put the clone in a folder of its own, for example ~/work/controller-ws/crux-controller, because west init puts .west, zephyr/ and modules/ next to it."
+        || fail "'$workspace' looks like a home directory ($marker is in it). Put the clone in a folder of its own, for example ~/work/crux-controller-workspace/crux-controller, because west init puts .west, zephyr/ and modules/ next to it."
 done
 
 # The container is a throw-away environment, so any directory may be trusted by its Git. The bind

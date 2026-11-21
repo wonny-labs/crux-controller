@@ -13,10 +13,10 @@ import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 DOCS = ROOT / "docs"
-NEW_PAGES = ("docs/README.md", "docs/first-change.md", "docs/reviewing.md", "docs/team-copy.md")
+NEW_PAGES = ("docs/README.md", "docs/first-change.md", "docs/reviewing.md")
 # Documents whose wording this change owns. Findings are kept as recorded and are not listed.
 OWNED = (
-    "README.md", "docs/README.md", "docs/first-change.md", "docs/reviewing.md", "docs/team-copy.md",
+    "README.md", "docs/README.md", "docs/first-change.md", "docs/reviewing.md", "docs/history/README.md",
     "docs/adding-a-step.md", "docs/glossary.md", "docs/architecture.md", "docs/composition-zone.md",
 )
 # Pages that another change writes. A link to one of them is checked as soon as the page, or the
@@ -24,6 +24,7 @@ OWNED = (
 # when the page has been merged, so that the link is checked without an exception.
 PLANNED_PAGES = {"docs/troubleshooting.md"}
 PLANNED_ANCHORS = {("docs/try-on-native-sim.md", "quick-start")}
+HISTORY = ROOT / "docs" / "history"
 FIVE = ("README.md", "docs/roadmap.md", "docs/architecture.md", "docs/try-on-native-sim.md",
         "CONTRIBUTING.md")
 
@@ -146,6 +147,15 @@ class Links(unittest.TestCase):
                         continue
                     self.assertIn(anchor, anchors(path), f"{name}: {target}")
 
+    def test_every_link_of_the_history_pages_resolves(self):
+        # The moved pages keep their text; only their link targets were rebased, so each must resolve.
+        for page in sorted(HISTORY.glob("*.md")):
+            name = str(page.relative_to(ROOT))
+            for path, anchor, target in links(name):
+                self.assertTrue((ROOT / path).exists(), f"{name}: {target}")
+                if anchor and (ROOT / path).suffix == ".md":
+                    self.assertIn(anchor, anchors(path), f"{name}: {target}")
+
     def test_the_new_pages_are_linked_from_the_readme(self):
         targets = {path for path, _, _ in links("README.md")}
         for name in NEW_PAGES:
@@ -171,12 +181,29 @@ class ReadingTime(unittest.TestCase):
         for name in FIVE:
             self.assertIn(name, minutes, name)
 
-    def test_the_readme_claims_about_sixty_minutes_and_the_index_agrees(self):
-        text = flat("README.md")
-        self.assertNotIn("30 minutes", text)
-        self.assertIn("about 80 minutes", text)
+    def test_the_readme_claims_a_total_and_the_index_agrees(self):
+        # The README states the total of the reading path; the index states each page.
+        claimed = re.search(r"They take about (\d+) minutes in full", flat("README.md"))
+        self.assertIsNotNone(claimed)
         total = sum(self.index_minutes()[name] for name in FIVE)
-        self.assertLessEqual(abs(total - 80), 5, f"the five pages add up to {total} minutes")
+        self.assertLessEqual(abs(total - int(claimed.group(1))), 5, f"the five pages add up to {total} minutes")
+        self.assertIn(f"about {claimed.group(1)} minutes together", flat("docs/README.md"))
+
+    def test_the_readme_reading_path_times_are_the_ones_of_the_index(self):
+        minutes = self.index_minutes()
+        path = section("README.md", "Reading path")
+        for name in FIVE:
+            if name == "README.md":
+                stated = re.search(r"This README \(about (\d+) minutes", path)
+            else:
+                stated = re.search(rf"\]\((?:docs/)?{re.escape(pathlib.PurePosixPath(name).name)}\) \(about (\d+) minutes", path)
+            self.assertIsNotNone(stated, name)
+            self.assertEqual(minutes[name], int(stated.group(1)), name)
+
+    def test_the_history_pages_are_in_the_index_with_a_reading_time(self):
+        minutes = self.index_minutes()
+        for page in sorted(HISTORY.glob("*.md")):
+            self.assertIn(str(page.relative_to(ROOT)), minutes, page.name)
 
     def test_the_listed_times_follow_the_length_of_each_page(self):
         # About 250 words a minute for technical text. A wide band keeps the check from failing
@@ -194,7 +221,7 @@ class Glossary(unittest.TestCase):
     ENTRIES = (
         "Product", "PASS, REVISE and ESCALATE", "Files that need a reviewed change", "Reviewer",
         "Owner", "Operator", "Composition", "Product include check", "Platform",
-        "Team copy", "Maintainer",
+        "Hashes and numbers", "Maintainer",
     )
 
     def test_the_glossary_defines_the_new_entries(self):
@@ -257,6 +284,7 @@ class Terminology(unittest.TestCase):
                 self.assertNotIn(phrase, body, f"{name}: {phrase}")
 
     def test_the_readme_defines_its_acronyms_where_it_first_uses_them(self):
+        # A term that the README does not use needs no definition there; the glossary has them all.
         body = flat("README.md")
         rules = {
             "EVKB": r"(evaluation board[^.]{0,40}EVKB|EVKB[^.]{0,60}evaluation board)",
@@ -267,9 +295,15 @@ class Terminology(unittest.TestCase):
             "SBOM": r"SBOM[^.]{0,5}\(?[^.]{0,30}(bill of materials|list of)",
             "PASS": r"`PASS`[^.]{0,5}\(?[^.]{0,60}(no blocking|reviewer)",
         }
+        for term in ("EVKB", "SNTP", "Twister"):
+            self.assertIn(term, body, term)
+        glossary = flat("docs/glossary.md")
+        for term in rules:
+            self.assertIn(term, glossary, term)
         for term, pattern in rules.items():
             first = re.search(rf"(?<![\w-]){re.escape(term)}(?![\w])" if term != "PASS" else r"`PASS`", body)
-            self.assertIsNotNone(first, term)
+            if first is None:
+                continue
             definition = re.search(pattern, body)
             self.assertIsNotNone(definition, f"{term} is not defined")
             self.assertLessEqual(definition.start(), first.start() + 140, f"{term} is defined late")
@@ -278,8 +312,8 @@ class Terminology(unittest.TestCase):
         body = read("README.md")
         passages = {
             "first paragraphs": " ".join(body.split("\n\n")[1:4]),
-            "owner bullet": section("README.md", "Roles and references").split("- **The reviewer")[0],
-            "status": section("README.md", "Status").split("| Step |")[0],
+            "state": section("README.md", "State").split("| Step |")[0],
+            "how to try it": section("README.md", "How to try it"),
         }
         for label, text in passages.items():
             for sentence in sentences(text):
@@ -426,7 +460,8 @@ class NewPages(unittest.TestCase):
             self.assertIn(needle, body, needle)
 
     def test_the_team_copy_note_covers_the_copy_tasks(self):
-        body = flat("docs/team-copy.md")
+        # The page moved to the history folder unchanged apart from its link targets.
+        body = flat("docs/history/team-copy.md")
         for needle in ("CODEOWNERS", "git init && git add -A", "upstream", "NOTICE", "LICENSE",
                        "SPDX-License-Identifier: Apache-2.0", "west.yml", "`.github/workflows/`",
                        "https://github.com/wonny-labs/crux-controller/issues", "SECURITY.md",

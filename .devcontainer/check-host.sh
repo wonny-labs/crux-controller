@@ -39,7 +39,7 @@ check_layout() {
         || refuse "the clone is in a folder named '$(basename "$repo")'. It must be named crux-controller (west.yml, self: path). Clone it as <workspace>/crux-controller."
 
     if [[ "$workspace" == "/" || "$logical_workspace" == "/" ]]; then
-        refuse "the clone is directly in the root directory. Put it in a folder of its own, for example ~/work/controller-ws/crux-controller, because the whole parent folder is mounted into the container."
+        refuse "the clone is directly in the root directory. Put it in a folder of its own, for example ~/work/crux-controller-workspace/crux-controller, because the whole parent folder is mounted into the container."
     fi
 
     if [[ -n "${HOME:-}" && -d "$HOME" ]]; then
@@ -47,14 +47,14 @@ check_layout() {
     fi
     for parent in "$workspace" "$logical_workspace" "$resolved_logical"; do
         if [[ -n "$home_physical" && ( "$parent" == "$home_physical" || "$parent" == "${HOME%/}" ) ]]; then
-            refuse "the parent folder '$parent' is your home directory. Put the clone in a folder of its own, for example ~/work/controller-ws/crux-controller, because the whole parent folder is mounted into the container and west init puts .west, zephyr/ and modules/ next to the clone."
+            refuse "the parent folder '$parent' is your home directory. Put the clone in a folder of its own, for example ~/work/crux-controller-workspace/crux-controller, because the whole parent folder is mounted into the container and west init puts .west, zephyr/ and modules/ next to the clone."
         fi
     done
 
     for parent in "$workspace" "$logical_workspace"; do
         for marker in .ssh .gnupg .bashrc .profile .gitconfig; do
             if [[ -e "$parent/$marker" ]]; then
-                refuse "the parent folder '$parent' looks like a home directory ($marker is in it). Put the clone in a folder of its own, for example ~/work/controller-ws/crux-controller, because the whole parent folder is mounted into the container."
+                refuse "the parent folder '$parent' looks like a home directory ($marker is in it). Put the clone in a folder of its own, for example ~/work/crux-controller-workspace/crux-controller, because the whole parent folder is mounted into the container."
             fi
         done
     done

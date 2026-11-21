@@ -27,8 +27,6 @@ git switch -c test/workload-zero-period
 python3 -m venv .venv && . .venv/bin/activate && python -m pip install pyyaml clang-format==18.1.8
 ```
 
-If your team keeps a copy of the repository, clone your copy instead ([team-copy.md](team-copy.md)).
-
 CONTRIBUTING.md does not prescribe a branch name. The branches in this repository's history are called
 `<type>/<short-description>`, with the same types as a commit subject (`fix/...`, `docs/...`). Use one branch for one
 logical change.

@@ -4,16 +4,16 @@ This page is for a team that keeps its own copy of this repository, for example 
 an internal repository that has no GitHub Actions. It says which words in the documents need a new meaning in your
 copy, what to change, how to take over later changes, and what must stay.
 
-It is a reading aid. [CONTRIBUTING.md](../CONTRIBUTING.md) stays the authority for the rules of the public
+It is a reading aid. [CONTRIBUTING.md](../../CONTRIBUTING.md) stays the authority for the rules of the public
 repository. Licence questions are for your own legal department: this page is not legal advice.
 
 ## 1. What the repository does not provide
 
 - **No support.** The repository promises no support period, and only the latest release, if one exists, is
-  supported ([README](../README.md#licence-support-and-ownership), `SECURITY.md`). There is no release yet.
+  supported ([README](../../README.md#licence-support-and-ownership), `SECURITY.md`). There is no release yet.
 - **No service level for security reports.** `SECURITY.md` says so.
 - **No product.** The firmware has no real control logic, and its workload is synthetic. Only step S2 has run on a
-  board, twice, on one bench ([roadmap](roadmap.md#what-has-run-on-a-board)).
+  board, twice, on one bench ([roadmap](../roadmap.md#what-has-run-on-a-board)).
 - **No evidence for Crux security claims.** That evidence lives in `crux-pilot`, the Crux repository.
 
 Your team owns everything that your copy adds to this.
@@ -34,8 +34,8 @@ The files that name the roles are:
 | `CODEOWNERS` | One account for every file. |
 
 The reviewer is someone who did not write the change, as before. A review `PASS` and a green CI result do not
-replace the owner's approval in your copy either. See the [glossary](glossary.md#people-and-board-procedures) and
-[reviewing.md](reviewing.md).
+replace the owner's approval in your copy either. See the [glossary](../glossary.md#people-and-board-procedures) and
+[reviewing.md](../reviewing.md).
 
 ## 3. Make the copy a Git repository
 
@@ -111,7 +111,7 @@ git fetch upstream
 ```
 
 A change of the pin, of `.github/workflows/`, of `scripts/` or of the boundary lists is one of the
-[files that need a reviewed change](adding-a-step.md#files-that-need-a-reviewed-change). Review it as such in your
+[files that need a reviewed change](../adding-a-step.md#files-that-need-a-reviewed-change). Review it as such in your
 copy.
 
 ## 7. The Crux pin
@@ -141,11 +141,11 @@ Everything under `.github/workflows/` is GitHub Actions and runs on GitHub-hoste
   hundred tests fail when the directory is missing.
 - **Rebuild the checks in your own CI from those files.** Each job lists its commands. The checks that need no Zephyr
   are the tooling tests, the host tests, the boundary check, the SPDX check, the format check and the static analysis
-  ([first-change.md](first-change.md) shows them). The step builds, the Twister scenarios and the `Budget` jobs need the
-  west workspace and the Zephyr SDK ([try-on-native-sim.md](try-on-native-sim.md)).
+  ([first-change.md](../first-change.md) shows them). The step builds, the Twister scenarios and the `Budget` jobs need the
+  west workspace and the Zephyr SDK ([try-on-native-sim.md](../try-on-native-sim.md)).
 - **The `Boundary check` job downloads two scripts from GitHub** and checks their SHA-256. The pinned `crux-pilot`
   contains the same script, so in a west workspace you can run it from there, as
-  [composition-zone.md](composition-zone.md#running-the-check) shows.
+  [composition-zone.md](../composition-zone.md#running-the-check) shows.
 - **Your CI results are your copy's results.** Do not describe a build in your CI as a run on a board, and do not
   quote it as a result of the public repository.
 

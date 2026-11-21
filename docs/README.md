@@ -5,7 +5,7 @@ task. If you have not seen this repository before, start with the [README](../RE
 
 The reading times are for reading only, at about 250 words a minute. A page with commands takes longer to follow.
 The five pages of the reading path in the README (the README, the roadmap, the architecture, the try-on page and
-CONTRIBUTING.md) take about 80 minutes together.
+CONTRIBUTING.md) take about 70 minutes together.
 
 ## Paths by task
 
@@ -42,11 +42,8 @@ CONTRIBUTING.md) take about 80 minutes together.
 - [findings/README.md](findings/README.md): what building each step taught about using Crux, with the revision
   that each note was read at.
 - [roadmap.md](roadmap.md): what exists, what has run on a board, what is not yet possible and why.
+- [history/README.md](history/README.md): the project history that left the main documents, with a move log.
 - [composition-zone.md](composition-zone.md#why-a-zone): why the boundary has zones and an exact allow-list.
-
-### I keep a copy of the repository
-
-- [team-copy.md](team-copy.md): what to change and what to keep in a copy without the Git history or GitHub CI.
 
 ## Where decisions are recorded
 
@@ -60,9 +57,10 @@ CONTRIBUTING.md) take about 80 minutes together.
 - **What exists, what ran on a board and what is not possible**: [roadmap.md](roadmap.md). Its "not yet possible" rows
   are recorded positions, not plans.
 - **The pinned Crux revision**: the `revision` in `west.yml`. The comment above it and `tests/tooling/test_manifest.py`
-  record the approved commit, and `CHANGELOG.md` records each move.
+  record the approved commit, and [CHANGELOG.md](../CHANGELOG.md) records each move.
 - **Tracking**: the issues and pull requests of the public repository. Their open or closed state can lag behind the
-  code. The documents and the CI checks of a commit are the reference ([README](../README.md#how-it-is-tracked)).
+  code. The documents and the CI checks of a commit are the reference. How the steps were tracked is in
+  [history](history/board-runs-and-tracking.md).
 
 ## Known limits, not scheduled
 
@@ -97,13 +95,12 @@ These are known limits of what the checks and tests cover. They are facts about 
 | Document | What it is | Reading time |
 |---|---|---|
 | [architecture.md](architecture.md) | How the repository is built: the four source trees and their include rules, how Crux is consumed, the threads in the image and a map of the files. | 12 min |
-| [roadmap.md](roadmap.md) | What exists on `main`, the static size per step, what has run on a board and what is not yet possible. It promises no dates. | 12 min |
-| [try-on-native-sim.md](try-on-native-sim.md) | How to run the tests without a board: setup, the `native_sim` scenarios, the host and tooling tests, the dev container, and what has and has not been checked. | 35 min |
+| [roadmap.md](roadmap.md) | What exists on `main`, the static size per step, what has run on a board and what is not yet possible. It promises no dates. | 11 min |
+| [try-on-native-sim.md](try-on-native-sim.md) | How to run the tests without a board: setup, the `native_sim` scenarios, the host and tooling tests, the dev container, and what has and has not been checked. | 32 min |
 | [troubleshooting.md](troubleshooting.md) | Look a failure up by its message: the cause, the fix and the page that explains more. | 11 min |
 | [first-change.md](first-change.md) | A tutorial from branch to pull request with one small host-test change that needs no Zephyr. | 6 min |
 | [adding-a-step.md](adding-a-step.md) | The recipe for adding a step, its checklist, the rule for drivers and HAL, and the files that need a reviewed change. | 16 min |
 | [reviewing.md](reviewing.md) | A checklist for the reviewer, from CONTRIBUTING.md and from the repository's practice. | 9 min |
-| [team-copy.md](team-copy.md) | What to change and what to keep when a team holds a copy of the repository without GitHub CI. | 6 min |
 | [composition-zone.md](composition-zone.md) | The include rules in detail: the composition zone and the adapter zone, each allowed Zephyr header and why, the frozen Crux headers, and how to run the check. | 11 min |
 | [glossary.md](glossary.md) | The words that this repository uses in a particular sense (step, stage, product, owner, composition, zones, pin, finding and more), with the file where each use can be checked. | 13 min |
 | [dependencies.md](dependencies.md) | What `west.yml` fetches, why, and under which licence each project states it is distributed, and how the Crux import is narrowed. | 5 min |
@@ -123,12 +120,24 @@ These are known limits of what the checks and tests cover. They are facts about 
 | [findings/s6-https-management-gaps.md](findings/s6-https-management-gaps.md) | Groundwork for step S6: the three gaps found by reading. Superseded by the next note, kept as recorded. | 9 min |
 | [findings/s6-https-management.md](findings/s6-https-management.md) | Step S6: what the product had to write for HTTPS management, the CI results at a named revision and what is open. | 10 min |
 
+### In `docs/history/`
+
+These pages keep text that left the main documents. They are history, not instructions.
+
+| Document | What it is | Reading time |
+|---|---|---|
+| [history/README.md](history/README.md) | What the history folder holds, and the move log: each moved section, its source and its destination. | 5 min |
+| [history/board-runs-and-tracking.md](history/board-runs-and-tracking.md) | The board-run summary, the approval wording and the tracking notes that the roadmap and the glossary carried. | 4 min |
+| [history/copy-procedures.md](history/copy-procedures.md) | The steps for a copy without the Git history (a zip), as the install guides had them. | 6 min |
+| [history/readme-before-entry-point.md](history/readme-before-entry-point.md) | The whole README before it became an entry point. | 10 min |
+| [history/team-copy.md](history/team-copy.md) | What a team was told to change and keep in a copy of the repository without GitHub CI. | 6 min |
+
 ### Outside `docs/`
 
 | Document | What it is | Reading time |
 |---|---|---|
-| [README.md](../README.md) | What the repository is, its state, the boundary in short, roles and where to start. | 10 min |
-| [CONTRIBUTING.md](../CONTRIBUTING.md) | The boundary, build and test, the CI jobs, the pin, how to change behaviour, commits and pull requests, review, and the rules of a public repository. | 9 min |
+| [README.md](../README.md) | What the repository is, its state, how to try it, the reading path and where the rules are. | 4 min |
 | [CHANGELOG.md](../CHANGELOG.md) | What each change added. Everything is unreleased. | 8 min |
+| [CONTRIBUTING.md](../CONTRIBUTING.md) | The boundary, build and test, the CI jobs, the pin, how to change behaviour, commits and pull requests, review, and the rules of a public repository. | 9 min |
 | [RELEASE.md](../RELEASE.md) | The release dry run, what the bundle holds (hashes only) and what a tag needs. | 2 min |
 | [SECURITY.md](../SECURITY.md) | How to report a vulnerability, and what the repository promises about support. | 1 min |

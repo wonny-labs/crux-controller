@@ -126,8 +126,8 @@ the recipe and the mechanical checklist; the points below are what a reviewer ve
   ([adding-a-step.md](adding-a-step.md), section 2.1).
 - [ ] **The findings note labels are honest.** Practice, from the README and [adding-a-step.md](adding-a-step.md),
   section 2.6. A result that only CI can produce is **Open** with the job named,
-  until it is recorded with its revision as **Recorded**. A step is described as built and never run on a board
-  until a board run is recorded in a finding (README and `docs/adding-a-step.md`).
+  until it is recorded with its revision as **Recorded**. The step's row in the README table says `not run` in
+  the board column until a board run is recorded in a finding (README and `docs/adding-a-step.md`).
 - [ ] **A pin move is its own pull request.** It follows the three steps of CONTRIBUTING.md, "The pin and the
   manifest": the revision and the approved commit in the test change together, the places that quote the
   commit are updated, and the pull request carries the SHA-256 of the S2 `zephyr.bin`, its `firmware_identity` and

@@ -176,8 +176,8 @@ uploads an artifact. No job flashes, resets or runs anything on a board.
   Recorded, as the S6 note does. The note lists what the product had to write, the friction, the decisions made
   (with the test that pins each) and what the step does not show. It carries no line counts, because they
   go stale.
-- **`README.md`**: a row in the step table and a clause in the status list. The status must say
-  "built and never run on a board" until a board run is recorded in a finding.
+- **`README.md`**: a row in the step table, with `not run` in the board column until a finding records a board
+  run.
 - **`CHANGELOG.md`**: an entry under Unreleased.
 - **`CONTRIBUTING.md`**: three statements that `tests/tooling/test_docs.py` (class `Contributing`) checks
   against the workflows: the role section says "Steps S0 to S<n> are built in CI", the `ci.yml` row

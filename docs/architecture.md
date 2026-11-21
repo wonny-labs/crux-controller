@@ -78,10 +78,7 @@ Points that the table cannot carry:
   pull request.
 - **`zephyr/net/sntp.h` is allowed in `app/os`, and one source includes it:
   `app/os/time_sync_zephyr.c` (S5).** That file calls the Zephyr SNTP library's string-based
-  `sntp_simple()` and nothing else of it, so it includes no socket header. The entry is
-  [wonny-labs/crux-controller#49](https://github.com/wonny-labs/crux-controller/pull/49) and the code that uses it is
-  [wonny-labs/crux-controller#50](https://github.com/wonny-labs/crux-controller/pull/50): two pull requests of the
-  public repository.
+  `sntp_simple()` and nothing else of it, so it includes no socket header.
 - **The frozen-header rule covers `app/src` and `app/os`.** `<crux/thread.h>`, `<crux/sync.h>`,
   `<crux/queue.h>` and `<crux/serial.h>` were public Crux headers (Crux removed `<crux/queue.h>` at the pinned
   revision), and the product still does not use them:
@@ -190,7 +187,7 @@ Top-level directories and files:
 | `scripts/` | `check_boundary.py` (the include check), `check_mbed_only.py` (checks that the Crux import cannot activate the GPL stacks), `check-format.sh` (clang-format over every C file), `analyze_host.py` (clang-tidy over the host-built sources, then the list of sources it did not analyse), `check_spdx.py` (checks that the first-party C, CMake, Kconfig, Python and shell files start with the licence identifier line), `check-patch.sh` (Zephyr's checkpatch, rule BRACES, on the C lines of a Git range; a copy of the checkpatch wrapper that `crux-pilot` publishes for product repositories), and `dev-shell.sh` (runs a shell or one command in the dev container, see [the try-on page](try-on-native-sim.md#dev-container)). |
 | `budgets/` | `limits.json` (declared minimum free percent per memory region and step), `collect.py` (reads a build log into a measurement), `check.py` (compares a measurement with the limits). |
 | `release/` | The release bundle tools: `assemble_bundle.py`, `check_bundle.py`, `rebuild_compare.py`, `parse_spdx.py` and `release-manifest.schema.json`. Hashes and identities only; no image is ever published. |
-| `docs/` | This documentation: [architecture.md](architecture.md), [glossary.md](glossary.md), [adding-a-step.md](adding-a-step.md), [roadmap.md](roadmap.md), [try-on-native-sim.md](try-on-native-sim.md), [board-bring-up.md](board-bring-up.md), [composition-zone.md](composition-zone.md), [dependencies.md](dependencies.md) and `findings/`. |
+| `docs/` | This documentation: [architecture.md](architecture.md), [glossary.md](glossary.md), [adding-a-step.md](adding-a-step.md), [roadmap.md](roadmap.md), [try-on-native-sim.md](try-on-native-sim.md), [board-bring-up.md](board-bring-up.md), [composition-zone.md](composition-zone.md), [dependencies.md](dependencies.md), `findings/` and `history/` (the project history). |
 | `.github/workflows/` | `ci.yml` (tooling tests, west pins, host tests, the S0 to S6 builds, the boundary check and static analysis), `budget.yml`, `rebuild.yml`, `release.yml`, `scheduled-main.yml`. |
 | `west.yml` | The west manifest and the pin. |
 | `README.md`, `CONTRIBUTING.md`, `CHANGELOG.md`, `RELEASE.md`, `SECURITY.md`, `LICENSE`, `CODEOWNERS` | Role and status, contribution rules, changes, release flow, vulnerability reporting, licence, ownership. |

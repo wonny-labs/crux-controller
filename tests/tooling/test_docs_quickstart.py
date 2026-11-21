@@ -24,7 +24,7 @@ WORKFLOWS = ROOT / ".github" / "workflows"
 
 # Pages of the documentation set that other changes add. A link to one of them resolves in the
 # final tree, so a link check of this page does not insist on the file.
-PLANNED_PAGES = {"docs/README.md", "docs/team-copy.md", "docs/first-change.md", "docs/reviewing.md"}
+PLANNED_PAGES = {"docs/README.md", "docs/first-change.md", "docs/reviewing.md"}
 
 ONE_SHOT_TWISTER = (
     "west twister -p native_sim/native/64 -T crux-controller/tests/native_sim "
@@ -223,9 +223,12 @@ class Structure(Page):
     def test_the_sections_that_the_task_names_exist(self):
         titles = {title for _, title, _ in headings(self.text)}
         for title in ("Network and prerequisites", "Behind a proxy or with a company certificate",
-                      "Layout", "From a copy without Git history", "After a pin or SDK change",
+                      "Layout", "After a pin or SDK change",
                       "If the dev container fails"):
             self.assertIn(title, titles)
+        # The copy procedures moved to docs/history/copy-procedures.md; the guide describes a clone.
+        self.assertNotIn("From a copy without Git history", titles)
+        self.assertIn("From a copy without Git history", read(ROOT / "docs" / "history" / "copy-procedures.md"))
 
     def test_the_headings_that_other_files_link_to_still_exist(self):
         found = anchors(self.text)
@@ -246,18 +249,9 @@ class QuickStart(Page):
         self.assertIn("/etc/wsl.conf", self.quick)
 
     def test_the_sources_go_in_a_folder_named_crux_controller_under_a_parent_of_its_own(self):
-        self.assertIn("~/work/controller-ws/crux-controller", self.quick)
+        self.assertIn("~/work/crux-controller-workspace/crux-controller", self.quick)
         self.assertIn("/mnt/c", self.quick)
         self.assertIn("empty", self.quick)
-
-    def test_a_copy_without_history_gets_a_git_repository_before_the_scripts_run(self):
-        commands = self.commands()
-        for command in ("git init", "git config core.autocrlf false", "git add -A",
-                        "chmod +x scripts/*.sh .devcontainer/*.sh"):
-            self.assertIn(command, commands)
-        self.assertLess(commands.index("git config core.autocrlf false"), commands.index("git add -A"))
-        self.assertIn("file scripts/dev-shell.sh", commands)
-        self.assertLess(commands.index("git add -A"), commands.index("bash scripts/dev-shell.sh"))
 
     def test_the_exec_bit_restore_covers_the_scripts_that_the_container_needs(self):
         for name in ("scripts/dev-shell.sh", ".devcontainer/setup.sh"):
@@ -400,7 +394,7 @@ class Proxy(Page):
         self.assertIn("CRUX_EXTRA_CA_FILE", self.setup)
         self.assertIn("which is not a readable file", self.setup)
         self.assertIn("which is not a readable file", self.text)
-        self.assertIn("~/work/controller-ws/.crux-extra-ca.crt", self.proxy)
+        self.assertIn("~/work/crux-controller-workspace/.crux-extra-ca.crt", self.proxy)
         self.assertIn("/workspaces/ws/.crux-extra-ca.crt", self.proxy)
         convert = "openssl x509 -inform der -in company.cer -out company.crt"
         self.assertIn(convert, self.setup)
@@ -437,15 +431,6 @@ class CopyAndLayout(Page):
     def test_the_workspace_is_the_parent_folder_of_the_clone(self):
         self.assertIn('workspace="$(dirname "$repo")"', self.shell)
         self.assertIn("${localWorkspaceFolder}/..", read(DEVCONTAINER / "devcontainer.json"))
-
-    def test_the_copy_section_names_the_scripts_and_tests_that_need_git(self):
-        copy = section(self.text, "From a copy without Git history")
-        for name in ("scripts/check-format.sh", "scripts/analyze_host.py", "scripts/check_spdx.py"):
-            self.assertIn(f"`{name}`", copy)
-            self.assertIn("git", read(ROOT / name), name)
-        for word in ("git init", "core.autocrlf", "CRLF", "chmod +x", ".clang-format", "ls -a"):
-            self.assertIn(word, copy)
-        self.assertIn("ls-files", read(ROOT / "tests" / "tooling" / "test_product_identifiers.py"))
 
     def test_no_file_of_the_repository_has_a_carriage_return(self):
         # The fix for a copy with CRLF line ends strips every CR. That is safe only while no file
@@ -516,7 +501,7 @@ class OnMain(Page):
 
     def test_the_line_ends_are_pinned_by_gitattributes_and_the_page_says_a_clone_has_lf(self):
         self.assertIn("* text=auto eol=lf", read(ROOT / ".gitattributes"))
-        self.assertIn(".gitattributes", section(self.text, "From a copy without Git history"))
+        self.assertIn(".gitattributes", section(self.text, "If the dev container fails"))
 
     def test_the_page_does_not_call_a_changed_behaviour_planned(self):
         self.assertNotIn("planned", self.text.lower())
@@ -566,15 +551,6 @@ class Review(Page):
         self.assertIn("f7d3fab", checked)
         self.assertIn("not a published commit", checked)
         self.assertNotIn("at that revision", checked)
-
-    def test_a_zip_with_a_top_level_folder_is_moved_with_the_dot_files(self):
-        for text in (self.quick, section(self.text, "From a copy without Git history")):
-            self.assertIn("shopt -s dotglob", text)
-            self.assertIn("ls -a", text)
-        self.assertIn(".devcontainer", self.quick)
-        trouble = read(TROUBLE)
-        self.assertIn("dotglob", trouble)
-        self.assertIn(".devcontainer missing", trouble)
 
     def test_the_quick_start_sends_a_proxy_user_to_the_host_part_first(self):
         text = self.text
@@ -673,7 +649,7 @@ class Troubleshooting(unittest.TestCase):
                                           "not a public Crux header at the pinned revision"),
             "scripts/analyze_host.py": ("cannot run cmake", "Not analysed",
                                         "is version", "cannot run"),
-            "scripts/check_spdx.py": ("cannot list the files of", "needs the first line"),
+            "scripts/check_spdx.py": ("needs the first line",),
             "budgets/check.py": ("unknown step, no limits are declared for it",
                                  "measured but no limit is declared",
                                  "a limit is declared but the region was not measured"),
