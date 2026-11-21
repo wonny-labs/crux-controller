@@ -11,8 +11,11 @@
 # folder ignores everything except its .gitignore, so the package stays out of Git. The build stops with a
 # message when there is no package or more than one.
 #
-# The apt-get step needs the network for usbutils and for the packages that the J-Link package depends on;
-# the proxy build arguments of Docker reach it as they reach the default image. The container gets the
+# The apt-get step needs the network for usbutils and for the packages that the J-Link package depends on.
+# Behind a proxy, both build routes pass the host's proxy variables as build arguments:
+# devcontainer.json through build.args, as the default devcontainer.json does, and scripts/board-shell.sh
+# by name only. They are not declared here on purpose: Docker predefines the proxy build arguments, so they
+# reach the RUN steps without an ARG line and stay out of the image history. The container gets the
 # USB bus of the host through a bind mount and a device cgroup rule (devcontainer.json and
 # scripts/board-shell.sh), never through --privileged.
 ARG BASE_IMAGE=crux-controller-dev

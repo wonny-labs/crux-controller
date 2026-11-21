@@ -16,7 +16,8 @@
 # .devcontainer/board/Dockerfile on it, and runs .devcontainer/setup.sh before the command, as
 # scripts/dev-shell.sh does. It uses the same cache volume as scripts/dev-shell.sh for the same workspace
 # folder, so the Zephyr SDK is not fetched again. The USB bus is bind-mounted and opened with a device
-# cgroup rule for USB devices (character major 189); the container is never privileged.
+# cgroup rule for USB devices (character major 189), and the container user joins the group plugdev, which
+# the udev rule of docs/board-bring-up.md gives the probe to; the container is never privileged.
 #
 # CRUX_DEV_IMAGE and CRUX_BOARD_IMAGE override the image names. GH_TOKEN, when set, is passed on.
 set -euo pipefail
@@ -50,13 +51,23 @@ shopt -u nullglob
 
 volume="$volume_prefix-$(printf '%s' "$workspace" | cksum | cut -d' ' -f1)"
 
+# The proxy variables of the host go to the board layer by name only, as build-base.sh passes them to
+# the default image, so that their values do not appear on the command line.
+proxies=()
+for name in HTTP_PROXY http_proxy HTTPS_PROXY https_proxy NO_PROXY no_proxy; do
+    if [[ -n "${!name:-}" ]]; then
+        proxies+=(--build-arg "$name")
+    fi
+done
+
 CRUX_DEV_IMAGE="$image" bash "$repo/.devcontainer/board/build-base.sh"
 docker build --platform linux/amd64 --build-arg "BASE_IMAGE=$image" \
+    ${proxies[@]+"${proxies[@]}"} \
     -t "$board_image" "$repo/.devcontainer/board"
 
 flags=(--rm --platform linux/amd64 --user vscode
     -v "$workspace:/workspaces/ws" -v "$volume:/opt/crux-cache"
-    -v "$usb_dir:/dev/bus/usb" --device-cgroup-rule "c 189:* rmw"
+    -v "$usb_dir:/dev/bus/usb" --device-cgroup-rule "c 189:* rmw" --group-add plugdev
     -w /workspaces/ws/crux-controller)
 if [[ -t 0 && -t 1 ]]; then
     flags+=(-it)

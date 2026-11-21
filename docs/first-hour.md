@@ -118,8 +118,13 @@ Plain C tests of the portable code, with no Zephyr, from the repository root:
 bash scripts/dev-shell.sh bash -c 'cmake -S tests/host -B build/host -G Ninja -DWORKLOAD_SANITIZE=OFF && cmake --build build/host && ctest --test-dir build/host --output-on-failure'
 ```
 
-A pass ends with `100% tests passed`. CI also runs them with the sanitizers on, in `build/host-asan`; see
-[Run the host tests](try-on-native-sim.md#run-the-host-tests).
+A pass ends with `100% tests passed`. CI also runs them with the sanitizers on, in another build folder:
+
+```bash
+bash scripts/dev-shell.sh bash -c 'cmake -S tests/host -B build/host-asan -G Ninja -DWORKLOAD_SANITIZE=ON && cmake --build build/host-asan && ctest --test-dir build/host-asan --output-on-failure'
+```
+
+[Run the host tests](try-on-native-sim.md#run-the-host-tests) has the details.
 
 ## 6. Tooling tests and the boundary check
 

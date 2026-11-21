@@ -94,12 +94,17 @@ once per device, `attach` after every reconnection of the probe and every `wsl -
 <busid>` gives the probe back to Windows. Once a device is attached, `/dev/bus/usb` exists in WSL2.
 
 The container user is not root, so it needs read and write access to the probe's device node. Proposed, on the
-Linux side (WSL2 or the Linux machine), a udev rule for the SEGGER vendor id, then a reload:
+Linux side (WSL2 or the Linux machine), a udev rule that gives the SEGGER vendor id to the group `plugdev` with
+mode `0660` (not `0666`, which would open the probe to every local user), then a reload:
 
 ```bash
-echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="1366", MODE="0666"' | sudo tee /etc/udev/rules.d/99-segger-jlink.rules
+echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="1366", GROUP="plugdev", MODE="0660"' | sudo tee /etc/udev/rules.d/99-segger-jlink.rules
 sudo udevadm control --reload-rules && sudo udevadm trigger
 ```
+
+Both routes of the board container add the container user to `plugdev` (`--group-add`). Docker resolves that name
+in the image; it matches the host only when both use the same group id (46 on a default Ubuntu). Check it with
+`getent group plugdev` on the host and in the container.
 
 Under WSL2 udev runs only when systemd is enabled in the distribution (`systemd=true` under `[boot]` in
 `/etc/wsl.conf`). Whether the rule takes effect for a device attached with usbipd has not been checked.
@@ -124,7 +129,8 @@ How the container reaches the probe, in both routes:
 
 - no `--privileged` and no `--device` list;
 - a bind mount of the host's `/dev/bus/usb`, so that a probe that reconnects appears again without a restart;
-- `--device-cgroup-rule` `c 189:* rmw`, which allows the USB device nodes (character major 189) and nothing else.
+- `--device-cgroup-rule` `c 189:* rmw`, which allows the USB device nodes (character major 189) and nothing else;
+- `--group-add plugdev`, for the udev rule of step 2.
 
 Command line, from the clone (it also runs `.devcontainer/setup.sh`, and it shares the cache volume of
 `scripts/dev-shell.sh` for the same workspace folder):
@@ -135,6 +141,8 @@ bash scripts/board-shell.sh lsusb
 
 In VS Code, run **Dev Containers: Reopen in Container** and pick "Crux Controller board (J-Link, untested on
 hardware)". This configuration has its own cache volume, so its first start installs the Zephyr SDK again.
+If your Docker uses a non-default buildx builder (the `docker-container` driver), that build cannot see the local
+`crux-controller-dev` image and fails at its `FROM` line; switch to the default builder (`docker buildx use default`).
 
 Should show: `lsusb` lists the probe with ID `1366:<product>`. Nothing has touched the board yet. If the probe is
 missing, stop: see [Stop conditions](#stop-conditions).
@@ -147,7 +155,8 @@ read-back that said `Verify successful.`).
 
 The J-Link settings come from Zephyr's `boards/nxp/mimxrt1060_evk/board.cmake` (read at Zephyr v4.4.0; check it
 in your workspace): the J-Link device `MIMXRT1062xxx6A`, and for the QSPI flash of Rev B the loader
-`BankAddr=0x60000000&Loader=QSPI`. That the accepted normal image starts at the base of the flash, `0x60000000`,
+`BankAddr=0x60000000&Loader=QSPI`. The loader is used for programming (`west flash`); the read-only compare below
+reads the memory-mapped flash with `JLinkExe` and does not use it. That the accepted normal image starts at the base of the flash, `0x60000000`,
 is an assumption, not recorded in this repository: check it before you rely on the result.
 
 Write a J-Link Commander script that only reads. The size is that of the accepted normal image in hexadecimal;
@@ -183,8 +192,9 @@ cd /workspaces/ws
 west flash -d crux-controller/build/s2 --runner jlink
 ```
 
-Then read the image back without writing, with the compare script of step 4 and the size of `zephyr.bin`
-(103,180 bytes is `0x1930C`), and compare the hash with `zephyr.bin`. Should show: the hashes are equal (the S2
+Then read the image back without writing, with a copy of the compare script of step 4 in which both values change:
+the output file (for example `flash-after.bin` instead of `flash-before.bin`) and the size, which becomes that of
+`zephyr.bin` (103,180 bytes is `0x1930C`). Compare the hash of the read-back with that of `zephyr.bin`. Should show: the hashes are equal (the S2
 runs recorded status `M5_PROGRAMMED_VERIFIED_STARTED`: loaded, verified and started).
 
 ## 6. Observe the log and the network
