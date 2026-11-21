@@ -242,6 +242,9 @@ class BoardPage(Common, unittest.TestCase):
         self.assertIn("--device-cgroup-rule", body)
         self.assertIn("/dev/bus/usb", body)
         self.assertIn("usbipd", body)
+        self.assertIn('MODE="0660"', body)
+        self.assertIn('GROUP="plugdev"', body)
+        self.assertNotIn('MODE="0666"', body)
         for line in body.splitlines():
             if "--privileged" in line:
                 self.assertRegex(line, r"(?i)\bno\b|\bnot\b|never|without", line)
@@ -309,6 +312,8 @@ class BoardContainerFiles(unittest.TestCase):
             self.assertNotIn(word, self.json_text)
         self.assertNotIn("features", self.data)
         self.assertIn("--device-cgroup-rule=c 189:* rmw", self.data["runArgs"])
+        # The udev rule of the board page gives the probe to the group plugdev, mode 0660.
+        self.assertIn("--group-add=plugdev", self.data["runArgs"])
         self.assertIn("source=/dev/bus/usb,target=/dev/bus/usb,type=bind", self.data["mounts"])
 
     def test_the_workspace_user_volume_and_setup_are_those_of_the_default_container(self):
@@ -323,6 +328,16 @@ class BoardContainerFiles(unittest.TestCase):
         self.assertIn("bash .devcontainer/check-host.sh", text.replace('"$repo/', "").replace("$repo/", ""))
         self.assertIn("--platform linux/amd64", text)
         self.assertIn('"$repo/.devcontainer"', text)
+
+    def test_the_proxy_settings_of_the_host_reach_the_board_build_as_in_the_default_container(self):
+        proxies = {k: v for k, v in self.default["build"]["args"].items() if "proxy" in k.lower()}
+        self.assertEqual(6, len(proxies))
+        for name, value in proxies.items():
+            self.assertEqual(value, self.data["build"]["args"].get(name), name)
+
+    def test_the_board_dockerfile_declares_no_proxy_argument_like_the_default_one(self):
+        # Docker predefines the proxy build arguments; a declared ARG would put a value into the image history.
+        self.assertNotRegex(self.dockerfile, r"(?mi)^ARG\s+\w*proxy")
 
     def test_the_name_says_it_is_untested(self):
         self.assertIn("Crux Controller", self.data["name"])
@@ -368,9 +383,9 @@ class BoardShellRuns(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def run_script(self, *args):
+    def run_script(self, *args, extra_env=None):
         env = {"PATH": f"{self.bin}:/usr/bin:/bin", "HOME": str(self.usb.parent / "home"),
-               "CRUX_BOARD_USB_DIR": str(self.usb)}
+               "CRUX_BOARD_USB_DIR": str(self.usb), **(extra_env or {})}
         return subprocess.run(["bash", str(self.repo / "scripts" / "board-shell.sh"), *args],
                               capture_output=True, text=True, env=env, stdin=subprocess.DEVNULL, check=False)
 
@@ -412,6 +427,7 @@ class BoardShellRuns(unittest.TestCase):
         self.assertEqual(1, len(runs), calls)
         run = runs[0]
         self.assertIn("--device-cgroup-rule c 189:* rmw", run)
+        self.assertIn("--group-add plugdev", run)
         self.assertIn(f"-v {self.usb}:/dev/bus/usb", run)
         self.assertIn(f"-v {self.repo.parent}:/workspaces/ws", run)
         self.assertRegex(run, r"-v crux-controller-dev-cache-\d+:/opt/crux-cache")
@@ -419,6 +435,25 @@ class BoardShellRuns(unittest.TestCase):
         self.assertTrue(run.endswith("west --version"), run)
         for word in ("--privileged", "docker.sock", "--network", "--device "):
             self.assertNotIn(word, run)
+
+    def test_a_proxy_of_the_host_reaches_both_builds_by_name_only(self):
+        (self.repo / ".devcontainer" / "board" / "jlink" / "JLink_Linux_V800_x86_64.deb").write_bytes(b"x")
+        secret = "http://user:secret@proxy.invalid:3128"
+        result = self.run_script("true", extra_env={"HTTP_PROXY": secret, "no_proxy": "localhost"})
+        self.assertEqual(0, result.returncode, result.stderr)
+        builds = [c for c in self.calls() if c.startswith("build ")]
+        self.assertEqual(2, len(builds), builds)
+        for build in builds:
+            self.assertIn("--build-arg HTTP_PROXY ", build)
+            self.assertIn("--build-arg no_proxy ", build)
+            self.assertNotIn("--build-arg https_proxy", build)
+        self.assertNotIn(secret, self.log.read_text())
+
+    def test_without_a_proxy_no_proxy_argument_is_passed(self):
+        (self.repo / ".devcontainer" / "board" / "jlink" / "JLink_Linux_V800_x86_64.deb").write_bytes(b"x")
+        result = self.run_script("true")
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertNotRegex(self.log.read_text(), r"(?i)--build-arg \w*proxy")
 
     def test_it_uses_the_cache_volume_of_dev_shell(self):
         # The same name for the same workspace folder, so the SDK is not fetched a second time.
