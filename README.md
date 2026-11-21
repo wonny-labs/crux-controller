@@ -191,7 +191,7 @@ release bundle and an SBOM, using only independently written code.
 
 - `app/src` includes ISO C, the Crux Sockets profile headers, public `<crux/NAME.h>` headers and its own tree.
   Four public headers are frozen and not allowed: `<crux/thread.h>`, `<crux/sync.h>`, `<crux/queue.h>` and
-  `<crux/serial.h>`.
+  `<crux/serial.h>`. Crux removed `<crux/queue.h>` at the pinned revision; the check still refuses it.
 - `workload` includes ISO C and its own tree.
 - The adapter zone `app/os` is the one place that creates threads, queues messages and sleeps. It calls Zephyr
   directly. Besides ISO C, public `<crux/NAME.h>` headers (except the frozen four), its own tree and the headers of
