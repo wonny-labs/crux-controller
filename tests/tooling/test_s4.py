@@ -572,7 +572,7 @@ class S4Findings(unittest.TestCase):
 
     def test_the_manifest_pins_the_approved_commit(self):
         manifest = (ROOT / "west.yml").read_text()
-        self.assertIn("revision: 89c25934ce5837896aad73cb5beab73dc75dcb50", manifest)
+        self.assertIn("revision: cd66b9e5a2f90009e7f4b5de9f6f3bb4efc5b3ea", manifest)
 
 
 class S4StartFailureWording(unittest.TestCase):
