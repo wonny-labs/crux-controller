@@ -22,5 +22,5 @@ A path in a finding that does not exist in this repository (for example under `c
 | [s6-https-management-gaps.md](s6-https-management-gaps.md) | Groundwork for S6: the three gaps found by reading before HTTPS management was wired. Superseded by the next note and kept as recorded. | `8e3737d2` and `dfd3ad7d` |
 | [s6-https-management.md](s6-https-management.md) | Step S6: what the product had to write for HTTPS management, the CI results at a named revision, and what is open. | `8e3737d2` |
 
-The current pin is `8e3737d25d048b14a00c01da00494f58a62958c6` (see `west.yml`). A note read at an earlier
+The current pin is `89c25934ce5837896aad73cb5beab73dc75dcb50` (see `west.yml`). A note read at an earlier
 revision may no longer describe Crux at the pin.

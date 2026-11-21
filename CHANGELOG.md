@@ -33,9 +33,14 @@ twice on a board (see `docs/findings/s2-first-board-run.md`); nothing else has r
   the optional groups stay as they were. The range adds `CONFIG_CRUX_WEB_HEADER_DEADLINE_MS` (default
   10000, which step S6 keeps), makes `crux_web_start()` refuse a second start and a bind text that is no
   address, and adds `CONFIG_CRUX_FILE_POOL_SIZE` (default 4) and `CONFIG_CRUX_FILE_DIR_POOL_SIZE`
-  (default 2), which the FatFs settings of S3 and S6 (`CONFIG_FS_FATFS_NUM_FILES=6`) cover. No controller
-  code changes. The S2 firmware hash and the budget tables are in the pull request, because they come
-  from CI.
+  (default 2). `app/conf/s6.conf` and the S3 and S6 `native_sim` fragments set
+  `CONFIG_FS_FATFS_NUM_FILES=6`; the S3 board image keeps Zephyr's default of 4, which equals the pool of
+  4. Zephyr's default `CONFIG_FS_FATFS_NUM_DIRS` of 4 covers the listing pool of 2, which the Crux build
+  checks. For the header deadline the Crux web adapter compiles a copy of Zephyr's
+  `http_server_core.c` patched at configure time in place of the original, so the S6 image links a
+  patched server core and the configure step fails if the Zephyr source differs from the one the patch
+  expects. No controller code changes. The S2 firmware hash and the budget tables are in the pull
+  request, because they come from CI.
 - The `crux-pilot` import blocks wolfSSL, wolfSSH and wolfPSA by name, so enabling the Mbed TLS group
   would activate Mbed TLS and TF-PSA-Crypto and no GPL stack (checked on the project list; no job
   enables the group or fetches with it on, and it stays off in every job).
