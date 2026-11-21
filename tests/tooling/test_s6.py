@@ -1564,12 +1564,12 @@ class S6Contributing(unittest.TestCase):
 
     def test_the_job_list_names_the_s6_build_and_what_it_fetches(self):
         text = self.text()
-        self.assertIn("`S6 build` (Twister on `native_sim` for the scenario in `tests/native_sim_mbed`, then the RT1060-EVKB build; the only job that fetches the Mbed TLS modules, with the group switched on in its own runner)", text)
+        self.assertIn("`S6 build` (Twister on `native_sim` for the scenario in `tests/native_sim_mbed`, then the RT1060-EVKB build; one of the three jobs that fetch the Mbed TLS modules, with the group switched on in its own runner; the others are the S6 row of `Budget` and `Dev container`)", text)
         self.assertIn("`Budget` for S0 to S6: static resource use against `budgets/limits.json` (the S6 row fetches the Mbed TLS modules in its own runner)", text)
 
     def test_the_optional_group_sentence_names_the_two_places_that_switch_it_on_and_the_check(self):
         text = self.text()
-        self.assertIn("The optional groups of the Crux manifest stay off in `west.yml` and in every job except `S6 build` and the `Budget` row of S6.", text)
+        self.assertIn("The optional groups of the Crux manifest stay off in `west.yml` and in every job except `S6 build` and the `Budget` row of S6, and the `Dev container` job, which runs the dev container's setup and so fetches only the Mbed TLS group.", text)
         self.assertIn("only after `scripts/check_mbed_only.py` has checked the resolved project list", text)
         self.assertIn("The other projects of that group are not under the Apache-2.0 terms of this repository, and the narrowed import in `west.yml` keeps them out.", text)
         self.assertNotIn("The optional groups of the Crux manifest stay off, `crux-secure-management` among them", text)

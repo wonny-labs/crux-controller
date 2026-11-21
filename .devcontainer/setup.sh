@@ -10,10 +10,17 @@
 # environment and the Zephyr SDK are in /opt/crux-cache, a named volume of this workspace folder.
 #
 # The steps are those of the S1 job of .github/workflows/ci.yml with local values: west init -l
-# crux-controller, west update, the Python requirements of Zephyr and west sdk install. West is not
-# updated again once the workspace exists: after the pin in west.yml moves, run `west update` by
-# hand. The optional Mbed TLS group of step S6 is not switched on here (see
-# docs/try-on-native-sim.md).
+# crux-controller, west update, the Python requirements of Zephyr and west sdk install. The default
+# update is not repeated once the workspace exists: after the pin in west.yml moves, run `west update`
+# by hand. The one exception is the S6 step below, which runs once in every workspace that has no
+# marker yet, also in one that was set up another way. The optional Mbed TLS group of step S6 (crux-secure-management) is switched on once per
+# workspace, in .west/config and never in west.yml, with the steps and the order of the S6 job: the
+# guard scripts/check_mbed_only.py in default mode, the group, the guard in mbed mode, then west update.
+# The wolf stacks share that group and are never fetched: a guard error stops the setup before the
+# group-on fetch. A marker in .west records the finished switch (see docs/try-on-native-sim.md).
+# The S6 step changes .west/config and runs a plain west update, which brings every project to the pin
+# of west.yml, so it does so once in an existing workspace as well. Only the commands and the checks of
+# the S6 job are mirrored, not its runner.
 #
 # Completion markers: a finished SDK install writes $ZEPHYR_SDK_INSTALL_DIR/.crux-installed, and the
 # west workspace counts as initialised only with .west/config. A folder without its marker is what an
@@ -163,7 +170,8 @@ fi
 # is written after west init and removed only after west update has ended, so an interrupted first
 # run (a network failure, a closed terminal) is run again. A .west folder without .west/config is
 # an interrupted west init: west refuses to initialise over it, so it is removed first. A workspace
-# that was set up another way has a config and no marker and is left alone.
+# that was set up another way has a config and no marker: this step leaves it alone, but the S6 step
+# below changes its .west/config and updates it once.
 step "the west workspace"
 cd "$workspace"
 pending="$workspace/.west/crux-devcontainer-update.pending"
@@ -185,6 +193,55 @@ if [[ ! -d "$workspace/.west" || ! -f "$workspace/.west/config" || ! -d "$worksp
     )
 else
     say "the workspace is initialised; run \`west update\` yourself after the pin in west.yml moves."
+fi
+
+# 2b. The optional Mbed TLS group of the S6 job, once per workspace. The order is that of the S6 job
+# of .github/workflows/ci.yml: the guard on the default listing, the group on in this workspace only,
+# the guard on the group-on listing against the default one, then the fetch. The guard comes first
+# because the group also holds the wolf stacks (GPL or commercial), which must never be fetched. The
+# marker is written after the fetch, so an interrupted run starts again here; the group is then
+# removed first, so that the first guard sees the default workspace again.
+step "the Mbed TLS group"
+s6_marker="$workspace/.west/crux-devcontainer-s6.done"
+if [[ -f "$s6_marker" ]]; then
+    say "the Mbed TLS group (crux-secure-management) is already switched on in this workspace."
+else
+    (
+        unset ZEPHYR_BASE
+        lists="$workspace/.west/crux-s6-lists"
+        rm -rf "$lists"
+        mkdir -p "$lists"
+        current_filter="$(west config --local manifest.group-filter 2>/dev/null || true)"
+        if grep -q 'crux-secure-management' <<<"$current_filter"; then
+            say "an earlier run left the group on; switching it off for the default check"
+            west config --local -d manifest.group-filter
+        fi
+        say "checking that the default workspace holds no wolf stack (check_mbed_only.py, default mode)"
+        west list --all -f '{name} {active}' >"$lists/list-default.txt"
+        cat "$lists/list-default.txt"
+        python crux-controller/scripts/check_mbed_only.py --mode default <"$lists/list-default.txt"
+        say "switching the Mbed TLS group on (crux-secure-management), in this workspace only"
+        west config --local manifest.group-filter -- +crux-secure-management
+        west list --all -f '{name} {active}' >"$lists/list-mbed.txt"
+        cat "$lists/list-mbed.txt"
+        python crux-controller/scripts/check_mbed_only.py --mode mbed --baseline "$lists/list-default.txt" <"$lists/list-mbed.txt"
+        say "west update (adds the Mbed TLS modules and brings every project to the pin of west.yml)"
+        west update
+        for name in wolfssl wolfssh wolfpsa; do
+            if [[ -e "modules/crypto/$name" ]]; then
+                echo "unexpected $name" >&2
+                exit 1
+            fi
+        done
+        for name in mbedtls tf-psa-crypto; do
+            if [[ ! -d "modules/crypto/$name" ]]; then
+                echo "missing $name" >&2
+                exit 1
+            fi
+        done
+        rm -rf "$lists"
+    )
+    touch "$s6_marker"
 fi
 
 # 3. The Python requirements of Zephyr, as the S1 job installs them.
