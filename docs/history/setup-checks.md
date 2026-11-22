@@ -1,8 +1,8 @@
 # Setup checks record
 
 Record of the local runs behind the statements of [Getting started](../try-on-native-sim.md) about the setup
-routes, the Dev Container and macOS, made on 18 November 2026 at the revisions named below. It is kept as
-written. The current guidance is on Getting started; CI results are in the Actions tab of each pull request.
+routes, the Dev Container and macOS, made on 18 November 2026; each item names its revision where one was recorded. It
+is kept as written, apart from rebased link targets. The current guidance is on Getting started; CI results are in the Actions tab of each pull request.
 
 ## What was checked
 
@@ -34,11 +34,11 @@ written. The current guidance is on Getting started; CI results are in the Actio
   and only warned about another entry, not about `.crux-extra-ca.crt`. What `setup.sh` does with a proxy, a
   certificate, a failed step or an old SDK folder, and what `devcontainer.json` passes, is read from the files and was
   not run.
-- The Dev Container (`.devcontainer/`, `scripts/dev-shell.sh`) was not started on a developer machine at all, and
-  nobody has used it with WSL2, Docker Engine in WSL2 or the Dev Containers extension. Its files were checked by
+- The dev container (`.devcontainer/`, `scripts/dev-shell.sh`) was not started on a developer machine at all, and
+  nobody has used it with WSL2, Docker Engine in WSL2 or the dev containers extension. Its files were checked by
   tooling tests (versions against `ci.yml`, the base image digest, no Docker Desktop feature, no write permission or
   upload in the workflow), and the workflow `devcontainer.yml` runs the image and `scripts/dev-shell.sh` on an
-  Ubuntu 24.04 x86_64 GitHub runner (the checks listed in the Dev Container section, including the S1 cross-build).
+  Ubuntu 24.04 x86_64 GitHub runner (the checks listed in the dev container section, including the S1 cross-build).
   That job runs when a pull request or a push changes `.devcontainer/`, `scripts/dev-shell.sh`, `west.yml` or the
   workflow file, and when it is started by hand. Its latest result is in the Actions tab, under the `devcontainer`
   workflow, for the pull request that last changed those paths; a docs-only revision has no result of its own.

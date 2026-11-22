@@ -198,12 +198,15 @@ class Structure(Page):
         self.assertIn("boundary check", opening)
         self.assertIn("host tests", opening)
 
-    def test_the_evidence_section_follows_the_commands(self):
+    def test_the_evidence_explanation_is_on_the_architecture_page_and_linked(self):
+        # Getting started is an entry page; the explanation lives on the explanation page.
         titles = [title for _, title, _ in headings(self.text)]
-        why = titles.index("Why the evidence comes from CI")
+        self.assertNotIn("Why the evidence comes from CI", titles)
         for earlier in ("Run the S1 to S5 scenarios", "Run the host tests",
                         "Run the tooling tests and the boundary check", "If something fails"):
-            self.assertLess(titles.index(earlier), why, earlier)
+            self.assertIn(earlier, titles, earlier)
+        self.assertIn("why-the-evidence-comes-from-ci", anchors(read(ROOT / "docs" / "architecture.md")))
+        self.assertIn("architecture.md#why-the-evidence-comes-from-ci", self.text)
         # The dated record of the local runs is a history page of its own, linked from this page.
         self.assertNotIn("What has been checked", titles)
         self.assertIn("history/setup-checks.md", self.text)
@@ -239,7 +242,7 @@ class Structure(Page):
 
     def test_the_headings_that_other_files_link_to_still_exist(self):
         found = anchors(self.text)
-        for anchor in ("dev-container", "why-the-evidence-comes-from-ci", "set-up-the-dev-container",
+        for anchor in ("dev-container", "set-up-the-dev-container",
                        "what-you-need-first", "run-the-s1-to-s5-scenarios"):
             self.assertIn(anchor, found)
 

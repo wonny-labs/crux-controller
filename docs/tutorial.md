@@ -8,7 +8,7 @@ Docker and every variant; this page links to it instead of copying it.
 **What is untested.** Nobody has run the Dev Container on WSL2 yet, and nobody has timed these steps on a
 developer machine. The commands are the ones that the `devcontainer` workflow of CI runs through
 `scripts/dev-shell.sh` on an x86_64 Ubuntu runner, and the times below come from that job. A local result
-does not replace the CI result of a pull request ([why](try-on-native-sim.md#why-the-evidence-comes-from-ci)).
+does not replace the CI result of a pull request ([why](architecture.md#why-the-evidence-comes-from-ci)).
 
 ## Prerequisites
 

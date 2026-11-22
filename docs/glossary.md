@@ -138,8 +138,8 @@ project" even when the gate passes.
 
 **Workspace.** The west workspace: the parent folder that holds the clone `crux-controller` next to `.west/` and
 the projects that `west.yml` fetches (`zephyr/`, `modules/`, `crux-pilot/`). The Dev Container mounts it at
-`/workspaces/ws`. Crux's [Getting started](https://github.com/wonny-labs/crux-pilot/blob/2c017f685e0215e0e269d4bc77272889d06a07d8/docs/getting-started.md)
-uses the same word for the same folder.
+`/workspaces/ws`. Crux's Getting started (`docs/getting-started.md` of `crux-pilot` at the pinned revision) uses the
+same word for the same folder.
 
 **Dev Container.** The Docker image in `.devcontainer/` with the tools of the CI jobs, an Ubuntu 24.04 userland and
 Python 3.12, plus the script that fetches the workspace and the Zephyr SDK. It is opened through
@@ -173,8 +173,10 @@ with `budgets/limits.json`, which declares a minimum percentage of free space pe
 step (placeholder values, 25 percent). It measures size only, not stack use, heap use or timing. A new
 step needs a row in the limits file first, because the checker fails a step that has none.
 
-**`native_sim`.** Zephyr's simulated board, run on the build host. CI runs the scenarios in
-`tests/native_sim` and `tests/native_sim_mbed` (S6) with Twister for `native_sim/native/64`. Each scenario is a Zephyr ztest application
+**`native_sim`.** Zephyr's simulated board, run on the build host as an ordinary program with emulated devices
+instead of hardware: no Ethernet PHY, no microSD card, no watchdog peripheral and no RT1060 is involved. CI runs
+the scenarios in `tests/native_sim` (one directory per step from S1 to S5) and `tests/native_sim_mbed` (S6, which
+needs the Mbed TLS modules of the Crux manifest and has its own CI job) with Twister for `native_sim/native/64`. Each scenario is a Zephyr ztest application
 that compiles chosen sources of `app/` and `workload/`; none boots the board image. A `native_sim`
 pass is not evidence about the board: for example S4's scenario does not enable the simulated watchdog of the pinned
 Crux, so no feed cycle is shown there.

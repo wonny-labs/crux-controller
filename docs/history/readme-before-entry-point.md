@@ -123,7 +123,7 @@ The [glossary](../glossary.md) has these terms and more.
 You do not need a board to see the firmware's tests run: the `native_sim` scenarios run on a host.
 [docs/try-on-native-sim.md](../try-on-native-sim.md) has the commands and says what a passing run does and does
 not show. CI is the reference for Zephyr builds and Twister runs, and a local result does not replace it
-([why](../try-on-native-sim.md#why-the-evidence-comes-from-ci)).
+([why](../architecture.md#why-the-evidence-comes-from-ci)).
 On Windows with WSL2 and Docker Engine (no Docker Desktop), or on an x86_64 Linux older than Ubuntu 24.04, use the
 dev container (only an x86_64 host was exercised, and only in CI; nobody has run it on WSL2 yet). Its
 [quick start](../try-on-native-sim.md#set-up-the-dev-container), in short:

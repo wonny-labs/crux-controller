@@ -76,8 +76,8 @@ rules. These items are practice, taken from how the tests and the findings are w
   Some of these are pinned by tests, many are not. A sentence that cites a path, a job name or an option must still
   name something that exists.
 - [ ] **No claim about an environment that nobody ran.** The [setup checks record](history/setup-checks.md) lists
-  the local runs, and CI shows the rest. A document that says "works on" a system cites a recorded run or does not say
-  it.
+  the local runs, and CI shows the rest. A document that says "works on" a system cites a recorded run (the pull
+  request that adds the claim records a new run, or a new record page under `docs/history/` does) or does not say it.
 - [ ] **No claim that a CI build is a board run,** and no claim that a `native_sim` pass shows board behaviour
   (CONTRIBUTING.md, "Commits and pull requests", and the glossary entry for `native_sim`).
 - [ ] **No private names.** The same rule as in section 3 (CONTRIBUTING.md, "Content rules"), applied to quoted approvals and to examples.

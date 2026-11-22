@@ -21,7 +21,7 @@ statements are in the [setup checks record](history/setup-checks.md).
 
 The commands are those of the CI workflow (`.github/workflows/ci.yml`, job `S1`, on `ubuntu-24.04`), with the
 CI-only variables replaced by local values, and a tooling test compares them. CI stays the reference: a local
-result does not replace the CI result that a pull request cites ([why](#why-the-evidence-comes-from-ci)).
+result does not replace the CI result that a pull request cites ([why](architecture.md#why-the-evidence-comes-from-ci)).
 Look a failure up by its message in [troubleshooting.md](troubleshooting.md).
 
 ## Dev Container
@@ -190,8 +190,8 @@ read -rs GH_TOKEN && export GH_TOKEN
 First run, honestly: it needs several GiB (the image, the workspace folder with Zephyr and the modules, and the
 cache volume with the SDK and the virtual environment) and a long time; neither was measured on a developer
 machine. For scale only: the CI job that builds this image on a GitHub runner with a fast network took between
-about 7 and 15 minutes in total, and its first step (image, workspace and SDK) about 3.5 minutes, in the runs that
-the [setup checks record](history/setup-checks.md) names. That job also runs the tests. A slower network,
+about 7 and 15 minutes in total, and its first step (image, workspace and SDK) about 3.5 minutes, in the runs of
+18 November 2026 that the [setup checks record](history/setup-checks.md) describes. That job also runs the tests. A slower network,
 a proxy or a laptop will take longer. The memory and CPU guidance is in [What you need](#what-you-need).
 
 Offline: the first run needs the network. Whether later runs work with no network at all is not tested, and a
@@ -439,18 +439,6 @@ fix, run the same command again: the setup skips what is done. To start from not
 [Layout](#layout)). CI is still the reference for a pull request, and the native route below stays valid on Ubuntu
 24.04.
 
-## What `native_sim` is
-
-`native_sim` is a simulated Zephyr board. Zephyr builds the application into an ordinary program that runs
-on the build host, with emulated devices instead of hardware. It is not a board: no Ethernet PHY, no
-microSD card, no watchdog peripheral and no RT1060 is involved. A passing `native_sim` run is not a board
-run, and the roadmap says so for every step.
-
-In this repository the `native_sim` scenarios are Zephyr ztest applications under `tests/native_sim`, one
-directory per step from S1 to S5, and the S6 scenario in `tests/native_sim_mbed`, which needs the Mbed TLS modules of the Crux manifest and is run by its own CI job. Each one compiles chosen sources of `app/` and `workload/`; none boots the
-board image (see the glossary entry for `native_sim`). The scenarios are run through Twister, Zephyr's test
-runner, for the platform `native_sim/native/64`.
-
 ## What you need first
 
 This is the native route: Ubuntu 24.04 on x86_64, Python 3.12 and no Docker. On Windows use WSL2 with an Ubuntu
@@ -539,7 +527,7 @@ west twister -p native_sim/native/64 -T crux-controller/tests/native_sim/s1 \
 ```
 
 A pass ends with lines like these. They are quoted from the CI log of the `ci` run for `main` at revision `fa11293` of the public
-repository (17 November 2026), where Twister ran the whole directory:
+repository, where Twister ran the whole directory:
 
 ```text
 INFO    - 17 of 17 executed test configurations passed (100.00%), 0 built (not run), 0 ...
@@ -676,31 +664,3 @@ how to read the CI logs; it does not cover every difference. Any change to the b
 workflows or the other files that CONTRIBUTING.md treats as reviewed (a reading aid is in
 [adding-a-step.md](adding-a-step.md#files-that-need-a-reviewed-change)) is a reviewed change under
 [CONTRIBUTING.md](../CONTRIBUTING.md), not a fix for a local failure.
-
-## Why the evidence comes from CI
-
-[CONTRIBUTING.md](../CONTRIBUTING.md) says that CI is the reference for the Zephyr builds and the Twister runs, that
-this page gives the CI commands for a local `native_sim` run, that a local result does not replace CI, and that a
-change to `app/`, `conf`, overlays or `tests/native_sim` takes its evidence from CI, with the pull request saying so.
-It states the rule and gives no reason. What the repository's own files show:
-
-- CI is one environment with pinned versions: `ubuntu-24.04` on x86_64, Python 3.12, CMake 3.28.4, Ninja 1.11.1,
-  west 1.4.0, the Zephyr SDK 1.0.1 and a fixed package list (`.github/workflows/ci.yml`). A reviewer can open the
-  same job logs for every change, and a number in them (a size, a Twister count, an image hash) was produced under
-  the same conditions as the one before it.
-- A local environment differs in ways that matter. For example, GCC in CI rejected a comparison between constants of two
-  anonymous enums (`-Werror=enum-compare`) that the Apple clang on a developer's machine had accepted
-  ([adding-a-step.md](adding-a-step.md)). CI covers only x86_64 Ubuntu, and so does the job that runs the
-  [Dev Container](#dev-container). Apart from the setup steps listed under
-  the [setup checks record](history/setup-checks.md), arm64 and WSL2 are untested, and nobody has run the Dev Container
-  on WSL2.
-- A Zephyr workspace is large. `west update` and the SDK install take a long time and a lot of disk (see
-  [What you need first](#what-you-need-first)), so a local build is optional.
-
-GitHub Actions logs expire (the default retention is 90 days), so the run numbers in the Recorded rows of the
-findings will stop resolving, and so will the logs behind the roadmap table; that is why the results themselves are
-copied into those notes.
-
-So the commands below are a convenience for finding a failure before you push. A local pass does not replace the
-CI result in a pull request, and a local failure that CI does not show is a difference in your host to look at, not
-a reason to change a check.

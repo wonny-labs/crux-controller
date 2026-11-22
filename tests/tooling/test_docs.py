@@ -163,10 +163,10 @@ class Tracking(unittest.TestCase):
 
 
 class CiEvidenceRationale(unittest.TestCase):
-    """The try-on page explains why evidence comes from CI, in agreement with CONTRIBUTING.md."""
+    """The architecture page explains why evidence comes from CI, in agreement with CONTRIBUTING.md."""
 
     def section(self):
-        page = (ROOT / "docs" / "try-on-native-sim.md").read_text()
+        page = (ROOT / "docs" / "architecture.md").read_text()
         start = page.index("## Why the evidence comes from CI")
         end = page.find("\n## ", start + 1)
         return " ".join(page[start:end if end != -1 else len(page)].split())

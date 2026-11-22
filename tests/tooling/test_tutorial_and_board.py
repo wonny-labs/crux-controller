@@ -21,7 +21,7 @@ import unittest
 import yaml
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-FIRST_HOUR = "docs/tutorial.md"
+TUTORIAL = "docs/tutorial.md"
 BOARD_PAGE = "docs/board-bring-up.md"
 BOARD_DIR = ROOT / ".devcontainer" / "board"
 BOARD_SHELL = ROOT / "scripts" / "board-shell.sh"
@@ -128,16 +128,16 @@ class Common:
         self.assertNotRegex(read(self.PAGE), r"/Users/|/home/[a-z]|/private/|[A-Z]:\\\\")
 
 
-class FirstHour(Common, unittest.TestCase):
-    PAGE = FIRST_HOUR
+class Tutorial(Common, unittest.TestCase):
+    PAGE = TUTORIAL
 
     def test_the_page_exists(self):
-        self.assertTrue((ROOT / FIRST_HOUR).is_file())
+        self.assertTrue((ROOT / TUTORIAL).is_file())
 
     def test_the_steps_are_there_in_order(self):
         wanted = (r"clone", r"dev container", r"build", r"native_sim", r"host tests",
                   r"tooling tests.*boundary|boundary.*tooling tests", r"next")
-        found = [h.lower() for h in headings(FIRST_HOUR)]
+        found = [h.lower() for h in headings(TUTORIAL)]
         position = -1
         for pattern in wanted:
             matches = [i for i, h in enumerate(found) if re.search(pattern, h) and i > position]
@@ -145,25 +145,25 @@ class FirstHour(Common, unittest.TestCase):
             position = matches[0]
 
     def test_it_has_a_section_with_the_times_and_says_where_they_come_from(self):
-        part = section(FIRST_HOUR, r"how long")
+        part = section(TUTORIAL, r"how long")
         self.assertRegex(part, r"\d+ min")
         self.assertIn("CI", part)
 
     def test_both_container_routes_are_named(self):
-        part = section(FIRST_HOUR, r"dev container")
+        part = section(TUTORIAL, r"dev container")
         self.assertIn("scripts/dev-shell.sh", part)
         self.assertIn("Reopen in Container", part)
 
     def test_the_build_is_the_s1_cross_build_of_ci(self):
         expected = norm(ci_step_run("s1", "Cross-build S1 with the baseline gate required"))
-        self.assertTrue(any(expected in norm(code) for code in code_blocks(read(FIRST_HOUR))), expected)
+        self.assertTrue(any(expected in norm(code) for code in code_blocks(read(TUTORIAL))), expected)
 
     def test_the_native_sim_run_is_the_twister_step_of_ci(self):
         expected = norm(ci_step_run("s1", "Run the S1 scenario on native_sim"))
-        self.assertTrue(any(expected in norm(code) for code in code_blocks(read(FIRST_HOUR))), expected)
+        self.assertTrue(any(expected in norm(code) for code in code_blocks(read(TUTORIAL))), expected)
 
     def test_the_host_tool_and_boundary_commands_are_those_of_ci(self):
-        body = norm("\n".join(code_blocks(read(FIRST_HOUR))))
+        body = norm("\n".join(code_blocks(read(TUTORIAL))))
         for command in ("cmake -S tests/host -B build/host -G Ninja -DWORKLOAD_SANITIZE=OFF",
                         "ctest --test-dir build/host --output-on-failure",
                         "python -m unittest discover -s tests/tooling",
@@ -171,18 +171,18 @@ class FirstHour(Common, unittest.TestCase):
             self.assertIn(command, body, command)
 
     def test_the_clone_address_is_generic(self):
-        self.assertIn("<repository-url>", read(FIRST_HOUR))
-        self.assertNotIn("github.com/wonny-labs", read(FIRST_HOUR))
+        self.assertIn("<repository-url>", read(TUTORIAL))
+        self.assertNotIn("github.com/wonny-labs", read(TUTORIAL))
 
     def test_it_points_at_the_detailed_pages_instead_of_copying_them(self):
-        targets = {path for path, _, _ in links(FIRST_HOUR)}
+        targets = {path for path, _, _ in links(TUTORIAL)}
         for name in ("docs/try-on-native-sim.md", "docs/troubleshooting.md", "docs/first-change.md",
                      "docs/board-bring-up.md"):
             self.assertIn(name, targets, name)
-        self.assertLess(len(read(FIRST_HOUR).split()), len(read("docs/try-on-native-sim.md").split()) / 3)
+        self.assertLess(len(read(TUTORIAL).split()), len(read("docs/try-on-native-sim.md").split()) / 3)
 
     def test_it_says_what_is_untested(self):
-        self.assertRegex(read(FIRST_HOUR), r"(?i)nobody has run[^.]*WSL2|WSL2[^.]*not (been )?(run|tested)")
+        self.assertRegex(read(TUTORIAL), r"(?i)nobody has run[^.]*WSL2|WSL2[^.]*not (been )?(run|tested)")
 
     def test_it_is_linked_at_the_top_of_the_readme_and_of_the_index(self):
         for name, before in (("README.md", "## What it provides"), ("docs/README.md", "## Paths by task")):

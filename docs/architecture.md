@@ -179,6 +179,34 @@ priority and stack are starting values.
 On `native_sim` the scenarios in `tests/native_sim` (and the S6 scenario in `tests/native_sim_mbed`) are Zephyr ztest applications that compile chosen
 sources of `app/` and `workload/`. They do not boot the `app/` image.
 
+## Why the evidence comes from CI
+
+[CONTRIBUTING.md](../CONTRIBUTING.md) says that CI is the reference for the Zephyr builds and the Twister runs, that
+[Getting started](try-on-native-sim.md) gives the CI commands for a local `native_sim` run, that a local result does not replace CI, and that a
+change to `app/`, `conf`, overlays or `tests/native_sim` takes its evidence from CI, with the pull request saying so.
+It states the rule and gives no reason. What the repository's own files show:
+
+- CI is one environment with pinned versions: `ubuntu-24.04` on x86_64, Python 3.12, CMake 3.28.4, Ninja 1.11.1,
+  west 1.4.0, the Zephyr SDK 1.0.1 and a fixed package list (`.github/workflows/ci.yml`). A reviewer can open the
+  same job logs for every change, and a number in them (a size, a Twister count, an image hash) was produced under
+  the same conditions as the one before it.
+- A local environment differs in ways that matter. For example, GCC in CI rejected a comparison between constants of two
+  anonymous enums (`-Werror=enum-compare`) that the Apple clang on a developer's machine had accepted
+  ([adding-a-step.md](adding-a-step.md)). CI covers only x86_64 Ubuntu, and so does the job that runs the
+  [Dev Container](try-on-native-sim.md#dev-container). Apart from the setup steps listed under
+  the [setup checks record](history/setup-checks.md), arm64 and WSL2 are untested, and nobody has run the Dev Container
+  on WSL2.
+- A Zephyr workspace is large. `west update` and the SDK install take a long time and a lot of disk (see
+  [What you need first](try-on-native-sim.md#what-you-need-first)), so a local build is optional.
+
+GitHub Actions logs expire (the default retention is 90 days), so the run numbers in the Recorded rows of the
+findings will stop resolving, and so will the logs behind the roadmap table; that is why the results themselves are
+copied into those notes.
+
+So the local commands of [Getting started](try-on-native-sim.md) are a convenience for finding a failure before you push. A local pass does not replace the
+CI result in a pull request, and a local failure that CI does not show is a difference in your host to look at, not
+a reason to change a check.
+
 ## Source map
 
 Top-level directories and files:
