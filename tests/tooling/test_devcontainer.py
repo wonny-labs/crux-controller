@@ -491,8 +491,11 @@ class SetupScript(unittest.TestCase):
             self.assertIn(name, run)
             self.assertIn(name, self.text)
 
-    def test_it_does_not_switch_the_mbed_group_on(self):
-        self.assertNotIn("group-filter", self.text)
+    def test_it_switches_the_mbed_group_on_in_the_workspace_config_only(self):
+        # Approved behaviour change: the container used to leave the optional S6 group off. It now
+        # switches it on with `west config --local`, as the S6 job does, and never in west.yml.
+        self.assertIn("group-filter", self.text)
+        self.assertNotIn("group-filter", read(ROOT / "west.yml"))
 
     def test_it_refuses_a_home_directory_as_the_workspace(self):
         self.assertIn(".bashrc", self.text)
@@ -513,6 +516,15 @@ dump_env() {
 STUB_VENV_PYTHON = STUB_PRELUDE + r"""
 echo "python $*" >>"$FAKE_LOG"
 dump_env python
+case "$*" in
+*check_mbed_only.py*)
+    # FAKE_GUARD_FAIL names the mode (default or mbed) in which the guard reports a problem.
+    if [ -n "${FAKE_GUARD_FAIL:-}" ] && [[ "$*" == *"--mode $FAKE_GUARD_FAIL"* ]]; then
+        echo "stub: check_mbed_only.py found a wolf stack" >&2
+        exit 1
+    fi
+    ;;
+esac
 if [ "${FAKE_PIP_FAIL:-}" = 1 ] && [ "$1" = "-m" ] && [ "$2" = "pip" ]; then
     echo "stub: pip install failed" >&2
     exit 1
@@ -558,7 +570,27 @@ init)
 update)
     if [ "${FAKE_UPDATE_FAIL:-}" = 1 ]; then exit 1; fi
     mkdir -p zephyr/scripts modules
+    if grep -q '^group-filter = ' .west/config 2>/dev/null && [ "${FAKE_NO_MBED:-}" != 1 ]; then
+        mkdir -p modules/crypto/mbedtls modules/crypto/tf-psa-crypto
+    fi
+    if [ -n "${FAKE_WOLF_FETCHED:-}" ]; then mkdir -p "modules/crypto/$FAKE_WOLF_FETCHED"; fi
     for name in base build-test run-test; do echo "pytest" >"zephyr/scripts/requirements-$name.txt"; done
+    ;;
+config)
+    # Only manifest.group-filter, kept in .west/config like the real west does.
+    shift
+    [ "$1" = "--local" ] && shift
+    if [ "$1" = "-d" ]; then
+        sed '/^group-filter = /d' .west/config >.west/config.new && mv .west/config.new .west/config
+    elif [ "$2" = "--" ]; then
+        echo "group-filter = $3" >>.west/config
+    else
+        line="$(grep '^group-filter = ' .west/config)" || exit 1
+        echo "${line#group-filter = }"
+    fi
+    ;;
+list)
+    printf 'crux-pilot active\nzephyr active\n'
     ;;
 sdk)
     shift 2
@@ -697,6 +729,114 @@ class SetupRuns(unittest.TestCase):
         self.assertTrue(any(call.startswith("python -m pip install") for call in calls))
         self.assertTrue((self.fixture.sdk_dir / ".crux-installed").is_file())
 
+    # The optional Mbed TLS group of the S6 job: the guard, then the group, then the fetch.
+    S6_ON = "west config --local manifest.group-filter -- +crux-secure-management"
+
+    def s6_positions(self):
+        calls = self.fixture.calls()
+
+        def at(prefix, after=-1):
+            return next(i for i, call in enumerate(calls) if i > after and call.startswith(prefix))
+
+        first_update = at("west update")
+        check_default = at("python crux-controller/scripts/check_mbed_only.py --mode default", first_update)
+        group_on = at(self.S6_ON, check_default)
+        check_mbed = at("python crux-controller/scripts/check_mbed_only.py --mode mbed --baseline", group_on)
+        second_update = at("west update", check_mbed)
+        return first_update, check_default, group_on, check_mbed, second_update
+
+    def test_the_guard_runs_before_the_group_is_fetched_in_the_order_of_the_s6_job(self):
+        self.ok()
+        positions = self.s6_positions()
+        self.assertEqual(sorted(positions), list(positions))
+        self.assertEqual(5, len(set(positions)))
+        # The listings come between the switch and the checks, as in ci.yml.
+        calls = self.fixture.calls()
+        self.assertEqual(2, len(self.fixture.calls("west list --all -f {name} {active}")))
+        self.assertLess(positions[2], next(i for i, c in enumerate(calls) if i > positions[2] and c.startswith("west list")))
+
+    def test_the_group_command_and_the_checks_are_those_of_the_s6_job(self):
+        run = ci_step("s6", "Mbed-only check, group on")["run"]
+        self.assertIn(self.S6_ON, run)
+        self.assertIn("--mode mbed --baseline list-default.txt", run)
+        self.assertIn("--mode default", ci_step("s6", "Mbed-only check, default workspace")["run"])
+        self.ok()
+        self.assertEqual([self.S6_ON], self.fixture.calls("west config --local manifest.group-filter --"))
+        mbed = self.fixture.calls("python crux-controller/scripts/check_mbed_only.py --mode mbed")
+        self.assertEqual(1, len(mbed))
+        self.assertRegex(mbed[0], r"--baseline \S*list-default\.txt$")
+
+    def test_a_wolf_stack_is_never_configured_or_named(self):
+        self.ok()
+        for call in self.fixture.calls():
+            for name in ("wolfssl", "wolfssh", "wolfpsa", "wolf"):
+                self.assertNotIn(name, call)
+        group = self.fixture.workspace / ".west" / "config"
+        self.assertNotIn("wolf", group.read_text())
+
+    def test_the_status_of_the_optional_group_goes_to_the_standard_error_stream(self):
+        result = self.ok()
+        self.assertIn("Mbed TLS", result.stderr)
+        self.assertEqual("", result.stdout)
+
+    def test_a_rerun_does_not_repeat_the_group_switch_the_check_or_the_fetch(self):
+        self.ok()
+        before = len(self.fixture.calls())
+        result = self.ok()
+        self.assertEqual(["west --version"], self.fixture.calls()[before:])
+        self.assertEqual([self.S6_ON], self.fixture.calls("west config --local manifest.group-filter --"))
+        self.assertEqual([], self.fixture.calls("west config --local -d"))
+        self.assertEqual(2, len(self.fixture.calls("west update")))
+        self.assertIn("already switched on", result.stderr)
+
+    def test_the_fetch_message_says_that_every_project_goes_to_the_pin(self):
+        result = self.ok()
+        self.assertIn("west update (adds the Mbed TLS modules and brings every project to the pin of west.yml)",
+                      result.stderr)
+        self.assertNotIn("and nothing else", result.stderr)
+
+    def test_the_fetch_is_checked_like_the_s6_job_does(self):
+        step = ci_step("s6", "Fetch the Mbed TLS modules and nothing else")["run"]
+        self.assertIn("wolfssl wolfssh wolfpsa", step)
+        self.assertIn("mbedtls tf-psa-crypto", step)
+        result = self.fixture.run(FAKE_NO_MBED="1")
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("missing mbedtls", result.stderr)
+        self.assertIn("failed during the Mbed TLS group", result.stderr)
+        self.assertEqual([], self.fixture.sdk_installs())
+
+    def test_a_wolf_directory_after_the_fetch_stops_the_setup(self):
+        result = self.fixture.run(FAKE_WOLF_FETCHED="wolfssh")
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("unexpected wolfssh", result.stderr)
+        self.assertFalse((self.fixture.workspace / ".west" / "crux-devcontainer-s6.done").exists())
+
+    def test_a_guard_error_in_the_default_workspace_stops_before_the_group_is_switched_on(self):
+        result = self.fixture.run(FAKE_GUARD_FAIL="default")
+        self.assertNotEqual(0, result.returncode)
+        self.assertEqual("", result.stdout)
+        self.assertIn("setup: failed during the Mbed TLS group; rerun: bash .devcontainer/setup.sh",
+                      result.stderr)
+        self.assertEqual([], self.fixture.calls("west config --local manifest.group-filter --"))
+        self.assertEqual(1, len(self.fixture.calls("west update")))
+        self.assertEqual([], self.fixture.sdk_installs())
+
+    def test_a_guard_error_with_the_group_on_stops_before_the_fetch_and_is_retried_cleanly(self):
+        result = self.fixture.run(FAKE_GUARD_FAIL="mbed")
+        self.assertNotEqual(0, result.returncode)
+        self.assertEqual("", result.stdout)
+        self.assertIn("setup: failed during the Mbed TLS group; rerun: bash .devcontainer/setup.sh",
+                      result.stderr)
+        self.assertEqual(1, len(self.fixture.calls("west update")))
+        self.assertEqual([], self.fixture.sdk_installs())
+        # The rerun starts from the default configuration, so its first check sees the default workspace.
+        self.ok()
+        unset = self.fixture.calls("west config --local -d manifest.group-filter")
+        self.assertEqual(1, len(unset))
+        calls = self.fixture.calls()
+        self.assertLess(calls.index(unset[0]), calls.index(self.S6_ON, calls.index(unset[0])))
+        self.assertEqual(2, len(self.fixture.calls("west update")))
+
     def test_everything_it_prints_goes_to_the_standard_error_stream(self):
         result = self.ok()
         self.assertEqual("", result.stdout)
@@ -820,7 +960,8 @@ class SetupRuns(unittest.TestCase):
         (self.fixture.workspace / ".west" / "config").write_text("[manifest]\n")
         self.ok()
         self.assertEqual([], self.fixture.calls("west init"))
-        self.assertEqual(1, len(self.fixture.calls("west update")))
+        # The default update and, new with the S6 group, the group-on fetch after the guard.
+        self.assertEqual(2, len(self.fixture.calls("west update")))
 
     def test_a_failed_update_is_run_again_by_the_next_run(self):
         result = self.fixture.run(FAKE_UPDATE_FAIL="1")
@@ -830,7 +971,8 @@ class SetupRuns(unittest.TestCase):
         self.assertTrue((self.fixture.workspace / ".west" / "crux-devcontainer-update.pending").exists())
         self.ok()
         self.assertEqual(1, len(self.fixture.calls("west init")))
-        self.assertEqual(2, len(self.fixture.calls("west update")))
+        # The failed update, the default update of the rerun and its group-on fetch (the S6 group).
+        self.assertEqual(3, len(self.fixture.calls("west update")))
 
     def test_the_safe_directory_setting_is_added_once(self):
         self.ok()
