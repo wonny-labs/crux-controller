@@ -1,6 +1,7 @@
 # How to try it without a board
 
-This page is for a teammate who wants to see the firmware's tests run and has no RT1060-EVKB at hand.
+This page is for a teammate who wants to see the firmware's tests run and has no RT1060-EVKB at hand. For the
+short path, one build, one run and the local checks, start with [first-hour.md](first-hour.md); this page holds the details.
 Terms are in the [glossary](glossary.md), the layout is in the [architecture](architecture.md), and what has
 and has not run on a board is in the [roadmap](roadmap.md).
 
@@ -445,7 +446,8 @@ west build -p always -b 'mimxrt1060_evk@B//qspi' -d crux-controller/build/s1 \
 `CLANG_TIDY` is set in the image, as the static analysis job needs it. The optional S6 steps, the stronger boundary
 check and the product include check of the sections below work unchanged from `/workspaces/ws` (the pinned
 `crux-pilot` contains the product include check); the container does not switch the Mbed TLS group on by itself. The container does not reach a board: there is no USB or probe
-passthrough, and a `native_sim` run is not a board run.
+passthrough, and a `native_sim` run is not a board run. An optional board container in `.devcontainer/board/`, with
+USB access for a J-Link probe, is described in [board-bring-up.md](board-bring-up.md); it is untested on hardware.
 
 ### After a pin or SDK change
 

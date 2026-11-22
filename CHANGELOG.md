@@ -148,6 +148,13 @@ twice on a board (see `docs/findings/s2-first-board-run.md`); nothing else has r
 
 ### Documents
 
+- `docs/first-hour.md`, linked at the top of the README and of `docs/README.md`: the short path for a new team
+  member on Linux or WSL2, from a clone to one build, one `native_sim` run and the local checks in the dev
+  container, with the times of the CI job. `docs/board-bring-up.md` is now a board route: the probe on WSL2 with
+  usbipd, an optional board container (`.devcontainer/board/`, `scripts/board-shell.sh`) with the J-Link package
+  from a file that you download yourself, a read-only compare of the flash, `west flash` and `west debug` with
+  the J-Link runner, and a run record template. The route and the board container are untested on hardware,
+  and the default dev container does not change.
 - Navigation and role pages: an index of every document with a path for each task and a reading time
   (`docs/README.md`), a tutorial from branch to pull request with a small host-test change
   (`docs/first-change.md`), a reviewer checklist (`docs/reviewing.md`) and a note for teams that keep a copy of the
