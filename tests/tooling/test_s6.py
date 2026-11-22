@@ -591,8 +591,10 @@ class S6BuildFiles(unittest.TestCase):
 
     def test_the_management_cmake_takes_the_crux_files_from_the_module_directory(self):
         text = self.management_text()
-        self.assertIn("ZEPHYR_CRUX_PILOT_MODULE_DIR", text)
+        self.assertIn('set(crux_root "${ZEPHYR_CRUX_MODULE_DIR}")', text)
         self.assertRegex(text, r"if\(NOT crux_root\)\s*message\(FATAL_ERROR")
+        # The error text names the variable that is missing.
+        self.assertRegex(text, r'message\(FATAL_ERROR "[^"]*ZEPHYR_CRUX_MODULE_DIR is not set"\)')
         for needed in ("cmake/CruxWebAssets.cmake", "cmake/CruxWebRoutes.cmake",
                        "components/web/session/sources.cmake",
                        "components/web/management/sources.cmake"):
@@ -613,7 +615,7 @@ class S6BuildFiles(unittest.TestCase):
 
     def test_the_entropy_rules_are_in_their_own_file_that_only_the_image_includes(self):
         entropy = "\n".join(code_lines(ROOT / "app" / "management" / "entropy.cmake"))
-        self.assertIn("ZEPHYR_CRUX_PILOT_MODULE_DIR", entropy)
+        self.assertIn('include("${ZEPHYR_CRUX_MODULE_DIR}/cmake/CruxMbedtlsEntropy.cmake")', entropy)
         self.assertLess(entropy.index("cmake/CruxMbedtlsEntropy.cmake"),
                         entropy.index("crux_mbedtls_fail_closed_entropy()"))
         self.assertRegex(entropy, r"if\(CONFIG_TEST_RANDOM_GENERATOR OR CONFIG_FAKE_ENTROPY_NATIVE_SIM\)\s*message\(FATAL_ERROR")
@@ -625,6 +627,15 @@ class S6BuildFiles(unittest.TestCase):
         self.assertNotIn("Entropy", self.management_text())
         self.assertNotIn("TEST_RANDOM", self.management_text())
         self.assertNotIn("fail_closed", self.management_text())
+
+    def test_the_build_files_use_only_the_fixed_module_name_of_crux(self):
+        # Crux names its Zephyr module `crux` (name: in zephyr/module.yml), so Zephyr sets
+        # ZEPHYR_CRUX_MODULE_DIR whatever the checkout folder is called. The name that came from the
+        # folder (crux-pilot) is no longer set, and no fallback to it is kept, comments included.
+        for path in (self.MANAGEMENT_CMAKE, self.ENTROPY_CMAKE):
+            text = path.read_text()
+            self.assertIn("${ZEPHYR_CRUX_MODULE_DIR}", text, path.name)
+            self.assertNotRegex(text, r"CRUX_PILOT_MODULE", path.name)
 
     def test_the_management_cmake_refuses_a_missing_kernel_version(self):
         self.assertRegex(self.management_text(), r"if\(NOT KERNEL_VERSION_STRING\)")
@@ -1589,7 +1600,7 @@ class S6StepNote(unittest.TestCase):
     NOTE = ROOT / "docs" / "findings" / "s6-https-management.md"
     # The note records its results at the pin it was written at; the manifest has moved on since.
     NOTE_PIN = "8e3737d25d048b14a00c01da00494f58a62958c6"
-    PIN = "5fa998398b3557551cd7995ed44119f1c483cab9"
+    PIN = "2c017f685e0215e0e269d4bc77272889d06a07d8"
 
     def text(self):
         return self.NOTE.read_text()

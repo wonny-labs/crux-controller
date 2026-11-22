@@ -23,9 +23,9 @@
 # they are not in the table. The version texts that the status service reports are compile
 # definitions of the application, read by composition.c.
 
-set(crux_root "${ZEPHYR_CRUX_PILOT_MODULE_DIR}")
+set(crux_root "${ZEPHYR_CRUX_MODULE_DIR}")
 if(NOT crux_root)
-    message(FATAL_ERROR "Step S6 needs the Crux module: ZEPHYR_CRUX_PILOT_MODULE_DIR is not set")
+    message(FATAL_ERROR "Step S6 needs the Crux module: ZEPHYR_CRUX_MODULE_DIR is not set")
 endif()
 
 if(NOT KERNEL_VERSION_STRING)

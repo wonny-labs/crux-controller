@@ -43,12 +43,12 @@ class ManifestIsOptionA(unittest.TestCase):
 
     def test_crux_pilot_is_pinned_to_the_approved_commit(self):
         # Moving the pin is a reviewed change of this test and of west.yml together.
-        # This commit of crux-pilot main (21 November 2026, after crux-pilot#532) follows the one the project owner
+        # This commit of crux-pilot main (22 November 2026, after crux-pilot#536) follows the one the project owner
         # approved on 16 November 2026 and still contains the move of the crypto modules to
         # the Zephyr v4.4-branch revisions (wonny-labs/crux-pilot#416). The move needs the
         # owner's approval before it merges.
         revision = load_manifest()["projects"][0]["revision"]
-        self.assertEqual(revision, "5fa998398b3557551cd7995ed44119f1c483cab9")
+        self.assertEqual(revision, "2c017f685e0215e0e269d4bc77272889d06a07d8")
 
     def test_the_pin_comment_does_not_say_the_crypto_move_is_missing(self):
         text = (ROOT / "west.yml").read_text()
