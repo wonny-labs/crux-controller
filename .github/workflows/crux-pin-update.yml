@@ -51,12 +51,12 @@ jobs:
           CRUX_PIN_TOKEN: ${{ secrets.CRUX_PIN_TOKEN }}
         run: |
           test -n "$CRUX_PIN_TOKEN" || { echo "::error::Set the secret CRUX_PIN_TOKEN." >&2; exit 1; }
-      # The checkout keeps the token for the push: the bot never gives the token to Git, pushes
-      # through the origin remote and uses the token only for the pull request itself.
+      # No credential stays in the Git config, so the pip and west steps cannot read the token.
+      # The bot step sets the push credential itself and removes it again.
       - uses: actions/checkout@v4
         with:
           path: crux-controller
-          token: ${{ secrets.CRUX_PIN_TOKEN }}
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -75,6 +75,15 @@ jobs:
         env:
           CRUX_PIN_TOKEN: ${{ secrets.CRUX_PIN_TOKEN }}
         run: |
+          # The bot never gives the token to Git: it pushes through the origin remote, which takes
+          # the credential that this step puts into the local Git config for its own length only,
+          # and uses the token itself only for the pull request. Only reviewed code runs here (the
+          # pinned Crux bot and scripts/crux-pin-hook, which runs no build); the new pin is built by
+          # the pull request's own workflows, which hold no CRUX_PIN_TOKEN. Run no build in this step.
+          trap 'git config --local --unset-all http.https://github.com/.extraheader || true' EXIT
+          basic="$(printf 'x-access-token:%s' "$CRUX_PIN_TOKEN" | base64 -w0)"
+          echo "::add-mask::$basic"
+          git config --local http.https://github.com/.extraheader "AUTHORIZATION: basic $basic"
           # The bot commits only the allowed paths below: west.yml and the files scripts/crux-pin-hook
           # edits (a missing one, such as CHANGELOG.md in a copy, is harmless). Anything else in the
           # checkout makes it fail, so generated files go to $RUNNER_TEMP.

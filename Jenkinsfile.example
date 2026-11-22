@@ -57,7 +57,9 @@ pipeline {
             // Git, which takes its credentials from gitUsernamePassword. It commits only the allowed
             // paths (west.yml and what scripts/crux-pin-hook edits) and fails on any other
             // change in the checkout, so review.md is written outside it. Single quotes: the shell,
-            // not Groovy, expands the credentials.
+            // not Groovy, expands the credentials. Only reviewed code holds the credentials here: the
+            // pinned Crux bot and scripts/crux-pin-hook, which runs no build. Run no build in this stage;
+            // the pull request builds of the new pin run without these credentials.
             withCredentials([string(credentialsId: '<Jenkins token credentials ID>', variable: 'CRUX_PIN_TOKEN'),
                              gitUsernamePassword(credentialsId: '<Jenkins Git credentials ID>', gitToolName: 'Default')]) {
               dir('crux-controller') {

@@ -231,13 +231,37 @@ class Workflow(unittest.TestCase):
         self.assertNotRegex(self.text, r"secrets\.CRUX_PIN_TOKEN *\|\|")
         update = self.jobs["update"]
         self.assertNotIn("github.token", yaml.safe_dump(update))
-        # Only the steps that need the token see it; not pip or west.
+        # Only the steps that need the token see it; not the checkout, pip or west.
         self.assertNotIn("env", update)
         holders = [s.get("name") or s.get("uses") for s in update["steps"]
-                   if "CRUX_PIN_TOKEN" in yaml.safe_dump(s.get("env", {})) + yaml.safe_dump(s.get("with", {}))]
-        self.assertEqual(["Check that the token is set", "actions/checkout@v4",
-                          "Move the pin and refresh the pull request"], holders)
+                   if "CRUX_PIN_TOKEN" in yaml.safe_dump(s)]
+        self.assertEqual(["Check that the token is set", "Move the pin and refresh the pull request"], holders)
         self.assertIn("--token-env CRUX_PIN_TOKEN", self.commands("update"))
+
+    def test_the_checkout_leaves_no_credential_in_the_git_config_for_pip_and_west(self):
+        checkout = next(s for s in self.jobs["update"]["steps"] if s.get("uses", "").startswith("actions/checkout"))
+        self.assertIs(False, checkout["with"]["persist-credentials"])
+        self.assertNotIn("token", checkout["with"])
+
+    def test_the_push_credential_lives_only_inside_the_bot_step(self):
+        bot = next(s for s in self.jobs["update"]["steps"] if "crux-pin-bot.py --host" in s.get("run", ""))
+        run = bot["run"]
+        header = "http.https://github.com/.extraheader"
+        self.assertIn(f"git config --local {header}", run)
+        self.assertIn("::add-mask::", run)
+        # Removed again on every exit, before the step ends.
+        self.assertRegex(run, rf"trap '[^']*git config --local --unset-all {re.escape(header)}[^']*' EXIT")
+        self.assertLess(run.index("trap "), run.index(f"git config --local {header} "))
+        self.assertLess(run.index(f"git config --local {header} "), run.index("crux-pin-bot.py --host"))
+
+    def test_no_build_runs_in_the_update_job(self):
+        # The token job runs only reviewed code: the pinned Crux bot and this repository's hook.
+        # The new pin is built by the pull request's own workflows, which hold no CRUX_PIN_TOKEN.
+        commands = self.commands("update")
+        for word in ("west build", "cmake", "ninja", "twister", "make "):
+            self.assertNotIn(word, commands)
+        for name in ("ci", "budget", "release", "rebuild", "devcontainer"):
+            self.assertNotIn("secrets.", (WORKFLOWS / f"{name}.yml").read_text())
 
     def test_the_update_job_runs_only_on_the_default_branch(self):
         cond = self.jobs["update"]["if"]
@@ -439,6 +463,13 @@ class JenkinsExample(unittest.TestCase):
     def test_the_push_gets_its_credentials_explicitly(self):
         self.assertIn("gitUsernamePassword(credentialsId: '<", self.text)
         self.assertNotIn("credentials of the checkout", self.text)
+
+    def test_the_credential_stage_runs_no_build_and_the_fetch_stage_holds_no_credential(self):
+        fetch, move = self.text.split("stage('Move the pin and refresh the pull request')")
+        self.assertNotIn("withCredentials", fetch)
+        for word in ("west build", "cmake", "ninja", "twister"):
+            self.assertNotIn(word, move)
+        self.assertIn("Run no build in this stage", move)
 
     def test_it_says_the_evidence_step_is_missing(self):
         self.assertIn("no evidence step", self.text)
