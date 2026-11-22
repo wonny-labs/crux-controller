@@ -21,6 +21,17 @@ WORKFLOWS = ROOT / ".github" / "workflows"
 WORKFLOW = WORKFLOWS / "crux-pin-update.yml"
 JENKINS = ROOT / "Jenkinsfile.example"
 LOCK = ROOT / "scripts" / "crux-pin-requirements.txt"
+BUILD_LOCK = ROOT / "scripts" / "crux-pin-build-requirements.txt"
+# docopt is published only as source. It is built with the hashed setuptools of BUILD_LOCK, installed
+# first, and without build isolation, so pip fetches no unhashed build tool. Nothing else may build.
+INSTALLS = ("install -q --require-hashes -r crux-controller/scripts/crux-pin-build-requirements.txt",
+            "install -q --require-hashes --no-build-isolation --only-binary :all: --no-binary docopt "
+            "-r crux-controller/scripts/crux-pin-requirements.txt")
+
+
+def pip_installs(text):
+    """Every pip install command line in a workflow or the Jenkins example, joined across backslashes."""
+    return re.findall(r'pip"? (install[^\n]*)', text.replace("\\\n", " "))
 PIN_SCRIPTS = ("crux-pin-bot.py", "update-crux-pin.py", "open-pin-pr.py")
 BRANCH = "bot/crux-pin"
 
@@ -349,10 +360,7 @@ class Workflow(unittest.TestCase):
             self.assertRegex(step["uses"], r"@[0-9a-f]{40}$")
 
     def test_the_tools_come_from_the_hash_lock_only(self):
-        install = next(s for s in self.jobs["update"]["steps"] if "pip install" in s.get("run", ""))
-        self.assertEqual("python -m pip install --require-hashes -r crux-controller/scripts/crux-pin-requirements.txt",
-                         install["run"].strip())
-        self.assertNotRegex(self.commands("update"), r"pip install [^\n]*==")
+        self.assertEqual(list(INSTALLS), pip_installs(self.commands("update")))
 
     def test_it_uploads_nothing_and_runs_no_board_command(self):
         for word in ("upload-artifact", "west flash", "west debug", "west build"):
@@ -362,8 +370,8 @@ class Workflow(unittest.TestCase):
 class HashLock(unittest.TestCase):
     """scripts/crux-pin-requirements.txt: every tool of the pin job and its dependencies, with hashes."""
 
-    def requirements(self):
-        text = re.sub(r"\\\n", " ", LOCK.read_text())
+    def requirements(self, lock=LOCK):
+        text = re.sub(r"\\\n", " ", lock.read_text())
         lines = [" ".join(line.split("#", 1)[0].split()) for line in text.splitlines()]
         return [line for line in lines if line]
 
@@ -381,10 +389,20 @@ class HashLock(unittest.TestCase):
         for name in ("west", "pyyaml"):
             self.assertEqual(tools[name], found[name], name)
 
-    def test_the_jenkins_example_installs_from_it_too(self):
-        self.assertIn('/venv/bin/pip" install -q --require-hashes -r crux-controller/scripts/crux-pin-requirements.txt',
-                      JENKINS.read_text())
-        self.assertNotRegex(JENKINS.read_text(), r"pip install [^\n]*==")
+    def test_the_build_lock_holds_only_setuptools_with_its_hashes(self):
+        lines = self.requirements(BUILD_LOCK)
+        self.assertEqual(1, len(lines))
+        self.assertRegex(lines[0], r"^setuptools==\d+\.\d+\.\d+(?: --hash=sha256:[0-9a-f]{64})+$")
+
+    def test_the_jenkins_example_installs_the_same_way(self):
+        self.assertEqual(list(INSTALLS), pip_installs(JENKINS.read_text()))
+
+    def test_no_other_install_in_the_pin_job(self):
+        workflow = yaml.safe_load(WORKFLOW.read_text())["jobs"]
+        for job in workflow.values():
+            for step in job["steps"]:
+                for command in pip_installs(step.get("run", "")):
+                    self.assertIn("--require-hashes", command)
 
 
 class ArchitectureNamesTheFiles(unittest.TestCase):
@@ -518,6 +536,14 @@ class JenkinsExample(unittest.TestCase):
             self.assertNotIn(word, move)
         self.assertIn("Run no build in this stage", move)
 
+    def test_it_names_the_open_crux_side_items_and_what_the_hook_sees(self):
+        for name, text in (("workflow", WORKFLOW.read_text()), ("Jenkinsfile.example", self.text)):
+            self.assertIn("Still open on the Crux side", text, name)
+            for item in ("fresh index", "replace refs", "every variable except the token", "separate step",
+                         "after the hook"):
+                self.assertIn(item, " ".join(text.replace("#", " ").replace("//", " ").split()), f"{name}: {item}")
+        self.assertIn("GIT_USERNAME and GIT_PASSWORD", " ".join(self.text.replace("//", " ").split()))
+
     def test_it_says_the_evidence_step_is_missing(self):
         self.assertIn("no evidence step", self.text)
 
@@ -559,7 +585,7 @@ class JenkinsExample(unittest.TestCase):
         steps = ['T="$WORKSPACE_TMP/crux-pin"', 'python3 -m venv "$T/venv"', '/venv/bin/west" update crux-pilot',
                  "export GIT_NO_REPLACE_OBJECTS=1",
                  'test "$(git -C crux-pilot rev-parse HEAD)" = "$rev"',
-                 'test -z "$(git -C crux-pilot status --porcelain --ignored)"',
+                 'status="$(git -C crux-pilot status --porcelain --ignored)"', 'test -z "$status"',
                  'git -C crux-pilot cat-file -e "$rev:scripts/crux-pin-bot.py"',
                  'git -C crux-pilot show "$rev:scripts/$script" > "$T/scripts/$script"']
         at = [fetch.index(step) for step in steps]
@@ -643,6 +669,10 @@ class JenkinsCopyBlock(unittest.TestCase):
                 self.git("clean", "-qfdx")
                 change()
                 self.assertNotEqual(0, self.run_block().returncode)
+
+    def test_a_git_status_that_fails_stops_it(self):
+        (self.crux / ".git" / "index").write_bytes(b"not an index")
+        self.assertNotEqual(0, self.run_block().returncode)
 
     def test_a_checkout_away_from_the_pin_stops_it(self):
         (self.crux / "scripts" / "crux-pin-bot.py").write_text("# moved\n")

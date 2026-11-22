@@ -1,9 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 # The tools of the pin job (.github/workflows/crux-pin-update.yml and Jenkinsfile.example) and every
-# package they pull in, each with the SHA-256 of every file PyPI has for that release. Install with
-#   pip install --require-hashes -r scripts/crux-pin-requirements.txt
-# so that pip refuses any file, version or dependency that is not listed here. The pin job holds
-# the push token, and a package installed here runs in it.
+# package they pull in, each with the SHA-256 of every file PyPI has for that release. Install
+# scripts/crux-pin-build-requirements.txt first, then this file with
+#   pip install --require-hashes --no-build-isolation --only-binary :all: --no-binary docopt -r ...
+# so that pip refuses any file, version or dependency that is not listed here, and builds docopt
+# (source only) with the hashed setuptools instead of fetching one. The pin job holds the push
+# token, and a package installed here runs in it.
 # west and pyyaml are the versions of .devcontainer/requirements-tools.txt (tests/tooling/test_pin_update.py
 # compares them). To change a version, list the new release's files and hashes from PyPI, check
 # the dependency set again with pip install --dry-run --report, and keep the release at least

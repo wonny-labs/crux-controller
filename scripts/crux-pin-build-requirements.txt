@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: Apache-2.0
+# The build tool of the pin job, with the SHA-256 of every file PyPI has for that release. docopt in
+# scripts/crux-pin-requirements.txt is published only as source, and building it needs setuptools.
+# The job installs this file first, with --require-hashes, and then the main lock with
+# --no-build-isolation, so that pip builds docopt with this setuptools instead of fetching an
+# unhashed one into a build environment of its own. Same rules as the main lock for a change.
+# Resolved on 2026-11-22.
+setuptools==84.2.1 \
+    --hash=sha256:3ff8b3b5492a0aa66960f4419365a86b84e013070d4313e4d4a6894f5d64d6bc \
+    --hash=sha256:ca140b45d5325a9478f880e351484f62fef15f336462e449ca0c03c873d589c2

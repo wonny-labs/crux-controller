@@ -19,7 +19,7 @@
 //   copies of the three Crux scripts go to a fresh WORKSPACE_TMP/crux-pin. The venv holds only the
 //   hashed packages of scripts/crux-pin-requirements.txt. The scripts are read with git show from
 //   the pinned revision, after checking that the Crux checkout is at that revision and has no
-//   changed, untracked or ignored file. Replace refs are ignored.
+//   changed, untracked or ignored file. Replace refs are ignored when the scripts are copied.
 // - Each stage that runs code has its own container of the dev container image, on the same node
 //   and workspace, removed when the stage ends, so no process of the fetch stage outlives it.
 // Before going live, check on the agent:
@@ -28,9 +28,14 @@
 //   not itself a container whose volumes reach the stages through --volumes-from.
 // - Each container has a container-local /tmp, not a mounted one.
 // - The containers run as the uid that owns the workspace, so that deleteDir and Git work.
-// Still open on the Crux side (a later Crux release): the bot does not yet commit from a fresh index
-// or refuse replace refs, and it gives the hook every variable except the token's, so the hook
-// also sees the GIT_ASKPASS setting of gitUsernamePassword.
+// - The Docker Pipeline plugin does not put the values of the bound credentials on the host's
+//   docker exec command line; if it does, hide other users' processes on the host (hidepid=2).
+// Still open on the Crux side (a later Crux release; this file changes when it lands): the bot does
+// not yet commit from a fresh index or refuse replace refs; it gives the hook every variable except
+// the token's, so the hook and every Git process the bot starts receive GIT_USERNAME and GIT_PASSWORD
+// (the push credential) and GIT_ASKPASS from gitUsernamePassword; and the pin move and the hook do not
+// yet run in a separate step from the push and the pull request, so the push credential is bound
+// before the bot starts and not only after the hook.
 
 pipeline {
   agent none
@@ -72,7 +77,10 @@ pipeline {
               T="$WORKSPACE_TMP/crux-pin"
               mkdir -p "$T/scripts"
               python3 -m venv "$T/venv"
-              "$T/venv/bin/pip" install -q --require-hashes -r crux-controller/scripts/crux-pin-requirements.txt
+              # docopt is published only as source: it is built with the hashed setuptools installed
+              # first, without build isolation, so pip fetches no unhashed build tool.
+              "$T/venv/bin/pip" install -q --require-hashes -r crux-controller/scripts/crux-pin-build-requirements.txt
+              "$T/venv/bin/pip" install -q --require-hashes --no-build-isolation --only-binary :all: --no-binary docopt -r crux-controller/scripts/crux-pin-requirements.txt
               "$T/venv/bin/west" init -l crux-controller
               "$T/venv/bin/west" update crux-pilot
               export GIT_NO_REPLACE_OBJECTS=1
@@ -82,7 +90,8 @@ pipeline {
               esac
               test "${#rev}" -eq 40 || { echo "The pin is not a full commit SHA: $rev" >&2; exit 1; }
               test "$(git -C crux-pilot rev-parse HEAD)" = "$rev"
-              test -z "$(git -C crux-pilot status --porcelain --ignored)"
+              status="$(git -C crux-pilot status --porcelain --ignored)"
+              test -z "$status"
               git -C crux-pilot cat-file -e "$rev:scripts/crux-pin-bot.py" 2>/dev/null || {
                 echo "The pinned Crux has no scripts/crux-pin-bot.py. Move the pin by hand once (CONTRIBUTING.md)." >&2
                 exit 1
