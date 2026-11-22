@@ -138,8 +138,8 @@ project" even when the gate passes.
 
 **Workspace.** The west workspace: the parent folder that holds the clone `crux-controller` next to `.west/` and
 the projects that `west.yml` fetches (`zephyr/`, `modules/`, `crux-pilot/`). The Dev Container mounts it at
-`/workspaces/ws`. Crux's Getting started (`docs/getting-started.md` of `crux-pilot` at the pinned revision) uses the
-same word for the same folder.
+`/workspaces/ws`. Crux's Getting started (`docs/getting-started.md` of `crux-pilot` at the pinned revision) also calls
+the parent folder of the clone the workspace.
 
 **Dev Container.** The Docker image in `.devcontainer/` with the tools of the CI jobs, an Ubuntu 24.04 userland and
 Python 3.12, plus the script that fetches the workspace and the Zephyr SDK. It is opened through

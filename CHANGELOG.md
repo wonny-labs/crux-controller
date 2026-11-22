@@ -160,7 +160,8 @@ twice on a board (see `docs/findings/s2-first-board-run.md`); nothing else has r
   over the run steps of the Getting started quick start, so there is one path from a clone to the first build and
   run. `docs/try-on-native-sim.md` becomes the Getting started page: its "Quick start" is "Set up the Dev
   Container" with the host steps only, its term paragraph points at the glossary, and its dated "What has been
-  checked" record moves to `docs/history/setup-checks.md`. The README has the shape of the Crux README (what it
+  checked" record moves to `docs/history/setup-checks.md`; "Why the evidence comes from CI" moves to
+  `docs/architecture.md` and "What `native_sim` is" into the glossary entry for `native_sim`. The README has the shape of the Crux README (what it
   is and for whom, what it provides, quick start, where to read next, status and limits, contributing, licence),
   `docs/README.md` is the documentation map with the type of each page, and the glossary defines workspace, Dev
   Container and host tests. "Dev Container" is written as Crux writes it. The file name of
