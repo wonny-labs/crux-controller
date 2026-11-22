@@ -3,7 +3,7 @@
 This page explains how the repository is built, for a reader who has not seen Crux or this
 repository before. Terms in italics on first use are defined in the [glossary](glossary.md). What
 exists and what does not is in the [roadmap](roadmap.md). How to run the tests without a board is in
-[try-on-native-sim.md](try-on-native-sim.md), and an outline of a board bring-up is in
+[try-on-native-sim.md](try-on-native-sim.md), and a board route, untested on hardware, is in
 [board-bring-up.md](board-bring-up.md). The rules for changing things are in
 [CONTRIBUTING.md](../CONTRIBUTING.md). The words "product", "platform" and "composition" are used as the
 glossary explains in [Product, platform and composition](glossary.md#product-platform-and-composition).
@@ -61,8 +61,8 @@ zone, `app/management`, which holds build files and data for the web route table
 | Tree | Role | May include | Fails on, among others |
 |---|---|---|---|
 | `workload/` | The portable core of the workload: configuration record, periodic cycle, message wire form. Built for the image and for the host tests. | ISO C and its own tree | any Crux, Sockets profile or Zephyr header |
-| `app/src` | The application: composition, thread glue, and the code of each step. Plain C. | ISO C, the Sockets profile headers, public `<crux/NAME.h>` headers except the frozen four, its own tree, `workload/include` | any Zephyr header, the *frozen headers*, `<crux/file_zephyr.h>`, `<crux/web_zephyr.h>`, a quoted include of a header of a zone |
-| `app/os` | The adapter zone. The one place that creates threads, queues messages and sleeps, with Zephyr kernel calls, and the one place that queries an SNTP server (S5). | ISO C, public `<crux/NAME.h>` headers except the frozen four, `zephyr/kernel.h`, `zephyr/net/sntp.h`, its own tree, header files (`.h`) of `app/src` | the Sockets profile and other POSIX headers, any composition interface, every other Zephyr header, vendor headers, the frozen four |
+| `app/src` | The application: composition, thread glue, and the code of each step. Plain C. | ISO C, the Sockets profile headers, public `<crux/NAME.h>` headers except the frozen three, its own tree, `workload/include` | any Zephyr header, the *frozen headers*, `<crux/file_zephyr.h>`, `<crux/web_zephyr.h>`, a quoted include of a header of a zone |
+| `app/os` | The adapter zone. The one place that creates threads, queues messages and sleeps, with Zephyr kernel calls, and the one place that queries an SNTP server (S5). | ISO C, public `<crux/NAME.h>` headers except the frozen three, `zephyr/kernel.h`, `zephyr/net/sntp.h`, its own tree, header files (`.h`) of `app/src` | the Sockets profile and other POSIX headers, any composition interface, every other Zephyr header, vendor headers, the frozen three |
 | `app/compose` | The composition zone. The one place that mounts a file system and binds it to Crux File, and the one place that starts HTTPS management with the Web composition interface and registers its TLS material (S6). | ISO C, public `<crux/NAME.h>` headers, `<crux/file_zephyr.h>`, `<crux/web_zephyr.h>`, `zephyr/fs/fs.h`, `zephyr/devicetree.h`, `zephyr/net/tls_credentials.h`, its own tree, header files (`.h`) of `app/src` | the Sockets profile, Crux private or port headers, every other Zephyr header, vendor headers |
 
 Points that the table cannot carry:
@@ -79,11 +79,12 @@ Points that the table cannot carry:
 - **`zephyr/net/sntp.h` is allowed in `app/os`, and one source includes it:
   `app/os/time_sync_zephyr.c` (S5).** That file calls the Zephyr SNTP library's string-based
   `sntp_simple()` and nothing else of it, so it includes no socket header.
-- **The frozen-header rule covers `app/src` and `app/os`.** `<crux/thread.h>`, `<crux/sync.h>`,
-  `<crux/queue.h>` and `<crux/serial.h>` were public Crux headers (Crux removed `<crux/queue.h>` at the pinned
-  revision), and the product still does not use them:
-  threads and queues come from Zephyr in `app/os`. The check keeps that from being undone silently. The
-  rule is not applied to `workload/` (which may include no Crux header at all) or to `app/compose`.
+- **The frozen-header rule covers `app/src` and `app/os`.** `<crux/thread.h>`, `<crux/sync.h>` and
+  `<crux/serial.h>` are public Crux headers, and the product does not use them: threads and queues come
+  from Zephyr in `app/os`. The check keeps that from being undone silently. The rule is not applied to
+  `workload/` (which may include no Crux header at all) or to `app/compose`. Crux removed `<crux/queue.h>`
+  at the pinned revision, so the check refuses it as a name that Crux does not publish, not as a frozen
+  header.
 - **The check reads includes only.** It cannot see include paths that CMake adds, so no build file here
   adds one, and `tests/tooling` checks that. An include whose operand is a macro fails, because it cannot
   be checked.
@@ -184,7 +185,7 @@ Top-level directories and files:
 | `app/` | The Zephyr application, described below. |
 | `workload/` | The portable workload core (`include/workload.h`, `src/config_record.c`, `src/cycle.c`, `src/message.c`) and its `CMakeLists.txt`. |
 | `tests/` | `host/` (C tests that run on the build host), `native_sim/` (one Zephyr test application per step, S1 to S5), `native_sim_mbed/` (the S6 test application, which needs the Mbed TLS modules), `tooling/` (Python tests of the scripts, workflows, documents and build files). |
-| `scripts/` | `check_boundary.py` (the include check), `check_mbed_only.py` (checks that the Crux import cannot activate the GPL stacks), `check-format.sh` (clang-format over every C file), `analyze_host.py` (clang-tidy over the host-built sources, then the list of sources it did not analyse), `check_spdx.py` (checks that the first-party C, CMake, Kconfig, Python and shell files start with the licence identifier line), `check-patch.sh` (Zephyr's checkpatch, rule BRACES, on the C lines of a Git range; a copy of the checkpatch wrapper that `crux-pilot` publishes for product repositories), `check_include_domains.py` (runs the product include check and its wrapper from a local Crux checkout after checking their pinned SHA-256, which it reads from `ci.yml` or, without it, from `include-check-pins.json`; see [dependencies.md](dependencies.md#include-check-from-a-local-crux-checkout)), `crux-pin-hook` and `pin_evidence.py` (the quotes of the pin and the CI evidence of a pin pull request, see `CONTRIBUTING.md`), and `dev-shell.sh` (runs a shell or one command in the dev container, see [the try-on page](try-on-native-sim.md#dev-container)). |
+| `scripts/` | `check_boundary.py` (the include check), `check_mbed_only.py` (checks that the Crux import cannot activate the GPL stacks), `check-format.sh` (clang-format over every C file), `analyze_host.py` (clang-tidy over the host-built sources, then the list of sources it did not analyse), `check_spdx.py` (checks that the first-party C, CMake, Kconfig, Python and shell files start with the licence identifier line), `check-patch.sh` (Zephyr's checkpatch, rule BRACES, on the C lines of a Git range; a copy of the checkpatch wrapper that `crux-pilot` publishes for product repositories), `check_include_domains.py` (runs the product include check and its wrapper from a local Crux checkout after checking their pinned SHA-256, which it reads from `ci.yml` or, without it, from `include-check-pins.json`; see [dependencies.md](dependencies.md#include-check-from-a-local-crux-checkout)), `crux-pin-hook` and `pin_evidence.py` (the quotes of the pin and the CI evidence of a pin pull request, see `CONTRIBUTING.md`), `dev-shell.sh` (runs a shell or one command in the dev container, see [the try-on page](try-on-native-sim.md#dev-container)), and `board-shell.sh` (the same in the optional board container with USB access for a J-Link probe, untested on hardware, see [the board route](board-bring-up.md#3-open-the-board-container)). |
 | `budgets/` | `limits.json` (declared minimum free percent per memory region and step), `collect.py` (reads a build log into a measurement), `check.py` (compares a measurement with the limits). |
 | `release/` | The release bundle tools: `assemble_bundle.py`, `check_bundle.py`, `rebuild_compare.py`, `parse_spdx.py` and `release-manifest.schema.json`. Hashes and identities only; no image is ever published. |
 | `docs/` | This documentation: [architecture.md](architecture.md), [glossary.md](glossary.md), [adding-a-step.md](adding-a-step.md), [roadmap.md](roadmap.md), [try-on-native-sim.md](try-on-native-sim.md), [board-bring-up.md](board-bring-up.md), [composition-zone.md](composition-zone.md), [dependencies.md](dependencies.md), `findings/` and `history/` (the project history). |

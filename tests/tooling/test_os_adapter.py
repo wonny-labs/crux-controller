@@ -258,5 +258,15 @@ class DomainSource(unittest.TestCase):
                 )
 
 
+class RemovedCruxQueue(unittest.TestCase):
+    """Crux no longer has a Queue provider (no <crux/queue.h>, no CONFIG_CRUX_QUEUE), so the CI
+    option checks do not name its symbol any more. The boundary check still fails the header; see
+    RemovedCruxQueue in test_boundary.py."""
+
+    def test_no_workflow_names_the_queue_symbol(self):
+        for path in sorted((ROOT / ".github" / "workflows").glob("*.yml")):
+            self.assertNotIn("CONFIG_CRUX_QUEUE", path.read_text(), path.name)
+
+
 if __name__ == "__main__":
     unittest.main()

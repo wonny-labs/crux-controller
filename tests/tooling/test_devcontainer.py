@@ -205,7 +205,11 @@ class RepositoryFiles(unittest.TestCase):
             self.assertIn(line, self.ignore)
 
     def test_the_container_files_use_lf_line_endings(self):
-        files = sorted(DEVCONTAINER.iterdir()) + [ROOT / "scripts" / "dev-shell.sh"]
+        # Every file under .devcontainer, including the optional board container in a subfolder. A J-Link
+        # package that a developer put into .devcontainer/board/jlink/ is a local binary, ignored by Git.
+        files = sorted(p for p in DEVCONTAINER.rglob("*") if p.is_file() and p.suffix != ".deb")
+        files += [ROOT / "scripts" / "dev-shell.sh", ROOT / "scripts" / "board-shell.sh"]
+        self.assertIn(DEVCONTAINER / "Dockerfile", files)
         for path in files:
             self.assertNotIn(b"\r", path.read_bytes(), path.name)
 
@@ -1186,6 +1190,19 @@ class Documentation(unittest.TestCase):
 
     def test_the_product_include_check_is_not_said_to_predate_the_pin_in_the_workflow(self):
         self.assertNotIn("predates", read(WORKFLOW))
+
+    def test_the_product_include_check_is_not_said_to_predate_the_pin_in_ci(self):
+        # The pinned crux-pilot contains the script with the hash that ci.yml checks, so the comment
+        # above the download says so instead of claiming that the pin predates the script.
+        text = read(CI)
+        self.assertNotIn("predates", text)
+        comment = " ".join(
+            line.strip().lstrip("#").strip()
+            for line in text[: text.index("- name: Run the Crux Pilot product include check")]
+            .splitlines()[-6:]
+            if line.strip().startswith("#")
+        )
+        self.assertIn("The crux-pilot revision pinned in west.yml contains the same script", comment)
 
 
 if __name__ == "__main__":

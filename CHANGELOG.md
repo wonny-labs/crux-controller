@@ -138,6 +138,13 @@ twice on a board (see `docs/findings/s2-first-board-run.md`); nothing else has r
   `docs/findings/s6-https-management-gaps.md` records the gaps found by reading, with what is not verified.
 - The boundary check fails, with status 2 and a message, when none of its four trees exists under `--repo`
   (for example when it runs from the workspace directory). One absent tree is still skipped.
+- Crux Queue left the boundary check and the CI option checks. The pinned Crux no longer publishes
+  `<crux/queue.h>` or `CONFIG_CRUX_QUEUE`, so `FROZEN_CRUX_HEADERS` now holds `<crux/thread.h>`,
+  `<crux/sync.h>` and `<crux/serial.h>`, and the S1, S4, S5, S6 and Dev container jobs no longer look for the
+  symbol. An include of `<crux/queue.h>` still fails: with `--crux-root`, which CI passes, the boundary check
+  refuses a name that Crux does not publish, and the product include check refuses it in every source. The
+  pin entry under "Build and manifest" that says both checks "still refuse both" was true when written. No
+  firmware image changes.
 
 ### Release tooling
 
@@ -148,6 +155,19 @@ twice on a board (see `docs/findings/s2-first-board-run.md`); nothing else has r
 
 ### Documents
 
+- `docs/first-hour.md`, linked at the top of the README and of `docs/README.md`: the short path for a new team
+  member on Linux or WSL2, from a clone to one build, one `native_sim` run and the local checks in the dev
+  container, with the times of the CI job. `docs/board-bring-up.md` is now a board route: the probe on WSL2 with
+  usbipd, an optional board container (`.devcontainer/board/`, `scripts/board-shell.sh`) with the J-Link package
+  from a file that you download yourself, a read-only compare of the flash, `west flash` and `west debug` with
+  the J-Link runner, and a run record template. The route and the board container are untested on hardware,
+  and the default dev container does not change.
+- The section "A public repository" of `CONTRIBUTING.md` is now "Content rules", with the same rules, and
+  `docs/reviewing.md` points at it. The maintained documents and the comments of `west.yml` state their facts
+  without the pull request or issue number that brought them, `docs/first-change.md` clones from
+  `<repository-url>`, and prose that is not about the hosting service says "the CI". The stale comment in
+  `ci.yml` that said the pinned `crux-pilot` predates the product include check now says that the pin contains
+  the same script with the same hash.
 - Navigation and role pages: an index of every document with a path for each task and a reading time
   (`docs/README.md`), a tutorial from branch to pull request with a small host-test change
   (`docs/first-change.md`), a reviewer checklist (`docs/reviewing.md`) and a note for teams that keep a copy of the

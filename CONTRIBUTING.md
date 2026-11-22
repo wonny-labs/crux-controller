@@ -23,10 +23,10 @@ those interfaces shows up here and is reported to `crux-pilot` as an issue.
 
 | Tree | May include | Fails |
 |---|---|---|
-| `app/src` | ISO C, the headers of the Crux Sockets profile, public `<crux/NAME.h>` headers except the frozen four, its own tree, `workload/include` | any Zephyr header, `<crux/thread.h>`, `<crux/sync.h>`, `<crux/queue.h>`, `<crux/serial.h>`, `<crux/file_zephyr.h>`, `<crux/web_zephyr.h>`, a header of `app/compose` |
+| `app/src` | ISO C, the headers of the Crux Sockets profile, public `<crux/NAME.h>` headers except the frozen three, its own tree, `workload/include` | any Zephyr header, `<crux/thread.h>`, `<crux/sync.h>`, `<crux/serial.h>`, `<crux/file_zephyr.h>`, `<crux/web_zephyr.h>`, a header of `app/compose` |
 | `workload/` | ISO C and its own tree | Crux, Sockets profile and Zephyr headers |
 | `app/compose/` (the composition zone) | ISO C, public `<crux/NAME.h>` headers, `<crux/file_zephyr.h>`, `<crux/web_zephyr.h>`, `zephyr/fs/fs.h`, `zephyr/devicetree.h`, `zephyr/net/tls_credentials.h`, its own tree, header files (`.h`) of `app/src` | the Sockets profile, a Crux private or port header, any other Zephyr header, vendor and third-party headers |
-| `app/os/` (the adapter zone) | ISO C, public `<crux/NAME.h>` headers except the frozen four, `zephyr/kernel.h`, `zephyr/net/sntp.h`, its own tree, header files (`.h`) of `app/src` | the Sockets profile and other POSIX headers, `<crux/thread.h>`, `<crux/sync.h>`, `<crux/queue.h>`, `<crux/serial.h>`, `<crux/file_zephyr.h>`, `<crux/web_zephyr.h>` or any composition interface, a Crux private or port header, any other Zephyr header, vendor and third-party headers |
+| `app/os/` (the adapter zone) | ISO C, public `<crux/NAME.h>` headers except the frozen three, `zephyr/kernel.h`, `zephyr/net/sntp.h`, its own tree, header files (`.h`) of `app/src` | the Sockets profile and other POSIX headers, `<crux/thread.h>`, `<crux/sync.h>`, `<crux/serial.h>`, `<crux/file_zephyr.h>`, `<crux/web_zephyr.h>` or any composition interface, a Crux private or port header, any other Zephyr header, vendor and third-party headers |
 
 Any other include fails, and so does an include whose operand is a macro, because it cannot be checked.
 The check reads includes only, so do not add include paths in CMake: `app/CMakeLists.txt`,
@@ -190,7 +190,7 @@ A `PASS` means there is no blocking finding. It does not grant merge, scope, har
 authority. Merging a pull request needs the owner's approval, and a `PASS` or green CI does not give it.
 AI assistance is not approval and not evidence: claims about tests need the actual results.
 
-## A public repository
+## Content rules
 
 Everything here is public. Do not add:
 

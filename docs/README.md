@@ -1,7 +1,8 @@
 # Documentation index
 
 This page lists every document of the repository, says what each one is for, and gives a short path for each
-task. If you have not seen this repository before, start with the [README](../README.md).
+task. If you have not seen this repository before, start with the [README](../README.md). To set up, build, run
+and test in the dev container on one short page, follow [first-hour.md](first-hour.md).
 
 The reading times are for reading only, at about 250 words a minute. A page with commands takes longer to follow.
 The five pages of the reading path in the README (the README, the roadmap, the architecture, the try-on page and
@@ -11,11 +12,14 @@ CONTRIBUTING.md) take about 70 minutes together.
 
 ### I want to run it
 
+- [first-hour.md](first-hour.md): clone, open the dev container, one build, one `native_sim` run, the host
+  tests, the tooling tests and the boundary check, with the times that CI measured.
 - [try-on-native-sim.md](try-on-native-sim.md): set up a workspace and run the `native_sim` scenarios, the host
   tests, the tooling tests and the boundary check without a board.
 - [first-change.md](first-change.md): run the host tests and the checks that need no Zephyr, with a small example.
 - [troubleshooting.md](troubleshooting.md): look up a failure by its message: its cause, its fix and the page to read next.
-- [board-bring-up.md](board-bring-up.md): only an outline of a board run, which has not been run for this firmware.
+- [board-bring-up.md](board-bring-up.md): the board route (probe on WSL2, an optional board container, a read-only
+  compare, `west flash` and `west debug` with J-Link). It is untested on hardware and needs the owner's authorisation.
 
 ### I want to change code
 
@@ -87,6 +91,8 @@ These are known limits of what the checks and tests cover. They are facts about 
 - **The dev container and WSL2 were not tried by anyone.** The dev container was not started on a developer machine, so
   WSL2, Docker Engine in WSL2 and the proxy settings of `devcontainer.json` have not run there. The dev container job
   of CI covers an x86_64 runner only ([try-on-native-sim.md](try-on-native-sim.md#what-has-been-checked)).
+- **The board container and the board route are untested.** Nobody has built the optional board container in
+  `.devcontainer/board/`, CI does not build it, and no step of the [board route](board-bring-up.md) has run on a board.
 
 ## All documents
 
@@ -96,6 +102,7 @@ These are known limits of what the checks and tests cover. They are facts about 
 |---|---|---|
 | [architecture.md](architecture.md) | How the repository is built: the four source trees and their include rules, how Crux is consumed, the threads in the image and a map of the files. | 12 min |
 | [roadmap.md](roadmap.md) | What exists on `main`, the static size per step, what has run on a board and what is not yet possible. It promises no dates. | 11 min |
+| [first-hour.md](first-hour.md) | The short path for a new team member on Linux or WSL2: clone, dev container, one build, one `native_sim` run, host tests, tooling tests and the boundary check, with the times of the CI job. | 4 min |
 | [try-on-native-sim.md](try-on-native-sim.md) | How to run the tests without a board: setup, the `native_sim` scenarios, the host and tooling tests, the dev container, and what has and has not been checked. | 32 min |
 | [troubleshooting.md](troubleshooting.md) | Look a failure up by its message: the cause, the fix and the page that explains more. | 11 min |
 | [first-change.md](first-change.md) | A tutorial from branch to pull request with one small host-test change that needs no Zephyr. | 6 min |
@@ -104,7 +111,7 @@ These are known limits of what the checks and tests cover. They are facts about 
 | [composition-zone.md](composition-zone.md) | The include rules in detail: the composition zone and the adapter zone, each allowed Zephyr header and why, the frozen Crux headers, and how to run the check. | 11 min |
 | [glossary.md](glossary.md) | The words that this repository uses in a particular sense (step, stage, product, owner, composition, zones, pin, finding and more), with the file where each use can be checked. | 13 min |
 | [dependencies.md](dependencies.md) | What `west.yml` fetches, why, and under which licence each project states it is distributed, and how the Crux import is narrowed. | 5 min |
-| [board-bring-up.md](board-bring-up.md) | An outline, not yet run for this firmware, of a bring-up on the RT1060-EVKB Rev B and the authorisation that it needs. | 8 min |
+| [board-bring-up.md](board-bring-up.md) | The board route for the RT1060-EVKB Rev B, untested on hardware: the probe on WSL2, the optional board container, a read-only compare of the flash, `west flash` and `west debug` with J-Link, a run record template, the stop conditions and the authorisation that it needs. | 13 min |
 
 ### In `docs/findings/`
 

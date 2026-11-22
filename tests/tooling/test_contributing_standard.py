@@ -322,6 +322,39 @@ if __name__ == "__main__":
     unittest.main()
 
 
+class ContentRules(unittest.TestCase):
+    """The section that says what may not be added is called "Content rules", keeps the employer
+    and private-repository items of the public repository, and docs/reviewing.md points at it."""
+
+    HEADING = "## Content rules"
+
+    def body(self):
+        text = contributing()
+        start = text.index(self.HEADING)
+        match = re.search(r"^## ", text[start + len(self.HEADING):], re.MULTILINE)
+        end = start + len(self.HEADING) + match.start() if match else len(text)
+        return flat(text[start:end])
+
+    def test_the_section_exists_once_under_its_new_name(self):
+        self.assertEqual(1, contributing().count(self.HEADING + "\n"))
+        self.assertNotIn("## A public repository", contributing())
+
+    def test_the_section_keeps_every_rule(self):
+        body = self.body()
+        for needle in ("Everything here is public.", "a name of an employer or customer",
+                       "a proprietary product or runtime", "a private repository",
+                       "a reference to a private planning document", "tests/tooling/test_public_text.py",
+                       "the memory sizes of a real product", "secrets, keys or credentials",
+                       "an absolute path of a personal or build machine", "Apache-2.0",
+                       "no firmware image, `.elf` or `.map` file"):
+            self.assertIn(needle, body, needle)
+
+    def test_the_review_checklist_points_at_the_section(self):
+        reviewing = (ROOT / "docs" / "reviewing.md").read_text()
+        self.assertIn('"Content rules"', reviewing)
+        self.assertNotIn('"A public repository"', reviewing)
+
+
 class CmakeCommentHelper(unittest.TestCase):
     def test_a_comment_that_names_a_c_file_is_not_a_source(self):
         text = "# net_client.c is built unchanged.\nadd_executable(t t.c)  # not a comment line\n"

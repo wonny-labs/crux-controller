@@ -33,12 +33,13 @@ Four trees are checked:
   fails in all three. The composition zone's list gains neither header. See
   ``docs/composition-zone.md``.
 
-``app/src`` and ``app/os`` also fail on the four frozen Crux headers, ``crux/thread.h``,
-``crux/sync.h``, ``crux/queue.h`` and ``crux/serial.h`` (``FROZEN_CRUX_HEADERS``), although they
-are public headers. The product uses Zephyr directly for threads and queues, in ``app/os`` behind a
-port header of ``app/src``, so the check keeps a later change from bringing the Crux contracts back.
-The rule is a field of the tree's ``Rule`` and does not apply to ``workload`` (which has no Crux
-header at all) or to ``app/compose``.
+``app/src`` and ``app/os`` also fail on the three frozen Crux headers, ``crux/thread.h``,
+``crux/sync.h`` and ``crux/serial.h`` (``FROZEN_CRUX_HEADERS``), although they are public headers.
+The product uses Zephyr directly for threads and queues, in ``app/os`` behind a port header of
+``app/src``, so the check keeps a later change from bringing the Crux contracts back. The rule is a
+field of the tree's ``Rule`` and does not apply to ``workload`` (which has no Crux header at all) or
+to ``app/compose``. Crux no longer publishes ``crux/queue.h``, so it is not on the list: with
+``--crux-root`` it fails in every tree as a name that is not a public Crux header.
 
 Anything else fails: Zephyr, vendor and POSIX headers outside the profile, nested
 or unknown ``<crux/...>`` paths, and quoted headers that do not resolve inside the
@@ -85,9 +86,10 @@ OS_ADAPTER_ZEPHYR_HEADERS = frozenset({"zephyr/kernel.h", "zephyr/net/sntp.h"})
 
 # The public Crux headers that the product no longer uses. Threads and queues come from Zephyr
 # directly, in app/os behind a port header of app/src (ADR-0002 of crux-pilot), so app/src and
-# app/os fail on these headers and the migration cannot be undone silently. Adding or removing a
-# name is a reviewed change of this file and of tests/tooling/test_boundary.py.
-FROZEN_CRUX_HEADERS = frozenset({"crux/thread.h", "crux/sync.h", "crux/queue.h", "crux/serial.h"})
+# app/os fail on these headers and the migration cannot be undone silently. Crux removed
+# crux/queue.h, so it is not listed: --crux-root refuses it as a name that Crux does not publish.
+# Adding or removing a name is a reviewed change of this file and of tests/tooling/test_boundary.py.
+FROZEN_CRUX_HEADERS = frozenset({"crux/thread.h", "crux/sync.h", "crux/serial.h"})
 
 # The composition interfaces of Crux that the zone may include. A composition header is
 # <crux/NAME.h> that names a provider; Crux publishes it under components/*/ports/*/include/crux,
@@ -270,7 +272,7 @@ def classify(include, angle, source, tree, extra_roots, rule, crux_headers, comp
             return "Crux header in portable code"
         if include in rule.deny_crux:
             return (
-                "frozen Crux header (Thread, Sync, Queue and Serial are not used by the product): "
+                "frozen Crux header (Thread, Sync and Serial are not used by the product): "
                 "use Zephyr directly in app/os behind a port header of app/src"
             )
         known_composition = COMPOSITION_CRUX_HEADERS | (composition_headers or set())
