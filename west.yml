@@ -19,7 +19,7 @@ manifest:
       # the commit the project owner approved on 16 November 2026 and adds the web header
       # deadline (CONFIG_CRUX_WEB_HEADER_DEADLINE_MS, default 10000), the refusal of a second
       # web start and of a bind text that is no address, and the File pool settings. It removes
-      # Crux Queue (<crux/queue.h>, CONFIG_CRUX_QUEUE), which this repository no longer used. It also
+      # Crux Queue (<crux/queue.h>, CONFIG_CRUX_QUEUE), which this repository no longer uses. It also
       # renames the module switch CONFIG_CRUX_PILOT_MODULE to CONFIG_CRUX_MODULE, without an alias,
       # and names the Zephyr module crux, so Zephyr sets ZEPHYR_CRUX_MODULE_DIR
       # and CONFIG_ZEPHYR_CRUX_MODULE whatever the folder is called; the names from the folder,
