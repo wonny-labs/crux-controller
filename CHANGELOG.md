@@ -8,7 +8,7 @@ twice on a board (see `docs/findings/s2-first-board-run.md`); nothing else has r
 
 ### Build and manifest
 
-- The west manifest imports `crux-pilot` at a pinned commit (`5fa99839`, which publishes the File
+- The west manifest imports `crux-pilot` at a pinned commit (`2c017f68`, which publishes the File
   composition interface `<crux/file_zephyr.h>`) and adds `picolibc` as a test-only project. A CI job
   checks the pins with `west crux-pins` and has a negative control that must fail.
 - The `crux-pilot` pin moved from `37c92b18` to `dfd3ad7d`, which adds the public management headers
@@ -51,6 +51,16 @@ twice on a board (see `docs/findings/s2-first-board-run.md`); nothing else has r
   which `app/management/*.cmake` read, is made by Zephyr from the module folder name and is not part of
   the rename. The range also holds a documentation change (#531). No controller code changes. The S2
   firmware hash and the budget tables are in the pull request, because they come from CI.
+- The `crux-pilot` pin moved from `5fa99839` to `2c017f68`, the squash commit of wonny-labs/crux-pilot#536.
+  The Crux manifest is unchanged in this range, and so are the public headers, the Kconfig files and the
+  CMake helpers that this repository uses. wonny-labs/crux-pilot#534 sets `name: crux` in Crux's
+  `zephyr/module.yml`, so Zephyr now makes `ZEPHYR_CRUX_MODULE_DIR` and `CONFIG_ZEPHYR_CRUX_MODULE`
+  whatever the checkout folder is called, and no longer sets `ZEPHYR_CRUX_PILOT_MODULE_DIR`.
+  `app/management/management.cmake` (the variable and its error text) and `app/management/entropy.cmake`
+  read the new name, with no fallback to the old one. The west project and its folder keep the name
+  `crux-pilot`. The range also renames the Crux CMake project (#533) and adds Zephyr-style samples, host
+  samples in CTest and a first-hour guide (#536). The S2 firmware hash and the budget tables are in the
+  pull request, because they come from CI.
 - The `crux-pilot` import blocks wolfSSL, wolfSSH and wolfPSA by name, so enabling the Mbed TLS group
   would activate Mbed TLS and TF-PSA-Crypto and no GPL stack (checked on the project list; no job
   enables the group or fetches with it on, and it stays off in every job).
@@ -145,6 +155,13 @@ twice on a board (see `docs/findings/s2-first-board-run.md`); nothing else has r
 
 ### Documents
 
+- `docs/first-hour.md`, linked at the top of the README and of `docs/README.md`: the short path for a new team
+  member on Linux or WSL2, from a clone to one build, one `native_sim` run and the local checks in the dev
+  container, with the times of the CI job. `docs/board-bring-up.md` is now a board route: the probe on WSL2 with
+  usbipd, an optional board container (`.devcontainer/board/`, `scripts/board-shell.sh`) with the J-Link package
+  from a file that you download yourself, a read-only compare of the flash, `west flash` and `west debug` with
+  the J-Link runner, and a run record template. The route and the board container are untested on hardware,
+  and the default dev container does not change.
 - The section "A public repository" of `CONTRIBUTING.md` is now "Content rules", with the same rules, and
   `docs/reviewing.md` points at it. The maintained documents and the comments of `west.yml` state their facts
   without the pull request or issue number that brought them, `docs/first-change.md` clones from

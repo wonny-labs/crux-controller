@@ -1,5 +1,8 @@
 # Crux Controller
 
+New here? [docs/first-hour.md](docs/first-hour.md) takes you from a clone to a build, a simulator run and
+the local checks, on one short page.
+
 Crux Controller is an Apache-2.0 reference consumer firmware of
 [Crux](https://github.com/wonny-labs/crux-pilot), an embedded software platform. It targets the NXP
 RT1060-EVKB Rev B evaluation board (EVKB for short) and runs on the Zephyr RTOS.

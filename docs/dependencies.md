@@ -16,7 +16,7 @@ release dry run are the record.
 ```mermaid
 flowchart TD
     CC["crux-controller<br/>west.yml, the manifest repository"]
-    CP["crux-pilot<br/>pinned commit 5fa99839"]
+    CP["crux-pilot<br/>pinned commit 2c017f68"]
     ZP["zephyr v4.4.2<br/>pinned by Crux"]
     MOD["cmsis, cmsis_6, hal_nxp, littlefs, fatfs<br/>Zephyr modules Crux lets through"]
     PL["picolibc<br/>product-only, native_sim test"]
@@ -32,7 +32,7 @@ flowchart TD
 
 | Project | Revision | Route | Why it is here | Licence as the project states it |
 |---|---|---|---|---|
-| `crux-pilot` | `5fa998398b3557551cd7995ed44119f1c483cab9` (a commit, no Crux tag exists) | The platform itself: pinned in `west.yml`, its manifest is imported | The Crux components, the composition interface `<crux/file_zephyr.h>` and the public management headers, which step S6 uses in `app/compose/management_start.c`. At this pin the Mbed TLS modules of the optional group are at the revisions of Zephyr's v4.4-branch (Mbed TLS 4.1.1 plus 8 commits, TF-PSA-Crypto 1.1.1 plus 24 commits), which only the S6 job and the S6 Budget row fetch, in their own runner | Apache-2.0 |
+| `crux-pilot` | `2c017f685e0215e0e269d4bc77272889d06a07d8` (a commit, no Crux tag exists) | The platform itself: pinned in `west.yml`, its manifest is imported | The Crux components, the composition interface `<crux/file_zephyr.h>` and the public management headers, which step S6 uses in `app/compose/management_start.c`. At this pin the Mbed TLS modules of the optional group are at the revisions of Zephyr's v4.4-branch (Mbed TLS 4.1.1 plus 8 commits, TF-PSA-Crypto 1.1.1 plus 24 commits), which only the S6 job and the S6 Budget row fetch, in their own runner | Apache-2.0 |
 | `zephyr` | `dccb09599635bdff17633fa7e9dab014b91dce90` (v4.4.2) | Pinned via the Crux contract | The RTOS the image is built on | Apache-2.0 |
 | `cmsis` | `512cc7e895e8491696b61f7ba8066b4a182569b8` | Pinned via the Crux contract | Arm Cortex-M core headers that Zephyr's Cortex-M support uses | Apache-2.0 |
 | `cmsis_6` | `30a859f44ef8ab4dc8f84b03ed586fd16ccf9d74` | Pinned via the Crux contract | Arm core headers of the newer CMSIS interface, which Zephyr's manifest also names | Apache-2.0 |
@@ -91,3 +91,22 @@ follows Crux: move the `crux-pilot` revision, then run `west crux-pins`. A produ
 comment in `west.yml` that says why it is there and where its revision comes from. The scheduled build
 against `crux-pilot` main (`.github/workflows/scheduled-main.yml`) shows ahead of time when a Crux pin
 moves.
+
+## Include check from a local Crux checkout
+
+For the product include check, the `Boundary check` job of `ci.yml` downloads
+`templates/product/check_domain_includes.py` and its wrapper `templates/product/style/check-includes.sh`
+from a pinned Crux commit, checks their SHA-256 and runs them on this repository. `scripts/check_include_domains.py` runs the same check
+without a download, from the Crux checkout of the west workspace:
+
+```sh
+python3 scripts/check_include_domains.py                  # Crux in ../crux or ../crux-pilot
+python3 scripts/check_include_domains.py --crux-root DIR  # Crux somewhere else
+```
+
+It checks both files against the pinned hashes, then runs the checker (`--product .`) and the wrapper
+from the repository root, as the workflow does. A missing file or another hash stops it before
+anything runs (exit 2); a violation fails it. The pins come from `ci.yml` while that file exists; a
+checkout without `.github/` reads them from `scripts/include-check-pins.json`, which
+`tests/tooling/test_check_include_domains.py` keeps equal to `ci.yml`. A repin changes both files
+together. The tooling tests also run the script when a Crux checkout sits beside the repository.

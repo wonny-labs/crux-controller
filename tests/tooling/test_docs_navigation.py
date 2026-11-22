@@ -385,7 +385,7 @@ class AddingAStep(unittest.TestCase):
         self.assertRegex(found[0], r"^\d+\. ")
         part = " ".join(section(self.PAGE, found[0]).split())
         for needle in ("GPIO, I2C and SPI", "roadmap.md", "composition-zone.md", "architecture.md",
-                       "docs/choosing-an-api.md", "5fa998398b3557551cd7995ed44119f1c483cab9"):
+                       "docs/choosing-an-api.md", "2c017f685e0215e0e269d4bc77272889d06a07d8"):
             self.assertIn(needle, part, needle)
 
     def test_the_list_of_files_that_need_a_reviewed_change_is_still_there(self):
