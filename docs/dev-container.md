@@ -3,7 +3,7 @@
 This page describes the Dev Container in detail: what it is and what CI runs in it, what it needs from the host,
 the hosts it contacts, proxies and certificates, the folder layout, the VS Code and command-line routes, the
 commands that run in it, and what to do after a pin or SDK change. To set it up, follow
-[Getting started](try-on-native-sim.md#set-up-the-dev-container); what is untested is stated there.
+[Getting started](getting-started.md#set-up-the-dev-container); what is untested is stated there.
 
 ## What the container is
 
@@ -46,7 +46,7 @@ an SDK folder without its install marker.
 
 1. WSL2 with a Linux distribution, and your files in its Linux file system (not under `/mnt/c`: the builds are
    slow there and file modes can differ).
-2. Docker Engine inside the distribution, installed as step 1 of [Set up the Dev Container](try-on-native-sim.md#set-up-the-dev-container) says, and a running
+2. Docker Engine inside the distribution, installed as step 1 of [Set up the Dev Container](getting-started.md#set-up-the-dev-container) says, and a running
    daemon. The image is `linux/amd64`, the architecture of a Windows PC, and only an x86_64 host was exercised,
    and only in CI. On an arm64 host Docker Engine needs amd64 emulation (binfmt handlers for QEMU) registered
    first, or the build fails with "exec format error"; that was not tested.
@@ -79,7 +79,7 @@ more hosts. A firewall or proxy must allow them.
 | PyPI (`pypi.org` and its file host) | `pip install` of `.devcontainer/requirements-tools.txt` and of the Zephyr requirement files | the first setup, and when a requirements file changes |
 | `github.com` | `west update`: this repository's manifest projects from `github.com/wonny-labs` and `github.com/zephyrproject-rtos` | the first setup, and `west update` after a pin change |
 | `api.github.com` and the GitHub release downloads | `west sdk install`, the Zephyr SDK | the first setup, and after an SDK version change |
-| Docker Hub | the `hello-world` check of [Set up the Dev Container](try-on-native-sim.md#set-up-the-dev-container) and the `curlimages/curl` test of the proxy section | once each |
+| Docker Hub | the `hello-world` check of [Set up the Dev Container](getting-started.md#set-up-the-dev-container) and the `curlimages/curl` test of the proxy section | once each |
 
 The SDK install uses GitHub release downloads, and an anonymous request limit of the GitHub API can apply (not
 verified for this setup). If the install fails with a rate-limit error, set a GitHub token before the run; both

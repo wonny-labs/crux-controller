@@ -57,7 +57,7 @@ CLANG_TIDY=clang-tidy-18 python3 scripts/analyze_host.py
 ```
 
 CI is the reference for the Zephyr builds and the Twister runs.
-[docs/try-on-native-sim.md](docs/try-on-native-sim.md) gives the CI commands for a local `native_sim` run,
+[docs/native-setup.md](docs/native-setup.md) gives the CI commands for a local `native_sim` run,
 and a local result does not replace CI. A change to `app/`, `conf`, overlays or `tests/native_sim` takes
 its evidence from CI, and the pull request says so.
 CI is configured in `.github/workflows/`:

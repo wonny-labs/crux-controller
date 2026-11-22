@@ -1,6 +1,6 @@
 # Setup checks record
 
-Record of the local runs behind the statements of [Getting started](../try-on-native-sim.md) about the setup
+Record of the local runs behind the statements of [Getting started](../getting-started.md) about the setup
 routes, the Dev Container and macOS, made on 18 November 2026; each item names its revision where one was recorded. It
 is kept as written, apart from rebased link targets. The current guidance is on Getting started; CI results are in the Actions tab of each pull request.
 

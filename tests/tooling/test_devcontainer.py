@@ -1161,7 +1161,7 @@ class Documentation(unittest.TestCase):
     def setUpClass(cls):
         # Getting started states what is untested and sets the container up; the Dev Container
         # reference holds what the container is and what it needs.
-        cls.page = read(ROOT / "docs" / "try-on-native-sim.md")
+        cls.page = read(ROOT / "docs" / "getting-started.md")
         cls.section = cls.page[cls.page.index("## Prerequisites"):cls.page.index("## Without the Dev Container")]
         cls.ref = read(ROOT / "docs" / "dev-container.md")
         cls.readme = read(ROOT / "README.md")

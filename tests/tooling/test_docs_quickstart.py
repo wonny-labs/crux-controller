@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Checks of the setup pages: the facts in docs/try-on-native-sim.md and docs/troubleshooting.md that a
+"""Checks of the setup pages: the facts in docs/getting-started.md and docs/troubleshooting.md that a
 file of this repository can disprove.
 
 They read files only. They do not start Docker, use the network or run the scripts. A statement about
@@ -16,7 +16,7 @@ import unittest
 import yaml
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-PAGE = ROOT / "docs" / "try-on-native-sim.md"
+PAGE = ROOT / "docs" / "getting-started.md"
 TROUBLE = ROOT / "docs" / "troubleshooting.md"
 README = ROOT / "README.md"
 TUTORIAL = ROOT / "docs" / "tutorial.md"
@@ -430,7 +430,7 @@ class Proxy(RefPage):
 
     def test_dev_shell_passes_no_proxy_variable_and_no_certificate_and_the_page_does_not_say_it_does(self):
         # If the script starts to pass them, this test fails and the page has to change with it.
-        message = ("a change to dev-shell.sh adds these features: update docs/try-on-native-sim.md and "
+        message = ("a change to dev-shell.sh adds these features: update docs/getting-started.md and "
                    "docs/troubleshooting.md in the same change")
         self.assertNotIn("proxy", self.shell_lower, message)
         self.assertNotIn("CRUX_EXTRA_CA_FILE", self.shell, message)
@@ -786,7 +786,7 @@ class Readme(unittest.TestCase):
         start = text.index("## Quick start")
         paragraph = text[start:text.index("\n## ", start + 1)]
         self.assertIn("docs/tutorial.md", paragraph)
-        self.assertIn("docs/try-on-native-sim.md#set-up-the-dev-container", paragraph)
+        self.assertIn("docs/getting-started.md#set-up-the-dev-container", paragraph)
         self.assertIn("bash scripts/dev-shell.sh", paragraph)
         self.assertIn("docs/troubleshooting.md", paragraph)
         self.assertIn("WSL2", paragraph)

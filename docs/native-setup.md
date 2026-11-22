@@ -3,7 +3,7 @@
 This how-to sets up the native route: the tools of the CI image installed on an Ubuntu 24.04 x86_64 host, with no
 Docker. Then it runs the `native_sim` scenarios, the host tests, the tooling tests and the boundary check with the
 commands of the CI jobs. The short version and the reasons to prefer the Dev Container are in
-[Getting started](try-on-native-sim.md#without-the-dev-container).
+[Getting started](getting-started.md#without-the-dev-container).
 
 ## What you need first
 

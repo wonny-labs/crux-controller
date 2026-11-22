@@ -37,7 +37,7 @@ refuse() {
 
 [[ "$(id -u)" -ne 0 ]] || refuse "run this as your normal user, not as root."
 command -v docker >/dev/null 2>&1 \
-    || refuse "docker is not installed. Install Docker Engine (docs/try-on-native-sim.md, \"Dev container\")."
+    || refuse "docker is not installed. Install Docker Engine (docs/getting-started.md, \"Dev Container\")."
 [[ "$(basename "$repo")" == "crux-controller" ]] \
     || refuse "the clone must be in a folder named crux-controller, and it is in $(basename "$repo")."
 

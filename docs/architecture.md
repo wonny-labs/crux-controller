@@ -182,7 +182,7 @@ sources of `app/` and `workload/`. They do not boot the `app/` image.
 ## Why the evidence comes from CI
 
 [CONTRIBUTING.md](../CONTRIBUTING.md) says that CI is the reference for the Zephyr builds and the Twister runs, that
-[Getting started](try-on-native-sim.md) gives the CI commands for a local `native_sim` run, that a local result does not replace CI, and that a
+[Set up without the Dev Container](native-setup.md) gives the CI commands for a local `native_sim` run, that a local result does not replace CI, and that a
 change to `app/`, `conf`, overlays or `tests/native_sim` takes its evidence from CI, with the pull request saying so.
 It states the rule and gives no reason. What the repository's own files show:
 
@@ -193,7 +193,7 @@ It states the rule and gives no reason. What the repository's own files show:
 - A local environment differs in ways that matter. For example, GCC in CI rejected a comparison between constants of two
   anonymous enums (`-Werror=enum-compare`) that the Apple clang on a developer's machine had accepted
   ([adding-a-step.md](adding-a-step.md)). CI covers only x86_64 Ubuntu, and so does the job that runs the
-  [Dev Container](try-on-native-sim.md#dev-container). Apart from the setup steps listed under
+  [Dev Container](getting-started.md#dev-container). Apart from the setup steps listed under
   the [setup checks record](history/setup-checks.md), arm64 and WSL2 are untested, and nobody has run the Dev Container
   on WSL2.
 - A Zephyr workspace is large. `west update` and the SDK install take a long time and a lot of disk (see
@@ -203,7 +203,7 @@ GitHub Actions logs expire (the default retention is 90 days), so the run number
 findings will stop resolving, and so will the logs behind the roadmap table; that is why the results themselves are
 copied into those notes.
 
-So the local commands of [Getting started](try-on-native-sim.md) are a convenience for finding a failure before you push. A local pass does not replace the
+So the local commands of [Getting started](getting-started.md) are a convenience for finding a failure before you push. A local pass does not replace the
 CI result in a pull request, and a local failure that CI does not show is a difference in your host to look at, not
 a reason to change a check.
 
@@ -216,10 +216,10 @@ Top-level directories and files:
 | `app/` | The Zephyr application, described below. |
 | `workload/` | The portable workload core (`include/workload.h`, `src/config_record.c`, `src/cycle.c`, `src/message.c`) and its `CMakeLists.txt`. |
 | `tests/` | `host/` (C tests that run on the build host), `native_sim/` (one Zephyr test application per step, S1 to S5), `native_sim_mbed/` (the S6 test application, which needs the Mbed TLS modules), `tooling/` (Python tests of the scripts, workflows, documents and build files). |
-| `scripts/` | `check_boundary.py` (the include check), `check_mbed_only.py` (checks that the Crux import cannot activate the GPL stacks), `check-format.sh` (clang-format over every C file), `analyze_host.py` (clang-tidy over the host-built sources, then the list of sources it did not analyse), `check_spdx.py` (checks that the first-party C, CMake, Kconfig, Python and shell files start with the licence identifier line), `check-patch.sh` (Zephyr's checkpatch, rule BRACES, on the C lines of a Git range; a copy of the checkpatch wrapper that `crux-pilot` publishes for product repositories), `check_include_domains.py` (runs the product include check and its wrapper from a local Crux checkout after checking their pinned SHA-256, which it reads from `ci.yml` or, without it, from `include-check-pins.json`; see [dependencies.md](dependencies.md#include-check-from-a-local-crux-checkout)), `dev-shell.sh` (runs a shell or one command in the Dev Container, see [Getting started](try-on-native-sim.md#dev-container)), and `board-shell.sh` (the same in the optional board container with USB access for a J-Link probe, untested on hardware, see [the board route](board-bring-up.md#3-open-the-board-container)). |
+| `scripts/` | `check_boundary.py` (the include check), `check_mbed_only.py` (checks that the Crux import cannot activate the GPL stacks), `check-format.sh` (clang-format over every C file), `analyze_host.py` (clang-tidy over the host-built sources, then the list of sources it did not analyse), `check_spdx.py` (checks that the first-party C, CMake, Kconfig, Python and shell files start with the licence identifier line), `check-patch.sh` (Zephyr's checkpatch, rule BRACES, on the C lines of a Git range; a copy of the checkpatch wrapper that `crux-pilot` publishes for product repositories), `check_include_domains.py` (runs the product include check and its wrapper from a local Crux checkout after checking their pinned SHA-256, which it reads from `ci.yml` or, without it, from `include-check-pins.json`; see [dependencies.md](dependencies.md#include-check-from-a-local-crux-checkout)), `dev-shell.sh` (runs a shell or one command in the Dev Container, see [Getting started](getting-started.md#dev-container)), and `board-shell.sh` (the same in the optional board container with USB access for a J-Link probe, untested on hardware, see [the board route](board-bring-up.md#3-open-the-board-container)). |
 | `budgets/` | `limits.json` (declared minimum free percent per memory region and step), `collect.py` (reads a build log into a measurement), `check.py` (compares a measurement with the limits). |
 | `release/` | The release bundle tools: `assemble_bundle.py`, `check_bundle.py`, `rebuild_compare.py`, `parse_spdx.py` and `release-manifest.schema.json`. Hashes and identities only; no image is ever published. |
-| `docs/` | This documentation: [architecture.md](architecture.md), [glossary.md](glossary.md), [adding-a-step.md](adding-a-step.md), [roadmap.md](roadmap.md), the [Tutorial](tutorial.md), [Getting started](try-on-native-sim.md), [board-bring-up.md](board-bring-up.md), [composition-zone.md](composition-zone.md), [dependencies.md](dependencies.md), `findings/` and `history/` (the project history). |
+| `docs/` | This documentation: [architecture.md](architecture.md), [glossary.md](glossary.md), [adding-a-step.md](adding-a-step.md), [roadmap.md](roadmap.md), the [Tutorial](tutorial.md), [Getting started](getting-started.md), [board-bring-up.md](board-bring-up.md), [composition-zone.md](composition-zone.md), [dependencies.md](dependencies.md), `findings/` and `history/` (the project history). |
 | `.github/workflows/` | `ci.yml` (tooling tests, west pins, host tests, the S0 to S6 builds, the boundary check and static analysis), `budget.yml`, `rebuild.yml`, `release.yml`, `scheduled-main.yml`. |
 | `west.yml` | The west manifest and the pin. |
 | `README.md`, `CONTRIBUTING.md`, `CHANGELOG.md`, `RELEASE.md`, `SECURITY.md`, `LICENSE`, `CODEOWNERS` | Role and status, contribution rules, changes, release flow, vulnerability reporting, licence, ownership. |

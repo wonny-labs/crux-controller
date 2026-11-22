@@ -13,7 +13,7 @@
 # crux-controller, west update, the Python requirements of Zephyr and west sdk install. West is not
 # updated again once the workspace exists: after the pin in west.yml moves, run `west update` by
 # hand. The optional Mbed TLS group of step S6 is not switched on here (see
-# docs/try-on-native-sim.md).
+# docs/getting-started.md).
 #
 # Completion markers: a finished SDK install writes $ZEPHYR_SDK_INSTALL_DIR/.crux-installed, and the
 # west workspace counts as initialised only with .west/config. A folder without its marker is what an

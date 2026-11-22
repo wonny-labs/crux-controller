@@ -41,7 +41,7 @@ run of the `native_sim` scenarios with Twister (Zephyr's test runner) and the lo
 
 On Windows with WSL2 and Docker Engine (no Docker Desktop), or on an x86_64 Linux, use the Dev Container (only an
 x86_64 host was exercised, and only in CI; nobody has run it on WSL2 yet). Each command runs in it through
-`bash scripts/dev-shell.sh`. [Getting started](docs/try-on-native-sim.md#set-up-the-dev-container) covers the
+`bash scripts/dev-shell.sh`. [Getting started](docs/getting-started.md#set-up-the-dev-container) covers the
 set-up, a proxy and the route without Docker. Look a failure up by its message in
 [docs/troubleshooting.md](docs/troubleshooting.md). CI stays the reference for Zephyr builds and Twister runs.
 
@@ -49,7 +49,7 @@ set-up, a proxy and the route without Docker. Look a failure up by its message i
 
 | You want to | Read |
 |---|---|
-| Set up, then run the host tests, the `native_sim` scenarios and a board build | [Getting started](docs/try-on-native-sim.md), then the [Tutorial](docs/tutorial.md); every set-up variant is in the [Dev Container reference](docs/dev-container.md) and [Set up without the Dev Container](docs/native-setup.md) |
+| Set up, then run the host tests, the `native_sim` scenarios and a board build | [Getting started](docs/getting-started.md), then the [Tutorial](docs/tutorial.md); every set-up variant is in the [Dev Container reference](docs/dev-container.md) and [Set up without the Dev Container](docs/native-setup.md) |
 | Find any page by task | [Documentation map](docs/README.md) |
 | Understand the source trees, the zones, the threads and how Crux is consumed | [docs/architecture.md](docs/architecture.md), with the [glossary](docs/glossary.md) for words used in a particular sense |
 | Know what works, what has run on a board and what is not yet possible | [docs/roadmap.md](docs/roadmap.md) |

@@ -143,7 +143,7 @@ the parent folder of the clone the workspace.
 
 **Dev Container.** The Docker image in `.devcontainer/` with the tools of the CI jobs, an Ubuntu 24.04 userland and
 Python 3.12, plus the script that fetches the workspace and the Zephyr SDK. It is opened through
-`scripts/dev-shell.sh` or the VS Code Dev Containers extension ([Getting started](try-on-native-sim.md#dev-container)).
+`scripts/dev-shell.sh` or the VS Code Dev Containers extension ([Getting started](getting-started.md#dev-container)).
 
 **Host tests.** The plain C tests of `tests/host`, built with CMake and run with CTest on the build machine, with no
 Zephyr. Crux calls the matching environment the Linux Host; here the same tests also run on macOS.

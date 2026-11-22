@@ -16,7 +16,7 @@ Read the [README](../README.md) and [CONTRIBUTING.md](../CONTRIBUTING.md) first 
 
 [Getting started](native-setup.md#what-you-need-first) lists the tools in more detail. The build and
 check commands on this page were run on macOS. They use no Linux-only tool, except where a step says so. On Windows, use WSL2 and
-work in the Linux file system, as [Getting started](try-on-native-sim.md) explains.
+work in the Linux file system, as [Getting started](getting-started.md) explains.
 
 ## 2. Get the repository and make a branch
 
@@ -200,4 +200,4 @@ git branch -D test/workload-zero-period
   of CONTRIBUTING.md. If the check you meet is the boundary check, read [composition-zone.md](composition-zone.md)
   before you look for a way round it. There is none.
 - To add a step: [adding-a-step.md](adding-a-step.md).
-- To run the Zephyr scenarios on your machine: [Getting started](try-on-native-sim.md).
+- To run the Zephyr scenarios on your machine: [Getting started](getting-started.md).

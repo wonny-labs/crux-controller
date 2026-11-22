@@ -12,7 +12,7 @@ does not replace the CI result of a pull request ([why](architecture.md#why-the-
 
 ## Prerequisites and the Dev Container
 
-Finish [Getting started](try-on-native-sim.md#set-up-the-dev-container) first: the clone in a folder named
+Finish [Getting started](getting-started.md#set-up-the-dev-container) first: the clone in a folder named
 `crux-controller` under a parent folder of its own, and a first run of the Dev Container that ends with
 `West version: v1.4.0`. Then pick one route for the commands of this page:
 

@@ -142,7 +142,7 @@ Everything under `.github/workflows/` is GitHub Actions and runs on GitHub-hoste
 - **Rebuild the checks in your own CI from those files.** Each job lists its commands. The checks that need no Zephyr
   are the tooling tests, the host tests, the boundary check, the SPDX check, the format check and the static analysis
   ([first-change.md](../first-change.md) shows them). The step builds, the Twister scenarios and the `Budget` jobs need the
-  west workspace and the Zephyr SDK ([try-on-native-sim.md](../try-on-native-sim.md)).
+  west workspace and the Zephyr SDK ([try-on-native-sim.md](../getting-started.md)).
 - **The `Boundary check` job downloads two scripts from GitHub** and checks their SHA-256. The pinned `crux-pilot`
   contains the same script, so in a west workspace you can run it from there, as
   [composition-zone.md](../composition-zone.md#running-the-check) shows.

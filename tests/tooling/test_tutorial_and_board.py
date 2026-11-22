@@ -173,17 +173,17 @@ class Tutorial(Common, unittest.TestCase):
     def test_the_clone_address_is_generic(self):
         # The tutorial starts from a working Dev Container; the clone is step 3 of Getting started.
         self.assertNotIn("git clone", read(TUTORIAL))
-        for name in (TUTORIAL, "docs/try-on-native-sim.md"):
+        for name in (TUTORIAL, "docs/getting-started.md"):
             self.assertNotIn("github.com/wonny-labs", read(name), name)
-        self.assertIn("git clone -c core.autocrlf=false <repository-url> crux-controller", read("docs/try-on-native-sim.md"))
+        self.assertIn("git clone -c core.autocrlf=false <repository-url> crux-controller", read("docs/getting-started.md"))
 
     def test_it_points_at_the_detailed_pages_instead_of_copying_them(self):
         targets = {path for path, _, _ in links(TUTORIAL)}
-        for name in ("docs/try-on-native-sim.md", "docs/troubleshooting.md", "docs/first-change.md",
+        for name in ("docs/getting-started.md", "docs/troubleshooting.md", "docs/first-change.md",
                      "docs/board-bring-up.md"):
             self.assertIn(name, targets, name)
         setup = sum(len(read(name).split()) for name in
-                    ("docs/try-on-native-sim.md", "docs/dev-container.md", "docs/native-setup.md"))
+                    ("docs/getting-started.md", "docs/dev-container.md", "docs/native-setup.md"))
         self.assertLess(len(read(TUTORIAL).split()), setup / 3)
 
     def test_parts_a_to_c_with_the_no_board_line_and_the_board_table(self):

@@ -168,8 +168,8 @@ twice on a board (see `docs/findings/s2-first-board-run.md`); nothing else has r
   tests, the `native_sim` scenarios, and the board image with a board table. The README has the shape of the Crux README (what it
   is and for whom, what it provides, quick start, where to read next, status and limits, contributing, licence),
   `docs/README.md` is the documentation map with the type of each page, and the glossary defines workspace, Dev
-  Container and host tests. "Dev Container" is written as Crux writes it. The file name of
-  `docs/try-on-native-sim.md` stays, because `CONTRIBUTING.md`, `scripts/` and `.devcontainer/` cite it. No
+  Container and host tests. "Dev Container" is written as Crux writes it. `docs/try-on-native-sim.md` is renamed
+  `docs/getting-started.md`, with the paths in `CONTRIBUTING.md`, `scripts/` and `.devcontainer/`. No
   firmware image changes.
 - The README is an entry point: the quick start points at `docs/first-hour.md`, a step table shows which code
   and which finding teach each Crux capability, the Crux guides at the pin are linked as the canonical place

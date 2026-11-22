@@ -25,7 +25,7 @@ OWNED = (
 PLANNED_PAGES = {"docs/troubleshooting.md"}
 PLANNED_ANCHORS = set()
 HISTORY = ROOT / "docs" / "history"
-FIVE = ("README.md", "docs/roadmap.md", "docs/architecture.md", "docs/try-on-native-sim.md",
+FIVE = ("README.md", "docs/roadmap.md", "docs/architecture.md", "docs/getting-started.md",
         "CONTRIBUTING.md")
 
 
@@ -567,7 +567,7 @@ class KnownLimits(unittest.TestCase):
         self.assertIn("Step S2 ran twice on a board, on one bench", part)
         self.assertIn("Step S2 ran twice on a board", flat("README.md"))
         self.assertIn("was not started on a developer machine", part)
-        self.assertIn("was not started on a developer machine at all", flat("docs/try-on-native-sim.md"))
+        self.assertIn("was not started on a developer machine at all", flat("docs/getting-started.md"))
         self.assertIn("WSL2", part)
         self.assertIn("proxy", part)
         self.assertIn("x86_64", part)

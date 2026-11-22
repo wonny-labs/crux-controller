@@ -187,7 +187,7 @@ class CiEvidenceRationale(unittest.TestCase):
 
     def test_the_section_agrees_with_the_dev_container_about_wsl2(self):
         self.assertIn("nobody has run the Dev Container on WSL2", self.section())
-        self.assertIn("Nobody has run it on WSL2 yet", text("docs/try-on-native-sim.md"))
+        self.assertIn("Nobody has run it on WSL2 yet", text("docs/getting-started.md"))
 
 
 class Contributing(unittest.TestCase):
