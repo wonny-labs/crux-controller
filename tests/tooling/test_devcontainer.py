@@ -1160,7 +1160,7 @@ class Documentation(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.page = read(ROOT / "docs" / "try-on-native-sim.md")
-        cls.section = cls.page[cls.page.index("## Dev container"):cls.page.index("## If something fails")]
+        cls.section = cls.page[cls.page.index("## Dev Container"):cls.page.index("## If something fails")]
         cls.readme = read(ROOT / "README.md")
 
     def test_the_section_says_that_nobody_ran_it_on_wsl2_and_only_x86_64_ran_in_ci(self):

@@ -126,7 +126,7 @@ not show. CI is the reference for Zephyr builds and Twister runs, and a local re
 ([why](../try-on-native-sim.md#why-the-evidence-comes-from-ci)).
 On Windows with WSL2 and Docker Engine (no Docker Desktop), or on an x86_64 Linux older than Ubuntu 24.04, use the
 dev container (only an x86_64 host was exercised, and only in CI; nobody has run it on WSL2 yet). Its
-[quick start](../try-on-native-sim.md#quick-start), in short:
+[quick start](../try-on-native-sim.md#set-up-the-dev-container), in short:
 
 1. Install Docker Engine in the distribution and add yourself to the `docker` group.
 2. Put the sources in an empty folder named `crux-controller` under a parent of its own, such as `~/work/crux-controller-workspace/crux-controller` (a copy without `.git` needs `git init` and `git add -A` first).

@@ -1,21 +1,22 @@
-# Your first hour
+# Tutorial: your first build and run
 
-This page takes a new team member on Linux or on Windows with WSL2 from nothing to one build, one
-`native_sim` run and the local checks, in the dev container. It is the short path. The details, the native
-route without Docker and every variant are in [try-on-native-sim.md](try-on-native-sim.md), which this page
-links to instead of copying.
+This tutorial takes you from nothing to one board build, one run of the `native_sim` scenarios and the local
+checks, in the Dev Container, on Linux or on Windows with WSL2. It needs no board. Each step gives the command
+and what you should see. [Getting started](try-on-native-sim.md) holds the set-up details, the route without
+Docker and every variant; this page links to it instead of copying it.
 
-**What is untested.** Nobody has run the dev container on WSL2 yet, and nobody has timed these steps on a
+**What is untested.** Nobody has run the Dev Container on WSL2 yet, and nobody has timed these steps on a
 developer machine. The commands are the ones that the `devcontainer` workflow of CI runs through
 `scripts/dev-shell.sh` on an x86_64 Ubuntu runner, and the times below come from that job. A local result
 does not replace the CI result of a pull request ([why](try-on-native-sim.md#why-the-evidence-comes-from-ci)).
 
-## Before you start
+## Prerequisites
 
 - An x86_64 Linux machine, or Windows 11 with WSL2 and an Ubuntu distribution. Work in a WSL terminal and in
   the Linux file system (your home directory), not under `/mnt/c`.
 - Docker Engine, not Docker Desktop, with your user in the `docker` group, so that `docker run --rm hello-world`
-  works without `sudo`. Steps 1 and 2 of the [quick start](try-on-native-sim.md#quick-start) show how on WSL2.
+  works without `sudo`. Steps 1 and 2 of [Set up the Dev Container](try-on-native-sim.md#set-up-the-dev-container)
+  show how on WSL2.
 - Git, and several GiB of free disk for Zephyr, its modules and the Zephyr SDK. Nothing in the repository
   states an exact size.
 - Behind a proxy of your organisation, or with its certificate? Do the host part of
@@ -24,14 +25,14 @@ does not replace the CI result of a pull request ([why](try-on-native-sim.md#why
 
 ## How long it takes
 
-The times are those of the `devcontainer` job of CI for `main` at revision `890ee75` (21 November 2026), on a
-fresh GitHub runner with a fast network. On your machine the first setup is the long part: it downloads several
-GiB, so it depends on your connection, and it has not been timed outside CI. Later runs reuse what it fetched.
+The times are those of the `devcontainer` job of CI for `main` at revision `890ee75`, on a fresh GitHub runner
+with a fast network. On your machine the first setup is the long part: it downloads several GiB, so it depends
+on your connection, and it has not been timed outside CI. Later runs reuse what it fetched.
 
 | Step | In CI |
 |---|---|
 | 1. Clone | not timed |
-| 2. Open the dev container, first time (image, workspace, Zephyr SDK) | about 3 min |
+| 2. Open the Dev Container, first time (image, workspace, Zephyr SDK) | about 3 min |
 | 3. One build: S1 for the RT1060-EVKB | under 1 min |
 | 4. One `native_sim` run: all scenarios of S1 to S5 | about 3 min |
 | 5. Host tests, sanitizers off and on | under 1 min |
@@ -39,8 +40,8 @@ GiB, so it depends on your connection, and it has not been timed outside CI. Lat
 
 ## 1. Clone
 
-Make a parent folder of its own and clone into a folder named exactly `crux-controller` in it. The dev
-container mounts the parent folder as the west workspace, and `west init` puts `.west`, `zephyr/` and
+Make a parent folder of its own and clone into a folder named exactly `crux-controller` in it. The Dev
+Container mounts the parent folder as the west workspace, and `west init` puts `.west`, `zephyr/` and
 `modules/` next to the clone. Replace `<repository-url>` with the address of the repository in your
 organisation:
 
@@ -52,7 +53,7 @@ cd crux-controller
 
 `core.autocrlf=false` keeps the LF line ends that the shell scripts need.
 
-## 2. Open the dev container
+## 2. Open the Dev Container
 
 Pick one route. Both use the same image (`.devcontainer/Dockerfile`) and the same setup script
 (`.devcontainer/setup.sh`).
@@ -106,9 +107,29 @@ runner, builds and runs every scenario of steps S1 to S5, as the `S1` job does:
 bash scripts/dev-shell.sh bash -c 'cd /workspaces/ws && west twister -p native_sim/native/64 -T crux-controller/tests/native_sim --inline-logs --clobber-output -O twister-out'
 ```
 
-A pass ends with `17 of 17 executed test configurations passed` and `31 of 31 executed test cases passed`.
-The scenario table, one-scenario runs and the S6 scenario are in
-[Run the S1 to S5 scenarios](try-on-native-sim.md#run-the-s1-to-s5-scenarios).
+It ends like this (quoted from a CI log, with the end of each line cut):
+
+```text
+INFO    - 17 of 17 executed test configurations passed (100.00%), 0 built (not run), 0 ...
+INFO    - 31 of 31 executed test cases passed (100.00%) on 1 out of total ... platforms ...
+```
+
+All 17 Twister ids of the [scenario table](try-on-native-sim.md#run-the-s1-to-s5-scenarios) must be there and
+passed. A lower count means that a scenario did not run.
+
+To run one scenario, here step S1, point `-T` at its directory (this form is ordinary Twister usage and was not
+run for this page):
+
+```bash
+bash scripts/dev-shell.sh bash -c 'cd /workspaces/ws && west twister -p native_sim/native/64 -T crux-controller/tests/native_sim/s1 --inline-logs --clobber-output -O twister-out-s1'
+```
+
+The Twister folders (`twister-out`, `twister-out-s1`) are in the workspace folder, next to the clone
+(`~/work/crux-controller-workspace`), because the commands ran there; each scenario has its own build folder in
+them, and `--inline-logs` prints the output of a failed scenario. Builds of the repository itself (for example
+`build/host` of the host tests) are under `build/` in the clone, which `.gitignore` excludes. The S6 scenario
+needs the Mbed TLS modules: [Run the S1 to S5 scenarios](try-on-native-sim.md#run-the-s1-to-s5-scenarios) shows
+how.
 
 ## 5. Host tests
 
@@ -136,18 +157,19 @@ bash scripts/dev-shell.sh python -m unittest discover -s tests/tooling
 bash scripts/dev-shell.sh bash -c 'cd /workspaces/ws && python crux-controller/scripts/check_boundary.py --repo crux-controller --crux-root crux-pilot'
 ```
 
-The tests end with `OK` (or `OK (skipped=<m>)`), and the check prints `boundary check passed`. The other checks
-of CI (format, static analysis, SPDX) are in
-[Commands inside the container](try-on-native-sim.md#commands-inside-the-container).
+The tests end with `Ran <n> tests in <t>s` and `OK` (or `OK (skipped=<m>)`), and the check prints
+`boundary check passed`. The other checks of CI (format, static analysis, SPDX) run through the same script, for
+example `bash scripts/dev-shell.sh bash scripts/check-format.sh`;
+[Commands inside the container](try-on-native-sim.md#commands-inside-the-container) lists them.
 
-## What next
+## Next steps
 
 - Make a first change, from a branch to a pull request: [first-change.md](first-change.md).
 - Pick the next page from the [README](../README.md#where-to-read-next), starting with the
   [roadmap](roadmap.md) and the [architecture](architecture.md).
 - Look up a failure by its message: [troubleshooting.md](troubleshooting.md).
-- Everything about the setup, the native route on Ubuntu 24.04 without Docker, the S6 scenario and what has been
-  checked: [try-on-native-sim.md](try-on-native-sim.md).
+- Everything about the setup, the native route on Ubuntu 24.04 without Docker and the S6 scenario:
+  [Getting started](try-on-native-sim.md).
 - A board: [board-bring-up.md](board-bring-up.md) describes the board route and its optional board container.
   It is untested on hardware, and nothing may touch a board without the project owner's explicit
   authorisation for the task.

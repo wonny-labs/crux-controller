@@ -113,9 +113,9 @@ two sides.
 are public, because the product uses Zephyr directly for threads and queues. Crux marks these headers
 "frozen for new product code": no new features, existing users keep working, and any deprecation waits for a
 separate decision (concepts glossary, `docs/README.md` of `crux-pilot` at the pinned revision). This
-repository's rule goes further and refuses them in `app/src` and `app/os`. Crux removed `<crux/queue.h>`, the
-fourth header of that group, at the pinned revision, so it is no longer on the list; the check refuses it with
-`--crux-root` as a name that Crux does not publish.
+repository's rule goes further and refuses them in `app/src` and `app/os`. Crux publishes no `<crux/queue.h>` at
+the pinned revision, so it is not on the list; the check refuses it with `--crux-root` as a name that Crux does not
+publish.
 
 **Sockets profile.** The set of standard POSIX socket headers that Crux's networking contract lists
 (`SOCKET_PROFILE` in `scripts/check_boundary.py`: `sys/socket.h`, `netinet/in.h`, `arpa/inet.h`,
@@ -135,6 +135,18 @@ board image passes. It makes the Crux module refuse a Zephyr that is not the ver
 (`RELEASE.md`, the Build row). The gate is in `crux-pilot`, not here. One quirk is recorded in
 `docs/findings/s3-file-composition.md` (friction 5): CMake prints that the variable was "not used by the
 project" even when the gate passes.
+
+**Workspace.** The west workspace: the parent folder that holds the clone `crux-controller` next to `.west/` and
+the projects that `west.yml` fetches (`zephyr/`, `modules/`, `crux-pilot/`). The Dev Container mounts it at
+`/workspaces/ws`. Crux's [Getting started](https://github.com/wonny-labs/crux-pilot/blob/2c017f685e0215e0e269d4bc77272889d06a07d8/docs/getting-started.md)
+uses the same word for the same folder.
+
+**Dev Container.** The Docker image in `.devcontainer/` with the tools of the CI jobs, an Ubuntu 24.04 userland and
+Python 3.12, plus the script that fetches the workspace and the Zephyr SDK. It is opened through
+`scripts/dev-shell.sh` or the VS Code Dev Containers extension ([Getting started](try-on-native-sim.md#dev-container)).
+
+**Host tests.** The plain C tests of `tests/host`, built with CMake and run with CTest on the build machine, with no
+Zephyr. Crux calls the matching environment the Linux Host; here the same tests also run on macOS.
 
 **Pin.** The full commit of `crux-pilot` that `west.yml` imports; the `revision` of the `crux-pilot` project
 there is the current pin. It is a commit and never a branch or a tag; no Crux tag exists. `west crux-pins`

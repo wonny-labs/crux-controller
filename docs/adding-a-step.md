@@ -12,7 +12,7 @@ Ground rules that shape the order of work:
   for new behaviour and for fixes, and says that an existing test or check is never weakened or deleted
   to make a change pass.
 - **CI is the reference.** Zephyr builds, Twister runs and the budget numbers that a pull request cites come
-  from CI. [try-on-native-sim.md](try-on-native-sim.md) gives the CI commands for a local `native_sim` run, and
+  from CI. [Getting started](try-on-native-sim.md) gives the CI commands for a local `native_sim` run, and
   a local result does not replace CI. You can also run the tooling tests, the boundary check and the host
   tests locally.
 - **Public means only.** A step uses public Crux headers and targets. If it seems to need a Zephyr header
@@ -135,7 +135,7 @@ one watchdog start per boot. Write down what the scenario cannot show: it enable
 scenario shows the boot line and an unavailable watchdog, and no feed cycle. That limit is stated in the
 test source's header comment and in the findings note, and a test checks both.
 
-A local Twister run (see [try-on-native-sim.md](try-on-native-sim.md)) is optional. The `S1` job's result is the one
+A local Twister run (see [Getting started](try-on-native-sim.md)) is optional. The `S1` job's result is the one
 the pull request cites; say in the pull request whether the scenario ran locally before CI.
 
 ### 2.5 The CI job and the Budget row
@@ -283,7 +283,7 @@ than adding a layer of your own. A port header covers one capability for one zon
 layer, and the repository does not have one.
 
 **Out of scope.** The roadmap records GPIO, I2C and SPI as out of scope, with direct use of Crux Thread, Sync, Queue
-and Serial (as the finding recorded them; the pinned Crux no longer has Queue), Reliance Edge and any firmware image in public form ([roadmap.md](roadmap.md#what-is-not-yet-possible-and-why)).
+and Serial (as the finding recorded them; the pinned Crux has no Queue), Reliance Edge and any firmware image in public form ([roadmap.md](roadmap.md#what-is-not-yet-possible-and-why)).
 These are recorded positions, not commitments. A step that needs one of them is a scope question: put the need and the
 alternatives in the pull request. CONTRIBUTING.md does not rule on it. A new Zephyr header in a zone is a reviewed
 change of `scripts/check_boundary.py`, `tests/tooling/test_boundary.py` and `docs/composition-zone.md` together.

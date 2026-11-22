@@ -23,7 +23,7 @@ OWNED = (
 # heading for an anchor, exists, and is skipped while it is missing. Remove an entry from this set
 # when the page has been merged, so that the link is checked without an exception.
 PLANNED_PAGES = {"docs/troubleshooting.md"}
-PLANNED_ANCHORS = {("docs/try-on-native-sim.md", "quick-start")}
+PLANNED_ANCHORS = set()
 HISTORY = ROOT / "docs" / "history"
 FIVE = ("README.md", "docs/roadmap.md", "docs/architecture.md", "docs/try-on-native-sim.md",
         "CONTRIBUTING.md")
@@ -187,7 +187,7 @@ class ReadingTime(unittest.TestCase):
         targets = {path for path, _, _ in links("README.md")}
         for name in FIVE[1:]:
             self.assertIn(name, targets, name)
-        self.assertIn("docs/first-hour.md", targets)
+        self.assertIn("docs/tutorial.md", targets)
 
     def test_the_history_pages_are_in_the_index_with_a_reading_time(self):
         minutes = self.index_minutes()

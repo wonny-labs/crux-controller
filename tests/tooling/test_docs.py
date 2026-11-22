@@ -168,7 +168,8 @@ class CiEvidenceRationale(unittest.TestCase):
     def section(self):
         page = (ROOT / "docs" / "try-on-native-sim.md").read_text()
         start = page.index("## Why the evidence comes from CI")
-        return " ".join(page[start:page.index("\n## ", start + 1)].split())
+        end = page.find("\n## ", start + 1)
+        return " ".join(page[start:end if end != -1 else len(page)].split())
 
     def test_the_section_reports_what_contributing_says_now(self):
         contributing = text("CONTRIBUTING.md")
@@ -185,7 +186,7 @@ class CiEvidenceRationale(unittest.TestCase):
             self.assertNotIn(phrase, section)
 
     def test_the_section_agrees_with_the_dev_container_about_wsl2(self):
-        self.assertIn("nobody has run the dev container on WSL2", self.section())
+        self.assertIn("nobody has run the Dev Container on WSL2", self.section())
         self.assertIn("Nobody has run it on WSL2 yet", text("docs/try-on-native-sim.md"))
 
 

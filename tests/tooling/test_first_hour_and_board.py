@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Checks of the first-hour page, the board route and the optional board container.
+"""Checks of the tutorial page, the board route and the optional board container.
 
 The tests are structural: the pages have the sections that a reader needs, their links resolve, every
 repository file that a command names exists, the build and run commands are those of the CI jobs, and the
@@ -21,7 +21,7 @@ import unittest
 import yaml
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-FIRST_HOUR = "docs/first-hour.md"
+FIRST_HOUR = "docs/tutorial.md"
 BOARD_PAGE = "docs/board-bring-up.md"
 BOARD_DIR = ROOT / ".devcontainer" / "board"
 BOARD_SHELL = ROOT / "scripts" / "board-shell.sh"
@@ -185,9 +185,9 @@ class FirstHour(Common, unittest.TestCase):
         self.assertRegex(read(FIRST_HOUR), r"(?i)nobody has run[^.]*WSL2|WSL2[^.]*not (been )?(run|tested)")
 
     def test_it_is_linked_at_the_top_of_the_readme_and_of_the_index(self):
-        for name, before in (("README.md", "## Learn Crux usage step by step"), ("docs/README.md", "## Paths by task")):
+        for name, before in (("README.md", "## What it provides"), ("docs/README.md", "## Paths by task")):
             top = read(name).split(before)[0]
-            self.assertRegex(top, r"\]\((?:docs/)?first-hour\.md\)", name)
+            self.assertRegex(top, r"\]\((?:docs/)?tutorial\.md\)", name)
 
 
 class BoardPage(Common, unittest.TestCase):

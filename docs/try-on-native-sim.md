@@ -1,48 +1,42 @@
-# How to try it without a board
+# Getting started
 
-This page is the reference for running the tests without an RT1060-EVKB: both setup routes, proxies and
-certificates, the workspace layout, every test command and what has been checked. For the short path, follow
-[first-hour.md](first-hour.md) first.
-
-Six terms, defined once. **west** is Zephyr's tool for workspaces, builds and tests. A **workspace** is the
-folder that holds this repository next to the `.west/` folder and the projects that `west.yml` fetches
-(`zephyr/`, `modules/`, `crux-pilot/`). **Twister** is Zephyr's test runner (`west twister`). **`native_sim`**
-is a simulated Zephyr board that runs as an ordinary program on the build host. The **pin** is the one commit
-of `crux-pilot` that `west.yml` imports. A **dev container** is a Docker image with the tools of the CI jobs;
-the workspace folder is mounted into it.
+This page sets up the environment for running the builds and tests without an RT1060-EVKB, on Linux or on Windows
+with WSL2: both setup routes, proxies and certificates, the workspace layout and every test command. To learn the
+steps from start to finish, follow the [Tutorial](tutorial.md); it links back here for the details. The words
+west, workspace, Twister, `native_sim`, pin and Dev Container are defined in the [glossary](glossary.md).
 
 There are two routes, and the first is the one to start with:
 
-1. **The dev container.** For Windows 11 with WSL2 (an Ubuntu 22.04 distribution is fine), for any Linux older
+1. **The Dev Container.** For Windows 11 with WSL2 (an Ubuntu 22.04 distribution is fine), for any Linux older
    than Ubuntu 24.04, and for anyone who would rather not install the tools on the host. It needs Docker
-   Engine only, not Docker Desktop. Start at the [quick start](#quick-start).
+   Engine only, not Docker Desktop. Start at [Set up the Dev Container](#set-up-the-dev-container).
 2. **The native setup on Ubuntu 24.04**, the CI image, on x86_64, with no Docker. Start at
    [What you need first](#what-you-need-first). A distribution older than Ubuntu 24.04 cannot do it: Zephyr 4.4
    needs Python 3.12, and Ubuntu 22.04 has 3.10.
 
-On macOS only part of this runs natively. In the author's runs (Apple clang 17, CMake 4.4, Ninja and Python
-3.9 with PyYAML) the Python tooling tests, the boundary check, the SPDX check, the format check (clang-format
-18.1.8 from pip) and the host tests (sanitizers off and on) passed, in a Git clone. The Zephyr builds and the
-Twister runs need Linux or the dev container. Docker on macOS was not tried.
+On macOS only part of this runs natively: the Python tooling tests, the boundary check, the SPDX check, the format
+check (clang-format 18.1.8 from pip) and the host tests (sanitizers off and on), in a Git clone. The Zephyr builds
+and the Twister runs need Linux or the Dev Container. Docker on macOS was not tried. The runs behind these
+statements are in the [setup checks record](history/setup-checks.md).
 
 The commands are those of the CI workflow (`.github/workflows/ci.yml`, job `S1`, on `ubuntu-24.04`), with the
 CI-only variables replaced by local values, and a tooling test compares them. CI stays the reference: a local
-result does not replace the CI result that a pull request cites ([What has been checked](#what-has-been-checked)).
+result does not replace the CI result that a pull request cites ([why](#why-the-evidence-comes-from-ci)).
 Look a failure up by its message in [troubleshooting.md](troubleshooting.md).
 
-## Dev container
+## Dev Container
 
-A dev container is a Docker image with the host packages and tools of the CI jobs, an Ubuntu 24.04 userland and
+A Dev Container is a Docker image with the host packages and tools of the CI jobs, an Ubuntu 24.04 userland and
 Python 3.12, plus a script that fetches the west workspace and the Zephyr SDK. It is for a teammate whose Linux is
 older than 24.04, for example an Ubuntu 22.04 distribution under WSL2, and it needs **Docker Engine only: no Docker
 Desktop**.
 
 **Nobody has run it on WSL2 yet.** Not tested by anyone: this container on WSL2, Docker Engine in a WSL2
 distribution, the VS Code route, systemd in `/etc/wsl.conf`, a proxy or a company certificate, and a run without a
-network. Only an x86_64 host was exercised, and only in CI. [What the container is](#what-the-container-is)
-says what CI does run.
+network. The Dev Container was not started on a developer machine at all. Only an x86_64 host was exercised, and
+only in CI. [What the container is](#what-the-container-is) says what CI does run.
 
-### Quick start
+### Set up the Dev Container
 
 For a teammate on Windows 11 with WSL2 and an Ubuntu 22.04 distribution; the same steps apply to a Linux machine
 with Docker Engine. Run the commands in a WSL terminal, not in PowerShell, unless a step says PowerShell.
@@ -104,48 +98,9 @@ pulls an image.
 
    Read the lines above it, fix the cause and run the same command again: the setup carries on where it stopped.
 
-5. Run all the `native_sim` scenarios of steps S1 to S5. `scripts/dev-shell.sh` runs a command with the
-   repository as the working directory, so the command changes into the workspace folder first
-   (`/workspaces/ws` in the container is your `~/work/crux-controller-workspace`):
-
-   ```bash
-   bash scripts/dev-shell.sh bash -c 'cd /workspaces/ws && west twister -p native_sim/native/64 -T crux-controller/tests/native_sim --inline-logs --clobber-output -O twister-out'
-   ```
-
-   It ends like this (quoted from a CI log, with the end of each line cut):
-
-   ```text
-   INFO    - 17 of 17 executed test configurations passed (100.00%), 0 built (not run), 0 ...
-   INFO    - 31 of 31 executed test cases passed (100.00%) on 1 out of total ... platforms ...
-   ```
-
-   All 17 Twister ids of [the table below](#run-the-s1-to-s5-scenarios) must be there and passed. A lower
-   count means that a scenario did not run.
-
-6. Run the tooling tests, the Python tests of the scripts, workflows and documents:
-
-   ```bash
-   bash scripts/dev-shell.sh python -m unittest discover -s tests/tooling
-   ```
-
-   It ends with `Ran <n> tests in <t>s` and `OK`; when some tests are skipped the last line reads
-   `OK (skipped=<m>)`.
-
-7. Run one scenario, here step S1, by pointing `-T` at its directory (this form is ordinary Twister usage and
-   was not run for this page):
-
-   ```bash
-   bash scripts/dev-shell.sh bash -c 'cd /workspaces/ws && west twister -p native_sim/native/64 -T crux-controller/tests/native_sim/s1 --inline-logs --clobber-output -O twister-out-s1'
-   ```
-
-8. Find the outputs. The Twister folders (`twister-out`, `twister-out-s1`) are in the workspace folder, next to
-   the clone (`~/work/crux-controller-workspace`), because the commands ran there; each scenario has its own build folder
-   in them, and `--inline-logs` prints the output of a failed scenario. Builds of the repository itself
-   (for example `build/host` of the host tests) are under `build/` in the clone, which `.gitignore` excludes.
-
-To check a change before you push it, the other CI checks run through the same script, for example
-`bash scripts/dev-shell.sh bash scripts/check-format.sh`. [Commands inside the container](#commands-inside-the-container)
-lists them.
+The run steps that follow, the board build, the `native_sim` scenarios, the host tests and the checks, are steps
+3 to 6 of the [Tutorial](tutorial.md). [Commands inside the container](#commands-inside-the-container) lists every
+check that runs through the same script.
 
 ### What the container is
 
@@ -153,8 +108,8 @@ What does run is CI: the workflow `devcontainer.yml` builds the same image on an
 runs `scripts/dev-shell.sh` and, inside the container, the tooling tests, the format check, the static analysis, the host tests (sanitizers off and on), both boundary
 checks, the `native_sim` scenarios of [the S1 to S5 section](#run-the-s1-to-s5-scenarios) and the RT1060-EVKB
 cross-build of step S1 (with the baseline gate required) with its output and configuration checks, using the
-Zephyr SDK that `setup.sh` installs. That is a run of the image and the scripts, not of VS Code or of WSL2 (see
-[What has been checked](#what-has-been-checked)). If a step fails for you, look the message up in
+Zephyr SDK that `setup.sh` installs. That is a run of the image and the scripts, not of VS Code or of WSL2 (see the
+[setup checks record](history/setup-checks.md)). If a step fails for you, look the message up in
 [troubleshooting.md](troubleshooting.md), and otherwise open an issue with the output.
 
 The container is not the CI runner. It uses Ubuntu's Python 3.12 (not pinned to a patch release) where CI uses
@@ -188,7 +143,7 @@ an SDK folder without its install marker.
 
 1. WSL2 with a Linux distribution, and your files in its Linux file system (not under `/mnt/c`: the builds are
    slow there and file modes can differ).
-2. Docker Engine inside the distribution, installed as the first step of the quick start says, and a running
+2. Docker Engine inside the distribution, installed as step 1 of [Set up the Dev Container](#set-up-the-dev-container) says, and a running
    daemon. The image is `linux/amd64`, the architecture of a Windows PC, and only an x86_64 host was exercised,
    and only in CI. On an arm64 host Docker Engine needs amd64 emulation (binfmt handlers for QEMU) registered
    first, or the build fails with "exec format error"; that was not tested.
@@ -221,7 +176,7 @@ more hosts. A firewall or proxy must allow them.
 | PyPI (`pypi.org` and its file host) | `pip install` of `.devcontainer/requirements-tools.txt` and of the Zephyr requirement files | the first setup, and when a requirements file changes |
 | `github.com` | `west update`: this repository's manifest projects from `github.com/wonny-labs` and `github.com/zephyrproject-rtos` | the first setup, and `west update` after a pin change |
 | `api.github.com` and the GitHub release downloads | `west sdk install`, the Zephyr SDK | the first setup, and after an SDK version change |
-| Docker Hub | the `hello-world` check of the quick start and the `curlimages/curl` test of the proxy section | once each |
+| Docker Hub | the `hello-world` check of [Set up the Dev Container](#set-up-the-dev-container) and the `curlimages/curl` test of the proxy section | once each |
 
 The SDK install uses GitHub release downloads, and an anonymous request limit of the GitHub API can apply (not
 verified for this setup). If the install fails with a rate-limit error, set a GitHub token before the run; both
@@ -235,8 +190,8 @@ read -rs GH_TOKEN && export GH_TOKEN
 First run, honestly: it needs several GiB (the image, the workspace folder with Zephyr and the modules, and the
 cache volume with the SDK and the virtual environment) and a long time; neither was measured on a developer
 machine. For scale only: the CI job that builds this image on a GitHub runner with a fast network took between
-about 7 and 15 minutes in total in its recent successful runs on 18 November 2026, and its first step (image,
-workspace and SDK) about 3.5 minutes in the run read for this page. That job also runs the tests. A slower network,
+about 7 and 15 minutes in total, and its first step (image, workspace and SDK) about 3.5 minutes, in the runs that
+the [setup checks record](history/setup-checks.md) names. That job also runs the tests. A slower network,
 a proxy or a laptop will take longer. The memory and CPU guidance is in [What you need](#what-you-need).
 
 Offline: the first run needs the network. Whether later runs work with no network at all is not tested, and a
@@ -328,7 +283,7 @@ allowed.
 
 ### Layout
 
-The dev container mounts the parent folder of the clone as the west workspace, so that `.west/`, `zephyr/`,
+The Dev Container mounts the parent folder of the clone as the west workspace, so that `.west/`, `zephyr/`,
 `modules/`, `crux-pilot/` and the other projects of the manifest (several GiB together; no size was measured)
 are on your Linux file system and survive a rebuild of the image. Use a folder of its own, empty apart from the clone, and name the clone `crux-controller`,
 because `west.yml` requires that name. The setup script stops with a message if the clone has another name or if
@@ -405,7 +360,7 @@ is not in a folder named `crux-controller`; with the daemon down, you get Docker
 
 Run them in the container's terminal, or one at a time through `bash scripts/dev-shell.sh <command>` (for a command
 that starts in the workspace folder, `bash scripts/dev-shell.sh bash -c 'cd /workspaces/ws && <command>'`, as in
-the quick start). The scenarios run from the workspace directory, as in the sections below.
+the [Tutorial](tutorial.md)). The scenarios run from the workspace directory, as in the sections below.
 
 ```bash
 cd /workspaces/ws
@@ -476,7 +431,7 @@ again once: several GiB and a long time. That is expected, not an error.
 To start from nothing, remove the cache volume (see [Layout](#layout)); delete `.west/`, `zephyr/` and `modules/`
 next to the clone only if you also want a new `west init`.
 
-### If the dev container fails
+### If the Dev Container fails
 
 Look the message up in [troubleshooting.md](troubleshooting.md#setup-and-the-dev-container). It has every message of
 `scripts/dev-shell.sh`, `.devcontainer/setup.sh` and `.devcontainer/check-host.sh`, with the cause and the fix. After a
@@ -736,8 +691,8 @@ It states the rule and gives no reason. What the repository's own files show:
 - A local environment differs in ways that matter. For example, GCC in CI rejected a comparison between constants of two
   anonymous enums (`-Werror=enum-compare`) that the Apple clang on a developer's machine had accepted
   ([adding-a-step.md](adding-a-step.md)). CI covers only x86_64 Ubuntu, and so does the job that runs the
-  [dev container](#dev-container). Apart from the setup steps listed under
-  [What has been checked](#what-has-been-checked), arm64 and WSL2 are untested, and nobody has run the dev container
+  [Dev Container](#dev-container). Apart from the setup steps listed under
+  the [setup checks record](history/setup-checks.md), arm64 and WSL2 are untested, and nobody has run the Dev Container
   on WSL2.
 - A Zephyr workspace is large. `west update` and the SDK install take a long time and a lot of disk (see
   [What you need first](#what-you-need-first)), so a local build is optional.
@@ -749,44 +704,3 @@ copied into those notes.
 So the commands below are a convenience for finding a failure before you push. A local pass does not replace the
 CI result in a pull request, and a local failure that CI does not show is a difference in your host to look at, not
 a reason to change a check.
-
-## What has been checked
-
-- The venv block (`python3 -m venv`, `pip install` of the pinned tools, `west init -l`)
-  was run in a fresh `ubuntu:24.04` container on 18 November 2026 (arm64, Python 3.12.3; the revision of the
-  clone is not recorded), after
-  `apt-get install python3-venv python3-dev git ca-certificates`. The clone was copied in from a local checkout,
-  so the `git clone` command and the full `apt-get` package list were not run. It confirmed that there is no
-  `python` command before the virtual environment exists, that `west 1.4.0` installs in it and that
-  `west init -l crux-controller` creates `.west` in the workspace directory.
-- WSL2 was not tested. Only that arm64 `ubuntu:24.04` container ran those steps.
-- Not run for this page: `west update`, the SDK install, Twister, the S6 group steps and the host tests on
-  a fresh Linux machine. Their commands are those of the CI jobs with the variables replaced.
-- On macOS on 18 November 2026 (Apple clang 17.0.0, CMake 4.4.5, Ninja, Python 3.9 with PyYAML, clang-format 18.1.8
-  from pip), at `f7d3fab`, these ran and passed in a Git repository. `f7d3fab` is a local revision of that day (main
-  plus the pull requests that were open then), not a published commit. The host tests with the sanitizers off and on
-  (six CTest tests each), the tooling tests (983 tests, 3 skipped), the boundary check, the SPDX check and `scripts/check-format.sh`.
-- Also on macOS, at the same local revision `f7d3fab`, one-off runs of the failures that
-  [troubleshooting.md](troubleshooting.md) listed then, with the counts of that day (they drift as tests are added). In a copy without `.git`, one tooling test failed and seven stopped
-  with a Git error, and `scripts/check_spdx.py` exited with status 2; `scripts/check_boundary.py` passed. After
-  `git init` and `git add -A` all of them passed. With CRLF line ends in every text file, 21 tooling tests
-  failed (the ones that run the shell scripts), a script started directly failed with
-  `env: bash\r: No such file or directory`, and clang-format 18.1.8 itself accepted a CRLF C file. With the exec bits
-  removed, five tooling tests failed. Without `.clang-format`, clang-format 18.1.8 reported errors for a file that
-  it accepts with it.
-- `.devcontainer/check-host.sh`, as at `f9342b3` of `main`, ran on macOS on 18 November 2026 in a scratch folder: it passed a layout of its own,
-  refused a wrong folder name, a parent that holds `.bashrc` and a parent that is the home directory (exit status 2),
-  and only warned about another entry, not about `.crux-extra-ca.crt`. What `setup.sh` does with a proxy, a
-  certificate, a failed step or an old SDK folder, and what `devcontainer.json` passes, is read from the files and was
-  not run.
-- The dev container (`.devcontainer/`, `scripts/dev-shell.sh`) was not started on a developer machine at all, and
-  nobody has used it with WSL2, Docker Engine in WSL2 or the Dev Containers extension. Its files were checked by
-  tooling tests (versions against `ci.yml`, the base image digest, no Docker Desktop feature, no write permission or
-  upload in the workflow), and the workflow `devcontainer.yml` runs the image and `scripts/dev-shell.sh` on an
-  Ubuntu 24.04 x86_64 GitHub runner (the checks listed in the dev container section, including the S1 cross-build).
-  That job runs when a pull request or a push changes `.devcontainer/`, `scripts/dev-shell.sh`, `west.yml` or the
-  workflow file, and when it is started by hand. Its latest result is in the Actions tab, under the `devcontainer`
-  workflow, for the pull request that last changed those paths; a docs-only revision has no result of its own.
-- Not tested by anyone, and so written as general knowledge or as the interface of the container files: the proxy
-  and company-certificate settings, a run with no network, systemd in `/etc/wsl.conf`, the GitHub rate-limit
-  message, and how much disk and time a first run takes on a developer machine.

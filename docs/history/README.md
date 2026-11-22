@@ -14,6 +14,7 @@ stays at the repository root, because `CONTRIBUTING.md` ("The pin and the manife
 | [board-runs-and-tracking.md](board-runs-and-tracking.md) | The board-run summary, the approval wording and the tracking notes of the roadmap and the glossary. |
 | [copy-procedures.md](copy-procedures.md) | The zip and copy steps of the install guides, the troubleshooting rows for a copy and the glossary entry "Team copy". |
 | [readme-before-entry-point.md](readme-before-entry-point.md) | The whole README before it was rewritten as an entry point. |
+| [setup-checks.md](setup-checks.md) | The record of the local setup runs and the Dev Container job timing that Getting started carried. |
 | [team-copy.md](team-copy.md) | The page for a team that keeps its own copy, moved from `docs/`. |
 
 ## Move log
@@ -61,10 +62,15 @@ before the removal is in the Git history of the file.
 
 | Source file | Removed | Where the content is now |
 |---|---|---|
-| `README.md` | "New here?" line, "How to try it" steps 1 to 4, "Reading path" with the reading times, the EVKB build column of the step table | [README](../../README.md#quick-start) "Quick start" points at [first-hour.md](../first-hour.md); the task table "Where to read next"; the times are in the [index](../README.md); every step is built for the EVKB, as "Status" says |
+| `README.md` | "New here?" line, "How to try it" steps 1 to 4, "Reading path" with the reading times, the EVKB build column of the step table | [README](../../README.md#quick-start) "Quick start" points at [first-hour.md](../tutorial.md); the task table "Where to read next"; the times are in the [index](../README.md); every step is built for the EVKB, as "Status" says |
 | `docs/README.md` | the reading-time preface, the reading-path total and the bullet lists under "Paths by task" | one short paragraph per task; the "All documents" tables keep each page and its time |
 | `docs/try-on-native-sim.md` | "If the dev container fails", the list of messages | [troubleshooting.md](../troubleshooting.md#setup-and-the-dev-container), which has every message with its cause and fix |
 | `docs/try-on-native-sim.md`, `docs/roadmap.md`, `docs/architecture.md` | link lists in the opening paragraphs | the [index](../README.md) and the README task table |
+| `docs/first-hour.md` | whole file | `docs/tutorial.md` | whole file | Renamed with `git mv` to follow the Crux page names; the run steps 5 to 8 of the Getting started "Quick start" joined it. |
+| `docs/try-on-native-sim.md` | What has been checked | [setup-checks.md](setup-checks.md) | "What was checked" | Getting started states the current facts and links the record. |
+| `docs/try-on-native-sim.md` | Network and prerequisites, the dated CI timing sentence | [setup-checks.md](setup-checks.md) | "Timing of the Dev Container job" | The same figures without the date, with a link to the record. |
+| `docs/try-on-native-sim.md` | opening, the six-term paragraph and the macOS run details | [setup-checks.md](setup-checks.md) and the [glossary](../glossary.md) | "What was checked"; glossary entries | One sentence links the glossary; the macOS sentence states what runs, and the record holds the run. |
+| `docs/dependencies.md` | the paragraph on the pin move of 16 November 2026 | [CHANGELOG.md](../../CHANGELOG.md) | the entry for the move from `dfd3ad7d` to `8e3737d2` | Dropped from the page; the changelog entry holds the same facts, and the page keeps the rule to read the groups of a new Crux manifest. |
 
 The example workspace folder of the guides and of `.devcontainer` is `crux-controller-workspace` (it was `controller-ws`); the moved
 copies use the new name.
