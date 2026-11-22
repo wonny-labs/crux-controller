@@ -20,5 +20,5 @@ if(NOT CONFIG_ENTROPY_MCUX_TRNG OR NOT CONFIG_MBEDTLS_PSA_DRIVER_GET_ENTROPY)
                         "(CONFIG_MBEDTLS_PSA_DRIVER_GET_ENTROPY)")
 endif()
 
-include("${ZEPHYR_CRUX_PILOT_MODULE_DIR}/cmake/CruxMbedtlsEntropy.cmake")
+include("${ZEPHYR_CRUX_MODULE_DIR}/cmake/CruxMbedtlsEntropy.cmake")
 crux_mbedtls_fail_closed_entropy()
