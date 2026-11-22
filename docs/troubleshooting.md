@@ -1,7 +1,8 @@
 # Troubleshooting
 
 Look a failure up by its message. Each row says where the message appears, the cause, the fix, and the page that
-explains more. The commands to set up and run are in [Getting started](getting-started.md); CI stays the
+explains more. The set-up is in [Getting started](getting-started.md), and the commands to run are in the [Tutorial](tutorial.md)
+and [Set up without the Dev Container](native-setup.md); CI stays the
 reference for a pull request, and a local failure that CI does not show is a difference in your machine to look
 at, not a reason to change a check.
 

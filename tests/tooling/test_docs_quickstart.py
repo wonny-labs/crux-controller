@@ -165,6 +165,7 @@ class Page(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.text = read(PAGE)
+        cls.page = cls.text
         cls.dev = section(cls.text, "Dev Container")
         cls.quick = section(cls.text, "Set up the Dev Container")
         # The run steps of the first setup are steps 3 to 6 of the tutorial.
@@ -253,9 +254,13 @@ class Structure(Page):
         self.assertIn("## What was checked", read(SETUP_CHECKS))
 
     def test_every_numbered_list_counts_up_by_one(self):
+        for text in (self.page, self.ref, self.native):
+            self.check_numbered_lists(text)
+
+    def check_numbered_lists(self, text):
         fenced = False
         previous = None
-        for number, line in enumerate(self.text.splitlines(), 1):
+        for number, line in enumerate(text.splitlines(), 1):
             if line.lstrip().startswith("```"):
                 fenced = not fenced
                 continue
@@ -440,7 +445,8 @@ class Proxy(RefPage):
         for phrase in ("passes it into the image build", "Give `scripts/dev-shell.sh` the certificate",
                        "mounted read-only", "a message of `scripts/dev-shell.sh` that the daemon",
                        "dev-shell.sh` passes it", "dev-shell.sh` runs the host check"):
-            self.assertNotIn(phrase, self.text)
+            for page in (self.page, self.ref, self.native):
+                self.assertNotIn(phrase, page)
 
     def test_setup_handles_the_ca_file_and_the_variable_as_the_page_says(self):
         self.assertIn(".crux-extra-ca.crt", self.setup)
@@ -558,7 +564,8 @@ class OnMain(RefPage):
         self.assertIn(".gitattributes", read(TROUBLE))
 
     def test_the_page_does_not_call_a_changed_behaviour_planned(self):
-        self.assertNotIn("planned", self.text.lower())
+        for page in (self.page, self.ref, self.native):
+            self.assertNotIn("planned", page.lower())
 
 
 class CarriageReturnScan(unittest.TestCase):
@@ -591,7 +598,8 @@ class Review(RefPage):
     """Statements that a review of the first version found false or unsafe."""
 
     def test_no_sentence_promises_a_dev_container_result_for_every_revision(self):
-        self.assertNotIn("for the revision that you are reading", self.text)
+        for page in (self.page, self.ref, self.native):
+            self.assertNotIn("for the revision that you are reading", page)
         checked = section(read(SETUP_CHECKS), "What was checked")
         self.assertIn("Actions tab", checked)
         self.assertIn("by hand", checked)

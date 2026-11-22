@@ -14,7 +14,7 @@
 # different Zephyr requirements do not share one virtual environment.
 #
 # CRUX_DEV_IMAGE overrides the image name. GH_TOKEN, when set, is passed to the container for the
-# SDK download. See docs/getting-started.md, "Dev Container".
+# SDK download. See docs/dev-container.md, "Network and prerequisites".
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

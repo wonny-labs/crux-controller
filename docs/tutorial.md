@@ -111,8 +111,8 @@ No board? Parts A and B run every sample and test.
 ## Part C. Run on your board
 
 Part C builds the image for a board and hands over to the board route. Building needs no board; programming one
-does, together with the project owner's explicit authorisation for the task. What has run on a board is in the
-[roadmap](roadmap.md#what-has-run-on-a-board).
+does, together with the project owner's explicit authorisation for the task. The [roadmap](roadmap.md#what-has-run-on-a-board) records the
+board runs.
 
 | Board | `-b` target | Probe | Board guide |
 |---|---|---|---|
@@ -138,8 +138,8 @@ The image is `build/s1/zephyr/zephyr.bin` in the clone, next to `zephyr.meta`. A
 ### 5. Program the board and read its log
 
 Follow the [board route](board-bring-up.md) from its step 2: attach the probe, open the board container, compare
-the flash read-only first, then `west flash`, observe the log and the network, and restore the accepted normal
-image. The route is untested on hardware, and nothing may touch a board without the project owner's explicit
+the flash read-only first, then `west flash`, observe the log and the network, restore the accepted normal
+image and write the run record. Its stop conditions apply at every step. The route is untested on hardware, and nothing may touch a board without the project owner's explicit
 authorisation for the task.
 
 ## Next steps

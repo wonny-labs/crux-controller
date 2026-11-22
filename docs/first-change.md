@@ -14,7 +14,7 @@ Read the [README](../README.md) and [CONTRIBUTING.md](../CONTRIBUTING.md) first 
 - CMake 3.20 or newer and Ninja.
 - Python 3 with PyYAML (CI uses Python 3.12) and clang-format 18.1.8, the version that the format check requires.
 
-[Getting started](native-setup.md#what-you-need-first) lists the tools in more detail. The build and
+[Set up without the Dev Container](native-setup.md#what-you-need-first) lists the tools in more detail. The build and
 check commands on this page were run on macOS. They use no Linux-only tool, except where a step says so. On Windows, use WSL2 and
 work in the Linux file system, as [Getting started](getting-started.md) explains.
 
@@ -200,4 +200,5 @@ git branch -D test/workload-zero-period
   of CONTRIBUTING.md. If the check you meet is the boundary check, read [composition-zone.md](composition-zone.md)
   before you look for a way round it. There is none.
 - To add a step: [adding-a-step.md](adding-a-step.md).
-- To run the Zephyr scenarios on your machine: [Getting started](getting-started.md).
+- To run the Zephyr scenarios on your machine: Part B of the [Tutorial](tutorial.md), or
+  [Set up without the Dev Container](native-setup.md#run-the-s1-to-s5-scenarios).

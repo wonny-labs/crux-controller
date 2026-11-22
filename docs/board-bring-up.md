@@ -42,7 +42,7 @@ The [stop conditions](#stop-conditions) apply to every step.
 | The UART log | The S1 base image writes the log to LPUART1 at 115200 baud (`app/boards/mimxrt1060_evk_mimxrt1062_qspi.overlay`). Which cable and adapter carry that UART is not recorded here. |
 | Ethernet link | A cable from the board to the host peer. The S2 image has a static address and no DHCP client. |
 | A host peer | A host with the address `192.168.77.1` on a `/24` network, able to listen on TCP port `42420` and echo what it receives. The board's address is `192.168.77.2` (`app/conf/s2.conf`, `app/Kconfig`, `docs/findings/s2-first-board-run.md`). |
-| On Windows | WSL2 with the Dev Container working ([the Tutorial](tutorial.md)), and usbipd-win on the Windows side to pass the probe to WSL2. |
+| On Windows | WSL2 with the Dev Container working ([Getting started](getting-started.md#set-up-the-dev-container)), and usbipd-win on the Windows side to pass the probe to WSL2. |
 | The J-Link software | The "J-Link Software and Documentation Pack" for Linux, 64-bit DEB installer, that you download from SEGGER yourself and whose licence terms you accept yourself. It is never fetched by a build and never committed. |
 | The accepted normal image | The image that was on the board before and that is put back afterwards. The S2 note records its SHA-256 (`ad729684749181f0c26853828550187a2c3e60dbb28cf3ee2194a7984141e02f`) and size (107,872 bytes). Proposed: have it available before you start. |
 | A written run record | See [Write the run record](#9-write-the-run-record). The S2 runs kept host command output, probe logs, the raw capture and the peer record, privately, as the S2 note says. |

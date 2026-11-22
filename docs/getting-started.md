@@ -84,7 +84,7 @@ pulls an image.
 
    Read the lines above it, fix the cause and run the same command again: the setup carries on where it stopped.
 
-To check a change before you push it, every CI check runs through the same script; the
+The checks that the `devcontainer` CI job runs also run through the same script; the
 [Dev Container reference](dev-container.md#commands-inside-the-container) lists them. The VS Code route, the folder
 layout and what to do after a pin or SDK change are in the [Dev Container reference](dev-container.md).
 

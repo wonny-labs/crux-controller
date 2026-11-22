@@ -136,7 +136,8 @@ one watchdog start per boot. Write down what the scenario cannot show: it enable
 scenario shows the boot line and an unavailable watchdog, and no feed cycle. That limit is stated in the
 test source's header comment and in the findings note, and a test checks both.
 
-A local Twister run (see [Getting started](getting-started.md)) is optional. The `S1` job's result is the one
+A local Twister run (step 3 of the [Tutorial](tutorial.md#3-one-native_sim-run), or
+[Set up without the Dev Container](native-setup.md#run-the-s1-to-s5-scenarios)) is optional. The `S1` job's result is the one
 the pull request cites; say in the pull request whether the scenario ran locally before CI.
 
 ### 2.5 The CI job and the Budget row
