@@ -23,8 +23,9 @@ Zephyr requirement files are not pinned, as in CI.
 
 The files are `.devcontainer/devcontainer.json` (for VS Code), `.devcontainer/Dockerfile` (the image, with the base
 image pinned by digest), `.devcontainer/requirements-tools.txt` (the pinned Python tools),
-`.devcontainer/setup.sh` (the workspace and SDK setup), `.devcontainer/check-host.sh` (the check of the folder on
-the host) and `scripts/dev-shell.sh` (the same without VS Code). The versions follow `ci.yml`, and a tooling test
+`scripts/bootstrap.sh` (the one entry that VS Code runs after the container is created; `CRUX_BOOTSTRAP=host`, `zephyr` or
+`all`, the default), `.devcontainer/setup.sh` (the workspace and SDK setup it calls), `.devcontainer/check-host.sh`
+(the check of the folder on the host) and `scripts/dev-shell.sh` (the same without VS Code). The versions follow `ci.yml`, and a tooling test
 compares them. `.gitattributes` pins LF line ends, so that a clone checks the scripts out with LF on every platform.
 
 `.devcontainer/check-host.sh` checks the folder layout on the host before the container is created. VS Code runs it

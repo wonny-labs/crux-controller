@@ -7,7 +7,7 @@
 #   scripts/dev-shell.sh <command> [args...]  one command, with the repository as working directory
 #
 # It builds the image of .devcontainer/Dockerfile, mounts the parent folder of the clone as the
-# west workspace at /workspaces/ws, and runs .devcontainer/setup.sh before the command. The first run
+# west workspace at /workspaces/ws, and runs scripts/bootstrap.sh (which runs .devcontainer/setup.sh) before the command. The first run
 # fetches Zephyr, the west modules and the Zephyr SDK (a long time, several GiB); later runs find
 # them in the workspace folder and in a Docker volume of that workspace folder, named
 # crux-controller-dev-cache-<number>. Each workspace folder has its own, so that two workspaces with
@@ -59,4 +59,4 @@ if (($# == 0)); then
     set -- bash
 fi
 exec docker run "${flags[@]}" "$image" \
-    bash -c 'bash .devcontainer/setup.sh </dev/null && exec "$@"' dev-shell "$@"
+    bash -c 'bash scripts/bootstrap.sh </dev/null && exec "$@"' dev-shell "$@"

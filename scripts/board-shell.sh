@@ -82,4 +82,4 @@ if (($# == 0)); then
     set -- bash
 fi
 exec docker run "${flags[@]}" "$board_image" \
-    bash -c 'bash .devcontainer/setup.sh </dev/null && exec "$@"' board-shell "$@"
+    bash -c 'bash scripts/bootstrap.sh </dev/null && exec "$@"' board-shell "$@"

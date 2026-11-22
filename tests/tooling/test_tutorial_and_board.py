@@ -453,7 +453,7 @@ class BoardShellRuns(unittest.TestCase):
         self.assertIn(f"-v {self.usb}:/dev/bus/usb", run)
         self.assertIn(f"-v {self.repo.parent}:/workspaces/ws", run)
         self.assertRegex(run, r"-v crux-controller-dev-cache-\d+:/opt/crux-cache")
-        self.assertIn("bash .devcontainer/setup.sh", run)
+        self.assertIn("bash scripts/bootstrap.sh", run)
         self.assertTrue(run.endswith("west --version"), run)
         for word in ("--privileged", "docker.sock", "--network", "--device "):
             self.assertNotIn(word, run)

@@ -208,7 +208,8 @@ class RepositoryFiles(unittest.TestCase):
         # Every file under .devcontainer, including the optional board container in a subfolder. A J-Link
         # package that a developer put into .devcontainer/board/jlink/ is a local binary, ignored by Git.
         files = sorted(p for p in DEVCONTAINER.rglob("*") if p.is_file() and p.suffix != ".deb")
-        files += [ROOT / "scripts" / "dev-shell.sh", ROOT / "scripts" / "board-shell.sh"]
+        files += [ROOT / "scripts" / "dev-shell.sh", ROOT / "scripts" / "board-shell.sh",
+                  ROOT / "scripts" / "bootstrap.sh"]
         self.assertIn(DEVCONTAINER / "Dockerfile", files)
         for path in files:
             self.assertNotIn(b"\r", path.read_bytes(), path.name)
@@ -443,8 +444,9 @@ class DevcontainerJson(unittest.TestCase):
                          self.data["workspaceMount"])
         self.assertEqual(["--platform=linux/amd64"], self.data["runArgs"])
 
-    def test_the_setup_script_runs_after_creation(self):
-        self.assertEqual("bash .devcontainer/setup.sh", self.data["postCreateCommand"])
+    def test_the_bootstrap_entry_runs_after_creation(self):
+        # scripts/bootstrap.sh runs setup.sh; tests/tooling/test_bootstrap.py tests the entry.
+        self.assertEqual("bash scripts/bootstrap.sh", self.data["postCreateCommand"])
 
     def test_the_workspace_target_is_the_one_of_the_dockerfile_environment(self):
         target = re.search(r"target=([^,]+)", self.data["workspaceMount"]).group(1)
@@ -1094,7 +1096,7 @@ class DevcontainerWorkflow(unittest.TestCase):
         self.assertEqual(self.on["pull_request"]["paths"], self.on["push"]["paths"])
         paths = self.on["pull_request"]["paths"]
         # west.yml moves the pin, and with it the Zephyr requirement files that setup.sh installs.
-        for path in (".devcontainer/**", "scripts/dev-shell.sh", "west.yml",
+        for path in (".devcontainer/**", "scripts/dev-shell.sh", "scripts/bootstrap.sh", "west.yml",
                      ".github/workflows/devcontainer.yml"):
             self.assertIn(path, paths)
 
