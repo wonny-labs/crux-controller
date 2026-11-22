@@ -2,11 +2,11 @@
 // Example only. Jenkins does not run this file: a pipeline job reads a file named Jenkinsfile.
 // For a copy of this repository that Jenkins builds from Bitbucket Cloud. Copy it to Jenkinsfile and
 // replace each <placeholder>. It does what .github/workflows/crux-pin-update.yml does: once a day it
-// moves the crux-pilot pin to Crux main and opens or refreshes one pull request. It never merges.
-// The checks and the step 3 evidence come from the pull request build of the copy; that build can
-// run scripts/pin_evidence.py evidence over its release dry run and budget logs.
-// PROPOSED: the two Crux scripts, their arguments and exit status 3 (already current).
-// If the Crux clone needs credentials too, move it inside withCredentials.
+// runs crux-pin-bot.py of the Crux that west.yml pins (never a script from Crux main), which moves the
+// pin and opens or refreshes one pull request on bot/crux-pin. It never merges. The checks and the
+// step 3 evidence come from the pull request build of the copy; that build can run
+// scripts/pin_evidence.py evidence over its release dry run and budget logs.
+// The Crux interface is the one of crux-pilot pull request 537.
 
 pipeline {
   agent {
@@ -22,40 +22,40 @@ pipeline {
     timeout(time: 20, unit: 'MINUTES')
   }
   environment {
-    CRUX_GIT_URL = '<clone URL of the Crux repository>'
     BITBUCKET_REPOSITORY = '<workspace>/<repository>'
-    PIN_BRANCH = 'crux-pin/update'
   }
   stages {
-    stage('Move the pin') {
+    stage('Fetch the pinned Crux') {
       steps {
-        sh 'rm -rf crux && git clone --depth 1 --branch main "$CRUX_GIT_URL" crux'
-        sh 'python3 scripts/pin_evidence.py body --manifest west.yml --new "$(git -C crux rev-parse HEAD)" > pin-body.md'
-        script {
-          def status = sh(returnStatus: true, script:
-            'python3 crux/scripts/update-crux-pin.py --manifest west.yml --project crux-pilot --revision "$(git -C crux rev-parse HEAD)"')
-          if (status == 3) {
-            currentBuild.description = 'pin already at Crux main'
-          } else if (status != 0) {
-            error("update-crux-pin.py failed with exit status ${status}")
+        // A second checkout in a subfolder: west makes the folder above the manifest its workspace.
+        dir('crux-controller') { checkout scm }
+        // West needs read access to the Crux remote of west.yml, for example a Git credential helper.
+        sh '''
+          python3 -m venv .venv
+          .venv/bin/pip install -q west==1.4.0 pyyaml==6.0.3
+          rm -rf .west
+          .venv/bin/west init -l crux-controller
+          .venv/bin/west update crux-pilot
+          test -f crux-pilot/scripts/crux-pin-bot.py || {
+            echo "The pinned Crux has no scripts/crux-pin-bot.py. Move the pin by hand once (CONTRIBUTING.md)." >&2
+            exit 1
           }
-          env.PIN_CHANGED = (status == 0).toString()
-        }
+        '''
       }
     }
-    stage('Open or refresh the pull request') {
-      when { environment name: 'PIN_CHANGED', value: 'true' }
+    stage('Move the pin and refresh the pull request') {
       steps {
-        withCredentials([usernamePassword(credentialsId: '<Jenkins credentials ID>',
-                                          usernameVariable: 'BITBUCKET_USER',
-                                          passwordVariable: 'BITBUCKET_TOKEN')]) {
-          // Single quotes: the shell, not Groovy, expands the credentials.
-          sh '''
-            python3 crux/scripts/open-pin-pr.py --host bitbucket --repository "$BITBUCKET_REPOSITORY" \
-              --base main --branch "$PIN_BRANCH" \
-              --title "build(west): move the crux-pilot pin to $(git -C crux rev-parse --short=8 HEAD)" \
-              --body-file pin-body.md
-          '''
+        withCredentials([string(credentialsId: '<Jenkins credentials ID>', variable: 'CRUX_PIN_TOKEN')]) {
+          // Single quotes: the shell, not Groovy, expands the token: a Bitbucket Cloud access token
+          // with pull request write access. The push uses the credentials of the checkout.
+          dir('crux-controller') {
+            sh '''
+              ../.venv/bin/python scripts/pin_evidence.py body > ../review.md
+              ../.venv/bin/python ../crux-pilot/scripts/crux-pin-bot.py --host bitbucket-cloud \
+                --repo "$BITBUCKET_REPOSITORY" --manifest west.yml --project crux-pilot \
+                --base main --branch bot/crux-pin --append-body ../review.md
+            '''
+          }
         }
       }
     }

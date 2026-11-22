@@ -2,9 +2,11 @@
 # SPDX-License-Identifier: Apache-2.0
 """Move the quotes of the crux-pilot pin after the Crux pin tool has moved the pin in west.yml.
 
-The Crux pin tool rewrites the crux-pilot `revision:` line of west.yml and then runs this hook from
-the repository root, with the old and the new pin as 40-character lower-case hex SHAs in
-CRUX_PIN_OLD and CRUX_PIN_NEW. The hook does the rest of steps 1 and 2 of CONTRIBUTING.md, "The pin
+Crux's update-crux-pin.py (run by crux-pin-bot.py) rewrites the crux-pilot `revision:` line of
+west.yml and then runs this hook from the repository root, with the old and the new pin as
+40-character lower-case hex SHAs in CRUX_PIN_OLD and CRUX_PIN_NEW (required). CRUX_PIN_MANIFEST and
+CRUX_PIN_PROJECT name the manifest and the project to check (default west.yml and crux-pilot);
+CRUX_PIN_CHECKOUT is not used. The hook does the rest of steps 1 and 2 of CONTRIBUTING.md, "The pin
 and the manifest": it replaces each quote in QUOTES. Notes under docs/findings/ stay as recorded,
 west.yml is only read, and the prose (the comment above the pin, the CHANGELOG.md entry) is left to
 the person who reviews the pull request.
@@ -13,8 +15,9 @@ Every quote is checked before any file is written. A quote that holds neither th
 pin is an error, so a reworded document fails loudly instead of being skipped. Each file is replaced
 in one rename.
 
-Exit status: 0 files changed, 3 every quote already names the new pin, 1 a quote or west.yml does
-not match (nothing written), 2 bad or missing CRUX_PIN_OLD or CRUX_PIN_NEW.
+Exit status: 0 files changed or every quote already names the new pin, 1 a quote or the manifest
+does not match (nothing written), 2 bad or missing CRUX_PIN_OLD or CRUX_PIN_NEW. The Crux tool
+treats any status but 0 as a failure and opens no pull request.
 """
 
 import os
@@ -53,27 +56,27 @@ def quote(template, pin):
     return template.format(full=pin, short=pin[:8])
 
 
-def pinned_revision(text):
-    """The revision of the crux-pilot project in the text of west.yml, or None."""
+def pinned_revision(text, project="crux-pilot"):
+    """The revision of the project in the text of a west manifest, or None."""
     inside = False
     for line in text.splitlines():
         stripped = line.strip()
         if stripped.startswith("- name:"):
-            inside = stripped == "- name: crux-pilot"
+            inside = stripped == f"- name: {project}"
         elif inside and stripped.startswith("revision:"):
             return stripped.split(":", 1)[1].strip()
     return None
 
 
-def plan(root, old, new):
+def plan(root, old, new, manifest=None, project="crux-pilot"):
     """The new text of each file that changes. Raises Mismatch before anything is written."""
-    west = root / "west.yml"
+    west = pathlib.Path(manifest) if manifest else root / "west.yml"
     try:
-        revision = pinned_revision(west.read_text(encoding="utf-8"))
+        revision = pinned_revision(west.read_text(encoding="utf-8"), project)
     except OSError as error:
-        raise Mismatch(f"west.yml: {error.strerror}") from None
+        raise Mismatch(f"{west}: {error.strerror}") from None
     if revision != new:
-        raise Mismatch(f"west.yml pins crux-pilot at {revision}, not at CRUX_PIN_NEW {new}; "
+        raise Mismatch(f"{west} pins {project} at {revision}, not at CRUX_PIN_NEW {new}; "
                        "run the hook after the revision line is rewritten")
     texts, problems = {}, []
     for name, template, optional in QUOTES:
@@ -125,13 +128,14 @@ def main():
             return 2
     root = pathlib.Path.cwd()
     try:
-        changed = plan(root, old, new)
+        changed = plan(root, old, new, os.environ.get("CRUX_PIN_MANIFEST") or None,
+                       os.environ.get("CRUX_PIN_PROJECT") or "crux-pilot")
     except Mismatch as error:
         print(f"crux-pin-hook: nothing written:\n{error}", file=sys.stderr)
         return 1
     if not changed:
         print(f"crux-pin-hook: every quote already names {new}")
-        return 3
+        return 0
     for name, text in changed.items():
         write(root / name, text)
         print(f"updated {name}")

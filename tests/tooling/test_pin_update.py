@@ -20,9 +20,8 @@ import pin_evidence  # noqa: E402
 WORKFLOWS = ROOT / ".github" / "workflows"
 WORKFLOW = WORKFLOWS / "crux-pin-update.yml"
 JENKINS = ROOT / "Jenkinsfile.example"
+BRANCH = "bot/crux-pin"
 
-OLD = "2c017f685e0215e0e269d4bc77272889d06a07d8"
-NEW = "0123456789abcdef0123456789abcdef01234567"
 HEAD = "fedcba9876543210fedcba9876543210fedcba98"
 IMAGE = "a" * 64
 IDENTITY = "b" * 64
@@ -115,37 +114,19 @@ class BudgetTables(unittest.TestCase):
 
 
 class Body(unittest.TestCase):
-    def manifest(self, revision=OLD):
-        directory = tempfile.TemporaryDirectory()
-        self.addCleanup(directory.cleanup)
-        path = pathlib.Path(directory.name) / "west.yml"
-        path.write_text(
-            "manifest:\n  projects:\n    - name: crux-pilot\n      remote: crux\n"
-            f"      revision: {revision}\n    - name: picolibc\n      revision: {'1' * 40}\n"
-        )
-        return path
-
-    def test_the_body_names_both_pins_the_range_and_what_a_person_checks(self):
-        body = pin_evidence.initial_body(self.manifest(), NEW)
-        self.assertIn(f"`{OLD}`", body)
-        self.assertIn(f"`{NEW}`", body)
-        self.assertIn(f"{OLD}..{NEW}", body)
+    def test_the_review_text_says_what_a_person_checks_and_holds_the_empty_section(self):
+        body = pin_evidence.review_body()
         for needle in ("CHANGELOG.md", "west.yml", "budgets/limits.json", "does not merge"):
             self.assertIn(needle, body)
         self.assertIn(pin_evidence.START, body)
         self.assertIn(pin_evidence.END, body)
+        self.assertIn("not available", body)
 
-    def test_a_bad_new_pin_is_refused(self):
-        with self.assertRaises(ValueError):
-            pin_evidence.initial_body(self.manifest(), "main")
-
-    def test_a_manifest_without_a_crux_pilot_revision_is_refused(self):
-        with self.assertRaises(ValueError):
-            pin_evidence.initial_body(self.manifest(revision="main"), NEW)
-
-    def test_the_real_manifest_gives_its_pin(self):
-        revision = yaml.safe_load((ROOT / "west.yml").read_text())["manifest"]["projects"][0]["revision"]
-        self.assertEqual(revision, pin_evidence.manifest_pin(ROOT / "west.yml"))
+    def test_the_section_of_the_review_text_is_replaced_by_the_evidence(self):
+        body = pin_evidence.splice(pin_evidence.review_body(), pin_evidence.section(HEAD, RELEASE_LOG, None))
+        self.assertIn(f"`{IMAGE}`", body)
+        self.assertEqual(1, body.count(pin_evidence.START))
+        self.assertIn("does not merge", body)
 
 
 class Evidence(unittest.TestCase):
@@ -191,9 +172,7 @@ class CommandLine(unittest.TestCase):
     def test_body_then_evidence_through_the_command_line(self):
         with tempfile.TemporaryDirectory() as directory:
             work = pathlib.Path(directory)
-            (work / "west.yml").write_text(
-                f"manifest:\n  projects:\n    - name: crux-pilot\n      revision: {OLD}\n")
-            body = self.run_script("body", "--manifest", str(work / "west.yml"), "--new", NEW)
+            body = self.run_script("body")
             self.assertEqual(0, body.returncode, body.stderr)
             (work / "body.md").write_text(body.stdout)
             (work / "release.log").write_text(RELEASE_LOG)
@@ -203,7 +182,7 @@ class CommandLine(unittest.TestCase):
                                    "--budget-log", str(work / "budget.log"))
             self.assertEqual(0, done.returncode, done.stderr)
             self.assertIn(f"`{IMAGE}`", done.stdout)
-            self.assertIn(f"{OLD}..{NEW}", done.stdout)
+            self.assertIn("does not merge", done.stdout)
 
     def test_a_bad_head_is_refused(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -228,61 +207,87 @@ class Workflow(unittest.TestCase):
     def commands(self, job):
         return "\n".join(step.get("run", "") for step in self.jobs[job]["steps"])
 
-    def test_runs_daily_by_hand_and_after_the_release_and_budget_runs(self):
+    def test_runs_daily_by_hand_and_after_the_release_and_budget_runs_of_the_bot_branch(self):
         on = triggers(self.data)
         self.assertEqual({"schedule", "workflow_dispatch", "workflow_run"}, set(on))
         self.assertEqual(1, len(on["schedule"]))
         self.assertRegex(on["schedule"][0]["cron"], r"^\d+ \d+ \* \* \*$")
         self.assertEqual({"release", "budget"}, set(on["workflow_run"]["workflows"]))
         self.assertEqual(["completed"], on["workflow_run"]["types"])
+        self.assertEqual([BRANCH], on["workflow_run"]["branches"])
         names = {yaml.safe_load((WORKFLOWS / f"{n}.yml").read_text())["name"] for n in ("release", "budget")}
         self.assertEqual({"release", "budget"}, names)
 
-    def test_permissions_are_read_only_except_on_the_two_jobs(self):
+    def test_the_automatic_token_can_only_read_except_for_the_evidence_edit(self):
+        # The pin branch is pushed and the pull request opened with CRUX_PIN_TOKEN, not with it.
         self.assertEqual({"contents": "read"}, self.data["permissions"])
         self.assertEqual({"update", "evidence"}, set(self.jobs))
-        self.assertEqual({"contents": "write", "pull-requests": "write"},
-                         self.jobs["update"]["permissions"])
+        self.assertNotIn("permissions", self.jobs["update"])
         self.assertEqual({"actions": "read", "contents": "read", "pull-requests": "write"},
                          self.jobs["evidence"]["permissions"])
 
+    def test_one_secret_and_no_fallback_to_the_automatic_token_for_the_push(self):
+        self.assertEqual({"CRUX_PIN_TOKEN"}, set(re.findall(r"secrets\.([A-Z_]+)", self.text)))
+        self.assertNotRegex(self.text, r"secrets\.CRUX_PIN_TOKEN *\|\|")
+        update = self.jobs["update"]
+        self.assertEqual("${{ secrets.CRUX_PIN_TOKEN }}", update["env"]["CRUX_PIN_TOKEN"])
+        self.assertNotIn("github.token", yaml.safe_dump(update))
+
     def test_nothing_merges_itself(self):
-        for word in ("gh pr merge", "--auto", "automerge", "auto-merge", "git push origin main"):
+        for word in ("gh pr merge", "--auto", "automerge", "auto-merge", "git push"):
             self.assertNotIn(word, self.text.replace("no auto-merge", ""), word)
 
-    def test_it_marks_the_crux_interface_as_proposed_and_calls_it_from_a_crux_checkout(self):
-        self.assertIn("PROPOSED", self.text)
+    def test_the_crux_scripts_come_from_the_pinned_crux_and_never_from_crux_main(self):
         update = self.commands("update")
-        self.assertIn("crux/scripts/update-crux-pin.py", update)
-        self.assertIn("crux/scripts/open-pin-pr.py", update)
-        checkouts = [s for s in self.jobs["update"]["steps"] if "actions/checkout" in s.get("uses", "")]
-        crux = [s for s in checkouts if s.get("with", {}).get("repository")]
-        self.assertEqual(1, len(crux))
-        self.assertEqual("main", crux[0]["with"]["ref"])
-        self.assertEqual("crux", crux[0]["with"]["path"])
+        self.assertIn("west update crux-pilot", update)
+        self.assertIn("crux-pilot/scripts/crux-pin-bot.py --host github", update)
+        for word in ("update-crux-pin.py", "open-pin-pr.py"):
+            self.assertNotIn(word, update)
+        for step in self.jobs["update"]["steps"]:
+            self.assertNotIn("repository", step.get("with", {}))
+        self.assertLess(update.index("west update crux-pilot"), update.index("crux-pin-bot.py"))
 
-    def test_the_update_job_writes_the_body_before_the_pin_moves(self):
+    def test_a_pinned_crux_without_the_bot_fails_with_a_short_message(self):
         update = self.commands("update")
-        self.assertLess(update.index("pin_evidence.py body"), update.index("update-crux-pin.py"))
-        self.assertIn("crux-pin/update", self.text)
+        self.assertIn("test -f crux-pilot/scripts/crux-pin-bot.py", update)
+        self.assertIn("CONTRIBUTING.md", update)
+        self.assertLess(update.index("test -f crux-pilot/scripts/crux-pin-bot.py"),
+                        update.index("crux-pilot/scripts/crux-pin-bot.py --host"))
 
-    def test_the_evidence_job_reads_only_runs_of_the_pin_branch_of_this_repository(self):
+    def test_the_review_text_is_appended_and_the_branch_is_the_bot_branch(self):
+        update = self.commands("update")
+        self.assertIn("scripts/pin_evidence.py body", update)
+        self.assertIn("--append-body", update)
+        self.assertIn(f"--branch {BRANCH}", update)
+        self.assertNotIn("crux-pin/update", self.text)
+
+    def test_the_evidence_job_also_runs_after_each_refresh(self):
+        # A refresh rewrites the body, so the evidence is put back right after it.
+        evidence = self.jobs["evidence"]
+        self.assertEqual("update", evidence["needs"])
+        condition = evidence["if"]
+        self.assertIn("!cancelled()", condition)
+        self.assertIn("needs.update.result == 'success'", condition)
+
+    def test_the_evidence_job_reads_only_runs_of_the_bot_branch_of_this_repository(self):
         condition = self.jobs["evidence"]["if"]
-        for needle in ("workflow_run", "crux-pin/update", "head_repository.full_name == github.repository",
+        for needle in ("workflow_run", BRANCH, "head_repository.full_name == github.repository",
                        "github.event.workflow_run.event == 'pull_request'"):
             self.assertIn(needle, condition)
         self.assertIn("workflow_run", self.jobs["update"]["if"])
         evidence = self.commands("evidence")
         self.assertIn("scripts/pin_evidence.py evidence", evidence)
         self.assertIn("gh pr edit", evidence)
+        self.assertIn('"$EVENT_HEAD" != "$head"', evidence)
 
     def test_the_evidence_job_runs_no_code_of_the_pull_request(self):
         for step in self.jobs["evidence"]["steps"]:
             self.assertNotIn("ref", step.get("with", {}))
-        self.assertNotIn("head_sha }}", "\n".join(s.get("run", "") for s in self.jobs["evidence"]["steps"]))
+        self.assertNotIn("head_sha }}", self.commands("evidence"))
 
-    def test_the_scheduled_run_is_limited_to_this_repository(self):
-        self.assertIn("github.repository == 'wonny-labs/crux-controller'", self.jobs["update"]["if"])
+    def test_no_repository_gate_on_the_schedule(self):
+        # A copy turns the schedule off in its CI settings instead.
+        self.assertNotIn("github.repository ==", self.text)
 
     def test_it_uses_only_the_actions_that_ci_yml_uses_and_uploads_nothing(self):
         allowed = set(re.findall(r"uses: (\S+)", (WORKFLOWS / "ci.yml").read_text()))
@@ -314,10 +319,15 @@ class JenkinsExample(unittest.TestCase):
         self.assertFalse((ROOT / "Jenkinsfile").exists())
         self.assertIn("Example only", "\n".join(self.text.splitlines()[:5]))
 
-    def test_it_runs_the_same_scripts_in_the_dev_container_image_on_a_schedule(self):
-        for needle in ("cron(", "dockerfile", ".devcontainer", "crux/scripts/update-crux-pin.py",
-                       "crux/scripts/open-pin-pr.py", "scripts/pin_evidence.py body", "bitbucket"):
+    def test_it_runs_the_bot_of_the_pinned_crux_in_the_dev_container_image_on_a_schedule(self):
+        for needle in ("cron(", "dockerfile", ".devcontainer", "west update crux-pilot",
+                       "test -f crux-pilot/scripts/crux-pin-bot.py",
+                       "crux-pilot/scripts/crux-pin-bot.py --host bitbucket-cloud",
+                       "scripts/pin_evidence.py body", "--append-body", f"--branch {BRANCH}",
+                       "CRUX_PIN_TOKEN"):
             self.assertIn(needle, self.text)
+        for word in ("update-crux-pin.py", "open-pin-pr.py", "git clone", "crux-pin/update"):
+            self.assertNotIn(word, self.text)
 
     def test_credentials_come_from_jenkins_and_no_host_is_named(self):
         self.assertIn("withCredentials", self.text)

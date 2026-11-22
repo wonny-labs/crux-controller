@@ -174,12 +174,36 @@ class HookMovesThePin(unittest.TestCase):
         for name in ("RELEASE.md", "docs/dependencies.md", "tests/tooling/test_manifest.py"):
             self.assertIn(name, result.stdout)
 
-    def test_a_rerun_is_a_no_op_with_exit_status_3(self):
+    def test_a_rerun_is_a_no_op_with_exit_status_0(self):
+        # The Crux pin tool treats any other status as a failure and opens no pull request.
         self.assertEqual(0, self.work.run().returncode)
         before = self.work.snapshot()
         again = self.work.run()
-        self.assertEqual(3, again.returncode, again.stderr)
+        self.assertEqual(0, again.returncode, again.stderr)
+        self.assertIn("already", again.stdout)
         self.assertEqual(before, self.work.snapshot())
+
+    def test_the_optional_variables_of_the_crux_pin_tool_are_accepted(self):
+        result = self.work.run(env={
+            "CRUX_PIN_PROJECT": "crux-pilot",
+            "CRUX_PIN_MANIFEST": str(self.work.root / "west.yml"),
+            "CRUX_PIN_CHECKOUT": ""})
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn(f'"{NEW}"', self.work.read("tests/tooling/test_manifest.py"))
+
+    def test_the_manifest_named_by_the_tool_is_the_one_checked(self):
+        other = self.work.root / "elsewhere.yml"
+        other.write_text(west_yml(OLD))
+        before = self.work.snapshot()
+        result = self.work.run(env={"CRUX_PIN_MANIFEST": str(other)})
+        self.assertEqual(1, result.returncode)
+        self.assertIn("elsewhere.yml", result.stderr)
+        self.assertEqual(before, self.work.snapshot())
+
+    def test_the_project_named_by_the_tool_is_the_one_checked(self):
+        result = self.work.run(env={"CRUX_PIN_PROJECT": "picolibc"})
+        self.assertEqual(1, result.returncode)
+        self.assertIn("picolibc", result.stderr)
 
     def test_the_file_mode_is_kept(self):
         path = self.work.root / "RELEASE.md"
@@ -305,7 +329,8 @@ class HookOnTheRealFiles(unittest.TestCase):
             self.assertEqual(0, tests.returncode, tests.stdout + tests.stderr)
             again = subprocess.run([sys.executable, str(copy / "scripts" / "crux-pin-hook")],
                                    cwd=copy, env=environment, capture_output=True, text=True)
-            self.assertEqual(3, again.returncode, again.stdout + again.stderr)
+            self.assertEqual(0, again.returncode, again.stdout + again.stderr)
+            self.assertIn("already", again.stdout)
 
 
 if __name__ == "__main__":

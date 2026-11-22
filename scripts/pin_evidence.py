@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""Write the body of the pin pull request and put the CI evidence of step 3 into it.
+"""Write the review text of the pin pull request and put the CI evidence of step 3 into it.
 
 Step 3 of CONTRIBUTING.md, "The pin and the manifest", asks for the SHA-256 of the S2 zephyr.bin,
 its firmware_identity and the budget tables. CI already prints them: the release dry run prints
@@ -9,8 +9,9 @@ text and copies only values of a known shape (64-hex hashes, region rows of numb
 marked section of the body, so it can rerun on the same body. It builds nothing and needs only the
 standard library, so any CI can call it.
 
-    pin_evidence.py body --manifest west.yml --new SHA
-        print the body; the old pin is read from west.yml, so run it before the pin moves
+    pin_evidence.py body
+        print what a person checks and an empty evidence section; the Crux pin bot appends it
+        (--append-body) after its own text, which names both pins and the Crux log
     pin_evidence.py evidence --body FILE --head SHA [--release-log FILE] [--budget-log FILE]...
         print FILE with the evidence section replaced, or appended when it has none
 
@@ -79,21 +80,6 @@ def step_order(tables):
     return sorted(tables, key=lambda step: int(step[1:]))
 
 
-def manifest_pin(path):
-    """The crux-pilot revision in west.yml, read without a YAML parser."""
-    inside = False
-    for line in pathlib.Path(path).read_text(encoding="utf-8").splitlines():
-        stripped = line.strip()
-        if stripped.startswith("- name:"):
-            inside = stripped == "- name: crux-pilot"
-        elif inside and stripped.startswith("revision:"):
-            revision = stripped.split(":", 1)[1].strip()
-            if SHA1.fullmatch(revision):
-                return revision
-            break
-    raise ValueError(f"{path} has no crux-pilot revision that is a full SHA")
-
-
 def section(head, release_log, budget_log):
     out = [START, f"### CI evidence at `{head}`", ""]
     values = release_values(release_log) if release_log else {}
@@ -131,17 +117,13 @@ def splice(body, new_section):
     return body.rstrip("\n") + "\n\n" + new_section
 
 
-def initial_body(manifest, new):
-    if not SHA1.fullmatch(new):
-        raise ValueError(f"the new pin must be a 40-character lower-case hex SHA, got {new!r}")
-    old = manifest_pin(manifest)
+def review_body():
     return (
-        f"Moves the `crux-pilot` pin from `{old}` to `{new}`, the current Crux main.\n"
-        "The pin update job opened this pull request. It does not merge itself.\n\n"
-        f"Crux changes: `git -C crux-pilot log --oneline {old}..{new}`\n\n"
+        "The pin bot opened this pull request. It does not merge itself.\n\n"
         "Before approving, a person:\n\n"
-        "- reads the Crux changes and writes the reason into the commit message, the comment above\n"
-        "  the pin in `west.yml` and the `CHANGELOG.md` entry;\n"
+        "- reads the Crux changes above and writes the reason into the commit message, the comment\n"
+        "  above the pin in `west.yml` and the `CHANGELOG.md` entry (a commit of a person stops the\n"
+        "  bot from refreshing the branch);\n"
         "- checks that CI is green, the `West pins` job and the `release` dry run included;\n"
         "- compares the evidence below with the previous pin. A limit in `budgets/limits.json` is\n"
         "  not changed here to make a bump pass.\n\n"
@@ -153,9 +135,7 @@ def initial_body(manifest, new):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     commands = parser.add_subparsers(dest="command", required=True)
-    body = commands.add_parser("body")
-    body.add_argument("--manifest", required=True)
-    body.add_argument("--new", required=True)
+    commands.add_parser("body")
     evidence = commands.add_parser("evidence")
     evidence.add_argument("--body", required=True)
     evidence.add_argument("--head", required=True)
@@ -164,7 +144,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
     try:
         if args.command == "body":
-            sys.stdout.write(initial_body(args.manifest, args.new))
+            sys.stdout.write(review_body())
             return 0
         if not SHA1.fullmatch(args.head):
             raise ValueError(f"--head must be a 40-character lower-case hex SHA, got {args.head!r}")
