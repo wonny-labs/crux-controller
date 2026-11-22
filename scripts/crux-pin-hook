@@ -30,6 +30,8 @@ SHA = re.compile(r"[0-9a-f]{40}")
 
 # (file, quote, optional). In a quote, {full} stands for the 40-character pin and {short} for its
 # first 8 characters. An optional file that does not exist is skipped.
+# The Crux pin bot commits only the paths given with --allow-path: a file added here goes into the
+# lists of the crux-pin-update workflow and Jenkinsfile.example too (test_pin_update.py).
 QUOTES = (
     ("tests/tooling/test_manifest.py", 'self.assertEqual(revision, "{full}")', False),
     ("docs/dependencies.md", 'pinned commit {short}"', False),

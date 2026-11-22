@@ -341,6 +341,71 @@ class Contributing(unittest.TestCase):
         self.assertIn("no evidence step", text)
 
 
+def hook_quotes():
+    """The QUOTES table of scripts/crux-pin-hook, which has no .py suffix to import by."""
+    import importlib.machinery
+    import importlib.util
+
+    loader = importlib.machinery.SourceFileLoader("crux_pin_hook", str(ROOT / "scripts" / "crux-pin-hook"))
+    spec = importlib.util.spec_from_loader("crux_pin_hook", loader)
+    module = importlib.util.module_from_spec(spec)
+    loader.exec_module(module)
+    return module.QUOTES
+
+
+def allow_paths(text):
+    return re.findall(r"--allow-path (\S+)", text)
+
+
+class AllowList(unittest.TestCase):
+    """The bot commits only the paths given with --allow-path; they must be what the hook edits."""
+
+    def expected(self):
+        return {"west.yml"} | {name for name, _, _ in hook_quotes()}
+
+    def test_the_workflow_and_the_jenkins_example_allow_exactly_the_files_of_the_pin_move(self):
+        update = "\n".join(s.get("run", "") for s in yaml.safe_load(WORKFLOW.read_text())["jobs"]["update"]["steps"])
+        for name, text in (("workflow", update), ("Jenkinsfile.example", JENKINS.read_text())):
+            found = allow_paths(text)
+            self.assertEqual(len(found), len(set(found)), name)
+            self.assertEqual(self.expected(), set(found), name)
+            self.assertNotIn("<", " ".join(found), name)
+
+    def test_the_files_the_hook_changes_on_a_copy_of_the_repository_are_allowed(self):
+        import os
+        import shutil
+
+        with tempfile.TemporaryDirectory() as directory:
+            copy = pathlib.Path(directory) / "crux-controller"
+            shutil.copytree(ROOT, copy, ignore=shutil.ignore_patterns(".git", "build", "__pycache__"))
+            before = {p.relative_to(copy).as_posix(): p.read_bytes() for p in copy.rglob("*") if p.is_file()}
+            west = copy / "west.yml"
+            old = re.search(r"(?m)^\s*revision: ([0-9a-f]{40})$", west.read_text()).group(1)
+            new = "0123456789abcdef0123456789abcdef01234567"
+            west.write_text(west.read_text().replace(f"revision: {old}", f"revision: {new}"))
+            result = subprocess.run([sys.executable, str(copy / "scripts" / "crux-pin-hook")], cwd=copy,
+                                    env=dict(os.environ, CRUX_PIN_OLD=old, CRUX_PIN_NEW=new),
+                                    capture_output=True, text=True)
+            self.assertEqual(0, result.returncode, result.stderr)
+            after = {p.relative_to(copy).as_posix(): p.read_bytes() for p in copy.rglob("*") if p.is_file()}
+        changed = {name for name in set(before) | set(after) if before.get(name) != after.get(name)}
+        self.assertIn("west.yml", changed)
+        self.assertEqual(self.expected(), changed)
+
+    def test_generated_files_are_written_outside_the_checkout(self):
+        # The bot fails on an untracked file outside --allow-path, so nothing is written into it.
+        update = yaml.safe_load(WORKFLOW.read_text())["jobs"]["update"]["steps"]
+        bot = next(s for s in update if "crux-pin-bot.py --host" in s.get("run", ""))
+        self.assertEqual("crux-controller", bot["working-directory"])
+        self.assertIn('pin_evidence.py body > "$RUNNER_TEMP/review.md"', bot["run"])
+        self.assertIn("pin_evidence.py body > ../review.md", JENKINS.read_text())
+        self.assertIn("dir('crux-controller')", JENKINS.read_text())
+
+    def test_the_comments_say_the_token_never_reaches_git(self):
+        self.assertIn("never gives the token to Git", WORKFLOW.read_text())
+        self.assertIn("never gives the token to Git", JENKINS.read_text())
+
+
 class BudgetLogHasTheTables(unittest.TestCase):
     def test_the_budget_job_prints_its_summary_to_the_log_as_well(self):
         job = yaml.safe_load((WORKFLOWS / "budget.yml").read_text())["jobs"]["budget"]

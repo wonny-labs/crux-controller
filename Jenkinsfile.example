@@ -53,8 +53,11 @@ pipeline {
         stage('Move the pin and refresh the pull request') {
           steps {
             // CRUX_PIN_TOKEN: a Bitbucket Cloud access token with pull request write access, for the
-            // pull request. The bot pushes its branch with plain Git, which takes its
-            // credentials from gitUsernamePassword. Single quotes: the shell, not Groovy, expands them.
+            // pull request only: the bot never gives the token to Git. It pushes its branch with plain
+            // Git, which takes its credentials from gitUsernamePassword. It commits only the allowed
+            // paths (west.yml and what scripts/crux-pin-hook edits) and fails on any other
+            // change in the checkout, so review.md is written outside it. Single quotes: the shell,
+            // not Groovy, expands the credentials.
             withCredentials([string(credentialsId: '<Jenkins token credentials ID>', variable: 'CRUX_PIN_TOKEN'),
                              gitUsernamePassword(credentialsId: '<Jenkins Git credentials ID>', gitToolName: 'Default')]) {
               dir('crux-controller') {
@@ -62,7 +65,18 @@ pipeline {
                   ../.venv/bin/python scripts/pin_evidence.py body > ../review.md
                   ../.venv/bin/python ../crux-pilot/scripts/crux-pin-bot.py --host bitbucket-cloud \
                     --repo "$BITBUCKET_REPOSITORY" --manifest west.yml --project crux-pilot \
-                    --base main --branch bot/crux-pin --token-env CRUX_PIN_TOKEN --append-body ../review.md
+                    --base main --branch bot/crux-pin --token-env CRUX_PIN_TOKEN --append-body ../review.md \
+                    --allow-path west.yml \
+                    --allow-path tests/tooling/test_manifest.py \
+                    --allow-path docs/dependencies.md \
+                    --allow-path RELEASE.md \
+                    --allow-path tests/tooling/test_docs.py \
+                    --allow-path docs/adding-a-step.md \
+                    --allow-path tests/tooling/test_docs_navigation.py \
+                    --allow-path tests/tooling/test_s4.py \
+                    --allow-path tests/tooling/test_s5.py \
+                    --allow-path tests/tooling/test_s6.py \
+                    --allow-path CHANGELOG.md
                 '''
               }
             }

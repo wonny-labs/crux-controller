@@ -51,8 +51,8 @@ jobs:
           CRUX_PIN_TOKEN: ${{ secrets.CRUX_PIN_TOKEN }}
         run: |
           test -n "$CRUX_PIN_TOKEN" || { echo "::error::Set the secret CRUX_PIN_TOKEN." >&2; exit 1; }
-      # The checkout keeps the token for the push: open-pin-pr.py pushes through the origin remote and
-      # uses the token only for the pull request itself.
+      # The checkout keeps the token for the push: the bot never gives the token to Git, pushes
+      # through the origin remote and uses the token only for the pull request itself.
       - uses: actions/checkout@v4
         with:
           path: crux-controller
@@ -75,10 +75,24 @@ jobs:
         env:
           CRUX_PIN_TOKEN: ${{ secrets.CRUX_PIN_TOKEN }}
         run: |
+          # The bot commits only the allowed paths below: west.yml and the files scripts/crux-pin-hook
+          # edits (a missing one, such as CHANGELOG.md in a copy, is harmless). Anything else in the
+          # checkout makes it fail, so generated files go to $RUNNER_TEMP.
           python scripts/pin_evidence.py body > "$RUNNER_TEMP/review.md"
           python ../crux-pilot/scripts/crux-pin-bot.py --host github --repo "$GITHUB_REPOSITORY" \
             --manifest west.yml --project crux-pilot --base main --branch bot/crux-pin \
-            --token-env CRUX_PIN_TOKEN --append-body "$RUNNER_TEMP/review.md"
+            --token-env CRUX_PIN_TOKEN --append-body "$RUNNER_TEMP/review.md" \
+            --allow-path west.yml \
+            --allow-path tests/tooling/test_manifest.py \
+            --allow-path docs/dependencies.md \
+            --allow-path RELEASE.md \
+            --allow-path tests/tooling/test_docs.py \
+            --allow-path docs/adding-a-step.md \
+            --allow-path tests/tooling/test_docs_navigation.py \
+            --allow-path tests/tooling/test_s4.py \
+            --allow-path tests/tooling/test_s5.py \
+            --allow-path tests/tooling/test_s6.py \
+            --allow-path CHANGELOG.md
 
   evidence:
     name: Put the CI evidence into the pin pull request
