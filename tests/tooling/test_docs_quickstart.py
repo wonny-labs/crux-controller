@@ -451,16 +451,17 @@ class CopyAndLayout(Page):
         self.assertIn("ZEPHYR_SDK_INSTALL_DIR=/opt/crux-cache/sdk/zephyr-sdk-${ZEPHYR_SDK_VERSION}", dockerfile)
         self.assertIn("west update", self.setup)
 
-    def test_the_failure_list_names_the_cases_of_the_task(self):
-        failing = section(self.text, "If the dev container fails")
-        for word in ("daemon", "docker.sock", "bash\\r", "Permission denied", ".git",
-                     "troubleshooting.md"):
-            self.assertIn(word, failing)
-        # The messages that the page quotes from the scripts are in the scripts.
+    def test_the_failure_section_points_at_troubleshooting_which_names_the_cases(self):
+        # The failure list lives in troubleshooting.md only; this page points there.
+        self.assertIn("troubleshooting.md", section(self.text, "If the dev container fails"))
+        trouble = read(TROUBLE)
+        for word in ("daemon", "docker.sock", "bash\\r", "Permission denied", ".git"):
+            self.assertIn(word, trouble)
+        # The messages that the pages quote from the scripts are in the scripts.
         self.assertIn("the clone is in a folder named", self.setup)
-        self.assertIn("the clone is in a folder named", self.text)
+        self.assertIn("the clone is in a folder named", trouble)
         self.assertIn("looks like a home directory", self.setup)
-        self.assertIn("looks like a home directory", self.text)
+        self.assertIn("looks like a home directory", trouble)
 
 
 class OnMain(Page):
@@ -501,7 +502,7 @@ class OnMain(Page):
 
     def test_the_line_ends_are_pinned_by_gitattributes_and_the_page_says_a_clone_has_lf(self):
         self.assertIn("* text=auto eol=lf", read(ROOT / ".gitattributes"))
-        self.assertIn(".gitattributes", section(self.text, "If the dev container fails"))
+        self.assertIn(".gitattributes", read(TROUBLE))
 
     def test_the_page_does_not_call_a_changed_behaviour_planned(self):
         self.assertNotIn("planned", self.text.lower())
@@ -727,10 +728,11 @@ class Troubleshooting(unittest.TestCase):
 
 
 class Readme(unittest.TestCase):
-    def test_the_how_to_try_it_paragraph_points_at_the_quick_start(self):
+    def test_the_quick_start_section_points_at_the_first_hour_and_the_details(self):
         text = read(README)
-        start = text.index("## How to try it")
+        start = text.index("## Quick start")
         paragraph = text[start:text.index("\n## ", start + 1)]
+        self.assertIn("docs/first-hour.md", paragraph)
         self.assertIn("docs/try-on-native-sim.md#quick-start", paragraph)
         self.assertIn("bash scripts/dev-shell.sh", paragraph)
         self.assertIn("docs/troubleshooting.md", paragraph)

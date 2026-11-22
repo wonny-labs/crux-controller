@@ -1,53 +1,36 @@
 # Documentation index
 
-This page lists every document of the repository, says what each one is for, and gives a short path for each
-task. If you have not seen this repository before, start with the [README](../README.md). To set up, build, run
-and test in the dev container on one short page, follow [first-hour.md](first-hour.md).
-
-The reading times are for reading only, at about 250 words a minute. A page with commands takes longer to follow.
-The five pages of the reading path in the README (the README, the roadmap, the architecture, the try-on page and
-CONTRIBUTING.md) take about 70 minutes together.
+Every document of the repository, what it is for, and a short path for each task. New here? Start with the
+[README](../README.md) and the quick start, [first-hour.md](first-hour.md). Reading times assume about 250 words a
+minute; a page with commands takes longer to follow.
 
 ## Paths by task
 
 ### I want to run it
 
-- [first-hour.md](first-hour.md): clone, open the dev container, one build, one `native_sim` run, the host
-  tests, the tooling tests and the boundary check, with the times that CI measured.
-- [try-on-native-sim.md](try-on-native-sim.md): set up a workspace and run the `native_sim` scenarios, the host
-  tests, the tooling tests and the boundary check without a board.
-- [first-change.md](first-change.md): run the host tests and the checks that need no Zephyr, with a small example.
-- [troubleshooting.md](troubleshooting.md): look up a failure by its message: its cause, its fix and the page to read next.
-- [board-bring-up.md](board-bring-up.md): the board route (probe on WSL2, an optional board container, a read-only
-  compare, `west flash` and `west debug` with J-Link). It is untested on hardware and needs the owner's authorisation.
+[first-hour.md](first-hour.md) first. Then [try-on-native-sim.md](try-on-native-sim.md) for the setup details,
+[troubleshooting.md](troubleshooting.md) for a failure, and [board-bring-up.md](board-bring-up.md) for a board (untested
+on hardware, and it needs the owner's authorisation).
 
 ### I want to change code
 
-- [first-change.md](first-change.md): from a branch to a pull request with a small change that needs no Zephyr.
-- [CONTRIBUTING.md](../CONTRIBUTING.md): the boundary, the checks, the pin, how commits and pull requests are written.
-- [architecture.md](architecture.md): which directory holds what, and which headers each may include.
-- [composition-zone.md](composition-zone.md): read this when the boundary check fails. There is no exception.
+[first-change.md](first-change.md), then [CONTRIBUTING.md](../CONTRIBUTING.md). [architecture.md](architecture.md) says
+which directory holds what; [composition-zone.md](composition-zone.md) explains a failed boundary check.
 
 ### I want to add a step
 
-- [adding-a-step.md](adding-a-step.md): the recipe, the checklist and the rule for drivers and HAL.
-- [architecture.md](architecture.md): the zones and the port headers that a step builds on.
-- [findings/s4-system-composition.md](findings/s4-system-composition.md): a worked example, with the friction that
-  step S4 met.
+[adding-a-step.md](adding-a-step.md), with [findings/s4-system-composition.md](findings/s4-system-composition.md) as a
+worked example and [architecture.md](architecture.md) for the zones and port headers.
 
 ### I want to review
 
-- [reviewing.md](reviewing.md): the reviewer checklist.
-- [CONTRIBUTING.md](../CONTRIBUTING.md#review): the three verdicts and what a `PASS` does not grant.
-- [adding-a-step.md](adding-a-step.md#files-that-need-a-reviewed-change): the files whose change needs particular care.
+[reviewing.md](reviewing.md), the three verdicts in [CONTRIBUTING.md](../CONTRIBUTING.md#review), and the
+[files that need a reviewed change](adding-a-step.md#files-that-need-a-reviewed-change).
 
 ### I want to know why
 
-- [findings/README.md](findings/README.md): what building each step taught about using Crux, with the revision
-  that each note was read at.
-- [roadmap.md](roadmap.md): what exists, what has run on a board, what is not yet possible and why.
-- [history/README.md](history/README.md): the project history that left the main documents, with a move log.
-- [composition-zone.md](composition-zone.md#why-a-zone): why the boundary has zones and an exact allow-list.
+The [findings](findings/README.md), the [roadmap](roadmap.md), [why a zone](composition-zone.md#why-a-zone) and the
+[history](history/README.md).
 
 ## Where decisions are recorded
 
@@ -78,7 +61,7 @@ These are known limits of what the checks and tests cover. They are facts about 
 - **The naming check enforces nothing.** `readability-identifier-naming` is listed without options and enforces no
   naming rule (`.clang-tidy`).
 - **Other languages are not linted.** There is no lint for Python, shell, YAML or CMake, and no coverage measurement.
-- **Many tooling tests pin text.** Counted by module (every test of a module counts the same, at the head of this change), the tests in `tests/tooling` that read the repository's
+- **Many tooling tests pin text.** Counted by module (every test of a module counts the same, counted once when this entry was written and not recounted since), the tests in `tests/tooling` that read the repository's
   documents, workflows, CMake and Kconfig files as text, and run no script on synthetic input, are between about 50
   and 70 percent of all of them. The upper figure counts three modules that mix both kinds. This is an estimate of tests per module, not of modules. A
   green tooling run shows that the text and the configuration agree with the tests, and not that the firmware
@@ -143,7 +126,7 @@ These pages keep text that left the main documents. They are history, not instru
 
 | Document | What it is | Reading time |
 |---|---|---|
-| [README.md](../README.md) | What the repository is, its state, how to try it, the reading path and where the rules are. | 4 min |
+| [README.md](../README.md) | What the repository is, the quick start, Crux usage step by step, where to read next, the status and where the rules are. | 4 min |
 | [CHANGELOG.md](../CHANGELOG.md) | What each change added. Everything is unreleased. | 8 min |
 | [CONTRIBUTING.md](../CONTRIBUTING.md) | The boundary, build and test, the CI jobs, the pin, how to change behaviour, commits and pull requests, review, and the rules of a public repository. | 9 min |
 | [RELEASE.md](../RELEASE.md) | The release dry run, what the bundle holds (hashes only) and what a tag needs. | 2 min |

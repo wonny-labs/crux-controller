@@ -1,9 +1,8 @@
 # How to try it without a board
 
-This page is for a teammate who wants to see the firmware's tests run and has no RT1060-EVKB at hand. For the
-short path, one build, one run and the local checks, start with [first-hour.md](first-hour.md); this page holds the details.
-Terms are in the [glossary](glossary.md), the layout is in the [architecture](architecture.md), and what has
-and has not run on a board is in the [roadmap](roadmap.md).
+This page is the reference for running the tests without an RT1060-EVKB: both setup routes, proxies and
+certificates, the workspace layout, every test command and what has been checked. For the short path, follow
+[first-hour.md](first-hour.md) first.
 
 Six terms, defined once. **west** is Zephyr's tool for workspaces, builds and tests. A **workspace** is the
 folder that holds this repository next to the `.west/` folder and the projects that `west.yml` fetches
@@ -22,17 +21,14 @@ There are two routes, and the first is the one to start with:
    needs Python 3.12, and Ubuntu 22.04 has 3.10.
 
 On macOS only part of this runs natively. In the author's runs (Apple clang 17, CMake 4.4, Ninja and Python
-3.9 with PyYAML) the Python tooling tests, the boundary check, the SPDX check, the format check (with
-clang-format 18.1.8 from pip) and the host tests (sanitizers off and on) passed; the host tests also build on
-macOS. The tooling tests, the SPDX check and the format check need a Git repository. The Zephyr builds and the
-Twister runs need Linux or the dev container (Zephyr's `native_sim` is documented for Linux hosts: general
-knowledge). Docker on macOS was not tried.
+3.9 with PyYAML) the Python tooling tests, the boundary check, the SPDX check, the format check (clang-format
+18.1.8 from pip) and the host tests (sanitizers off and on) passed, in a Git clone. The Zephyr builds and the
+Twister runs need Linux or the dev container. Docker on macOS was not tried.
 
-The commands come from the CI workflow (`.github/workflows/ci.yml`, job `S1`, on `ubuntu-24.04`) and from
-[CONTRIBUTING.md](../CONTRIBUTING.md), with the CI-only variables replaced by local values. What was run
-locally, and what was not, is in [What has been checked](#what-has-been-checked). CI stays the reference:
-a local result is a convenience and does not replace the CI result that a pull request cites. If something
-fails, look it up by its message in [troubleshooting.md](troubleshooting.md).
+The commands are those of the CI workflow (`.github/workflows/ci.yml`, job `S1`, on `ubuntu-24.04`), with the
+CI-only variables replaced by local values, and a tooling test compares them. CI stays the reference: a local
+result does not replace the CI result that a pull request cites ([What has been checked](#what-has-been-checked)).
+Look a failure up by its message in [troubleshooting.md](troubleshooting.md).
 
 ## Dev container
 
@@ -482,33 +478,11 @@ next to the clone only if you also want a new `west init`.
 
 ### If the dev container fails
 
-Look the message up in [troubleshooting.md](troubleshooting.md). The cases of this section:
-
-- "Cannot connect to the Docker daemon" (Docker's own message, which `scripts/dev-shell.sh` does not replace): the
-  daemon is not running. Start it (`sudo service docker start`) and check it with `docker info`.
-- `permission denied` on `/var/run/docker.sock`: you are not in the `docker` group yet, or the session predates the
-  change. Restart WSL as in the quick start.
-- `env: bash\r: No such file or directory` or an error at `pipefail`: CRLF line ends. A clone checks out LF,
-  because `.gitattributes` pins it; a checkout with `core.autocrlf` on can still have CRLF. Strip the CRs and add
-  the files again: `git ls-files -z | xargs -0 sed -i 's/\r$//'`, then `git add -A`.
-- `Permission denied` on a script: the exec bit is lost. Run `chmod +x scripts/*.sh .devcontainer/*.sh`, or start
-  the script as `bash scripts/...`.
-- "the clone is in a folder named ...": rename the clone folder to `crux-controller`.
-- "looks like a home directory" or "is your home directory", from `setup.sh` or from a line that starts
-  `check-host:`: the parent of the clone is your home directory (or holds files such as `.bashrc`). Put the clone in
-  a parent folder of its own, as in the quick start.
-- `setup: failed during <step>; rerun: bash .devcontainer/setup.sh`: a step of the setup failed. The lines above
-  name the cause; fix it and run the command again.
-- "which is not a readable file" or "is not a PEM certificate": the company CA file. See
-  [Behind a proxy or with a company certificate](#behind-a-proxy-or-with-a-company-certificate).
-- "is incomplete (it has no install marker); removing it and installing the SDK again": an interrupted install, or an
-  old volume. Let it finish; it is once.
-- If the creation of the container failed, open a terminal in it (or run `bash scripts/dev-shell.sh`) and run
-  `bash .devcontainer/setup.sh` again. It skips what is done and repeats an interrupted `west update`.
-- To start from nothing, remove the cache volume of the workspace (`docker volume ls`, then
-  `docker volume rm crux-controller-dev-cache-<number>`, with no container using it). The workspace folder next to
-  the clone is yours: delete `.west/`, `zephyr/` and `modules/` there only if you want a new `west init`.
-- CI is still the reference for a pull request. The native route in the sections below stays valid on Ubuntu 24.04.
+Look the message up in [troubleshooting.md](troubleshooting.md#setup-and-the-dev-container). It has every message of
+`scripts/dev-shell.sh`, `.devcontainer/setup.sh` and `.devcontainer/check-host.sh`, with the cause and the fix. After a
+fix, run the same command again: the setup skips what is done. To start from nothing, remove the cache volume (see
+[Layout](#layout)). CI is still the reference for a pull request, and the native route below stays valid on Ubuntu
+24.04.
 
 ## What `native_sim` is
 

@@ -143,7 +143,7 @@ of CI (format, static analysis, SPDX) are in
 ## What next
 
 - Make a first change, from a branch to a pull request: [first-change.md](first-change.md).
-- Read the reading path of the [README](../README.md#reading-path), starting with the
+- Pick the next page from the [README](../README.md#where-to-read-next), starting with the
   [roadmap](roadmap.md) and the [architecture](architecture.md).
 - Look up a failure by its message: [troubleshooting.md](troubleshooting.md).
 - Everything about the setup, the native route on Ubuntu 24.04 without Docker, the S6 scenario and what has been

@@ -54,5 +54,17 @@ statement instead, the last column says what it says now.
 | `docs/README.md` | Paths by task, "I keep a copy of the repository" | [copy-procedures.md](copy-procedures.md) | "Paths by task" | Dropped. |
 | `docs/README.md` | All documents, the row of `team-copy.md` | [copy-procedures.md](copy-procedures.md) | "All documents, the row of team-copy.md" | The page is listed under "In `docs/history/`". |
 
+### Removed duplicates
+
+These pieces were removed because another page states the same thing; they were not copied here. The text
+before the removal is in the Git history of the file.
+
+| Source file | Removed | Where the content is now |
+|---|---|---|
+| `README.md` | "New here?" line, "How to try it" steps 1 to 4, "Reading path" with the reading times, the EVKB build column of the step table | [README](../../README.md#quick-start) "Quick start" points at [first-hour.md](../first-hour.md); the task table "Where to read next"; the times are in the [index](../README.md); every step is built for the EVKB, as "Status" says |
+| `docs/README.md` | the reading-time preface, the reading-path total and the bullet lists under "Paths by task" | one short paragraph per task; the "All documents" tables keep each page and its time |
+| `docs/try-on-native-sim.md` | "If the dev container fails", the list of messages | [troubleshooting.md](../troubleshooting.md#setup-and-the-dev-container), which has every message with its cause and fix |
+| `docs/try-on-native-sim.md`, `docs/roadmap.md`, `docs/architecture.md` | link lists in the opening paragraphs | the [index](../README.md) and the README task table |
+
 The example workspace folder of the guides and of `.devcontainer` is `crux-controller-workspace` (it was `controller-ws`); the moved
 copies use the new name.

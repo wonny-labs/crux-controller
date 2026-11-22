@@ -147,7 +147,7 @@ Add a job `s4` to `.github/workflows/ci.yml` by copying the S3 job. The name mus
    `-DEXTRA_DTC_OVERLAY_FILE=boards/s4.overlay`;
 2. checks that `zephyr.bin` and `zephyr.meta` exist;
 3. checks the resolved `.config` and `zephyr.dts`: the options that must be on, the options that must be
-   off (another watchdog owner, Crux Thread, Sync, Queue), the alias, and the node status;
+   off (another watchdog owner, Crux Thread and Sync), the alias, and the node status;
 4. checks with `nm` that the glue and the Crux calls it makes are linked.
 
 Step 3 of the job exists because an unmet Kconfig dependency only prints a warning: the image would
@@ -283,7 +283,7 @@ than adding a layer of your own. A port header covers one capability for one zon
 layer, and the repository does not have one.
 
 **Out of scope.** The roadmap records GPIO, I2C and SPI as out of scope, with direct use of Crux Thread, Sync, Queue
-and Serial, Reliance Edge and any firmware image in public form ([roadmap.md](roadmap.md#what-is-not-yet-possible-and-why)).
+and Serial (as the finding recorded them; the pinned Crux no longer has Queue), Reliance Edge and any firmware image in public form ([roadmap.md](roadmap.md#what-is-not-yet-possible-and-why)).
 These are recorded positions, not commitments. A step that needs one of them is a scope question: put the need and the
 alternatives in the pull request. CONTRIBUTING.md does not rule on it. A new Zephyr header in a zone is a reviewed
 change of `scripts/check_boundary.py`, `tests/tooling/test_boundary.py` and `docs/composition-zone.md` together.
