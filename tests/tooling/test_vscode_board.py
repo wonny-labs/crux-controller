@@ -1,0 +1,84 @@
+# SPDX-License-Identifier: Apache-2.0
+"""Checks of the VS Code files: two Cortex-Debug board profiles and the build task they depend on.
+
+Nothing here starts VS Code, a probe or a board. The files are read and compared with the build command of
+docs/board-bring-up.md.
+"""
+
+import json
+import pathlib
+import unittest
+
+ROOT = pathlib.Path(__file__).resolve().parents[2]
+VSCODE = ROOT / ".vscode"
+DEVCONTAINER = ROOT / ".devcontainer"
+
+
+def load(path):
+    return json.loads(path.read_text())
+
+
+class LaunchProfiles(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.data = load(VSCODE / "launch.json")
+        cls.by_name = {c["name"]: c for c in cls.data["configurations"]}
+
+    def test_exactly_the_two_board_profiles(self):
+        self.assertEqual({"Board: Flash and run to main", "Board: Attach (no reset)"}, set(self.by_name))
+
+    def test_both_use_cortex_debug_with_the_jlink_server_over_swd(self):
+        for name, profile in self.by_name.items():
+            with self.subTest(name):
+                self.assertEqual("cortex-debug", profile["type"])
+                self.assertEqual("jlink", profile["servertype"])
+                self.assertEqual("swd", profile["interface"])
+                self.assertEqual("MIMXRT1062xxx6A", profile["device"])
+
+    def test_speed_is_auto_and_no_fixed_speed_is_set(self):
+        for profile in self.by_name.values():
+            self.assertEqual(["-speed", "auto"], profile["serverArgs"])
+
+    def test_flash_profile_builds_first_and_runs_to_main(self):
+        profile = self.by_name["Board: Flash and run to main"]
+        self.assertEqual("launch", profile["request"])
+        self.assertEqual("Build firmware", profile["preLaunchTask"])
+        self.assertEqual("main", profile["runToEntryPoint"])
+
+    def test_attach_profile_does_not_build_reset_or_download(self):
+        profile = self.by_name["Board: Attach (no reset)"]
+        self.assertEqual("attach", profile["request"])
+        for key in ("preLaunchTask", "runToEntryPoint", "overrideLaunchCommands", "overrideResetCommands"):
+            self.assertNotIn(key, profile)
+
+    def test_the_elf_is_the_one_of_the_documented_board_build(self):
+        guide = (ROOT / "docs" / "board-bring-up.md").read_text()
+        self.assertIn("-d crux-controller/build/s2", guide)
+        for profile in self.by_name.values():
+            self.assertEqual("${workspaceFolder}/build/s2/zephyr/zephyr.elf", profile["executable"])
+
+    def test_gdb_comes_from_the_zephyr_sdk_of_the_container(self):
+        for profile in self.by_name.values():
+            self.assertEqual("${env:ZEPHYR_SDK_INSTALL_DIR}/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gdb",
+                             profile["gdbPath"])
+
+
+class BuildTask(unittest.TestCase):
+    def test_build_firmware_runs_the_documented_west_build_in_the_workspace(self):
+        tasks = {t["label"]: t for t in load(VSCODE / "tasks.json")["tasks"]}
+        task = tasks["Build firmware"]
+        text = " ".join([task["command"], *task.get("args", [])])
+        self.assertIn("west build", text)
+        self.assertIn("mimxrt1060_evk@B//qspi", text)
+        self.assertIn("-d crux-controller/build/s2", text)
+        self.assertEqual("/workspaces/ws", task["options"]["cwd"])
+
+
+class Extension(unittest.TestCase):
+    def test_the_dev_container_installs_cortex_debug(self):
+        data = json.loads((DEVCONTAINER / "devcontainer.json").read_text())
+        self.assertIn("marus25.cortex-debug", data["customizations"]["vscode"]["extensions"])
+
+
+if __name__ == "__main__":
+    unittest.main()

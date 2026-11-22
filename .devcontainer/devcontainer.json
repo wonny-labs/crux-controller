@@ -40,6 +40,7 @@
         "ms-vscode.cpptools",
         "ms-vscode.cmake-tools",
         "ms-python.python",
+        "marus25.cortex-debug",
         "redhat.vscode-yaml"
       ],
       "settings": {
