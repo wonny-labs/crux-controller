@@ -10,12 +10,34 @@
 // never matches: use when { expression { env.BRANCH_NAME == null || env.BRANCH_NAME == 'main' } } there.
 // Known gap: the Jenkins path has no evidence step yet; the step 3 evidence is GitHub only.
 // The Crux interface is the one of crux-pilot pull request 537.
+//
+// The last stage holds the push and pull request credentials, so nothing that an earlier run or
+// another job left behind may reach it:
+// - The job runs on an agent label of its own, which no pull request build uses: those builds run
+//   an unreviewed Crux and could leave files or processes behind.
+// - Each run empties its workspace and WORKSPACE_TMP first and checks out again. The venv and the
+//   copies of the three Crux scripts go to a fresh WORKSPACE_TMP/crux-pin. The venv holds only the
+//   hashed packages of scripts/crux-pin-requirements.txt. The scripts are read with git show from
+//   the pinned revision, after checking that the Crux checkout is at that revision and has no
+//   changed, untracked or ignored file. Replace refs are ignored.
+// - Each stage that runs code has its own container of the dev container image, on the same node
+//   and workspace, removed when the stage ends, so no process of the fetch stage outlives it.
+// Before going live, check on the agent:
+// - Docker Pipeline with stage-level dockerfile agents on a Linux node, one container per stage.
+// - No container gets the docker socket, --pid=host, --ipc=host or --privileged, and the agent is
+//   not itself a container whose volumes reach the stages through --volumes-from.
+// - Each container has a container-local /tmp, not a mounted one.
+// - The containers run as the uid that owns the workspace, so that deleteDir and Git work.
+// Still open on the Crux side (a later Crux release): the bot does not yet commit from a fresh index
+// or refuse replace refs, and it gives the hook every variable except the token's, so the hook
+// also sees the GIT_ASKPASS setting of gitUsernamePassword.
 
 pipeline {
   agent none
   triggers { cron('H 4 * * *') }
   options {
     disableConcurrentBuilds()
+    skipDefaultCheckout()
     timeout(time: 20, unit: 'MINUTES')
   }
   environment {
@@ -24,33 +46,62 @@ pipeline {
   stages {
     stage('Crux pin') {
       when { beforeAgent true; allOf { branch 'main'; not { changeRequest() } } }
-      agent {
-        dockerfile {
-          dir '.devcontainer'
-          filename 'Dockerfile'
-          additionalBuildArgs '--platform=linux/amd64'
-        }
-      }
+      agent { label '<agent label of this job only, not shared with pull request builds>' }
       stages {
-        stage('Fetch the pinned Crux') {
+        stage('Start clean') {
           steps {
-            // A second checkout in a subfolder: west makes the folder above the manifest its workspace.
+            deleteDir()
+            dir(env.WORKSPACE_TMP) { deleteDir() }
+            // A checkout in a subfolder: west makes the folder above the manifest its workspace.
             dir('crux-controller') { checkout scm }
+          }
+        }
+        stage('Fetch the pinned Crux') {
+          agent {
+            dockerfile {
+              dir 'crux-controller/.devcontainer'
+              filename 'Dockerfile'
+              additionalBuildArgs '--platform=linux/amd64'
+              reuseNode true
+            }
+          }
+          steps {
             // West needs read access to the Crux remote of west.yml, for example a Git credential helper.
             sh '''
-              python3 -m venv .venv
-              .venv/bin/pip install -q west==1.4.0 pyyaml==6.0.3
-              rm -rf .west
-              .venv/bin/west init -l crux-controller
-              .venv/bin/west update crux-pilot
-              test -f crux-pilot/scripts/crux-pin-bot.py || {
+              set -eu
+              T="$WORKSPACE_TMP/crux-pin"
+              mkdir -p "$T/scripts"
+              python3 -m venv "$T/venv"
+              "$T/venv/bin/pip" install -q --require-hashes -r crux-controller/scripts/crux-pin-requirements.txt
+              "$T/venv/bin/west" init -l crux-controller
+              "$T/venv/bin/west" update crux-pilot
+              export GIT_NO_REPLACE_OBJECTS=1
+              rev="$("$T/venv/bin/west" list -f '{revision}' crux-pilot)"
+              case "$rev" in
+                *[!0-9a-f]*|'') echo "The pin is not a full commit SHA: $rev" >&2; exit 1 ;;
+              esac
+              test "${#rev}" -eq 40 || { echo "The pin is not a full commit SHA: $rev" >&2; exit 1; }
+              test "$(git -C crux-pilot rev-parse HEAD)" = "$rev"
+              test -z "$(git -C crux-pilot status --porcelain --ignored)"
+              git -C crux-pilot cat-file -e "$rev:scripts/crux-pin-bot.py" 2>/dev/null || {
                 echo "The pinned Crux has no scripts/crux-pin-bot.py. Move the pin by hand once (CONTRIBUTING.md)." >&2
                 exit 1
               }
+              for script in crux-pin-bot.py update-crux-pin.py open-pin-pr.py; do
+                git -C crux-pilot show "$rev:scripts/$script" > "$T/scripts/$script"
+              done
             '''
           }
         }
         stage('Move the pin and refresh the pull request') {
+          agent {
+            dockerfile {
+              dir 'crux-controller/.devcontainer'
+              filename 'Dockerfile'
+              additionalBuildArgs '--platform=linux/amd64'
+              reuseNode true
+            }
+          }
           steps {
             // CRUX_PIN_TOKEN: a Bitbucket Cloud access token with pull request write access, for the
             // pull request only: the bot never gives the token to Git. It pushes its branch with plain
@@ -58,16 +109,19 @@ pipeline {
             // paths (west.yml and what scripts/crux-pin-hook edits) and fails on any other
             // change in the checkout, so review.md is written outside it. Single quotes: the shell,
             // not Groovy, expands the credentials. Only reviewed code holds the credentials here: the
-            // pinned Crux bot and scripts/crux-pin-hook, which runs no build. Run no build in this stage;
-            // the pull request builds of the new pin run without these credentials.
+            // copies of the pinned Crux scripts and scripts/crux-pin-hook, which runs no build.
+            // Run no build in this stage; the pull request builds of the new pin run without these
+            // credentials.
             withCredentials([string(credentialsId: '<Jenkins token credentials ID>', variable: 'CRUX_PIN_TOKEN'),
                              gitUsernamePassword(credentialsId: '<Jenkins Git credentials ID>', gitToolName: 'Default')]) {
               dir('crux-controller') {
                 sh '''
-                  ../.venv/bin/python scripts/pin_evidence.py body > ../review.md
-                  ../.venv/bin/python ../crux-pilot/scripts/crux-pin-bot.py --host bitbucket-cloud \
+                  set -eu
+                  T="$WORKSPACE_TMP/crux-pin"
+                  "$T/venv/bin/python" scripts/pin_evidence.py body > "$T/review.md"
+                  "$T/venv/bin/python" "$T/scripts/crux-pin-bot.py" --host bitbucket-cloud \
                     --repo "$BITBUCKET_REPOSITORY" --manifest west.yml --project crux-pilot \
-                    --base main --branch bot/crux-pin --token-env CRUX_PIN_TOKEN --append-body ../review.md \
+                    --base main --branch bot/crux-pin --token-env CRUX_PIN_TOKEN --append-body "$T/review.md" \
                     --allow-path west.yml \
                     --allow-path tests/tooling/test_manifest.py \
                     --allow-path docs/dependencies.md \

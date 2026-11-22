@@ -20,6 +20,8 @@ import pin_evidence  # noqa: E402
 WORKFLOWS = ROOT / ".github" / "workflows"
 WORKFLOW = WORKFLOWS / "crux-pin-update.yml"
 JENKINS = ROOT / "Jenkinsfile.example"
+LOCK = ROOT / "scripts" / "crux-pin-requirements.txt"
+PIN_SCRIPTS = ("crux-pin-bot.py", "update-crux-pin.py", "open-pin-pr.py")
 BRANCH = "bot/crux-pin"
 
 HEAD = "fedcba9876543210fedcba9876543210fedcba98"
@@ -332,12 +334,57 @@ class Workflow(unittest.TestCase):
         # A copy turns the schedule off in its CI settings instead.
         self.assertNotIn("github.repository ==", self.text)
 
-    def test_it_uses_only_the_actions_that_ci_yml_uses_and_uploads_nothing(self):
-        allowed = set(re.findall(r"uses: (\S+)", (WORKFLOWS / "ci.yml").read_text()))
-        used = set(re.findall(r"uses: (\S+)", self.text))
-        self.assertTrue(used <= allowed, used - allowed)
+    def test_every_action_is_pinned_by_a_full_commit_sha_of_the_version_ci_yml_uses(self):
+        # A tag can be moved; a commit SHA cannot. The comment names the release the SHA belongs to.
+        ci = dict(re.findall(r"uses: ([\w.-]+/[\w.-]+)@v(\d+)", (WORKFLOWS / "ci.yml").read_text()))
+        lines = [line.strip() for line in self.text.splitlines() if re.match(r"\s*(- )?uses:", line)]
+        self.assertTrue(lines)
+        for line in lines:
+            match = re.fullmatch(r"(?:- )?uses: ([\w.-]+/[\w.-]+)@([0-9a-f]{40}) # v(\d+)\.\d+\.\d+", line)
+            self.assertIsNotNone(match, line)
+            name, _, major = match.groups()
+            self.assertIn(name, ci, line)
+            self.assertEqual(ci[name], major, line)
+        for step in (s for job in self.jobs.values() for s in job["steps"] if "uses" in s):
+            self.assertRegex(step["uses"], r"@[0-9a-f]{40}$")
+
+    def test_the_tools_come_from_the_hash_lock_only(self):
+        install = next(s for s in self.jobs["update"]["steps"] if "pip install" in s.get("run", ""))
+        self.assertEqual("python -m pip install --require-hashes -r crux-controller/scripts/crux-pin-requirements.txt",
+                         install["run"].strip())
+        self.assertNotRegex(self.commands("update"), r"pip install [^\n]*==")
+
+    def test_it_uploads_nothing_and_runs_no_board_command(self):
         for word in ("upload-artifact", "west flash", "west debug", "west build"):
             self.assertNotIn(word, self.text)
+
+
+class HashLock(unittest.TestCase):
+    """scripts/crux-pin-requirements.txt: every tool of the pin job and its dependencies, with hashes."""
+
+    def requirements(self):
+        text = re.sub(r"\\\n", " ", LOCK.read_text())
+        lines = [" ".join(line.split("#", 1)[0].split()) for line in text.splitlines()]
+        return [line for line in lines if line]
+
+    def test_every_requirement_is_pinned_with_sha256_hashes(self):
+        found = {}
+        for line in self.requirements():
+            match = re.fullmatch(r"([a-z0-9][a-z0-9._-]*)==([^\s]+)((?: --hash=sha256:[0-9a-f]{64})+)", line)
+            self.assertIsNotNone(match, line)
+            self.assertNotIn(match.group(1), found, line)
+            found[match.group(1)] = match.group(2)
+        # west, PyYAML and what west 1.4.0 pulls in, in the versions the dev container pins.
+        self.assertEqual({"colorama", "docopt", "packaging", "pykwalify", "python-dateutil", "pyyaml",
+                          "ruamel.yaml", "tzdata", "west"}, set(found))
+        tools = dict(re.findall(r"(?m)^([a-z0-9.-]+)==(\S+)$", (ROOT / ".devcontainer" / "requirements-tools.txt").read_text()))
+        for name in ("west", "pyyaml"):
+            self.assertEqual(tools[name], found[name], name)
+
+    def test_the_jenkins_example_installs_from_it_too(self):
+        self.assertIn('/venv/bin/pip" install -q --require-hashes -r crux-controller/scripts/crux-pin-requirements.txt',
+                      JENKINS.read_text())
+        self.assertNotRegex(JENKINS.read_text(), r"pip install [^\n]*==")
 
 
 class ArchitectureNamesTheFiles(unittest.TestCase):
@@ -422,7 +469,7 @@ class AllowList(unittest.TestCase):
         bot = next(s for s in update if "crux-pin-bot.py --host" in s.get("run", ""))
         self.assertEqual("crux-controller", bot["working-directory"])
         self.assertIn('pin_evidence.py body > "$RUNNER_TEMP/review.md"', bot["run"])
-        self.assertIn("pin_evidence.py body > ../review.md", JENKINS.read_text())
+        self.assertIn('pin_evidence.py body > "$T/review.md"', JENKINS.read_text())
         self.assertIn("dir('crux-controller')", JENKINS.read_text())
 
     def test_the_comments_say_the_token_never_reaches_git(self):
@@ -456,7 +503,7 @@ class JenkinsExample(unittest.TestCase):
         # The guarded stage holds the agent and every step, so nothing runs before the guard.
         guard = self.text.index(self.GUARD)
         self.assertLess(guard, self.text.index("dockerfile {"))
-        self.assertLess(guard, self.text.index("crux-pin-bot.py --host"))
+        self.assertLess(guard, self.text.index('crux-pin-bot.py" --host'))
         self.assertIn("own scheduled", self.text)
         self.assertIn("BRANCH_NAME", self.text)
 
@@ -479,14 +526,51 @@ class JenkinsExample(unittest.TestCase):
         self.assertIn("Example only", "\n".join(self.text.splitlines()[:5]))
 
     def test_it_runs_the_bot_of_the_pinned_crux_in_the_dev_container_image_on_a_schedule(self):
-        for needle in ("cron(", "dockerfile", ".devcontainer", "west update crux-pilot",
-                       "test -f crux-pilot/scripts/crux-pin-bot.py",
-                       "crux-pilot/scripts/crux-pin-bot.py --host bitbucket-cloud",
+        for needle in ("cron(", "dockerfile", ".devcontainer", '/venv/bin/west" update crux-pilot',
+                       '"$T/scripts/crux-pin-bot.py" --host bitbucket-cloud',
                        "scripts/pin_evidence.py body", "--append-body", f"--branch {BRANCH}",
                        "CRUX_PIN_TOKEN"):
             self.assertIn(needle, self.text)
-        for word in ("update-crux-pin.py", "open-pin-pr.py", "git clone", "crux-pin/update"):
+        for word in ("git clone", "crux-pin/update", "crux-pilot/scripts/crux-pin-bot.py --host", "../.venv"):
             self.assertNotIn(word, self.text)
+
+    def test_it_starts_from_an_empty_workspace_on_an_agent_of_its_own(self):
+        # A workspace kept from an earlier run, or shared with pull request builds of an unreviewed
+        # Crux, could hold a planted venv, Crux checkout or Git setting.
+        self.assertIn("skipDefaultCheckout()", self.text)
+        self.assertRegex(self.text, r"agent \{ label '<[^>]*not shared with pull request builds[^>]*>' \}")
+        start = self.text.index("stage('Start clean')")
+        clean = self.text[start:self.text.index("stage('Fetch the pinned Crux')")]
+        self.assertIn("deleteDir()", clean)
+        self.assertIn("dir(env.WORKSPACE_TMP) { deleteDir() }", clean)
+        self.assertLess(clean.index("deleteDir()"), clean.index("checkout scm"))
+        self.assertLess(start, self.text.index('pip" install'))
+
+    def test_each_code_stage_has_its_own_container_without_host_access(self):
+        self.assertEqual(2, self.text.count("reuseNode true"))
+        for word in ("docker.sock", "--pid", "--ipc", "--privileged", "--volumes-from", "--network host", "args "):
+            self.assertNotIn(word, self.text.split("pipeline {", 1)[1])
+        for word in ("docker socket", "--pid=host", "--privileged", "container-local /tmp", "--volumes-from"):
+            self.assertIn(word, self.text.split("pipeline {", 1)[0])
+
+    def test_the_pin_scripts_are_copied_from_the_pinned_revision_after_the_checks(self):
+        fetch = self.text[self.text.index("stage('Fetch the pinned Crux')"):
+                          self.text.index("stage('Move the pin and refresh the pull request')")]
+        steps = ['T="$WORKSPACE_TMP/crux-pin"', 'python3 -m venv "$T/venv"', '/venv/bin/west" update crux-pilot',
+                 "export GIT_NO_REPLACE_OBJECTS=1",
+                 'test "$(git -C crux-pilot rev-parse HEAD)" = "$rev"',
+                 'test -z "$(git -C crux-pilot status --porcelain --ignored)"',
+                 'git -C crux-pilot cat-file -e "$rev:scripts/crux-pin-bot.py"',
+                 'git -C crux-pilot show "$rev:scripts/$script" > "$T/scripts/$script"']
+        at = [fetch.index(step) for step in steps]
+        self.assertEqual(sorted(at), at)
+        self.assertIn(f"for script in {' '.join(PIN_SCRIPTS)}; do", fetch)
+        self.assertIn("""/venv/bin/west" list -f '{revision}' crux-pilot""", fetch)
+        self.assertIn("CONTRIBUTING.md", fetch)
+        move = self.text.split("stage('Move the pin and refresh the pull request')", 1)[1]
+        self.assertIn('T="$WORKSPACE_TMP/crux-pin"', move)
+        self.assertIn('"$T/venv/bin/python" "$T/scripts/crux-pin-bot.py" --host', move)
+        self.assertNotIn("crux-pilot/", move)
 
     def test_credentials_come_from_jenkins_and_no_host_is_named(self):
         self.assertIn("withCredentials", self.text)
@@ -495,6 +579,101 @@ class JenkinsExample(unittest.TestCase):
         for word in ("gh pr merge", "--auto", "automerge"):
             self.assertNotIn(word, self.text)
 
+
+class JenkinsCopyBlock(unittest.TestCase):
+    """Runs the check-and-copy part of the fetch stage, taken verbatim from Jenkinsfile.example, on a
+    local Crux checkout. The part before it (venv, pip, west init and update) needs the network."""
+
+    @classmethod
+    def setUpClass(cls):
+        text = JENKINS.read_text()
+        fetch = text[text.index("stage('Fetch the pinned Crux')"):]
+        block = fetch[fetch.index("sh '''") + 6:fetch.index("'''", fetch.index("sh '''") + 6)]
+        cls.block = 'set -eu\nT="$WORKSPACE_TMP/crux-pin"\nmkdir -p "$T/scripts"\n' + \
+            block.split('/venv/bin/west" update crux-pilot\n', 1)[1]
+
+    def setUp(self):
+        import os
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        base = pathlib.Path(self.temp.name)
+        self.work, self.tmp = base / "ws", base / "ws@tmp"
+        self.crux = self.work / "crux-pilot"
+        (self.crux / "scripts").mkdir(parents=True)
+        self.env = dict(os.environ, WORKSPACE_TMP=str(self.tmp), GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t.invalid",
+                        GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t.invalid", GIT_CONFIG_GLOBAL="/dev/null",
+                        GIT_CONFIG_NOSYSTEM="1")
+        self.git("init", "-q")
+        for script in PIN_SCRIPTS:
+            (self.crux / "scripts" / script).write_text(f"# {script} of the pinned Crux\n")
+        (self.crux / ".gitignore").write_text("*.log\n")
+        self.git("add", ".")
+        self.git("commit", "-qm", "pinned")
+        self.rev = self.git("rev-parse", "HEAD")
+        self.fake_west(self.rev)
+
+    def git(self, *args):
+        return subprocess.run(["git", "-C", str(self.crux), *args], env=self.env, check=True,
+                              capture_output=True, text=True).stdout.strip()
+
+    def fake_west(self, revision):
+        west = self.tmp / "crux-pin" / "venv" / "bin" / "west"
+        west.parent.mkdir(parents=True, exist_ok=True)
+        west.write_text(f"#!/bin/sh\necho {revision}\n")
+        west.chmod(0o755)
+
+    def run_block(self):
+        return subprocess.run(["sh", "-c", self.block], cwd=self.work, env=self.env, capture_output=True, text=True)
+
+    def copied(self, script):
+        return (self.tmp / "crux-pin" / "scripts" / script).read_text()
+
+    def test_a_clean_checkout_at_the_pin_gives_the_three_scripts(self):
+        result = self.run_block()
+        self.assertEqual(0, result.returncode, result.stderr)
+        for script in PIN_SCRIPTS:
+            self.assertEqual(f"# {script} of the pinned Crux\n", self.copied(script))
+
+    def test_a_changed_untracked_or_ignored_file_stops_it(self):
+        for name, change in (("changed", lambda: (self.crux / "scripts" / "open-pin-pr.py").write_text("x\n")),
+                             ("untracked", lambda: (self.crux / "stray.py").write_text("x\n")),
+                             ("ignored", lambda: (self.crux / "build.log").write_text("x\n"))):
+            with self.subTest(name):
+                self.git("checkout", "-q", "-f", self.rev)
+                self.git("clean", "-qfdx")
+                change()
+                self.assertNotEqual(0, self.run_block().returncode)
+
+    def test_a_checkout_away_from_the_pin_stops_it(self):
+        (self.crux / "scripts" / "crux-pin-bot.py").write_text("# moved\n")
+        self.git("commit", "-qam", "moved")
+        self.assertNotEqual(0, self.run_block().returncode)
+
+    def test_a_pin_that_is_not_a_full_sha_stops_it(self):
+        for revision in (self.rev[:12], "main", self.rev.upper()):
+            with self.subTest(revision):
+                self.fake_west(revision)
+                result = self.run_block()
+                self.assertNotEqual(0, result.returncode)
+                self.assertIn("not a full commit SHA", result.stderr)
+
+    def test_a_pin_without_the_bot_says_to_move_it_by_hand(self):
+        self.git("rm", "-q", "scripts/crux-pin-bot.py")
+        self.git("commit", "-qm", "no bot")
+        self.fake_west(self.git("rev-parse", "HEAD"))
+        result = self.run_block()
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("CONTRIBUTING.md", result.stderr)
+
+    def test_a_replace_ref_does_not_change_the_copied_scripts(self):
+        planted = subprocess.run(["git", "-C", str(self.crux), "hash-object", "-w", "--stdin"], input="# planted\n",
+                                 env=self.env, check=True, capture_output=True, text=True).stdout.strip()
+        original = self.git("rev-parse", f"{self.rev}:scripts/crux-pin-bot.py")
+        self.git("replace", original, planted)
+        self.assertEqual("# planted", self.git("show", f"{self.rev}:scripts/crux-pin-bot.py"))
+        result = self.run_block()
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual("# crux-pin-bot.py of the pinned Crux\n", self.copied("crux-pin-bot.py"))
 
 if __name__ == "__main__":
     unittest.main()
