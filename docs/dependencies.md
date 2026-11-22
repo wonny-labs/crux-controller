@@ -91,3 +91,22 @@ follows Crux: move the `crux-pilot` revision, then run `west crux-pins`. A produ
 comment in `west.yml` that says why it is there and where its revision comes from. The scheduled build
 against `crux-pilot` main (`.github/workflows/scheduled-main.yml`) shows ahead of time when a Crux pin
 moves.
+
+## Include check from a local Crux checkout
+
+For the product include check, the `Boundary check` job of `ci.yml` downloads
+`templates/product/check_domain_includes.py` and its wrapper `templates/product/style/check-includes.sh`
+from a pinned Crux commit, checks their SHA-256 and runs them on this repository. `scripts/check_include_domains.py` runs the same check
+without a download, from the Crux checkout of the west workspace:
+
+```sh
+python3 scripts/check_include_domains.py                  # Crux in ../crux or ../crux-pilot
+python3 scripts/check_include_domains.py --crux-root DIR  # Crux somewhere else
+```
+
+It checks both files against the pinned hashes, then runs the checker (`--product .`) and the wrapper
+from the repository root, as the workflow does. A missing file or another hash stops it before
+anything runs (exit 2); a violation fails it. The pins come from `ci.yml` while that file exists; a
+checkout without `.github/` reads them from `scripts/include-check-pins.json`, which
+`tests/tooling/test_check_include_domains.py` keeps equal to `ci.yml`. A repin changes both files
+together. The tooling tests also run the script when a Crux checkout sits beside the repository.
