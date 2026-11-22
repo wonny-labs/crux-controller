@@ -131,8 +131,8 @@ This section shows how this repository applies them.
   and select them for themselves, so the S6 image has them on. This repository adds no Crux public interface.
 - **Build and board.** Every CI build of the image is for `mimxrt1060_evk@B//qspi` with the *baseline
   gate* required. The `native_sim` scenarios are the exception: they run on the simulated board. CI is the reference for the Zephyr builds and Twister runs;
-  [Getting started](try-on-native-sim.md) gives the CI commands for a local `native_sim` run, and a local
-  result does not replace CI.
+  the [Tutorial](tutorial.md) and [Set up without the Dev Container](native-setup.md) give the CI commands for a
+  local `native_sim` run, and a local result does not replace CI.
 
 ## What runs in the image: threads and scheduling
 

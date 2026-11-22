@@ -12,7 +12,8 @@ Ground rules that shape the order of work:
   for new behaviour and for fixes, and says that an existing test or check is never weakened or deleted
   to make a change pass.
 - **CI is the reference.** Zephyr builds, Twister runs and the budget numbers that a pull request cites come
-  from CI. [Getting started](try-on-native-sim.md) gives the CI commands for a local `native_sim` run, and
+  from CI. The [Tutorial](tutorial.md) and [Set up without the Dev Container](native-setup.md) give the CI commands for a
+  local `native_sim` run, and
   a local result does not replace CI. You can also run the tooling tests, the boundary check and the host
   tests locally.
 - **Public means only.** A step uses public Crux headers and targets. If it seems to need a Zephyr header
