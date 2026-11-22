@@ -181,24 +181,13 @@ class ReadingTime(unittest.TestCase):
         for name in FIVE:
             self.assertIn(name, minutes, name)
 
-    def test_the_readme_claims_a_total_and_the_index_agrees(self):
-        # The README states the total of the reading path; the index states each page.
-        claimed = re.search(r"They take about (\d+) minutes in full", flat("README.md"))
-        self.assertIsNotNone(claimed)
-        total = sum(self.index_minutes()[name] for name in FIVE)
-        self.assertLessEqual(abs(total - int(claimed.group(1))), 5, f"the five pages add up to {total} minutes")
-        self.assertIn(f"about {claimed.group(1)} minutes together", flat("docs/README.md"))
-
-    def test_the_readme_reading_path_times_are_the_ones_of_the_index(self):
-        minutes = self.index_minutes()
-        path = section("README.md", "Reading path")
-        for name in FIVE:
-            if name == "README.md":
-                stated = re.search(r"This README \(about (\d+) minutes", path)
-            else:
-                stated = re.search(rf"\]\((?:docs/)?{re.escape(pathlib.PurePosixPath(name).name)}\) \(about (\d+) minutes", path)
-            self.assertIsNotNone(stated, name)
-            self.assertEqual(minutes[name], int(stated.group(1)), name)
+    def test_the_readme_points_at_the_main_pages_for_the_next_read(self):
+        # The README no longer gives a timed reading path; its task table links the main pages,
+        # and the index keeps the reading time of each.
+        targets = {path for path, _, _ in links("README.md")}
+        for name in FIVE[1:]:
+            self.assertIn(name, targets, name)
+        self.assertIn("docs/first-hour.md", targets)
 
     def test_the_history_pages_are_in_the_index_with_a_reading_time(self):
         minutes = self.index_minutes()
@@ -312,8 +301,8 @@ class Terminology(unittest.TestCase):
         body = read("README.md")
         passages = {
             "first paragraphs": " ".join(body.split("\n\n")[1:4]),
-            "state": section("README.md", "State").split("| Step |")[0],
-            "how to try it": section("README.md", "How to try it"),
+            "status": section("README.md", "Status"),
+            "quick start": section("README.md", "Quick start"),
         }
         for label, text in passages.items():
             for sentence in sentences(text):
@@ -551,7 +540,7 @@ class KnownLimits(unittest.TestCase):
 
     def test_the_estimate_says_what_it_counts(self):
         self.assertIn("estimate of tests per module", self.part())
-        self.assertIn("at the head of this change", self.part())
+        self.assertIn("not recounted since", self.part())
 
     def test_the_untested_glue_statements_are_true(self):
         part = self.part()

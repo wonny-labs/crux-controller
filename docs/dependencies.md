@@ -67,8 +67,8 @@ compares with the default listing: the projects that become active must be exact
 project that the group would activate beyond the Mbed pair fails the check. The `West pins` job runs it in
 both states and runs a negative control (the import without the blocklist, group on) that must fail.
 
-The proof is at the project-list level, and two CI jobs add the fetch. Every job but two runs `west update` on
-the default workspace with the group off. The `S6 build` job and the `Budget` row of S6 switch the group on in their
+The proof is at the project-list level, and two CI jobs add the fetch. The jobs that build an image run `west update` on
+the default workspace with the group off, and the `Boundary check` and `Patch style` jobs fetch only `crux-pilot`. The `S6 build` job and the `Budget` row of S6 switch the group on in their
 own runner, only after this check has passed on the project list, and then run `west update` and assert that no
 wolf project is in the workspace and that both Mbed modules are. That enabling the group would clone only the Mbed
 pair rests on west cloning only active projects, and a `west update` with the group on was not run before the S6
@@ -78,11 +78,12 @@ an allowlist drops Zephyr and everything it imports if `zephyr` is left out of i
 the rest of the import alone; the cost is that it names what is known today, so when a pin moves, read the groups of the new Crux
 manifest, which the delta check also helps to catch.
 
-At the pin of 16 November 2026 the Crux manifest differs from the previous pin only in the revisions of `mbedtls` and
+When the pin moved on 16 November 2026, the Crux manifest differed from the pin before it only in the revisions of `mbedtls` and
 `tf-psa-crypto` (and in the comment above them). The three optional groups and the projects in them are the same, so the
 narrowed import and the checks above did not need a change. The two revisions are not those of Zephyr's own manifest at
 v4.4.2 but those of Zephyr's v4.4-branch after that release (Mbed TLS 4.1.1 plus 8 commits, TF-PSA-Crypto 1.1.1 plus 24 commits); that is Crux's choice
 and is reviewed in `docs/dependency-review-mbed-tls-4.1.1.md` of `crux-pilot`. Only the S6 job and the S6 Budget row fetch them.
+This paragraph was not read again at later pin moves; the groups check above is what catches a change.
 
 ## Changing a pin
 

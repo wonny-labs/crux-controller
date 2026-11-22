@@ -155,6 +155,13 @@ twice on a board (see `docs/findings/s2-first-board-run.md`); nothing else has r
 
 ### Documents
 
+- The README is an entry point: the quick start points at `docs/first-hour.md`, a step table shows which code
+  and which finding teach each Crux capability, the Crux guides at the pin are linked as the canonical place
+  for building a product, and a task table replaces the timed reading path. `docs/README.md`,
+  `docs/try-on-native-sim.md`, `docs/roadmap.md` and `docs/architecture.md` lose duplicated text; the failure list
+  of the dev container lives only in `docs/troubleshooting.md`. Stale statements are corrected in
+  `docs/adding-a-step.md` (the S4 job checks Crux Thread and Sync, not Queue), `docs/dependencies.md` and
+  `docs/roadmap.md`. `docs/history/README.md` lists what was removed. No firmware image changes.
 - `docs/first-hour.md`, linked at the top of the README and of `docs/README.md`: the short path for a new team
   member on Linux or WSL2, from a clone to one build, one `native_sim` run and the local checks in the dev
   container, with the times of the CI job. `docs/board-bring-up.md` is now a board route: the probe on WSL2 with

@@ -185,7 +185,7 @@ class FirstHour(Common, unittest.TestCase):
         self.assertRegex(read(FIRST_HOUR), r"(?i)nobody has run[^.]*WSL2|WSL2[^.]*not (been )?(run|tested)")
 
     def test_it_is_linked_at_the_top_of_the_readme_and_of_the_index(self):
-        for name, before in (("README.md", "## State"), ("docs/README.md", "## Paths by task")):
+        for name, before in (("README.md", "## Learn Crux usage step by step"), ("docs/README.md", "## Paths by task")):
             top = read(name).split(before)[0]
             self.assertRegex(top, r"\]\((?:docs/)?first-hour\.md\)", name)
 

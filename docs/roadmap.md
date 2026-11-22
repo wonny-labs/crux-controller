@@ -1,12 +1,10 @@
 # Roadmap and status
 
-This page says honestly what exists, what has run on a board and what cannot be done yet and why. It
-promises no dates and no features. "Not yet possible" does not mean "planned": the finding that
-covers most of these says "Not decided and not scheduled: whether and when any of this is built here."
-Status can go stale, so check the README, the changelog and the open pull requests, and read the
-[architecture](architecture.md) and the [glossary](glossary.md) for the terms (including "owner" and "operator").
-To see the tests run without a board, read [try-on-native-sim.md](try-on-native-sim.md). A board route,
-untested on hardware and not yet run for this controller, is in [board-bring-up.md](board-bring-up.md).
+This page says what exists, what has run on a board and what cannot be done yet and why. It promises no
+dates and no features. "Not yet possible" does not mean "planned": the finding that covers most of these says
+"Not decided and not scheduled: whether and when any of this is built here." Status can go stale: the checks of
+a commit and the [changelog](../CHANGELOG.md) are the reference. Terms such as "owner" and "operator" are in the
+[glossary](glossary.md).
 
 ## Short version
 
@@ -52,7 +50,8 @@ Around the steps:
 - Findings in `docs/findings/`: the File binding (closed upstream since), step S3, step S4, step S5, step S6, the
   S2 board runs and the management features.
 
-The README table is the maintained summary of the steps and says, per step, whether it ran on a board.
+The [README](../README.md#learn-crux-usage-step-by-step) table is the short summary of the steps, with the
+code and the finding of each; this page is the detail.
 
 ## Static size per step
 
@@ -60,7 +59,8 @@ The `Budget` job builds each step for the RT1060-EVKB and reads the Zephyr memor
 below are the `FLASH` and `RAM` rows of that table, in bytes used, as the `Budget S0` to `Budget S6` job logs
 of the CI print them. They were read from the job logs of the `budget` workflow run for `main` at
 `26c78a3` (a revision of the public repository), and the run for `8d47942d`, the head of the S6 composition change, printed the
-same values. The region sizes are the ones that the table prints: `FLASH` 8 MB and `RAM` 32 MB.
+same values. The region sizes are the ones that the table prints: `FLASH` 8 MB and `RAM` 32 MB. Both revisions predate the
+current pin, and the numbers were not read again since; the `Budget` job of a commit gives its current sizes.
 
 | Step | FLASH used (bytes) | FLASH of region | RAM used (bytes) | RAM of region |
 |---|---|---|---|---|

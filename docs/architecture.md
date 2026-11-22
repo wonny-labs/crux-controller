@@ -1,12 +1,9 @@
 # Architecture
 
 This page explains how the repository is built, for a reader who has not seen Crux or this
-repository before. Terms in italics on first use are defined in the [glossary](glossary.md). What
-exists and what does not is in the [roadmap](roadmap.md). How to run the tests without a board is in
-[try-on-native-sim.md](try-on-native-sim.md), and a board route, untested on hardware, is in
-[board-bring-up.md](board-bring-up.md). The rules for changing things are in
-[CONTRIBUTING.md](../CONTRIBUTING.md). The words "product", "platform" and "composition" are used as the
-glossary explains in [Product, platform and composition](glossary.md#product-platform-and-composition).
+repository before. Terms in italics on first use, and the words "product", "platform" and "composition",
+are used as the [glossary](glossary.md#product-platform-and-composition) explains. What exists is in the
+[roadmap](roadmap.md), and the rules for a change are in [CONTRIBUTING.md](../CONTRIBUTING.md).
 
 ## What the controller is and does
 
@@ -94,6 +91,12 @@ Points that the table cannot carry:
   that links `crux::file_zephyr`.
 
 ## How Crux is consumed
+
+Crux states the general rules for a product in its own guides at the pinned revision:
+[Choosing an API](https://github.com/wonny-labs/crux-pilot/blob/2c017f685e0215e0e269d4bc77272889d06a07d8/docs/choosing-an-api.md)
+(Zephyr, Crux or product code) and
+[Composition interfaces](https://github.com/wonny-labs/crux-pilot/blob/2c017f685e0215e0e269d4bc77272889d06a07d8/docs/composition-interfaces.md).
+This section shows how this repository applies them.
 
 - **Manifest.** `west.yml` makes this repository the west manifest repository. It imports `crux-pilot`
   at a pinned full commit (the `revision` in `west.yml`), never a branch or tag, and adds one
