@@ -142,6 +142,7 @@ jobs:
           done
       - name: Collect, check and summarise
         run: |
+          set -o pipefail
           build="crux-controller/build/${{ matrix.step }}"
           python crux-controller/budgets/collect.py --build-dir "$build" \
             --step "${{ matrix.step }}" --out measurement.json
@@ -157,6 +158,7 @@ jobs:
             cat measurement.json
             echo '```'
             echo "Run-time values (stack use, heap peaks, timing) are not measured."
-          } >> "$GITHUB_STEP_SUMMARY"
+          # The log gets the table too: scripts/pin_evidence.py reads it for the pin pull request.
+          } | tee -a "$GITHUB_STEP_SUMMARY"
           python crux-controller/budgets/check.py --measurement measurement.json \
             --limits crux-controller/budgets/limits.json

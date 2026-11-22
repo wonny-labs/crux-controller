@@ -1,0 +1,331 @@
+# SPDX-License-Identifier: Apache-2.0
+"""Checks of the automated pin update: scripts/pin_evidence.py, which writes the body of the pin pull
+request and puts the CI evidence of step 3 into it, the GitHub workflow crux-pin-update.yml and the
+Jenkins example. The Crux scripts that the workflow calls are not in this repository."""
+
+import pathlib
+import re
+import subprocess
+import sys
+import tempfile
+import unittest
+
+import yaml
+
+ROOT = pathlib.Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "scripts"))
+
+import pin_evidence  # noqa: E402
+
+WORKFLOWS = ROOT / ".github" / "workflows"
+WORKFLOW = WORKFLOWS / "crux-pin-update.yml"
+JENKINS = ROOT / "Jenkinsfile.example"
+
+OLD = "2c017f685e0215e0e269d4bc77272889d06a07d8"
+NEW = "0123456789abcdef0123456789abcdef01234567"
+HEAD = "fedcba9876543210fedcba9876543210fedcba98"
+IMAGE = "a" * 64
+IDENTITY = "b" * 64
+
+# As `gh run view --log` prints it: job, step and a timestamp before each line.
+RELEASE_LOG = (
+    "Release dry run (publishes nothing)\tPrint the release manifest\t"
+    "2026-11-22T03:10:00.0000000Z ##[group]Run cat bundle/release-manifest.json\n"
+    "Release dry run (publishes nothing)\tPrint the release manifest\t"
+    "2026-11-22T03:10:00.1000000Z {\n"
+    "Release dry run (publishes nothing)\tPrint the release manifest\t"
+    f'2026-11-22T03:10:00.1000000Z   "firmware_identity": "{IDENTITY}",\n'
+    "Release dry run (publishes nothing)\tPrint the release manifest\t"
+    '2026-11-22T03:10:00.1000000Z   "target": "mimxrt1060_evk@B//qspi",\n'
+    "Release dry run (publishes nothing)\tPrint the release manifest\t"
+    f'2026-11-22T03:10:00.1000000Z   "zephyr_bin_sha256": "{IMAGE}"\n'
+    "Release dry run (publishes nothing)\tPrint the release manifest\t"
+    "2026-11-22T03:10:00.1000000Z }\n"
+)
+
+
+def budget_log(step, flash_used="123456"):
+    prefix = f"Budget {step}\tCollect, check and summarise\t2026-11-22T03:20:00.0000000Z "
+    lines = [
+        f"### {step}",
+        f"| {step} region | Used (B) | Size (B) | Free (%) |",
+        "| --- | ---: | ---: | ---: |",
+        f"| FLASH | {flash_used} | 8388608 | 98.5 |",
+        "| RAM | 65536 | 524288 | 87.5 |",
+        "```json",
+    ]
+    return "".join(prefix + line + "\n" for line in lines)
+
+
+class ReleaseValues(unittest.TestCase):
+    def test_the_hash_and_the_identity_are_read_from_the_printed_manifest(self):
+        self.assertEqual({"zephyr_bin_sha256": IMAGE, "firmware_identity": IDENTITY},
+                         pin_evidence.release_values(RELEASE_LOG))
+
+    def test_a_plain_log_without_prefixes_is_read_too(self):
+        plain = f'  "zephyr_bin_sha256": "{IMAGE}"\n  "firmware_identity": "{IDENTITY}",\n'
+        self.assertEqual(IMAGE, pin_evidence.release_values(plain)["zephyr_bin_sha256"])
+
+    def test_a_log_without_the_manifest_gives_nothing(self):
+        self.assertEqual({}, pin_evidence.release_values("the job failed\n"))
+
+    def test_two_different_values_are_refused(self):
+        other = RELEASE_LOG.replace(IMAGE, "c" * 64)
+        with self.assertRaises(ValueError):
+            pin_evidence.release_values(RELEASE_LOG + other)
+
+    def test_a_value_that_is_not_a_sha256_is_ignored(self):
+        bad = '  "zephyr_bin_sha256": "<script>",\n  "firmware_identity": "abc"\n'
+        self.assertEqual({}, pin_evidence.release_values(bad))
+
+
+class BudgetTables(unittest.TestCase):
+    def test_the_tables_of_each_step_are_read(self):
+        tables = pin_evidence.budget_tables(budget_log("S0") + budget_log("S2"))
+        self.assertEqual(["S0", "S2"], sorted(tables))
+        self.assertEqual([("FLASH", 123456, 8388608, "98.5"), ("RAM", 65536, 524288, "87.5")],
+                         tables["S2"])
+
+    def test_steps_sort_by_number(self):
+        tables = pin_evidence.budget_tables(budget_log("S10") + budget_log("S2"))
+        self.assertEqual(["S2", "S10"], pin_evidence.step_order(tables))
+
+    def test_a_row_that_is_not_a_region_line_ends_the_table(self):
+        log = budget_log("S1").replace("| RAM | 65536 |", "| RAM; rm -rf / | 65536 |")
+        self.assertEqual([("FLASH", 123456, 8388608, "98.5")], pin_evidence.budget_tables(log)["S1"])
+
+    def test_the_last_table_of_a_step_wins(self):
+        tables = pin_evidence.budget_tables(budget_log("S2", "1") + budget_log("S2", "2"))
+        self.assertEqual(2, tables["S2"][0][1])
+
+    def test_the_table_that_budgets_check_prints_is_read_back(self):
+        sys.path.insert(0, str(ROOT / "budgets"))
+        import check
+
+        measurement = {"step": "S3", "regions": {
+            "FLASH": {"used": 900, "size": 1000}, "RAM": {"used": 1100, "size": 1000},
+            "EMPTY": {"used": 0, "size": 0}}}
+        log = "".join(f"Budget S3\tCollect, check and summarise\t2026-11-22T03:20:00.0Z {line}\n"
+                      for line in check.table(measurement).splitlines())
+        self.assertEqual([("EMPTY", 0, 0, "nan"), ("FLASH", 900, 1000, "10.0"), ("RAM", 1100, 1000, "-10.0")],
+                         pin_evidence.budget_tables(log)["S3"])
+
+    def test_a_log_without_tables_gives_nothing(self):
+        self.assertEqual({}, pin_evidence.budget_tables("no table here\n"))
+
+
+class Body(unittest.TestCase):
+    def manifest(self, revision=OLD):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        path = pathlib.Path(directory.name) / "west.yml"
+        path.write_text(
+            "manifest:\n  projects:\n    - name: crux-pilot\n      remote: crux\n"
+            f"      revision: {revision}\n    - name: picolibc\n      revision: {'1' * 40}\n"
+        )
+        return path
+
+    def test_the_body_names_both_pins_the_range_and_what_a_person_checks(self):
+        body = pin_evidence.initial_body(self.manifest(), NEW)
+        self.assertIn(f"`{OLD}`", body)
+        self.assertIn(f"`{NEW}`", body)
+        self.assertIn(f"{OLD}..{NEW}", body)
+        for needle in ("CHANGELOG.md", "west.yml", "budgets/limits.json", "does not merge"):
+            self.assertIn(needle, body)
+        self.assertIn(pin_evidence.START, body)
+        self.assertIn(pin_evidence.END, body)
+
+    def test_a_bad_new_pin_is_refused(self):
+        with self.assertRaises(ValueError):
+            pin_evidence.initial_body(self.manifest(), "main")
+
+    def test_a_manifest_without_a_crux_pilot_revision_is_refused(self):
+        with self.assertRaises(ValueError):
+            pin_evidence.initial_body(self.manifest(revision="main"), NEW)
+
+    def test_the_real_manifest_gives_its_pin(self):
+        revision = yaml.safe_load((ROOT / "west.yml").read_text())["manifest"]["projects"][0]["revision"]
+        self.assertEqual(revision, pin_evidence.manifest_pin(ROOT / "west.yml"))
+
+
+class Evidence(unittest.TestCase):
+    def test_the_section_holds_the_hash_the_identity_the_tables_and_the_commit(self):
+        section = pin_evidence.section(HEAD, RELEASE_LOG, budget_log("S0") + budget_log("S2"))
+        self.assertIn(f"`{HEAD}`", section)
+        self.assertIn(f"`{IMAGE}`", section)
+        self.assertIn(f"`{IDENTITY}`", section)
+        self.assertIn("| S2 region | Used (B) | Size (B) | Free (%) |", section)
+        self.assertIn("| FLASH | 123456 | 8388608 | 98.5 |", section)
+        self.assertTrue(section.startswith(pin_evidence.START))
+        self.assertTrue(section.rstrip().endswith(pin_evidence.END))
+
+    def test_missing_logs_are_said_not_hidden(self):
+        section = pin_evidence.section(HEAD, None, None)
+        self.assertIn("not available", section)
+        self.assertNotIn("| S2 region", section)
+
+    def test_the_section_replaces_the_old_one_and_keeps_the_rest(self):
+        body = f"intro\n\n{pin_evidence.START}\nold evidence\n{pin_evidence.END}\n\nend\n"
+        new = pin_evidence.splice(body, pin_evidence.section(HEAD, RELEASE_LOG, None))
+        self.assertTrue(new.startswith("intro\n"))
+        self.assertTrue(new.endswith("end\n"))
+        self.assertNotIn("old evidence", new)
+        self.assertEqual(1, new.count(pin_evidence.START))
+
+    def test_a_body_without_the_markers_gets_the_section_appended(self):
+        new = pin_evidence.splice("written by hand\n", pin_evidence.section(HEAD, None, None))
+        self.assertTrue(new.startswith("written by hand\n"))
+        self.assertIn(pin_evidence.START, new)
+
+    def test_splicing_twice_gives_the_same_body(self):
+        section = pin_evidence.section(HEAD, RELEASE_LOG, budget_log("S2"))
+        once = pin_evidence.splice("intro\n", section)
+        self.assertEqual(once, pin_evidence.splice(once, section))
+
+
+class CommandLine(unittest.TestCase):
+    def run_script(self, *args):
+        return subprocess.run([sys.executable, str(ROOT / "scripts" / "pin_evidence.py"), *args],
+                              capture_output=True, text=True)
+
+    def test_body_then_evidence_through_the_command_line(self):
+        with tempfile.TemporaryDirectory() as directory:
+            work = pathlib.Path(directory)
+            (work / "west.yml").write_text(
+                f"manifest:\n  projects:\n    - name: crux-pilot\n      revision: {OLD}\n")
+            body = self.run_script("body", "--manifest", str(work / "west.yml"), "--new", NEW)
+            self.assertEqual(0, body.returncode, body.stderr)
+            (work / "body.md").write_text(body.stdout)
+            (work / "release.log").write_text(RELEASE_LOG)
+            (work / "budget.log").write_text(budget_log("S2"))
+            done = self.run_script("evidence", "--body", str(work / "body.md"), "--head", HEAD,
+                                   "--release-log", str(work / "release.log"),
+                                   "--budget-log", str(work / "budget.log"))
+            self.assertEqual(0, done.returncode, done.stderr)
+            self.assertIn(f"`{IMAGE}`", done.stdout)
+            self.assertIn(f"{OLD}..{NEW}", done.stdout)
+
+    def test_a_bad_head_is_refused(self):
+        with tempfile.TemporaryDirectory() as directory:
+            body = pathlib.Path(directory) / "body.md"
+            body.write_text("x\n")
+            result = self.run_script("evidence", "--body", str(body), "--head", "HEAD")
+            self.assertEqual(2, result.returncode)
+
+
+def triggers(data):
+    # PyYAML reads the key `on` as the boolean True.
+    return data.get("on", data.get(True))
+
+
+class Workflow(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.text = WORKFLOW.read_text()
+        cls.data = yaml.safe_load(cls.text)
+        cls.jobs = cls.data["jobs"]
+
+    def commands(self, job):
+        return "\n".join(step.get("run", "") for step in self.jobs[job]["steps"])
+
+    def test_runs_daily_by_hand_and_after_the_release_and_budget_runs(self):
+        on = triggers(self.data)
+        self.assertEqual({"schedule", "workflow_dispatch", "workflow_run"}, set(on))
+        self.assertEqual(1, len(on["schedule"]))
+        self.assertRegex(on["schedule"][0]["cron"], r"^\d+ \d+ \* \* \*$")
+        self.assertEqual({"release", "budget"}, set(on["workflow_run"]["workflows"]))
+        self.assertEqual(["completed"], on["workflow_run"]["types"])
+        names = {yaml.safe_load((WORKFLOWS / f"{n}.yml").read_text())["name"] for n in ("release", "budget")}
+        self.assertEqual({"release", "budget"}, names)
+
+    def test_permissions_are_read_only_except_on_the_two_jobs(self):
+        self.assertEqual({"contents": "read"}, self.data["permissions"])
+        self.assertEqual({"update", "evidence"}, set(self.jobs))
+        self.assertEqual({"contents": "write", "pull-requests": "write"},
+                         self.jobs["update"]["permissions"])
+        self.assertEqual({"actions": "read", "contents": "read", "pull-requests": "write"},
+                         self.jobs["evidence"]["permissions"])
+
+    def test_nothing_merges_itself(self):
+        for word in ("gh pr merge", "--auto", "automerge", "auto-merge", "git push origin main"):
+            self.assertNotIn(word, self.text.replace("no auto-merge", ""), word)
+
+    def test_it_marks_the_crux_interface_as_proposed_and_calls_it_from_a_crux_checkout(self):
+        self.assertIn("PROPOSED", self.text)
+        update = self.commands("update")
+        self.assertIn("crux/scripts/update-crux-pin.py", update)
+        self.assertIn("crux/scripts/open-pin-pr.py", update)
+        checkouts = [s for s in self.jobs["update"]["steps"] if "actions/checkout" in s.get("uses", "")]
+        crux = [s for s in checkouts if s.get("with", {}).get("repository")]
+        self.assertEqual(1, len(crux))
+        self.assertEqual("main", crux[0]["with"]["ref"])
+        self.assertEqual("crux", crux[0]["with"]["path"])
+
+    def test_the_update_job_writes_the_body_before_the_pin_moves(self):
+        update = self.commands("update")
+        self.assertLess(update.index("pin_evidence.py body"), update.index("update-crux-pin.py"))
+        self.assertIn("crux-pin/update", self.text)
+
+    def test_the_evidence_job_reads_only_runs_of_the_pin_branch_of_this_repository(self):
+        condition = self.jobs["evidence"]["if"]
+        for needle in ("workflow_run", "crux-pin/update", "head_repository.full_name == github.repository",
+                       "github.event.workflow_run.event == 'pull_request'"):
+            self.assertIn(needle, condition)
+        self.assertIn("workflow_run", self.jobs["update"]["if"])
+        evidence = self.commands("evidence")
+        self.assertIn("scripts/pin_evidence.py evidence", evidence)
+        self.assertIn("gh pr edit", evidence)
+
+    def test_the_evidence_job_runs_no_code_of_the_pull_request(self):
+        for step in self.jobs["evidence"]["steps"]:
+            self.assertNotIn("ref", step.get("with", {}))
+        self.assertNotIn("head_sha }}", "\n".join(s.get("run", "") for s in self.jobs["evidence"]["steps"]))
+
+    def test_the_scheduled_run_is_limited_to_this_repository(self):
+        self.assertIn("github.repository == 'wonny-labs/crux-controller'", self.jobs["update"]["if"])
+
+    def test_it_uses_only_the_actions_that_ci_yml_uses_and_uploads_nothing(self):
+        allowed = set(re.findall(r"uses: (\S+)", (WORKFLOWS / "ci.yml").read_text()))
+        used = set(re.findall(r"uses: (\S+)", self.text))
+        self.assertTrue(used <= allowed, used - allowed)
+        for word in ("upload-artifact", "west flash", "west debug", "west build"):
+            self.assertNotIn(word, self.text)
+
+
+class BudgetLogHasTheTables(unittest.TestCase):
+    def test_the_budget_job_prints_its_summary_to_the_log_as_well(self):
+        job = yaml.safe_load((WORKFLOWS / "budget.yml").read_text())["jobs"]["budget"]
+        step = next(s for s in job["steps"] if s.get("name") == "Collect, check and summarise")
+        self.assertIn('| tee -a "$GITHUB_STEP_SUMMARY"', step["run"])
+        self.assertIn("check.table", step["run"])
+
+    def test_the_release_dry_run_prints_the_manifest(self):
+        job = yaml.safe_load((WORKFLOWS / "release.yml").read_text())["jobs"]["dry-run"]
+        runs = [s.get("run", "") for s in job["steps"]]
+        self.assertIn("cat bundle/release-manifest.json", "\n".join(runs))
+
+
+class JenkinsExample(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.text = JENKINS.read_text()
+
+    def test_it_is_an_example_and_not_an_active_pipeline(self):
+        self.assertFalse((ROOT / "Jenkinsfile").exists())
+        self.assertIn("Example only", "\n".join(self.text.splitlines()[:5]))
+
+    def test_it_runs_the_same_scripts_in_the_dev_container_image_on_a_schedule(self):
+        for needle in ("cron(", "dockerfile", ".devcontainer", "crux/scripts/update-crux-pin.py",
+                       "crux/scripts/open-pin-pr.py", "scripts/pin_evidence.py body", "bitbucket"):
+            self.assertIn(needle, self.text)
+
+    def test_credentials_come_from_jenkins_and_no_host_is_named(self):
+        self.assertIn("withCredentials", self.text)
+        self.assertNotRegex(self.text, r"https?://")
+        self.assertNotRegex(self.text.lower(), r"(password|token)\s*[:=]\s*['\"][^<$]")
+        for word in ("gh pr merge", "--auto", "automerge"):
+            self.assertNotIn(word, self.text)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -1,0 +1,63 @@
+// SPDX-License-Identifier: Apache-2.0
+// Example only. Jenkins does not run this file: a pipeline job reads a file named Jenkinsfile.
+// For a copy of this repository that Jenkins builds from Bitbucket Cloud. Copy it to Jenkinsfile and
+// replace each <placeholder>. It does what .github/workflows/crux-pin-update.yml does: once a day it
+// moves the crux-pilot pin to Crux main and opens or refreshes one pull request. It never merges.
+// The checks and the step 3 evidence come from the pull request build of the copy; that build can
+// run scripts/pin_evidence.py evidence over its release dry run and budget logs.
+// PROPOSED: the two Crux scripts, their arguments and exit status 3 (already current).
+// If the Crux clone needs credentials too, move it inside withCredentials.
+
+pipeline {
+  agent {
+    dockerfile {
+      dir '.devcontainer'
+      filename 'Dockerfile'
+      additionalBuildArgs '--platform=linux/amd64'
+    }
+  }
+  triggers { cron('H 4 * * *') }
+  options {
+    disableConcurrentBuilds()
+    timeout(time: 20, unit: 'MINUTES')
+  }
+  environment {
+    CRUX_GIT_URL = '<clone URL of the Crux repository>'
+    BITBUCKET_REPOSITORY = '<workspace>/<repository>'
+    PIN_BRANCH = 'crux-pin/update'
+  }
+  stages {
+    stage('Move the pin') {
+      steps {
+        sh 'rm -rf crux && git clone --depth 1 --branch main "$CRUX_GIT_URL" crux'
+        sh 'python3 scripts/pin_evidence.py body --manifest west.yml --new "$(git -C crux rev-parse HEAD)" > pin-body.md'
+        script {
+          def status = sh(returnStatus: true, script:
+            'python3 crux/scripts/update-crux-pin.py --manifest west.yml --project crux-pilot --revision "$(git -C crux rev-parse HEAD)"')
+          if (status == 3) {
+            currentBuild.description = 'pin already at Crux main'
+          } else if (status != 0) {
+            error("update-crux-pin.py failed with exit status ${status}")
+          }
+          env.PIN_CHANGED = (status == 0).toString()
+        }
+      }
+    }
+    stage('Open or refresh the pull request') {
+      when { environment name: 'PIN_CHANGED', value: 'true' }
+      steps {
+        withCredentials([usernamePassword(credentialsId: '<Jenkins credentials ID>',
+                                          usernameVariable: 'BITBUCKET_USER',
+                                          passwordVariable: 'BITBUCKET_TOKEN')]) {
+          // Single quotes: the shell, not Groovy, expands the credentials.
+          sh '''
+            python3 crux/scripts/open-pin-pr.py --host bitbucket --repository "$BITBUCKET_REPOSITORY" \
+              --base main --branch "$PIN_BRANCH" \
+              --title "build(west): move the crux-pilot pin to $(git -C crux rev-parse --short=8 HEAD)" \
+              --body-file pin-body.md
+          '''
+        }
+      }
+    }
+  }
+}

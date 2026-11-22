@@ -70,6 +70,7 @@ CI is configured in `.github/workflows/`:
 | `rebuild.yml` | builds S2 twice at different paths and compares `zephyr.bin` and `firmware_identity` | by hand, and pull requests that change the workflow or `release/` |
 | `release.yml` | dry run of the release flow, publishes nothing | by hand, and pull requests that change the workflow, `release/` or `west.yml` |
 | `scheduled-main.yml` | `S2 build against crux-pilot main` | daily, and by hand |
+| `crux-pin-update.yml` | `Refresh the Crux pin pull request` (see "The pin and the manifest"), `Put the CI evidence into the pin pull request` | daily and by hand; the evidence job after each `release` or `budget` run of the pin pull request |
 
 The scheduled build is information only: it shows ahead of time that a Crux pin moved or that Crux
 broke the build, and the pinned build stays the gate for pull requests. Every RT1060-EVKB build requires
@@ -99,6 +100,16 @@ A pin moves in its own small pull request, with the reason in the commit message
    manifest that the `release.yml` dry run prints has both), and the budget tables of the `Budget`
    jobs. If numbers move, say so. A limit in `budgets/limits.json` is not changed in the same pull
    request to make a bump pass.
+
+`crux-pin-update.yml` keeps one such pull request open, on the branch `crux-pin/update`, and refreshes
+it when Crux main moves. The Crux pin tool does step 1 for `west.yml` and runs `scripts/crux-pin-hook`,
+which does the rest of steps 1 and 2 and fails when a quote it expects is missing. Step 3 comes from CI:
+after the `release` and `budget` runs, `scripts/pin_evidence.py` copies the hash, the
+`firmware_identity` and the budget tables from their logs into the pull request body. Nothing merges
+itself. A person reads the Crux changes, writes the reason, the comment above the pin and the
+`CHANGELOG.md` entry, compares the evidence with the previous pin and approves the merge.
+`Jenkinsfile.example` runs the same scripts for a copy built by Jenkins. The Crux side of this
+interface is proposed and may change.
 
 ## Changing behaviour
 

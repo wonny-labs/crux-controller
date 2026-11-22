@@ -1,0 +1,142 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+"""Move the quotes of the crux-pilot pin after the Crux pin tool has moved the pin in west.yml.
+
+The Crux pin tool rewrites the crux-pilot `revision:` line of west.yml and then runs this hook from
+the repository root, with the old and the new pin as 40-character lower-case hex SHAs in
+CRUX_PIN_OLD and CRUX_PIN_NEW. The hook does the rest of steps 1 and 2 of CONTRIBUTING.md, "The pin
+and the manifest": it replaces each quote in QUOTES. Notes under docs/findings/ stay as recorded,
+west.yml is only read, and the prose (the comment above the pin, the CHANGELOG.md entry) is left to
+the person who reviews the pull request.
+
+Every quote is checked before any file is written. A quote that holds neither the old nor the new
+pin is an error, so a reworded document fails loudly instead of being skipped. Each file is replaced
+in one rename.
+
+Exit status: 0 files changed, 3 every quote already names the new pin, 1 a quote or west.yml does
+not match (nothing written), 2 bad or missing CRUX_PIN_OLD or CRUX_PIN_NEW.
+"""
+
+import os
+import pathlib
+import re
+import sys
+import tempfile
+
+SHA = re.compile(r"[0-9a-f]{40}")
+
+# (file, quote, optional). In a quote, {full} stands for the 40-character pin and {short} for its
+# first 8 characters. An optional file that does not exist is skipped.
+QUOTES = (
+    ("tests/tooling/test_manifest.py", 'self.assertEqual(revision, "{full}")', False),
+    ("docs/dependencies.md", 'pinned commit {short}"', False),
+    ("docs/dependencies.md", "| `crux-pilot` | `{full}` ", False),
+    ("RELEASE.md", "at the pinned revision `{short}`", False),
+    ("RELEASE.md", "/{full}/docs/product-composition.md", False),
+    ("tests/tooling/test_docs.py", 'self.assertIn("{short}", body)', False),
+    ("docs/adding-a-step.md", "read at the pinned commit `{full}`", False),
+    ("docs/adding-a-step.md", "/{full}/docs/choosing-an-api.md", False),
+    ("docs/adding-a-step.md", "/{full}/docs/composition-interfaces.md", False),
+    ("tests/tooling/test_docs_navigation.py", '"docs/choosing-an-api.md", "{full}"', False),
+    ("tests/tooling/test_s4.py", '"revision: {full}"', False),
+    ("tests/tooling/test_s5.py", '"revision: {full}"', False),
+    ("tests/tooling/test_s6.py", '    PIN = "{full}"', False),
+    ("CHANGELOG.md", "imports `crux-pilot` at a pinned commit (`{short}`", True),
+)
+
+
+class Mismatch(Exception):
+    pass
+
+
+def quote(template, pin):
+    return template.format(full=pin, short=pin[:8])
+
+
+def pinned_revision(text):
+    """The revision of the crux-pilot project in the text of west.yml, or None."""
+    inside = False
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("- name:"):
+            inside = stripped == "- name: crux-pilot"
+        elif inside and stripped.startswith("revision:"):
+            return stripped.split(":", 1)[1].strip()
+    return None
+
+
+def plan(root, old, new):
+    """The new text of each file that changes. Raises Mismatch before anything is written."""
+    west = root / "west.yml"
+    try:
+        revision = pinned_revision(west.read_text(encoding="utf-8"))
+    except OSError as error:
+        raise Mismatch(f"west.yml: {error.strerror}") from None
+    if revision != new:
+        raise Mismatch(f"west.yml pins crux-pilot at {revision}, not at CRUX_PIN_NEW {new}; "
+                       "run the hook after the revision line is rewritten")
+    texts, problems = {}, []
+    for name, template, optional in QUOTES:
+        path = root / name
+        if name not in texts:
+            if not path.is_file():
+                if optional:
+                    continue
+                problems.append(f"{name}: the file does not exist")
+                continue
+            with open(path, encoding="utf-8", newline="") as handle:
+                texts[name] = handle.read()
+        text = texts[name]
+        if quote(template, old) in text:
+            texts[name] = text.replace(quote(template, old), quote(template, new))
+        elif quote(template, new) not in text:
+            problems.append(f"{name}: neither {quote(template, old)!r} nor the new pin was found")
+    if problems:
+        raise Mismatch("\n".join(problems))
+    changed = {}
+    for name, text in texts.items():
+        with open(root / name, encoding="utf-8", newline="") as handle:
+            if handle.read() != text:
+                changed[name] = text
+    return changed
+
+
+def write(path, text):
+    mode = path.stat().st_mode
+    handle, temporary = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.")
+    try:
+        with os.fdopen(handle, "w", encoding="utf-8", newline="") as out:
+            out.write(text)
+        os.chmod(temporary, mode & 0o7777)
+        os.replace(temporary, path)
+    except BaseException:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+        raise
+
+
+def main():
+    old = os.environ.get("CRUX_PIN_OLD")
+    new = os.environ.get("CRUX_PIN_NEW")
+    for name, value in (("CRUX_PIN_OLD", old), ("CRUX_PIN_NEW", new)):
+        if value is None or not SHA.fullmatch(value):
+            print(f"crux-pin-hook: {name} must be a 40-character lower-case hex SHA, got {value!r}",
+                  file=sys.stderr)
+            return 2
+    root = pathlib.Path.cwd()
+    try:
+        changed = plan(root, old, new)
+    except Mismatch as error:
+        print(f"crux-pin-hook: nothing written:\n{error}", file=sys.stderr)
+        return 1
+    if not changed:
+        print(f"crux-pin-hook: every quote already names {new}")
+        return 3
+    for name, text in changed.items():
+        write(root / name, text)
+        print(f"updated {name}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

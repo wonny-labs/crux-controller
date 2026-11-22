@@ -1,0 +1,146 @@
+name: crux-pin-update
+
+# Keeps one pull request open that moves the crux-pilot pin to the current Crux main, as
+# CONTRIBUTING.md ("The pin and the manifest") describes. The logic is in scripts: this file only
+# calls them, so another CI can call the same ones (see Jenkinsfile.example).
+#
+# - update: daily and by hand. Moves the pin with the Crux pin tool, which runs scripts/crux-pin-hook
+#   for the quotes, then opens or refreshes the pull request on the branch crux-pin/update.
+# - evidence: after each release or budget run of that pull request. Copies the S2 hash, the
+#   firmware_identity and the budget tables from those logs into the pull request body.
+#
+# Nothing here merges: a person approves and merges the pull request, no auto-merge.
+#
+# PROPOSED: crux-pilot/scripts/update-crux-pin.py and crux-pilot/scripts/open-pin-pr.py, their
+# arguments and their exit status (0 changed, 3 already current) are a proposed Crux interface.
+# Change the two calls below when Crux publishes the final one.
+#
+# Checks start on a pull request only when it is pushed with a token other than the automatic one.
+# The secret CRUX_PIN_TOKEN (contents and pull requests, write, on this repository) is that token.
+
+on:
+  schedule:
+    - cron: "47 4 * * *"
+  workflow_dispatch:
+  workflow_run:
+    workflows: [release, budget]
+    types: [completed]
+    branches: [crux-pin/update]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: crux-pin-update-${{ github.event_name == 'workflow_run' && 'evidence' || 'update' }}
+  cancel-in-progress: false
+
+jobs:
+  update:
+    name: Refresh the Crux pin pull request
+    if: >-
+      github.event_name != 'workflow_run' &&
+      (github.event_name != 'schedule' || github.repository == 'wonny-labs/crux-controller')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      PIN_BRANCH: crux-pin/update
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: crux-controller
+          token: ${{ secrets.CRUX_PIN_TOKEN || github.token }}
+      - uses: actions/checkout@v4
+        with:
+          repository: wonny-labs/crux-pilot
+          ref: main
+          path: crux
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Say when the checks will not start
+        env:
+          HAS_TOKEN: ${{ secrets.CRUX_PIN_TOKEN != '' }}
+        run: |
+          if [ "$HAS_TOKEN" != "true" ]; then
+            echo "::warning::CRUX_PIN_TOKEN is not set. The pull request is pushed with the automatic token, so its checks do not start by themselves."
+          fi
+      - name: Write the body, then move the pin and its quotes
+        id: move
+        working-directory: crux-controller
+        run: |
+          new="$(git -C ../crux rev-parse HEAD)"
+          python scripts/pin_evidence.py body --manifest west.yml --new "$new" > "$RUNNER_TEMP/pin-body.md"
+          set +e
+          # PROPOSED Crux interface: rewrites the revision line, then runs scripts/crux-pin-hook.
+          python ../crux/scripts/update-crux-pin.py --manifest west.yml --project crux-pilot --revision "$new"
+          status=$?
+          set -e
+          echo "new=$new" >> "$GITHUB_OUTPUT"
+          case "$status" in
+            0) echo "changed=true" >> "$GITHUB_OUTPUT" ;;
+            3) echo "changed=false" >> "$GITHUB_OUTPUT"
+               echo "The pin is already at Crux main \`$new\`. Nothing to do." >> "$GITHUB_STEP_SUMMARY" ;;
+            *) echo "update-crux-pin.py failed with exit status $status" >&2; exit 1 ;;
+          esac
+      - name: Open or refresh the pull request
+        if: steps.move.outputs.changed == 'true'
+        working-directory: crux-controller
+        env:
+          GH_TOKEN: ${{ secrets.CRUX_PIN_TOKEN || github.token }}
+          NEW: ${{ steps.move.outputs.new }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # PROPOSED Crux interface: commits, pushes the branch and opens or refreshes one pull request.
+          python ../crux/scripts/open-pin-pr.py --host github --repository "$GITHUB_REPOSITORY" \
+            --base main --branch "$PIN_BRANCH" \
+            --title "build(west): move the crux-pilot pin to ${NEW:0:8}" \
+            --body-file "$RUNNER_TEMP/pin-body.md"
+
+  evidence:
+    name: Put the CI evidence into the pin pull request
+    if: >-
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.head_branch == 'crux-pin/update' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: write
+    steps:
+      # The default branch: the script that runs here is the reviewed one, not the pull request's.
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Read the release and budget logs and update the body
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          set -euo pipefail
+          pr="$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --state open \
+            --json number,headRefOid --jq ".[] | select(.headRefOid == \"$HEAD_SHA\") | .number")"
+          if [ -z "$pr" ]; then
+            echo "No open pin pull request at $HEAD_SHA. Nothing to do."
+            exit 0
+          fi
+          args=()
+          for workflow in release budget; do
+            id="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow "$workflow.yml" \
+              --commit "$HEAD_SHA" --event pull_request --status completed --limit 1 \
+              --json databaseId --jq '.[0].databaseId // empty')"
+            if [ -n "$id" ] && gh run view "$id" --repo "$GITHUB_REPOSITORY" --log > "$workflow.log"; then
+              args+=("--$workflow-log" "$workflow.log")
+            fi
+          done
+          gh pr view "$pr" --repo "$GITHUB_REPOSITORY" --json body --jq .body > body.md
+          python scripts/pin_evidence.py evidence --body body.md --head "$HEAD_SHA" "${args[@]}" > new-body.md
+          gh pr edit "$pr" --repo "$GITHUB_REPOSITORY" --body-file new-body.md
