@@ -2,7 +2,7 @@
 """Checks of the navigation pages and of the terminology that the documents share.
 
 The index must list every document of docs/ and docs/findings/, the links of the new pages must
-resolve, the reading time in the README must agree with the index, the glossary must define the
+resolve, the reading times of the index must follow the length of each page, the glossary must define the
 words that the pages use, and the headings of the step recipe must follow one numbering scheme."""
 
 import pathlib

@@ -282,8 +282,8 @@ declares ([architecture.md](architecture.md#layers-and-zones)).
 than adding a layer of your own. A port header covers one capability for one zone. It is not a general hardware
 layer, and the repository does not have one.
 
-**Out of scope.** The roadmap records GPIO, I2C and SPI as out of scope, with direct use of Crux Thread, Sync and
-Serial (the finding also names Crux Queue, which the pinned Crux no longer has), Reliance Edge and any firmware image in public form ([roadmap.md](roadmap.md#what-is-not-yet-possible-and-why)).
+**Out of scope.** The roadmap records GPIO, I2C and SPI as out of scope, with direct use of Crux Thread, Sync, Queue
+and Serial (as the finding recorded them; the pinned Crux no longer has Queue), Reliance Edge and any firmware image in public form ([roadmap.md](roadmap.md#what-is-not-yet-possible-and-why)).
 These are recorded positions, not commitments. A step that needs one of them is a scope question: put the need and the
 alternatives in the pull request. CONTRIBUTING.md does not rule on it. A new Zephyr header in a zone is a reviewed
 change of `scripts/check_boundary.py`, `tests/tooling/test_boundary.py` and `docs/composition-zone.md` together.

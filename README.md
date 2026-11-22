@@ -24,7 +24,8 @@ x86_64 host was exercised, and only in CI; nobody has run it on WSL2 yet). Each 
 
 ## Learn Crux usage step by step
 
-Each step adds one Crux capability, chosen at build time by its fragment `app/conf/s<N>.conf`. A missing or awkward
+Each step adds one Crux capability. S0 is the base configuration `app/prj.conf`; each later step adds its fragment
+`app/conf/s<N>.conf` at build time, on top of S1 (S5 and S6 also on top of S2). A missing or awkward
 public interface is not worked around: it becomes a *finding*, a recorded note in
 [docs/findings/](docs/findings/README.md). Read a step's code, then its finding.
 
@@ -36,7 +37,7 @@ public interface is not worked around: it becomes a *finding*, a recorded note i
 | S3 | A configuration record in a file through Crux File, mounted by the composition zone | `app/src/config_store.c`, `app/compose/storage_mount.c` | [step S3](docs/findings/s3-file-composition.md) | yes, on a RAM disk | not run |
 | S4 | The reset cause logged at boot, and a watchdog fed once for each pass of the workload that has cycles due, through Crux System | `app/src/health.c`, `app/src/health_policy.c` | [step S4](docs/findings/s4-system-composition.md) | yes, without a feed cycle | not run |
 | S5 | The Crux Time realtime clock set from an SNTP (Simple Network Time Protocol) server, with a product policy for what an answer may do | `app/src/time_sync.c`, `app/src/time_sync_policy.c`, `app/os/time_sync_zephyr.c` | [step S5](docs/findings/s5-time-synchronisation.md) | yes, seven cases | not run |
-| S6 | Management over HTTPS: Crux Access, the web server on the Mbed TLS profile, the status and configuration services and a packaged page | `app/compose/management_start.c`, `app/management/` | [step S6](docs/findings/s6-https-management.md) | yes, ten cases, no login | not run |
+| S6 | Management over HTTPS: Crux Access, the web server on the Mbed TLS profile, the status and configuration services and a packaged page | `app/compose/management_start.c`, `app/management/` | [step S6](docs/findings/s6-https-management.md) | yes, ten cases, no login, fake entropy | not run |
 
 [docs/architecture.md](docs/architecture.md#how-crux-is-consumed) lists each Crux target and header and the file
 that uses it. To build a product of your own, Crux's guides at the pinned revision are the canonical place:
