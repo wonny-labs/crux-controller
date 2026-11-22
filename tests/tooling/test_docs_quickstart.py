@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Checks of the setup pages: the facts in docs/try-on-native-sim.md and docs/troubleshooting.md that a
+"""Checks of the setup pages: the facts in docs/getting-started.md and docs/troubleshooting.md that a
 file of this repository can disprove.
 
 They read files only. They do not start Docker, use the network or run the scripts. A statement about
@@ -16,9 +16,14 @@ import unittest
 import yaml
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-PAGE = ROOT / "docs" / "try-on-native-sim.md"
+PAGE = ROOT / "docs" / "getting-started.md"
 TROUBLE = ROOT / "docs" / "troubleshooting.md"
 README = ROOT / "README.md"
+TUTORIAL = ROOT / "docs" / "tutorial.md"
+# Getting started (PAGE) links the Dev Container reference and the how-to for the route without it.
+DEVREF = ROOT / "docs" / "dev-container.md"
+NATIVE = ROOT / "docs" / "native-setup.md"
+SETUP_CHECKS = ROOT / "docs" / "history" / "setup-checks.md"
 DEVCONTAINER = ROOT / ".devcontainer"
 WORKFLOWS = ROOT / ".github" / "workflows"
 
@@ -160,52 +165,102 @@ class Page(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.text = read(PAGE)
-        cls.dev = section(cls.text, "Dev container")
-        cls.quick = section(cls.text, "Quick start")
+        cls.page = cls.text
+        cls.dev = section(cls.text, "Dev Container")
+        cls.quick = section(cls.text, "Set up the Dev Container")
+        # The run steps of the first setup are steps 3 to 6 of the tutorial.
+        cls.tutorial = read(TUTORIAL)
+        cls.ref = read(DEVREF)
+        cls.native = read(NATIVE)
         cls.setup = read(DEVCONTAINER / "setup.sh")
         cls.shell = read(ROOT / "scripts" / "dev-shell.sh")
 
 
+class RefPage(Page):
+    """Checks of the Dev Container reference, which holds the container details."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.text = cls.ref
+        cls.dev = section(cls.ref, "What you need")
+
+
+class NativePage(Page):
+    """Checks of the how-to for the route without the Dev Container."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.text = cls.native
+
+
 class Structure(Page):
-    def test_the_quick_start_is_the_first_subsection_of_the_dev_container_section(self):
+    def test_the_set_up_steps_are_the_first_subsection_of_the_dev_container_section(self):
         found = headings(self.text)
         titles = [title for _, title, _ in found]
-        container = titles.index("Dev container")
-        self.assertEqual("Quick start", titles[container + 1])
+        container = titles.index("Dev Container")
+        self.assertEqual("Set up the Dev Container", titles[container + 1])
         self.assertEqual(3, found[container + 1][0])
 
     def test_the_container_route_comes_before_the_native_route(self):
         titles = [title for _, title, _ in headings(self.text)]
-        self.assertLess(titles.index("Dev container"), titles.index("What you need first"))
+        self.assertLess(titles.index("Prerequisites"), titles.index("Dev Container"))
+        self.assertLess(titles.index("Dev Container"), titles.index("Without the Dev Container"))
+        self.assertIn("What you need first", [title for _, title, _ in headings(self.native)])
+
+    def test_the_page_is_environment_and_first_command_only(self):
+        # Getting started stays short; the details live on the reference and the how-to.
+        self.assertLessEqual(len(self.text.splitlines()), 250)
+        self.assertLessEqual(len(section(self.text, "Without the Dev Container").splitlines()), 40)
+        for title in ("WSL2", "Proxy", "Disk", "If you use a board"):
+            self.assertIn(title, [t for _, t, _ in headings(self.text)], title)
+        board = section(self.text, "If you use a board")
+        for word in ("J-Link", "usbipd", "board-bring-up.md", "authorisation"):
+            self.assertIn(word, board, word)
 
     def test_the_page_no_longer_says_that_everything_runs_on_ubuntu_24_04(self):
         self.assertNotIn("Everything below runs on", self.text)
 
-    def test_the_opening_names_both_routes_in_order(self):
+    def test_the_opening_names_the_route_and_the_short_native_section_has_the_same_check(self):
         opening = self.text[:self.text.index("\n## ")]
-        self.assertLess(opening.index("1. "), opening.index("2. "))
-        self.assertIn("(#quick-start)", opening)
-        self.assertIn("(#what-you-need-first)", opening)
+        self.assertIn("The Dev Container is the route", opening)
+        native = section(self.text, "Without the Dev Container")
+        self.assertIn("native-setup.md", native)
+        self.assertIn("Ubuntu 24.04", native)
+        self.assertIn("West version: v1.4.0", native)
+        self.assertIn("West version: v1.4.0", self.quick)
 
     def test_the_opening_says_what_a_macos_user_can_do_natively(self):
-        opening = self.text[:self.text.index("\n## ")]
+        opening = section(self.text, "Without the Dev Container")
         self.assertIn("macOS", opening)
         self.assertIn("tooling tests", opening)
         self.assertIn("boundary check", opening)
         self.assertIn("host tests", opening)
 
-    def test_the_evidence_section_follows_the_commands(self):
+    def test_the_evidence_explanation_is_on_the_architecture_page_and_linked(self):
+        # Getting started is an entry page; the explanation lives on the explanation page.
         titles = [title for _, title, _ in headings(self.text)]
-        why = titles.index("Why the evidence comes from CI")
+        self.assertNotIn("Why the evidence comes from CI", titles)
+        native_titles = [title for _, title, _ in headings(self.native)]
         for earlier in ("Run the S1 to S5 scenarios", "Run the host tests",
                         "Run the tooling tests and the boundary check", "If something fails"):
-            self.assertLess(titles.index(earlier), why, earlier)
-        self.assertLess(why, titles.index("What has been checked"))
+            self.assertIn(earlier, native_titles, earlier)
+        self.assertIn("why-the-evidence-comes-from-ci", anchors(read(ROOT / "docs" / "architecture.md")))
+        self.assertIn("architecture.md#why-the-evidence-comes-from-ci", self.text)
+        # The dated record of the local runs is a history page of its own, linked from this page.
+        self.assertNotIn("What has been checked", titles)
+        self.assertIn("history/setup-checks.md", self.text)
+        self.assertIn("## What was checked", read(SETUP_CHECKS))
 
     def test_every_numbered_list_counts_up_by_one(self):
+        for text in (self.page, self.ref, self.native):
+            self.check_numbered_lists(text)
+
+    def check_numbered_lists(self, text):
         fenced = False
         previous = None
-        for number, line in enumerate(self.text.splitlines(), 1):
+        for number, line in enumerate(text.splitlines(), 1):
             if line.lstrip().startswith("```"):
                 fenced = not fenced
                 continue
@@ -221,20 +276,22 @@ class Structure(Page):
                 previous = None
 
     def test_the_sections_that_the_task_names_exist(self):
-        titles = {title for _, title, _ in headings(self.text)}
+        titles = {title for _, title, _ in headings(self.ref)}
         for title in ("Network and prerequisites", "Behind a proxy or with a company certificate",
                       "Layout", "After a pin or SDK change",
-                      "If the dev container fails"):
+                      "If the Dev Container fails"):
             self.assertIn(title, titles)
         # The copy procedures moved to docs/history/copy-procedures.md; the guide describes a clone.
         self.assertNotIn("From a copy without Git history", titles)
         self.assertIn("From a copy without Git history", read(ROOT / "docs" / "history" / "copy-procedures.md"))
 
     def test_the_headings_that_other_files_link_to_still_exist(self):
-        found = anchors(self.text)
-        for anchor in ("dev-container", "why-the-evidence-comes-from-ci", "what-has-been-checked",
-                       "what-you-need-first", "run-the-s1-to-s5-scenarios"):
-            self.assertIn(anchor, found)
+        for anchor in ("dev-container", "set-up-the-dev-container"):
+            self.assertIn(anchor, anchors(self.text))
+        for anchor in ("what-you-need-first", "run-the-s1-to-s5-scenarios"):
+            self.assertIn(anchor, anchors(self.native))
+        for anchor in ("commands-inside-the-container", "behind-a-proxy-or-with-a-company-certificate", "layout"):
+            self.assertIn(anchor, anchors(self.ref))
 
 
 class QuickStart(Page):
@@ -268,7 +325,7 @@ class QuickStart(Page):
         self.assertIn(f"setup: workspace /workspaces/ws, Zephyr SDK {sdk}, West version: v{west}", self.quick)
 
     def test_the_one_shot_twister_command_is_the_one_that_ci_and_the_container_job_run(self):
-        commands = self.commands()
+        commands = "\n".join(code_blocks(self.tutorial))
         self.assertIn(
             "bash scripts/dev-shell.sh bash -c 'cd /workspaces/ws && " + ONE_SHOT_TWISTER + "'", commands
         )
@@ -282,21 +339,22 @@ class QuickStart(Page):
         self.assertEqual([ONE_SHOT_TWISTER], [norm(run) for run in ci_run])
 
     def test_the_tooling_tests_run_through_the_script_as_the_container_job_runs_them(self):
-        self.assertIn("bash scripts/dev-shell.sh python -m unittest discover -s tests/tooling", self.commands())
+        self.assertIn("bash scripts/dev-shell.sh python -m unittest discover -s tests/tooling",
+                      "\n".join(code_blocks(self.tutorial)))
         self.assertIn("dev-shell.sh python -m unittest discover -s tests/tooling",
                       norm(read(WORKFLOWS / "devcontainer.yml")))
 
     def test_one_scenario_has_a_command_and_its_directory_exists(self):
-        self.assertIn("-T crux-controller/tests/native_sim/s1", self.quick)
+        self.assertIn("-T crux-controller/tests/native_sim/s1", self.tutorial)
         self.assertTrue((ROOT / "tests" / "native_sim" / "s1" / "testcase.yaml").is_file())
 
     def test_the_quick_start_says_where_the_outputs_are(self):
-        self.assertIn("twister-out", self.quick)
-        self.assertIn("build/", self.quick)
+        self.assertIn("twister-out", self.tutorial)
+        self.assertIn("build/", self.tutorial)
         self.assertIn("build/", read(ROOT / ".gitignore"))
 
     def test_every_script_named_in_a_command_of_the_page_exists(self):
-        for block in code_blocks(self.text):
+        for block in code_blocks(self.text) + code_blocks(self.ref) + code_blocks(self.native):
             for token in re.findall(r"(?<![\w/.-])((?:scripts|\.devcontainer)/[\w*./-]+)", block):
                 if "*" in token:
                     self.assertTrue(list(ROOT.glob(token)), token)
@@ -304,7 +362,7 @@ class QuickStart(Page):
                     self.assertTrue((ROOT / token).exists(), token)
 
 
-class Counts(Page):
+class Counts(NativePage):
     def test_the_native_sim_directory_has_17_configurations_and_31_test_cases(self):
         self.assertEqual(17, len(testcase_ids(ROOT / "tests" / "native_sim")))
         self.assertEqual(31, ztest_count(ROOT / "tests" / "native_sim"))
@@ -325,7 +383,7 @@ class Counts(Page):
                 self.assertIn(f".{parts[3]}", self.text, identifier)
 
 
-class Network(Page):
+class Network(RefPage):
     def test_the_page_names_the_registry_host_of_the_dockerfile(self):
         base = re.search(r"^FROM (\S+?)/", read(DEVCONTAINER / "Dockerfile"), re.M).group(1)
         self.assertIn(f"`{base}`", section(self.text, "Network and prerequisites"))
@@ -352,7 +410,7 @@ class Network(Page):
         self.assertRegex(section(self.text, "Network and prerequisites"), r"(?i)offline.*not tested")
 
 
-class Proxy(Page):
+class Proxy(RefPage):
     """The page describes what the files do at this revision, and no more."""
 
     def setUp(self):
@@ -377,7 +435,7 @@ class Proxy(Page):
 
     def test_dev_shell_passes_no_proxy_variable_and_no_certificate_and_the_page_does_not_say_it_does(self):
         # If the script starts to pass them, this test fails and the page has to change with it.
-        message = ("a change to dev-shell.sh adds these features: update docs/try-on-native-sim.md and "
+        message = ("a change to dev-shell.sh adds these features: update docs/getting-started.md and "
                    "docs/troubleshooting.md in the same change")
         self.assertNotIn("proxy", self.shell_lower, message)
         self.assertNotIn("CRUX_EXTRA_CA_FILE", self.shell, message)
@@ -387,7 +445,8 @@ class Proxy(Page):
         for phrase in ("passes it into the image build", "Give `scripts/dev-shell.sh` the certificate",
                        "mounted read-only", "a message of `scripts/dev-shell.sh` that the daemon",
                        "dev-shell.sh` passes it", "dev-shell.sh` runs the host check"):
-            self.assertNotIn(phrase, self.text)
+            for page in (self.page, self.ref, self.native):
+                self.assertNotIn(phrase, page)
 
     def test_setup_handles_the_ca_file_and_the_variable_as_the_page_says(self):
         self.assertIn(".crux-extra-ca.crt", self.setup)
@@ -414,7 +473,7 @@ class Proxy(Page):
         self.assertNotRegex(dockerfile, r"(?m)^ARG\s+(?i:http_proxy|https_proxy|no_proxy)")
 
 
-class CopyAndLayout(Page):
+class CopyAndLayout(RefPage):
     def test_the_layout_section_explains_the_mount_and_the_two_cache_volumes(self):
         layout = section(self.text, "Layout")
         for word in (".west", "zephyr/", "modules/", "crux-pilot", "empty", "/workspaces/ws"):
@@ -453,7 +512,7 @@ class CopyAndLayout(Page):
 
     def test_the_failure_section_points_at_troubleshooting_which_names_the_cases(self):
         # The failure list lives in troubleshooting.md only; this page points there.
-        self.assertIn("troubleshooting.md", section(self.text, "If the dev container fails"))
+        self.assertIn("troubleshooting.md", section(self.text, "If the Dev Container fails"))
         trouble = read(TROUBLE)
         for word in ("daemon", "docker.sock", "bash\\r", "Permission denied", ".git"):
             self.assertIn(word, trouble)
@@ -464,7 +523,7 @@ class CopyAndLayout(Page):
         self.assertIn("looks like a home directory", trouble)
 
 
-class OnMain(Page):
+class OnMain(RefPage):
     """Statements about setup.sh, check-host.sh and the repository files that exist at this revision."""
 
     def test_check_host_is_in_the_file_list_and_described(self):
@@ -505,7 +564,8 @@ class OnMain(Page):
         self.assertIn(".gitattributes", read(TROUBLE))
 
     def test_the_page_does_not_call_a_changed_behaviour_planned(self):
-        self.assertNotIn("planned", self.text.lower())
+        for page in (self.page, self.ref, self.native):
+            self.assertNotIn("planned", page.lower())
 
 
 class CarriageReturnScan(unittest.TestCase):
@@ -534,12 +594,13 @@ class CarriageReturnScan(unittest.TestCase):
             self.assertEqual(["crlf.txt"], files_with_carriage_return(root))
 
 
-class Review(Page):
+class Review(RefPage):
     """Statements that a review of the first version found false or unsafe."""
 
     def test_no_sentence_promises_a_dev_container_result_for_every_revision(self):
-        self.assertNotIn("for the revision that you are reading", self.text)
-        checked = section(self.text, "What has been checked")
+        for page in (self.page, self.ref, self.native):
+            self.assertNotIn("for the revision that you are reading", page)
+        checked = section(read(SETUP_CHECKS), "What was checked")
         self.assertIn("Actions tab", checked)
         self.assertIn("by hand", checked)
         workflow = yaml.safe_load(read(WORKFLOWS / "devcontainer.yml"))
@@ -548,7 +609,7 @@ class Review(Page):
         self.assertIn("a docs-only", checked)
 
     def test_the_runs_of_the_checks_name_their_revision(self):
-        checked = section(self.text, "What has been checked")
+        checked = section(read(SETUP_CHECKS), "What was checked")
         self.assertIn("f7d3fab", checked)
         self.assertIn("not a published commit", checked)
         self.assertNotIn("at that revision", checked)
@@ -558,7 +619,7 @@ class Review(Page):
         start = self.quick
         self.assertIn("Behind a company proxy?", start)
         self.assertLess(start.index("Behind a company proxy?"), start.index("1. Install Docker Engine"))
-        self.assertIn("(#behind-a-proxy-or-with-a-company-certificate)", start)
+        self.assertIn("(dev-container.md#behind-a-proxy-or-with-a-company-certificate)", start)
 
     def test_the_daemon_proxy_does_not_cover_the_apt_steps_of_the_build(self):
         proxy = section(self.text, "Behind a proxy or with a company certificate")
@@ -584,9 +645,9 @@ class Review(Page):
 
 
 class MarkdownLinks(unittest.TestCase):
-    """Relative links and anchors of the three files that this page set owns resolve."""
+    """Relative links and anchors of the files that this page set owns resolve."""
 
-    FILES = (PAGE, TROUBLE)
+    FILES = (PAGE, DEVREF, NATIVE, TROUBLE)
 
     def test_the_relative_links_and_anchors_resolve(self):
         problems = []
@@ -728,12 +789,12 @@ class Troubleshooting(unittest.TestCase):
 
 
 class Readme(unittest.TestCase):
-    def test_the_quick_start_section_points_at_the_first_hour_and_the_details(self):
+    def test_the_quick_start_section_points_at_the_tutorial_and_the_details(self):
         text = read(README)
         start = text.index("## Quick start")
         paragraph = text[start:text.index("\n## ", start + 1)]
-        self.assertIn("docs/first-hour.md", paragraph)
-        self.assertIn("docs/try-on-native-sim.md#quick-start", paragraph)
+        self.assertIn("docs/tutorial.md", paragraph)
+        self.assertIn("docs/getting-started.md#set-up-the-dev-container", paragraph)
         self.assertIn("bash scripts/dev-shell.sh", paragraph)
         self.assertIn("docs/troubleshooting.md", paragraph)
         self.assertIn("WSL2", paragraph)

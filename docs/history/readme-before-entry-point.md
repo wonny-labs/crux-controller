@@ -58,7 +58,7 @@ for each task (run it, change code, add a step, review, understand why).
    has not. If you are short of time, read "Short version" and "What exists on `main`" first.
 3. [docs/architecture.md](../architecture.md) (about 12 minutes): the four source trees, the threads and how
    Crux is used.
-4. [docs/try-on-native-sim.md](../try-on-native-sim.md) (about 35 minutes to read, longer to follow): the
+4. [docs/try-on-native-sim.md](../getting-started.md) (about 35 minutes to read, longer to follow): the
    commands that run the tests without a board.
 5. [CONTRIBUTING.md](../../CONTRIBUTING.md) (about 9 minutes): the boundary, the checks, the pin and how a change is
    reviewed.
@@ -121,12 +121,12 @@ The [glossary](../glossary.md) has these terms and more.
 ### How to try it
 
 You do not need a board to see the firmware's tests run: the `native_sim` scenarios run on a host.
-[docs/try-on-native-sim.md](../try-on-native-sim.md) has the commands and says what a passing run does and does
+[docs/try-on-native-sim.md](../getting-started.md) has the commands and says what a passing run does and does
 not show. CI is the reference for Zephyr builds and Twister runs, and a local result does not replace it
-([why](../try-on-native-sim.md#why-the-evidence-comes-from-ci)).
+([why](../architecture.md#why-the-evidence-comes-from-ci)).
 On Windows with WSL2 and Docker Engine (no Docker Desktop), or on an x86_64 Linux older than Ubuntu 24.04, use the
 dev container (only an x86_64 host was exercised, and only in CI; nobody has run it on WSL2 yet). Its
-[quick start](../try-on-native-sim.md#quick-start), in short:
+[quick start](../getting-started.md#set-up-the-dev-container), in short:
 
 1. Install Docker Engine in the distribution and add yourself to the `docker` group.
 2. Put the sources in an empty folder named `crux-controller` under a parent of its own, such as `~/work/crux-controller-workspace/crux-controller` (a copy without `.git` needs `git init` and `git add -A` first).

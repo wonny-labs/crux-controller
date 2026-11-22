@@ -14,9 +14,9 @@ Read the [README](../README.md) and [CONTRIBUTING.md](../CONTRIBUTING.md) first 
 - CMake 3.20 or newer and Ninja.
 - Python 3 with PyYAML (CI uses Python 3.12) and clang-format 18.1.8, the version that the format check requires.
 
-[try-on-native-sim.md](try-on-native-sim.md#what-you-need-first) lists the tools in more detail. The build and
+[Set up without the Dev Container](native-setup.md#what-you-need-first) lists the tools in more detail. The build and
 check commands on this page were run on macOS. They use no Linux-only tool, except where a step says so. On Windows, use WSL2 and
-work in the Linux file system, as the try-on page explains.
+work in the Linux file system, as [Getting started](getting-started.md) explains.
 
 ## 2. Get the repository and make a branch
 
@@ -113,7 +113,7 @@ What each one tells you:
 Three more checks run in CI and need tools that this page did not run on macOS:
 
 - clang-tidy 18 over the sources that the host tests build, which include the files in `tests/host`:
-  `CLANG_TIDY=clang-tidy-18 python3 scripts/analyze_host.py`. Run it on Linux or in the dev container.
+  `CLANG_TIDY=clang-tidy-18 python3 scripts/analyze_host.py`. Run it on Linux or in the Dev Container.
 - Zephyr's checkpatch on the changed C lines, `scripts/check-patch.sh`. It needs a prepared Zephyr checkout in
   `ZEPHYR_BASE`.
 - The Zephyr builds and the Twister scenarios. A change to a host test does not touch them, and CI runs them
@@ -200,4 +200,5 @@ git branch -D test/workload-zero-period
   of CONTRIBUTING.md. If the check you meet is the boundary check, read [composition-zone.md](composition-zone.md)
   before you look for a way round it. There is none.
 - To add a step: [adding-a-step.md](adding-a-step.md).
-- To run the Zephyr scenarios on your machine: [try-on-native-sim.md](try-on-native-sim.md).
+- To run the Zephyr scenarios on your machine: Part B of the [Tutorial](tutorial.md), or
+  [Set up without the Dev Container](native-setup.md#run-the-s1-to-s5-scenarios).

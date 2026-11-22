@@ -19,7 +19,7 @@ Where this page states a fact, it names the file it comes from. Where it propose
 
 ## The route at a glance
 
-1. [Build the image](#1-build-the-image) in the default dev container.
+1. [Build the image](#1-build-the-image) in the default Dev Container.
 2. [Attach the probe to WSL2](#2-attach-the-probe-to-wsl2) (on a Linux machine, plug it in).
 3. [Open the board container](#3-open-the-board-container).
 4. [Compare the flash first, read-only](#4-compare-the-flash-first-read-only).
@@ -42,14 +42,14 @@ The [stop conditions](#stop-conditions) apply to every step.
 | The UART log | The S1 base image writes the log to LPUART1 at 115200 baud (`app/boards/mimxrt1060_evk_mimxrt1062_qspi.overlay`). Which cable and adapter carry that UART is not recorded here. |
 | Ethernet link | A cable from the board to the host peer. The S2 image has a static address and no DHCP client. |
 | A host peer | A host with the address `192.168.77.1` on a `/24` network, able to listen on TCP port `42420` and echo what it receives. The board's address is `192.168.77.2` (`app/conf/s2.conf`, `app/Kconfig`, `docs/findings/s2-first-board-run.md`). |
-| On Windows | WSL2 with the dev container working ([first-hour.md](first-hour.md)), and usbipd-win on the Windows side to pass the probe to WSL2. |
+| On Windows | WSL2 with the Dev Container working ([Getting started](getting-started.md#set-up-the-dev-container)), and usbipd-win on the Windows side to pass the probe to WSL2. |
 | The J-Link software | The "J-Link Software and Documentation Pack" for Linux, 64-bit DEB installer, that you download from SEGGER yourself and whose licence terms you accept yourself. It is never fetched by a build and never committed. |
 | The accepted normal image | The image that was on the board before and that is put back afterwards. The S2 note records its SHA-256 (`ad729684749181f0c26853828550187a2c3e60dbb28cf3ee2194a7984141e02f`) and size (107,872 bytes). Proposed: have it available before you start. |
 | A written run record | See [Write the run record](#9-write-the-run-record). The S2 runs kept host command output, probe logs, the raw capture and the peer record, privately, as the S2 note says. |
 
 ## 1. Build the image
 
-Build in the default dev container ([first-hour.md](first-hour.md)), from the workspace folder. The S2 image is
+Build in the default Dev Container ([the Tutorial](tutorial.md)), from the workspace folder. The S2 image is
 the one with recorded board runs. The `S2 build` job of `.github/workflows/ci.yml` builds it with the baseline
 gate required:
 
@@ -64,7 +64,7 @@ west build -p always -b 'mimxrt1060_evk@B//qspi' -d crux-controller/build/s2 \
 SH
 ```
 
-The S1 image, which has no network, is the build of [first-hour.md](first-hour.md#3-one-build-s1-for-the-rt1060-evkb)
+The S1 image, which has no network, is the build of [the Tutorial](tutorial.md#4-build-the-image-for-the-rt1060-evkb)
 (`crux-controller/build/s1`). CI uploads no image, and a tooling test fails if a workflow uploads an artifact, so
 the image is built where the board is. For the S2 runs, the image was approved by its SHA-256 hash
 (`e7c588c79c31d113ef3b0464731f17dfb4cc453874831b8bc20f9dd7da55b56c`, 103,180 bytes, at the source the S2 note

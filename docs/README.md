@@ -1,15 +1,18 @@
-# Documentation index
+# Documentation map
 
-Every document of the repository, what it is for, and a short path for each task. New here? Start with the
-[README](../README.md) and the quick start, [first-hour.md](first-hour.md). Reading times assume about 250 words a
-minute; a page with commands takes longer to follow.
+This page finds the right page for what you want to do. Start at the [repository README](../README.md) for what
+the repository is and the quick start, the [Tutorial](tutorial.md). The pages follow the documentation guidelines
+of Crux: each page has one type (entry, tutorial, how-to guide, reference, explanation, record or history), says
+what is true at the revision you read, and links to the one page that owns a fact. The type of each page is in
+[All documents](#all-documents). Reading times assume about 250 words a minute; a page with commands takes longer
+to follow.
 
 ## Paths by task
 
 ### I want to run it
 
-[first-hour.md](first-hour.md) first. Then [try-on-native-sim.md](try-on-native-sim.md) for the setup details,
-[troubleshooting.md](troubleshooting.md) for a failure, and [board-bring-up.md](board-bring-up.md) for a board (untested
+[Getting started](getting-started.md) first, then the [Tutorial](tutorial.md). The [Dev Container reference](dev-container.md) and [Set up without the Dev Container](native-setup.md) hold the setup details;
+[troubleshooting.md](troubleshooting.md) is for a failure, and [board-bring-up.md](board-bring-up.md) for a board (untested
 on hardware, and it needs the owner's authorisation).
 
 ### I want to change code
@@ -71,9 +74,9 @@ These are known limits of what the checks and tests cover. They are facts about 
   scenario serves its bytes, and nothing runs them) are never run in any test.
 - **Steps S5 and S6 run only on `native_sim`, in CI, and never on a board.** Step S2 ran twice on a board, on one bench.
   Nothing else has run on a board ([roadmap](roadmap.md#what-has-run-on-a-board)).
-- **The dev container and WSL2 were not tried by anyone.** The dev container was not started on a developer machine, so
-  WSL2, Docker Engine in WSL2 and the proxy settings of `devcontainer.json` have not run there. The dev container job
-  of CI covers an x86_64 runner only ([try-on-native-sim.md](try-on-native-sim.md#what-has-been-checked)).
+- **The Dev Container and WSL2 were not tried by anyone.** The Dev Container was not started on a developer machine, so
+  WSL2, Docker Engine in WSL2 and the proxy settings of `devcontainer.json` have not run there. The Dev Container job
+  of CI covers an x86_64 runner only ([setup checks record](history/setup-checks.md)).
 - **The board container and the board route are untested.** Nobody has built the optional board container in
   `.devcontainer/board/`, CI does not build it, and no step of the [board route](board-bring-up.md) has run on a board.
 
@@ -81,53 +84,56 @@ These are known limits of what the checks and tests cover. They are facts about 
 
 ### In `docs/`
 
-| Document | What it is | Reading time |
-|---|---|---|
-| [architecture.md](architecture.md) | How the repository is built: the four source trees and their include rules, how Crux is consumed, the threads in the image and a map of the files. | 12 min |
-| [roadmap.md](roadmap.md) | What exists on `main`, the static size per step, what has run on a board and what is not yet possible. It promises no dates. | 11 min |
-| [first-hour.md](first-hour.md) | The short path for a new team member on Linux or WSL2: clone, dev container, one build, one `native_sim` run, host tests, tooling tests and the boundary check, with the times of the CI job. | 4 min |
-| [try-on-native-sim.md](try-on-native-sim.md) | How to run the tests without a board: setup, the `native_sim` scenarios, the host and tooling tests, the dev container, and what has and has not been checked. | 32 min |
-| [troubleshooting.md](troubleshooting.md) | Look a failure up by its message: the cause, the fix and the page that explains more. | 11 min |
-| [first-change.md](first-change.md) | A tutorial from branch to pull request with one small host-test change that needs no Zephyr. | 6 min |
-| [adding-a-step.md](adding-a-step.md) | The recipe for adding a step, its checklist, the rule for drivers and HAL, and the files that need a reviewed change. | 16 min |
-| [reviewing.md](reviewing.md) | A checklist for the reviewer, from CONTRIBUTING.md and from the repository's practice. | 9 min |
-| [composition-zone.md](composition-zone.md) | The include rules in detail: the composition zone and the adapter zone, each allowed Zephyr header and why, the frozen Crux headers, and how to run the check. | 11 min |
-| [glossary.md](glossary.md) | The words that this repository uses in a particular sense (step, stage, product, owner, composition, zones, pin, finding and more), with the file where each use can be checked. | 13 min |
-| [dependencies.md](dependencies.md) | What `west.yml` fetches, why, and under which licence each project states it is distributed, and how the Crux import is narrowed. | 5 min |
-| [board-bring-up.md](board-bring-up.md) | The board route for the RT1060-EVKB Rev B, untested on hardware: the probe on WSL2, the optional board container, a read-only compare of the flash, `west flash` and `west debug` with J-Link, a run record template, the stop conditions and the authorisation that it needs. | 13 min |
+| Document | Type | What it is | Reading time |
+|---|---|---|---|
+| [architecture.md](architecture.md) | Explanation | How the repository is built: the four source trees and their include rules, how Crux is consumed, the threads in the image, a map of the files and why the evidence comes from CI. | 14 min |
+| [roadmap.md](roadmap.md) | Reference (status) | What exists on `main`, the static size per step, what has run on a board and what is not yet possible. It promises no dates. | 11 min |
+| [tutorial.md](tutorial.md) | Tutorial | The first build and run from a working Dev Container: Part A the host tests and checks, Part B the `native_sim` scenarios, Part C the board image and the board table, with the times of the CI job. | 5 min |
+| [getting-started.md](getting-started.md) | Entry (Getting started) | Getting started: prerequisites, setting up the Dev Container, host notes for WSL2, a proxy and disk, the short route without the Dev Container, and what a board adds. | 5 min |
+| [dev-container.md](dev-container.md) | Reference | The Dev Container in detail: what CI runs in it, host requirements, the hosts it contacts, proxies and certificates, the layout, the VS Code and command-line routes, its commands, and a pin or SDK change. | 13 min |
+| [native-setup.md](native-setup.md) | How-to guide | Setting up on Ubuntu 24.04 without the Dev Container, and running the `native_sim` scenarios (S6 included), the host tests, the tooling tests and the boundary check with the commands of CI. | 8 min |
+| [troubleshooting.md](troubleshooting.md) | Reference | Look a failure up by its message: the cause, the fix and the page that explains more. | 11 min |
+| [first-change.md](first-change.md) | Tutorial | A tutorial from branch to pull request with one small host-test change that needs no Zephyr. | 6 min |
+| [adding-a-step.md](adding-a-step.md) | How-to guide | The recipe for adding a step, its checklist, the rule for drivers and HAL, and the files that need a reviewed change. | 16 min |
+| [reviewing.md](reviewing.md) | Explanation (review guide) | A checklist for the reviewer, from CONTRIBUTING.md and from the repository's practice. | 9 min |
+| [composition-zone.md](composition-zone.md) | Reference | The include rules in detail: the composition zone and the adapter zone, each allowed Zephyr header and why, the frozen Crux headers, and how to run the check. | 11 min |
+| [glossary.md](glossary.md) | Reference | The words that this repository uses in a particular sense (step, stage, product, owner, composition, zones, pin, finding and more), with the file where each use can be checked. | 13 min |
+| [dependencies.md](dependencies.md) | Reference | What `west.yml` fetches, why, and under which licence each project states it is distributed, and how the Crux import is narrowed. | 5 min |
+| [board-bring-up.md](board-bring-up.md) | How-to guide | The board route for the RT1060-EVKB Rev B, untested on hardware: the probe on WSL2, the optional board container, a read-only compare of the flash, `west flash` and `west debug` with J-Link, a run record template, the stop conditions and the authorisation that it needs. | 13 min |
 
 ### In `docs/findings/`
 
-| Document | What it is | Reading time |
-|---|---|---|
-| [findings/README.md](findings/README.md) | What a finding is, how the notes are kept, and a table of all notes with the Crux revision each was read at. | 2 min |
-| [findings/file-binding-has-no-public-header.md](findings/file-binding-has-no-public-header.md) | A product could not bind the File provider with public means. Closed upstream since. | 1 min |
-| [findings/management-has-no-public-composition.md](findings/management-has-no-public-composition.md) | Which management features had no public composition, and the licence limits. Partly overtaken by step S6. | 5 min |
-| [findings/s2-first-board-run.md](findings/s2-first-board-run.md) | The two runs of the S2 image on one board and bench, and what they show and do not show. | 7 min |
-| [findings/s3-file-composition.md](findings/s3-file-composition.md) | Step S3: composing Crux File through the composition interface, with the friction found. | 6 min |
-| [findings/s4-system-composition.md](findings/s4-system-composition.md) | Step S4: the reset cause and a single-owner watchdog through Crux System, and why the simulator cannot show a feed cycle. | 8 min |
-| [findings/s5-time-synchronisation.md](findings/s5-time-synchronisation.md) | Step S5: setting the Crux Time realtime clock from SNTP, the product policy and its limits. | 15 min |
-| [findings/s6-https-management-gaps.md](findings/s6-https-management-gaps.md) | Groundwork for step S6: the three gaps found by reading. Superseded by the next note, kept as recorded. | 9 min |
-| [findings/s6-https-management.md](findings/s6-https-management.md) | Step S6: what the product had to write for HTTPS management, the CI results at a named revision and what is open. | 10 min |
+| Document | Type | What it is | Reading time |
+|---|---|---|---|
+| [findings/README.md](findings/README.md) | Entry (index) | What a finding is, how the notes are kept, and a table of all notes with the Crux revision each was read at. | 2 min |
+| [findings/file-binding-has-no-public-header.md](findings/file-binding-has-no-public-header.md) | Record | A product could not bind the File provider with public means. Closed upstream since. | 1 min |
+| [findings/management-has-no-public-composition.md](findings/management-has-no-public-composition.md) | Record | Which management features had no public composition, and the licence limits. Partly overtaken by step S6. | 5 min |
+| [findings/s2-first-board-run.md](findings/s2-first-board-run.md) | Record | The two runs of the S2 image on one board and bench, and what they show and do not show. | 7 min |
+| [findings/s3-file-composition.md](findings/s3-file-composition.md) | Record | Step S3: composing Crux File through the composition interface, with the friction found. | 6 min |
+| [findings/s4-system-composition.md](findings/s4-system-composition.md) | Record | Step S4: the reset cause and a single-owner watchdog through Crux System, and why the simulator cannot show a feed cycle. | 8 min |
+| [findings/s5-time-synchronisation.md](findings/s5-time-synchronisation.md) | Record | Step S5: setting the Crux Time realtime clock from SNTP, the product policy and its limits. | 15 min |
+| [findings/s6-https-management-gaps.md](findings/s6-https-management-gaps.md) | Record | Groundwork for step S6: the three gaps found by reading. Superseded by the next note, kept as recorded. | 9 min |
+| [findings/s6-https-management.md](findings/s6-https-management.md) | Record | Step S6: what the product had to write for HTTPS management, the CI results at a named revision and what is open. | 10 min |
 
 ### In `docs/history/`
 
 These pages keep text that left the main documents. They are history, not instructions.
 
-| Document | What it is | Reading time |
-|---|---|---|
-| [history/README.md](history/README.md) | What the history folder holds, and the move log: each moved section, its source and its destination. | 5 min |
-| [history/board-runs-and-tracking.md](history/board-runs-and-tracking.md) | The board-run summary, the approval wording and the tracking notes that the roadmap and the glossary carried. | 4 min |
-| [history/copy-procedures.md](history/copy-procedures.md) | The steps for a copy without the Git history (a zip), as the install guides had them. | 6 min |
-| [history/readme-before-entry-point.md](history/readme-before-entry-point.md) | The whole README before it became an entry point. | 10 min |
-| [history/team-copy.md](history/team-copy.md) | What a team was told to change and keep in a copy of the repository without GitHub CI. | 6 min |
+| Document | Type | What it is | Reading time |
+|---|---|---|---|
+| [history/README.md](history/README.md) | Entry (index) | What the history folder holds, and the move log: each moved section, its source and its destination. | 5 min |
+| [history/board-runs-and-tracking.md](history/board-runs-and-tracking.md) | History | The board-run summary, the approval wording and the tracking notes that the roadmap and the glossary carried. | 4 min |
+| [history/copy-procedures.md](history/copy-procedures.md) | History | The steps for a copy without the Git history (a zip), as the install guides had them. | 6 min |
+| [history/readme-before-entry-point.md](history/readme-before-entry-point.md) | History | The whole README before it became an entry point. | 10 min |
+| [history/setup-checks.md](history/setup-checks.md) | History | The record of the local setup runs and the Dev Container job timing behind Getting started. | 3 min |
+| [history/team-copy.md](history/team-copy.md) | History | What a team was told to change and keep in a copy of the repository without GitHub CI. | 6 min |
 
 ### Outside `docs/`
 
-| Document | What it is | Reading time |
-|---|---|---|
-| [README.md](../README.md) | What the repository is, the quick start, Crux usage step by step, where to read next, the status and where the rules are. | 4 min |
-| [CHANGELOG.md](../CHANGELOG.md) | What each change added. Everything is unreleased. | 8 min |
-| [CONTRIBUTING.md](../CONTRIBUTING.md) | The boundary, build and test, the CI jobs, the pin, how to change behaviour, commits and pull requests, review, and the rules of a public repository. | 9 min |
-| [RELEASE.md](../RELEASE.md) | The release dry run, what the bundle holds (hashes only) and what a tag needs. | 2 min |
-| [SECURITY.md](../SECURITY.md) | How to report a vulnerability, and what the repository promises about support. | 1 min |
+| Document | Type | What it is | Reading time |
+|---|---|---|---|
+| [README.md](../README.md) | Entry | What the repository is and for whom, the Crux usage step by step, the quick start, where to read next, the status and limits, contributing, the licence and ownership. | 4 min |
+| [CHANGELOG.md](../CHANGELOG.md) | Record | What each change added. Everything is unreleased. | 8 min |
+| [CONTRIBUTING.md](../CONTRIBUTING.md) | Reference (rules) | The boundary, build and test, the CI jobs, the pin, how to change behaviour, commits and pull requests, review, and the rules of a public repository. | 9 min |
+| [RELEASE.md](../RELEASE.md) | Reference | The release dry run, what the bundle holds (hashes only) and what a tag needs. | 2 min |
+| [SECURITY.md](../SECURITY.md) | Reference (policy) | How to report a vulnerability, and what the repository promises about support. | 1 min |

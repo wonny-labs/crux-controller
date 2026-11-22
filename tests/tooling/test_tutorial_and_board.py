@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Checks of the first-hour page, the board route and the optional board container.
+"""Checks of the tutorial page, the board route and the optional board container.
 
 The tests are structural: the pages have the sections that a reader needs, their links resolve, every
 repository file that a command names exists, the build and run commands are those of the CI jobs, and the
@@ -21,7 +21,7 @@ import unittest
 import yaml
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-FIRST_HOUR = "docs/first-hour.md"
+TUTORIAL = "docs/tutorial.md"
 BOARD_PAGE = "docs/board-bring-up.md"
 BOARD_DIR = ROOT / ".devcontainer" / "board"
 BOARD_SHELL = ROOT / "scripts" / "board-shell.sh"
@@ -128,16 +128,16 @@ class Common:
         self.assertNotRegex(read(self.PAGE), r"/Users/|/home/[a-z]|/private/|[A-Z]:\\\\")
 
 
-class FirstHour(Common, unittest.TestCase):
-    PAGE = FIRST_HOUR
+class Tutorial(Common, unittest.TestCase):
+    PAGE = TUTORIAL
 
     def test_the_page_exists(self):
-        self.assertTrue((ROOT / FIRST_HOUR).is_file())
+        self.assertTrue((ROOT / TUTORIAL).is_file())
 
     def test_the_steps_are_there_in_order(self):
-        wanted = (r"clone", r"dev container", r"build", r"native_sim", r"host tests",
-                  r"tooling tests.*boundary|boundary.*tooling tests", r"next")
-        found = [h.lower() for h in headings(FIRST_HOUR)]
+        wanted = (r"dev container", r"host tests", r"tooling tests.*boundary|boundary.*tooling tests",
+                  r"native_sim", r"board", r"build", r"next")
+        found = [h.lower() for h in headings(TUTORIAL)]
         position = -1
         for pattern in wanted:
             matches = [i for i, h in enumerate(found) if re.search(pattern, h) and i > position]
@@ -145,25 +145,25 @@ class FirstHour(Common, unittest.TestCase):
             position = matches[0]
 
     def test_it_has_a_section_with_the_times_and_says_where_they_come_from(self):
-        part = section(FIRST_HOUR, r"how long")
+        part = section(TUTORIAL, r"how long")
         self.assertRegex(part, r"\d+ min")
         self.assertIn("CI", part)
 
     def test_both_container_routes_are_named(self):
-        part = section(FIRST_HOUR, r"dev container")
+        part = section(TUTORIAL, r"dev container")
         self.assertIn("scripts/dev-shell.sh", part)
         self.assertIn("Reopen in Container", part)
 
     def test_the_build_is_the_s1_cross_build_of_ci(self):
         expected = norm(ci_step_run("s1", "Cross-build S1 with the baseline gate required"))
-        self.assertTrue(any(expected in norm(code) for code in code_blocks(read(FIRST_HOUR))), expected)
+        self.assertTrue(any(expected in norm(code) for code in code_blocks(read(TUTORIAL))), expected)
 
     def test_the_native_sim_run_is_the_twister_step_of_ci(self):
         expected = norm(ci_step_run("s1", "Run the S1 scenario on native_sim"))
-        self.assertTrue(any(expected in norm(code) for code in code_blocks(read(FIRST_HOUR))), expected)
+        self.assertTrue(any(expected in norm(code) for code in code_blocks(read(TUTORIAL))), expected)
 
     def test_the_host_tool_and_boundary_commands_are_those_of_ci(self):
-        body = norm("\n".join(code_blocks(read(FIRST_HOUR))))
+        body = norm("\n".join(code_blocks(read(TUTORIAL))))
         for command in ("cmake -S tests/host -B build/host -G Ninja -DWORKLOAD_SANITIZE=OFF",
                         "ctest --test-dir build/host --output-on-failure",
                         "python -m unittest discover -s tests/tooling",
@@ -171,23 +171,45 @@ class FirstHour(Common, unittest.TestCase):
             self.assertIn(command, body, command)
 
     def test_the_clone_address_is_generic(self):
-        self.assertIn("<repository-url>", read(FIRST_HOUR))
-        self.assertNotIn("github.com/wonny-labs", read(FIRST_HOUR))
+        # The tutorial starts from a working Dev Container; the clone is step 3 of Getting started.
+        self.assertNotIn("git clone", read(TUTORIAL))
+        for name in (TUTORIAL, "docs/getting-started.md"):
+            self.assertNotIn("github.com/wonny-labs", read(name), name)
+        self.assertIn("git clone -c core.autocrlf=false <repository-url> crux-controller", read("docs/getting-started.md"))
 
     def test_it_points_at_the_detailed_pages_instead_of_copying_them(self):
-        targets = {path for path, _, _ in links(FIRST_HOUR)}
-        for name in ("docs/try-on-native-sim.md", "docs/troubleshooting.md", "docs/first-change.md",
+        targets = {path for path, _, _ in links(TUTORIAL)}
+        for name in ("docs/getting-started.md", "docs/troubleshooting.md", "docs/first-change.md",
                      "docs/board-bring-up.md"):
             self.assertIn(name, targets, name)
-        self.assertLess(len(read(FIRST_HOUR).split()), len(read("docs/try-on-native-sim.md").split()) / 3)
+        setup = sum(len(read(name).split()) for name in
+                    ("docs/getting-started.md", "docs/dev-container.md", "docs/native-setup.md"))
+        self.assertLess(len(read(TUTORIAL).split()), setup / 3)
+
+    def test_parts_a_to_c_with_the_no_board_line_and_the_board_table(self):
+        body = read(TUTORIAL)
+        parts = [h for h in headings(TUTORIAL) if h.startswith("Part ")]
+        self.assertEqual(["Part A", "Part B", "Part C"], [p[:6] for p in parts])
+        self.assertLess(body.index("No board? Parts A and B run every sample and test."), body.index("## Part C"))
+        part_c = section(TUTORIAL, r"Part C")
+        self.assertIn("| Board | `-b` target | Probe | Board guide |", part_c)
+        self.assertIn("`mimxrt1060_evk@B//qspi`", part_c)
+        self.assertIn("board-bring-up.md", part_c)
+        self.assertIn("roadmap.md", part_c)
+        self.assertRegex(part_c, r"authori[sz]ation")
+
+    def test_no_status_words(self):
+        # Status lives on the roadmap; the tutorial links it.
+        for word in ("Experimental", "Unstable", "frozen", "to be removed", "deprecated"):
+            self.assertNotIn(word, read(TUTORIAL), word)
 
     def test_it_says_what_is_untested(self):
-        self.assertRegex(read(FIRST_HOUR), r"(?i)nobody has run[^.]*WSL2|WSL2[^.]*not (been )?(run|tested)")
+        self.assertRegex(read(TUTORIAL), r"(?i)nobody has run[^.]*WSL2|WSL2[^.]*not (been )?(run|tested)")
 
     def test_it_is_linked_at_the_top_of_the_readme_and_of_the_index(self):
-        for name, before in (("README.md", "## Learn Crux usage step by step"), ("docs/README.md", "## Paths by task")):
+        for name, before in (("README.md", "## What it provides"), ("docs/README.md", "## Paths by task")):
             top = read(name).split(before)[0]
-            self.assertRegex(top, r"\]\((?:docs/)?first-hour\.md\)", name)
+            self.assertRegex(top, r"\]\((?:docs/)?tutorial\.md\)", name)
 
 
 class BoardPage(Common, unittest.TestCase):

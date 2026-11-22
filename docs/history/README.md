@@ -14,6 +14,7 @@ stays at the repository root, because `CONTRIBUTING.md` ("The pin and the manife
 | [board-runs-and-tracking.md](board-runs-and-tracking.md) | The board-run summary, the approval wording and the tracking notes of the roadmap and the glossary. |
 | [copy-procedures.md](copy-procedures.md) | The zip and copy steps of the install guides, the troubleshooting rows for a copy and the glossary entry "Team copy". |
 | [readme-before-entry-point.md](readme-before-entry-point.md) | The whole README before it was rewritten as an entry point. |
+| [setup-checks.md](setup-checks.md) | The record of the local setup runs and the Dev Container job timing that Getting started carried. |
 | [team-copy.md](team-copy.md) | The page for a team that keeps its own copy, moved from `docs/`. |
 
 ## Move log
@@ -34,7 +35,7 @@ statement instead, the last column says what it says now.
 | `README.md` | Boundary | [readme-before-entry-point.md](readme-before-entry-point.md) | "Boundary" | Dropped; [composition-zone.md](../composition-zone.md) and [architecture.md](../architecture.md) state it. |
 | `README.md` | The Crux pin | [readme-before-entry-point.md](readme-before-entry-point.md) | "The Crux pin" | Dropped; the glossary entry "Pin", [dependencies.md](../dependencies.md) and `CONTRIBUTING.md` state it. |
 | `README.md` | How it is tracked | [readme-before-entry-point.md](readme-before-entry-point.md) | "How it is tracked" | Dropped; history only. |
-| `README.md` | Licence, support and ownership: the "Contributing" bullet, the team-copy bullet, the "Dependencies and their licences" clause and the changelog clause of the "Releases" bullet | [readme-before-entry-point.md](readme-before-entry-point.md) | "Licence, support and ownership" | CONTRIBUTING.md, dependencies.md and CHANGELOG.md are linked under "Where the rules are"; the other bullets stay; an ownership bullet points at the glossary. |
+| `README.md` | Licence, support and ownership: the "Contributing" bullet, the team-copy bullet, the "Dependencies and their licences" clause and the changelog clause of the "Releases" bullet | [readme-before-entry-point.md](readme-before-entry-point.md) | "Licence, support and ownership" | CONTRIBUTING.md, dependencies.md and CHANGELOG.md are linked under "Contributing" (the heading was "Where the rules are"); the other bullets stay; an ownership bullet points at the glossary. |
 | `docs/roadmap.md` | Short version, the S5 bullet | [board-runs-and-tracking.md](board-runs-and-tracking.md) | "Short version, the S5 bullet" | Dropped; the next bullet says what has run on a board. |
 | `docs/roadmap.md` | Step S5 in more detail, first sentence | [board-runs-and-tracking.md](board-runs-and-tracking.md) | "Step S5 in more detail, the first sentence" | The section starts with what the code does. |
 | `docs/roadmap.md` | Step S5 in more detail, last paragraph | [board-runs-and-tracking.md](board-runs-and-tracking.md) | "Step S5 in more detail, the last paragraph" | "S5 has never run on a board." |
@@ -53,6 +54,16 @@ statement instead, the last column says what it says now.
 | `docs/first-change.md` | 1. Get the code, the copy sentence | [copy-procedures.md](copy-procedures.md) | "1. Get the code, the sentence after the clone commands" | Dropped. |
 | `docs/README.md` | Paths by task, "I keep a copy of the repository" | [copy-procedures.md](copy-procedures.md) | "Paths by task" | Dropped. |
 | `docs/README.md` | All documents, the row of `team-copy.md` | [copy-procedures.md](copy-procedures.md) | "All documents, the row of team-copy.md" | The page is listed under "In `docs/history/`". |
+| `docs/first-hour.md` | whole file | `docs/tutorial.md` (not a history page) | whole file | Renamed with `git mv` to follow the Crux page names; the run steps 5 to 8 of the Getting started "Quick start" joined it. |
+| `docs/try-on-native-sim.md` | What has been checked | [setup-checks.md](setup-checks.md) | "What was checked" | Getting started states the current facts and links the record. |
+| `docs/try-on-native-sim.md` | Network and prerequisites, the dated CI timing sentence | [setup-checks.md](setup-checks.md) | "Timing of the Dev Container job" | The same figures without the date, with a link to the record. |
+| `docs/try-on-native-sim.md` | opening, the six-term paragraph and the macOS run details | [setup-checks.md](setup-checks.md) and the [glossary](../glossary.md) | "What was checked"; glossary entries | One sentence links the glossary; the macOS sentence states what runs, and the record holds the run. |
+| `docs/try-on-native-sim.md` | Why the evidence comes from CI | [architecture.md](../architecture.md#why-the-evidence-comes-from-ci) (not a history page) | "Why the evidence comes from CI" | Moved whole to the explanation page; Getting started links it. |
+| `docs/try-on-native-sim.md` | What `native_sim` is | the [glossary](../glossary.md) entry for `native_sim` (not a history page) | "`native_sim`" | Dropped from Getting started; the glossary entry gained the facts it did not have. |
+| `docs/try-on-native-sim.md` | Dev Container: What the container is, What you need, Network and prerequisites, Behind a proxy or with a company certificate, Layout, With VS Code, Without VS Code, Commands inside the container, After a pin or SDK change, If the Dev Container fails | [dev-container.md](../dev-container.md) (not a history page) | the same sections, one heading level up | Getting started keeps the set-up steps and short host notes, and links each section. |
+| `docs/try-on-native-sim.md` | What you need first, Run the S1 to S5 scenarios, Run the host tests, Run the tooling tests and the boundary check, If something fails | [native-setup.md](../native-setup.md) (not a history page) | the same sections | Getting started has a short "Without the Dev Container" section with the same check, and links the page. |
+| `docs/tutorial.md` | 1. Clone, 2. Open the Dev Container | [getting-started.md](../getting-started.md#set-up-the-dev-container) (not a history page) | Set up the Dev Container, step 3 | The tutorial starts from a working Dev Container ("Prerequisites and the Dev Container") and is in Parts A to C. |
+| `docs/try-on-native-sim.md` | whole file | `docs/getting-started.md` (not a history page) | whole file | Renamed with `git mv` to the Crux page name; `CONTRIBUTING.md`, `scripts/dev-shell.sh`, `scripts/board-shell.sh` and `.devcontainer/setup.sh` name the new path. |
 
 ### Removed duplicates
 
@@ -61,10 +72,11 @@ before the removal is in the Git history of the file.
 
 | Source file | Removed | Where the content is now |
 |---|---|---|
-| `README.md` | "New here?" line, "How to try it" steps 1 to 4, "Reading path" with the reading times, the EVKB build column of the step table | [README](../../README.md#quick-start) "Quick start" points at [first-hour.md](../first-hour.md); the task table "Where to read next"; the times are in the [index](../README.md); every step is built for the EVKB, as "Status" says |
+| `README.md` | "New here?" line, "How to try it" steps 1 to 4, "Reading path" with the reading times, the EVKB build column of the step table | [README](../../README.md#quick-start) "Quick start" points at `first-hour.md` (now [tutorial.md](../tutorial.md)); the task table "Where to read next"; the times are in the [index](../README.md); every step is built for the EVKB, as "Status" says |
 | `docs/README.md` | the reading-time preface, the reading-path total and the bullet lists under "Paths by task" | one short paragraph per task; the "All documents" tables keep each page and its time |
 | `docs/try-on-native-sim.md` | "If the dev container fails", the list of messages | [troubleshooting.md](../troubleshooting.md#setup-and-the-dev-container), which has every message with its cause and fix |
 | `docs/try-on-native-sim.md`, `docs/roadmap.md`, `docs/architecture.md` | link lists in the opening paragraphs | the [index](../README.md) and the README task table |
+| `docs/dependencies.md` | the paragraph on the pin move of 16 November 2026 | [CHANGELOG.md](../../CHANGELOG.md), the entry for the move from `dfd3ad7d` to `8e3737d2`; the page keeps the rule to read the groups of a new Crux manifest |
 
 The example workspace folder of the guides and of `.devcontainer` is `crux-controller-workspace` (it was `controller-ws`); the moved
 copies use the new name.

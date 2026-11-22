@@ -1159,15 +1159,19 @@ class DevcontainerWorkflow(unittest.TestCase):
 class Documentation(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.page = read(ROOT / "docs" / "try-on-native-sim.md")
-        cls.section = cls.page[cls.page.index("## Dev container"):cls.page.index("## If something fails")]
+        # Getting started states what is untested and sets the container up; the Dev Container
+        # reference holds what the container is and what it needs.
+        cls.page = read(ROOT / "docs" / "getting-started.md")
+        cls.section = cls.page[cls.page.index("## Prerequisites"):cls.page.index("## Without the Dev Container")]
+        cls.ref = read(ROOT / "docs" / "dev-container.md")
         cls.readme = read(ROOT / "README.md")
 
     def test_the_section_says_that_nobody_ran_it_on_wsl2_and_only_x86_64_ran_in_ci(self):
         self.assertIn("Nobody has run it on WSL2 yet", self.section)
         self.assertIn("x86_64", self.section)
-        self.assertIn("binfmt", self.section)
+        self.assertIn("binfmt", self.ref)
         self.assertNotIn("emulated and slow", self.section)
+        self.assertNotIn("emulated and slow", self.ref)
 
     def test_the_readme_does_not_promise_other_architectures(self):
         line = self.readme[self.readme.index("On Windows with WSL2"):]
@@ -1177,11 +1181,11 @@ class Documentation(unittest.TestCase):
 
     def test_the_section_names_the_differences_from_the_ci_runner(self):
         for word in ("actions/setup-python", "python3-venv", "curl", "sudo", "clang-tidy-18"):
-            self.assertIn(word, self.section)
+            self.assertIn(word, self.ref)
 
     def test_the_section_says_what_the_container_job_builds_and_runs(self):
-        self.assertIn("RT1060-EVKB", self.section)
-        self.assertIn("cross-build", self.section)
+        self.assertIn("RT1060-EVKB", self.ref)
+        self.assertIn("cross-build", self.ref)
 
     def test_the_section_covers_a_failed_setup_and_the_wsl_resources(self):
         self.assertIn("bash .devcontainer/setup.sh", self.section)

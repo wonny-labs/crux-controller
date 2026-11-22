@@ -79,14 +79,6 @@ an allowlist drops Zephyr and everything it imports if `zephyr` is left out of i
 the rest of the import alone; the cost is that it names what is known today, so when a pin moves, read the groups of the new Crux
 manifest, which the delta check also helps to catch.
 
-When the pin moved on 16 November 2026, the Crux manifest differed from the pin before it only in the revisions of `mbedtls` and
-`tf-psa-crypto` (and in the comment above them). The three optional groups and the projects in them are the same, so the
-narrowed import and the checks above did not need a change. The two revisions are not those of Zephyr's own manifest at
-v4.4.2 but those of Zephyr's v4.4-branch after that release (Mbed TLS 4.1.1 plus 8 commits, TF-PSA-Crypto 1.1.1 plus 24 commits); that is Crux's choice
-and is reviewed in `docs/dependency-review-mbed-tls-4.1.1.md` of `crux-pilot`. Only the S6 job and the S6 Budget row fetch them.
-This paragraph was not read again at later pin moves. When a pin moves, read the groups of the new Crux manifest, as
-the paragraph above says.
-
 ## Changing a pin
 
 A pin changes in its own pull request, with a reason in the commit message. A project that Crux pins

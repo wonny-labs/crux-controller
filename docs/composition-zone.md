@@ -12,7 +12,7 @@ interface (Mbed profile) needs, see [The web composition](#the-web-composition).
 CI runs two checks in the `Boundary check` job: this repository's `scripts/check_boundary.py`, with the headers
 that the pinned Crux publishes, and the product include check, which comes from `crux-pilot`. Run them from the
 west workspace directory (the one that holds `crux-controller` and `crux-pilot`; see
-[try-on-native-sim.md](try-on-native-sim.md)):
+[getting-started.md](getting-started.md)):
 
 ```bash
 python crux-controller/scripts/check_boundary.py --repo crux-controller --crux-root crux-pilot
