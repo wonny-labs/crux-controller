@@ -240,7 +240,12 @@ class Workflow(unittest.TestCase):
         self.assertIn("--token-env CRUX_PIN_TOKEN", self.commands("update"))
 
     def test_the_update_job_runs_only_on_the_default_branch(self):
-        self.assertIn("github.ref_name == github.event.repository.default_branch", self.jobs["update"]["if"])
+        cond = self.jobs["update"]["if"]
+        # A schedule event carries no repository payload, so the condition must not read it.
+        self.assertNotIn("github.event.repository", cond)
+        self.assertIn("github.event_name == 'schedule'", cond)
+        self.assertIn("github.ref == 'refs/heads/main'", cond)
+        self.assertIn("github.event_name != 'workflow_run'", cond)
 
     def test_the_evidence_job_ignores_pull_requests_from_forks(self):
         evidence = self.commands("evidence")

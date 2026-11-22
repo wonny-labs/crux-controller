@@ -42,7 +42,7 @@ jobs:
     # Only from the default branch: never from bot/crux-pin, which pins a Crux nobody reviewed yet.
     if: >-
       github.event_name != 'workflow_run' &&
-      github.ref_name == github.event.repository.default_branch
+      (github.event_name == 'schedule' || github.ref == 'refs/heads/main')
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
