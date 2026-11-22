@@ -20,6 +20,9 @@ PAGE = ROOT / "docs" / "try-on-native-sim.md"
 TROUBLE = ROOT / "docs" / "troubleshooting.md"
 README = ROOT / "README.md"
 TUTORIAL = ROOT / "docs" / "tutorial.md"
+# Getting started (PAGE) links the Dev Container reference and the how-to for the route without it.
+DEVREF = ROOT / "docs" / "dev-container.md"
+NATIVE = ROOT / "docs" / "native-setup.md"
 SETUP_CHECKS = ROOT / "docs" / "history" / "setup-checks.md"
 DEVCONTAINER = ROOT / ".devcontainer"
 WORKFLOWS = ROOT / ".github" / "workflows"
@@ -166,8 +169,29 @@ class Page(unittest.TestCase):
         cls.quick = section(cls.text, "Set up the Dev Container")
         # The run steps of the first setup are steps 3 to 6 of the tutorial.
         cls.tutorial = read(TUTORIAL)
+        cls.ref = read(DEVREF)
+        cls.native = read(NATIVE)
         cls.setup = read(DEVCONTAINER / "setup.sh")
         cls.shell = read(ROOT / "scripts" / "dev-shell.sh")
+
+
+class RefPage(Page):
+    """Checks of the Dev Container reference, which holds the container details."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.text = cls.ref
+        cls.dev = section(cls.ref, "What you need")
+
+
+class NativePage(Page):
+    """Checks of the how-to for the route without the Dev Container."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.text = cls.native
 
 
 class Structure(Page):
@@ -180,19 +204,34 @@ class Structure(Page):
 
     def test_the_container_route_comes_before_the_native_route(self):
         titles = [title for _, title, _ in headings(self.text)]
-        self.assertLess(titles.index("Dev Container"), titles.index("What you need first"))
+        self.assertLess(titles.index("Prerequisites"), titles.index("Dev Container"))
+        self.assertLess(titles.index("Dev Container"), titles.index("Without the Dev Container"))
+        self.assertIn("What you need first", [title for _, title, _ in headings(self.native)])
+
+    def test_the_page_is_environment_and_first_command_only(self):
+        # Getting started stays short; the details live on the reference and the how-to.
+        self.assertLessEqual(len(self.text.splitlines()), 250)
+        self.assertLessEqual(len(section(self.text, "Without the Dev Container").splitlines()), 40)
+        for title in ("WSL2", "Proxy", "Disk", "If you use a board"):
+            self.assertIn(title, [t for _, t, _ in headings(self.text)], title)
+        board = section(self.text, "If you use a board")
+        for word in ("J-Link", "usbipd", "board-bring-up.md", "authorisation"):
+            self.assertIn(word, board, word)
 
     def test_the_page_no_longer_says_that_everything_runs_on_ubuntu_24_04(self):
         self.assertNotIn("Everything below runs on", self.text)
 
-    def test_the_opening_names_both_routes_in_order(self):
+    def test_the_opening_names_the_route_and_the_short_native_section_has_the_same_check(self):
         opening = self.text[:self.text.index("\n## ")]
-        self.assertLess(opening.index("1. "), opening.index("2. "))
-        self.assertIn("(#set-up-the-dev-container)", opening)
-        self.assertIn("(#what-you-need-first)", opening)
+        self.assertIn("The Dev Container is the route", opening)
+        native = section(self.text, "Without the Dev Container")
+        self.assertIn("native-setup.md", native)
+        self.assertIn("Ubuntu 24.04", native)
+        self.assertIn("West version: v1.4.0", native)
+        self.assertIn("West version: v1.4.0", self.quick)
 
     def test_the_opening_says_what_a_macos_user_can_do_natively(self):
-        opening = self.text[:self.text.index("\n## ")]
+        opening = section(self.text, "Without the Dev Container")
         self.assertIn("macOS", opening)
         self.assertIn("tooling tests", opening)
         self.assertIn("boundary check", opening)
@@ -202,9 +241,10 @@ class Structure(Page):
         # Getting started is an entry page; the explanation lives on the explanation page.
         titles = [title for _, title, _ in headings(self.text)]
         self.assertNotIn("Why the evidence comes from CI", titles)
+        native_titles = [title for _, title, _ in headings(self.native)]
         for earlier in ("Run the S1 to S5 scenarios", "Run the host tests",
                         "Run the tooling tests and the boundary check", "If something fails"):
-            self.assertIn(earlier, titles, earlier)
+            self.assertIn(earlier, native_titles, earlier)
         self.assertIn("why-the-evidence-comes-from-ci", anchors(read(ROOT / "docs" / "architecture.md")))
         self.assertIn("architecture.md#why-the-evidence-comes-from-ci", self.text)
         # The dated record of the local runs is a history page of its own, linked from this page.
@@ -231,7 +271,7 @@ class Structure(Page):
                 previous = None
 
     def test_the_sections_that_the_task_names_exist(self):
-        titles = {title for _, title, _ in headings(self.text)}
+        titles = {title for _, title, _ in headings(self.ref)}
         for title in ("Network and prerequisites", "Behind a proxy or with a company certificate",
                       "Layout", "After a pin or SDK change",
                       "If the Dev Container fails"):
@@ -241,10 +281,12 @@ class Structure(Page):
         self.assertIn("From a copy without Git history", read(ROOT / "docs" / "history" / "copy-procedures.md"))
 
     def test_the_headings_that_other_files_link_to_still_exist(self):
-        found = anchors(self.text)
-        for anchor in ("dev-container", "set-up-the-dev-container",
-                       "what-you-need-first", "run-the-s1-to-s5-scenarios"):
-            self.assertIn(anchor, found)
+        for anchor in ("dev-container", "set-up-the-dev-container"):
+            self.assertIn(anchor, anchors(self.text))
+        for anchor in ("what-you-need-first", "run-the-s1-to-s5-scenarios"):
+            self.assertIn(anchor, anchors(self.native))
+        for anchor in ("commands-inside-the-container", "behind-a-proxy-or-with-a-company-certificate", "layout"):
+            self.assertIn(anchor, anchors(self.ref))
 
 
 class QuickStart(Page):
@@ -307,7 +349,7 @@ class QuickStart(Page):
         self.assertIn("build/", read(ROOT / ".gitignore"))
 
     def test_every_script_named_in_a_command_of_the_page_exists(self):
-        for block in code_blocks(self.text):
+        for block in code_blocks(self.text) + code_blocks(self.ref) + code_blocks(self.native):
             for token in re.findall(r"(?<![\w/.-])((?:scripts|\.devcontainer)/[\w*./-]+)", block):
                 if "*" in token:
                     self.assertTrue(list(ROOT.glob(token)), token)
@@ -315,7 +357,7 @@ class QuickStart(Page):
                     self.assertTrue((ROOT / token).exists(), token)
 
 
-class Counts(Page):
+class Counts(NativePage):
     def test_the_native_sim_directory_has_17_configurations_and_31_test_cases(self):
         self.assertEqual(17, len(testcase_ids(ROOT / "tests" / "native_sim")))
         self.assertEqual(31, ztest_count(ROOT / "tests" / "native_sim"))
@@ -336,7 +378,7 @@ class Counts(Page):
                 self.assertIn(f".{parts[3]}", self.text, identifier)
 
 
-class Network(Page):
+class Network(RefPage):
     def test_the_page_names_the_registry_host_of_the_dockerfile(self):
         base = re.search(r"^FROM (\S+?)/", read(DEVCONTAINER / "Dockerfile"), re.M).group(1)
         self.assertIn(f"`{base}`", section(self.text, "Network and prerequisites"))
@@ -363,7 +405,7 @@ class Network(Page):
         self.assertRegex(section(self.text, "Network and prerequisites"), r"(?i)offline.*not tested")
 
 
-class Proxy(Page):
+class Proxy(RefPage):
     """The page describes what the files do at this revision, and no more."""
 
     def setUp(self):
@@ -425,7 +467,7 @@ class Proxy(Page):
         self.assertNotRegex(dockerfile, r"(?m)^ARG\s+(?i:http_proxy|https_proxy|no_proxy)")
 
 
-class CopyAndLayout(Page):
+class CopyAndLayout(RefPage):
     def test_the_layout_section_explains_the_mount_and_the_two_cache_volumes(self):
         layout = section(self.text, "Layout")
         for word in (".west", "zephyr/", "modules/", "crux-pilot", "empty", "/workspaces/ws"):
@@ -475,7 +517,7 @@ class CopyAndLayout(Page):
         self.assertIn("looks like a home directory", trouble)
 
 
-class OnMain(Page):
+class OnMain(RefPage):
     """Statements about setup.sh, check-host.sh and the repository files that exist at this revision."""
 
     def test_check_host_is_in_the_file_list_and_described(self):
@@ -545,7 +587,7 @@ class CarriageReturnScan(unittest.TestCase):
             self.assertEqual(["crlf.txt"], files_with_carriage_return(root))
 
 
-class Review(Page):
+class Review(RefPage):
     """Statements that a review of the first version found false or unsafe."""
 
     def test_no_sentence_promises_a_dev_container_result_for_every_revision(self):
@@ -569,7 +611,7 @@ class Review(Page):
         start = self.quick
         self.assertIn("Behind a company proxy?", start)
         self.assertLess(start.index("Behind a company proxy?"), start.index("1. Install Docker Engine"))
-        self.assertIn("(#behind-a-proxy-or-with-a-company-certificate)", start)
+        self.assertIn("(dev-container.md#behind-a-proxy-or-with-a-company-certificate)", start)
 
     def test_the_daemon_proxy_does_not_cover_the_apt_steps_of_the_build(self):
         proxy = section(self.text, "Behind a proxy or with a company certificate")
@@ -595,9 +637,9 @@ class Review(Page):
 
 
 class MarkdownLinks(unittest.TestCase):
-    """Relative links and anchors of the three files that this page set owns resolve."""
+    """Relative links and anchors of the files that this page set owns resolve."""
 
-    FILES = (PAGE, TROUBLE)
+    FILES = (PAGE, DEVREF, NATIVE, TROUBLE)
 
     def test_the_relative_links_and_anchors_resolve(self):
         problems = []

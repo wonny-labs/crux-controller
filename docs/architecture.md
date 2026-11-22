@@ -197,7 +197,7 @@ It states the rule and gives no reason. What the repository's own files show:
   the [setup checks record](history/setup-checks.md), arm64 and WSL2 are untested, and nobody has run the Dev Container
   on WSL2.
 - A Zephyr workspace is large. `west update` and the SDK install take a long time and a lot of disk (see
-  [What you need first](try-on-native-sim.md#what-you-need-first)), so a local build is optional.
+  [What you need first](native-setup.md#what-you-need-first)), so a local build is optional.
 
 GitHub Actions logs expire (the default retention is 90 days), so the run numbers in the Recorded rows of the
 findings will stop resolving, and so will the logs behind the roadmap table; that is why the results themselves are

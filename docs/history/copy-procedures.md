@@ -101,7 +101,7 @@ A copy is a zip or any folder without a `.git` folder. It runs the same, with th
   A copy made by a tool that skips hidden files lacks them. Without `.clang-format`, clang-format uses its default
   style and the format check reports every C file (the author saw this with clang-format 18.1.8).
 - **A newer copy.** Replace the whole `crux-controller` folder and leave the parent folder alone, then follow
-  [After a pin or SDK change](../try-on-native-sim.md#after-a-pin-or-sdk-change) if `west.yml` changed.
+  [After a pin or SDK change](../dev-container.md#after-a-pin-or-sdk-change) if `west.yml` changed.
 
 ## From `docs/try-on-native-sim.md`: After a pin or SDK change, first sentence (the words "or a newer copy" removed)
 
@@ -122,7 +122,7 @@ A pin change is a new revision of `crux-pilot` in `west.yml`; it arrives with a 
 | `bash scripts/dev-shell.sh`: docker build fails (for example that the path `.devcontainer` is not found), .devcontainer missing after unzip | `bash scripts/dev-shell.sh`; `ls -a` shows no `.devcontainer`, `.clang-format` or `.github` | the hidden files stayed behind: a zip was moved up with `mv sub/* .`, which does not move dot files (general knowledge for the Docker wording) | `shopt -s dotglob; mv sub/* .; rmdir sub`, or unzip into the parent folder and rename the folder to `crux-controller`; `ls -a` must list `.devcontainer`, `.clang-format`, `.github` | [Quick start](../try-on-native-sim.md#set-up-the-dev-container) |
 | `Permission denied` when you start a script | `./scripts/check-format.sh`, `scripts/dev-shell.sh` | the exec bit is lost, as a zip can lose it | `chmod +x scripts/*.sh .devcontainer/*.sh`, or start it as `bash scripts/check-format.sh` | [From a copy without Git history](#from-a-copy-without-git-history) |
 | `fatal: not a git repository`, `check_spdx: cannot list the files of ...`, or tooling tests that stop with a `CalledProcessError` of `git ls-files` | `scripts/check-format.sh`, `scripts/analyze_host.py`, `scripts/check_spdx.py`, `tests/tooling` | the copy has no `.git` folder | `git init`, `git config core.autocrlf false`, `git add -A` | [From a copy without Git history](#from-a-copy-without-git-history) |
-| import errors or a failing Twister run after a `git pull` or a new copy that moved the pin | any command in the container | the workspace still has the old projects, or Zephyr's requirement files changed | `west update`, then `bash .devcontainer/setup.sh` | [After a pin or SDK change](../try-on-native-sim.md#after-a-pin-or-sdk-change) |
+| import errors or a failing Twister run after a `git pull` or a new copy that moved the pin | any command in the container | the workspace still has the old projects, or Zephyr's requirement files changed | `west update`, then `bash .devcontainer/setup.sh` | [After a pin or SDK change](../dev-container.md#after-a-pin-or-sdk-change) |
 | `error: code should be clang-formatted [-Wclang-format-violations]` for many files, or for every file | `scripts/check-format.sh` with 18.1.8 | real differences, or `.clang-format` is missing from the copy, so clang-format uses its default style (CRLF alone did not cause it in the author's run) | `ls -a` must list `.clang-format`; otherwise run `clang-format -i` with 18.1.8 on the files that the message names | [From a copy without Git history](#from-a-copy-without-git-history) |
 
 ## From `docs/first-change.md`: 1. Get the code, the sentence after the clone commands

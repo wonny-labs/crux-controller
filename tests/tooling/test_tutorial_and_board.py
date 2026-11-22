@@ -135,8 +135,8 @@ class Tutorial(Common, unittest.TestCase):
         self.assertTrue((ROOT / TUTORIAL).is_file())
 
     def test_the_steps_are_there_in_order(self):
-        wanted = (r"clone", r"dev container", r"build", r"native_sim", r"host tests",
-                  r"tooling tests.*boundary|boundary.*tooling tests", r"next")
+        wanted = (r"dev container", r"host tests", r"tooling tests.*boundary|boundary.*tooling tests",
+                  r"native_sim", r"board", r"build", r"next")
         found = [h.lower() for h in headings(TUTORIAL)]
         position = -1
         for pattern in wanted:
@@ -171,15 +171,37 @@ class Tutorial(Common, unittest.TestCase):
             self.assertIn(command, body, command)
 
     def test_the_clone_address_is_generic(self):
-        self.assertIn("<repository-url>", read(TUTORIAL))
-        self.assertNotIn("github.com/wonny-labs", read(TUTORIAL))
+        # The tutorial starts from a working Dev Container; the clone is step 3 of Getting started.
+        self.assertNotIn("git clone", read(TUTORIAL))
+        for name in (TUTORIAL, "docs/try-on-native-sim.md"):
+            self.assertNotIn("github.com/wonny-labs", read(name), name)
+        self.assertIn("git clone -c core.autocrlf=false <repository-url> crux-controller", read("docs/try-on-native-sim.md"))
 
     def test_it_points_at_the_detailed_pages_instead_of_copying_them(self):
         targets = {path for path, _, _ in links(TUTORIAL)}
         for name in ("docs/try-on-native-sim.md", "docs/troubleshooting.md", "docs/first-change.md",
                      "docs/board-bring-up.md"):
             self.assertIn(name, targets, name)
-        self.assertLess(len(read(TUTORIAL).split()), len(read("docs/try-on-native-sim.md").split()) / 3)
+        setup = sum(len(read(name).split()) for name in
+                    ("docs/try-on-native-sim.md", "docs/dev-container.md", "docs/native-setup.md"))
+        self.assertLess(len(read(TUTORIAL).split()), setup / 3)
+
+    def test_parts_a_to_c_with_the_no_board_line_and_the_board_table(self):
+        body = read(TUTORIAL)
+        parts = [h for h in headings(TUTORIAL) if h.startswith("Part ")]
+        self.assertEqual(["Part A", "Part B", "Part C"], [p[:6] for p in parts])
+        self.assertLess(body.index("No board? Parts A and B run every sample and test."), body.index("## Part C"))
+        part_c = section(TUTORIAL, r"Part C")
+        self.assertIn("| Board | `-b` target | Probe | Board guide |", part_c)
+        self.assertIn("`mimxrt1060_evk@B//qspi`", part_c)
+        self.assertIn("board-bring-up.md", part_c)
+        self.assertIn("roadmap.md", part_c)
+        self.assertRegex(part_c, r"authori[sz]ation")
+
+    def test_no_status_words(self):
+        # Status lives on the roadmap; the tutorial links it.
+        for word in ("Experimental", "Unstable", "frozen", "to be removed", "deprecated"):
+            self.assertNotIn(word, read(TUTORIAL), word)
 
     def test_it_says_what_is_untested(self):
         self.assertRegex(read(TUTORIAL), r"(?i)nobody has run[^.]*WSL2|WSL2[^.]*not (been )?(run|tested)")

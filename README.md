@@ -49,7 +49,7 @@ set-up, a proxy and the route without Docker. Look a failure up by its message i
 
 | You want to | Read |
 |---|---|
-| Run your first build and the `native_sim` scenarios | [Tutorial](docs/tutorial.md), then [Getting started](docs/try-on-native-sim.md) for every set-up variant |
+| Set up, then run the host tests, the `native_sim` scenarios and a board build | [Getting started](docs/try-on-native-sim.md), then the [Tutorial](docs/tutorial.md); every set-up variant is in the [Dev Container reference](docs/dev-container.md) and [Set up without the Dev Container](docs/native-setup.md) |
 | Find any page by task | [Documentation map](docs/README.md) |
 | Understand the source trees, the zones, the threads and how Crux is consumed | [docs/architecture.md](docs/architecture.md), with the [glossary](docs/glossary.md) for words used in a particular sense |
 | Know what works, what has run on a board and what is not yet possible | [docs/roadmap.md](docs/roadmap.md) |

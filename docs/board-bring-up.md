@@ -64,7 +64,7 @@ west build -p always -b 'mimxrt1060_evk@B//qspi' -d crux-controller/build/s2 \
 SH
 ```
 
-The S1 image, which has no network, is the build of [the Tutorial](tutorial.md#3-one-build-s1-for-the-rt1060-evkb)
+The S1 image, which has no network, is the build of [the Tutorial](tutorial.md#4-build-the-image-for-the-rt1060-evkb)
 (`crux-controller/build/s1`). CI uploads no image, and a tooling test fails if a workflow uploads an artifact, so
 the image is built where the board is. For the S2 runs, the image was approved by its SHA-256 hash
 (`e7c588c79c31d113ef3b0464731f17dfb4cc453874831b8bc20f9dd7da55b56c`, 103,180 bytes, at the source the S2 note

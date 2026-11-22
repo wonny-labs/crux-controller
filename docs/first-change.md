@@ -14,7 +14,7 @@ Read the [README](../README.md) and [CONTRIBUTING.md](../CONTRIBUTING.md) first 
 - CMake 3.20 or newer and Ninja.
 - Python 3 with PyYAML (CI uses Python 3.12) and clang-format 18.1.8, the version that the format check requires.
 
-[Getting started](try-on-native-sim.md#what-you-need-first) lists the tools in more detail. The build and
+[Getting started](native-setup.md#what-you-need-first) lists the tools in more detail. The build and
 check commands on this page were run on macOS. They use no Linux-only tool, except where a step says so. On Windows, use WSL2 and
 work in the Linux file system, as [Getting started](try-on-native-sim.md) explains.
 

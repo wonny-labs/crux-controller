@@ -11,8 +11,8 @@ to follow.
 
 ### I want to run it
 
-The [Tutorial](tutorial.md) first. Then [Getting started](try-on-native-sim.md) for the setup details,
-[troubleshooting.md](troubleshooting.md) for a failure, and [board-bring-up.md](board-bring-up.md) for a board (untested
+[Getting started](try-on-native-sim.md) first, then the [Tutorial](tutorial.md). The [Dev Container reference](dev-container.md) and [Set up without the Dev Container](native-setup.md) hold the setup details;
+[troubleshooting.md](troubleshooting.md) is for a failure, and [board-bring-up.md](board-bring-up.md) for a board (untested
 on hardware, and it needs the owner's authorisation).
 
 ### I want to change code
@@ -88,8 +88,10 @@ These are known limits of what the checks and tests cover. They are facts about 
 |---|---|---|---|
 | [architecture.md](architecture.md) | Explanation | How the repository is built: the four source trees and their include rules, how Crux is consumed, the threads in the image, a map of the files and why the evidence comes from CI. | 14 min |
 | [roadmap.md](roadmap.md) | Reference (status) | What exists on `main`, the static size per step, what has run on a board and what is not yet possible. It promises no dates. | 11 min |
-| [tutorial.md](tutorial.md) | Tutorial | The first build and run for a new team member on Linux or WSL2: clone, Dev Container, one build, the `native_sim` scenarios, host tests, tooling tests and the boundary check, with the times of the CI job. | 5 min |
-| [try-on-native-sim.md](try-on-native-sim.md) | Entry (Getting started) | Getting started: setting up the Dev Container or the native route without a board, proxies and certificates, the workspace layout, and every test command with what CI checks. | 24 min |
+| [tutorial.md](tutorial.md) | Tutorial | The first build and run from a working Dev Container: Part A the host tests and checks, Part B the `native_sim` scenarios, Part C the board image and the board table, with the times of the CI job. | 5 min |
+| [try-on-native-sim.md](try-on-native-sim.md) | Entry (Getting started) | Getting started: prerequisites, setting up the Dev Container, host notes for WSL2, a proxy and disk, the short route without the Dev Container, and what a board adds. | 5 min |
+| [dev-container.md](dev-container.md) | Reference | The Dev Container in detail: what CI runs in it, host requirements, the hosts it contacts, proxies and certificates, the layout, the VS Code and command-line routes, its commands, and a pin or SDK change. | 13 min |
+| [native-setup.md](native-setup.md) | How-to guide | Setting up on Ubuntu 24.04 without the Dev Container, and running the `native_sim` scenarios (S6 included), the host tests, the tooling tests and the boundary check with the commands of CI. | 8 min |
 | [troubleshooting.md](troubleshooting.md) | Reference | Look a failure up by its message: the cause, the fix and the page that explains more. | 11 min |
 | [first-change.md](first-change.md) | Tutorial | A tutorial from branch to pull request with one small host-test change that needs no Zephyr. | 6 min |
 | [adding-a-step.md](adding-a-step.md) | How-to guide | The recipe for adding a step, its checklist, the rule for drivers and HAL, and the files that need a reviewed change. | 16 min |
