@@ -22,16 +22,17 @@ python3 crux-pilot/templates/product/check_domain_includes.py --product crux-con
 The first command checks `app/src`, `app/compose`, `app/os` and `workload` against the public `<crux/NAME.h>`
 headers of the checkout. The second is the product include check: the script
 `templates/product/check_domain_includes.py` of `crux-pilot` (see [the glossary](glossary.md#boundary-and-zones)). In product mode (`--product`) it reads every C and C++ source under the repository and fails on an
-include of one of the four frozen headers (`<crux/thread.h>`, `<crux/sync.h>`, `<crux/queue.h>`, `<crux/serial.h>`).
+include of `<crux/thread.h>`, `<crux/sync.h>` or `<crux/serial.h>`, which Crux marks frozen, or of `<crux/queue.h>`,
+which Crux removed.
 Its stricter rules (no Zephyr header and no composition interface) apply only to a directory named `domain/`, and this
 repository has none, so here it checks the frozen headers across all sources. This overlaps the first command on the
 frozen headers, and it also covers every source file under the repository, including the tests.
 
 CI downloads that script from a fixed commit of `crux-pilot` and checks its SHA-256 before it runs it (the step
 `Run the Crux Pilot product include check` of the `Boundary check` job). A second step of the job runs the same
-script through the wrapper `check-includes.sh` of `crux-pilot`, downloaded and checked the same way. A comment in
-the workflow says that the pinned revision predates the script. The comment does not match the files: the pinned
-`crux-pilot` contains the same script with the same SHA-256, so a local run uses the pinned copy. Both commands print nothing but a pass line on success. Without `--crux-root`, `python scripts/check_boundary.py` from the repository
+script through the wrapper `check-includes.sh` of `crux-pilot`, downloaded and checked the same way. The pinned
+`crux-pilot` contains the same script with the same SHA-256, as the comment above the step says, so a local run uses
+the pinned copy. Both commands print nothing but a pass line on success. Without `--crux-root`, `python scripts/check_boundary.py` from the repository
 root checks the same rules but cannot tell that a `<crux/NAME.h>` name is not a public header. If none
 of the four trees exists under `--repo`, for example because the command ran in the workspace directory
 without `--repo`, the script exits with status 2 and says so, and it does not report a pass.
@@ -39,8 +40,7 @@ without `--repo`, the script exits with status 2 and says so, and it does not re
 ## Why a zone
 
 Crux publishes the File root binding as a composition interface, `<crux/file_zephyr.h>` with the
-CMake target `crux::file_zephyr` (crux-pilot PR 346, `docs/file-composition-interface.md` in that
-repository). It names a provider on purpose and it is for the code that also mounts the file
+CMake target `crux::file_zephyr` (`docs/file-composition-interface.md` in `crux-pilot`). It names a provider on purpose and it is for the code that also mounts the file
 system. Application code stays on `<crux/file.h>`. A boundary that lets `app/src` include the
 interface would let the application name a provider, and a boundary without any way to include it
 would leave File unusable. So the include is allowed in one directory and nowhere else. The Web
@@ -145,7 +145,7 @@ Crux's own sources one source at a time, so no build file here adds an include p
 ## The adapter zone
 
 `app/os` is a second zone, for the OS facilities of the product: threads, queues and sleeping.
-Crux offers these through `<crux/thread.h>`, `<crux/queue.h>` and their relatives, but a product
+Crux offers threads and locks through `<crux/thread.h>` and `<crux/sync.h>`, but a product
 adapter that needs them uses Zephyr directly, and that use has one place to live. The reason is
 that OS facilities use Zephyr directly in product adapters, while product behaviour stays plain C in
 `app/src`. The application declares a small product-owned port header in `app/src`, calls it, and
@@ -217,14 +217,21 @@ Queue.
 
 ### The frozen Crux headers
 
-`app/src` and `app/os` also fail on `<crux/thread.h>`, `<crux/sync.h>`, `<crux/queue.h>` and
-`<crux/serial.h>` (`FROZEN_CRUX_HEADERS` in `scripts/check_boundary.py`), although they are public
-headers, so the statements above about public `<crux/NAME.h>` headers hold for every other name. The
-product uses Zephyr directly for threads and queues, and the rule keeps a later change from bringing
-the Crux contracts back. The rule is a field of the `Rule` of each of the two trees. It does not apply
-to `workload`, which has no Crux header at all, and it does not change `app/compose`. Adding or
-removing a name is a reviewed change of the script, of `tests/tooling/test_boundary.py` and of this
-page.
+`app/src` and `app/os` also fail on `<crux/thread.h>`, `<crux/sync.h>` and `<crux/serial.h>`
+(`FROZEN_CRUX_HEADERS` in `scripts/check_boundary.py`), although they are public headers, so the
+statements above about public `<crux/NAME.h>` headers hold for every other name. The product uses
+Zephyr directly for threads and queues, and the rule keeps a later change from bringing the Crux
+contracts back. The rule is a field of the `Rule` of each of the two trees. It does not apply to
+`workload`, which has no Crux header at all, and it does not change `app/compose`. Adding or removing a
+name is a reviewed change of the script, of `tests/tooling/test_boundary.py` and of this page.
+
+`<crux/queue.h>` was the fourth name on the list. The pinned Crux no longer publishes it (Crux Queue
+and `CONFIG_CRUX_QUEUE` were removed), so it left the list, and the CI option checks no longer look for
+`CONFIG_CRUX_QUEUE`. An include of it still fails: with `--crux-root`, which CI always passes, a
+`<crux/NAME.h>` that the checkout does not publish fails in every tree, the composition zone included,
+and the product include check refuses it in every source of the repository.
+`tests/tooling/test_boundary.py` (`RemovedCruxQueue`) checks the first. Without `--crux-root` the name
+passes the shape test, as any unknown `<crux/NAME.h>` does (see [Running the check](#running-the-check)).
 
 ## What the zones do not cover
 

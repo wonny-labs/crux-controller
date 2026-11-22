@@ -1079,15 +1079,16 @@ class OsAdapterZone(unittest.TestCase):
 
 
 class FrozenCruxHeaders(unittest.TestCase):
-    """app/src and app/os may not include the four frozen Crux headers.
+    """app/src and app/os may not include the three frozen Crux headers.
 
     OS facilities of the product use Zephyr directly in the adapter zone, so a later change must
-    not bring Crux Thread, Sync, Queue or Serial back. The other public Crux headers stay allowed,
-    and the rule does not touch the workload (which has no Crux header at all) or the composition
-    zone.
+    not bring Crux Thread, Sync or Serial back. The other public Crux headers stay allowed, and the
+    rule does not touch the workload (which has no Crux header at all) or the composition zone.
+    Crux Queue is not on the list because Crux no longer publishes <crux/queue.h>; RemovedCruxQueue
+    below checks that the header still fails.
     """
 
-    FROZEN = ("crux/thread.h", "crux/sync.h", "crux/queue.h", "crux/serial.h")
+    FROZEN = ("crux/thread.h", "crux/sync.h", "crux/serial.h")
     STILL_ALLOWED = ("crux/time.h", "crux/logging.h", "crux/status.h", "crux/file.h")
 
     def crux_root(self):
@@ -1138,18 +1139,18 @@ class FrozenCruxHeaders(unittest.TestCase):
 
     def test_the_hardened_scan_forms_find_a_frozen_header(self):
         for text in (
-            "  #  include   <crux/queue.h>\n",
-            "%:include <crux/queue.h>\n",
-            "??=include <crux/queue.h>\n",
-            "#include \\\n<crux/queue.h>\n",
-            "#include_next <crux/queue.h>\n",
-            "#import <crux/queue.h>\n",
+            "  #  include   <crux/serial.h>\n",
+            "%:include <crux/serial.h>\n",
+            "??=include <crux/serial.h>\n",
+            "#include \\\n<crux/serial.h>\n",
+            "#include_next <crux/serial.h>\n",
+            "#import <crux/serial.h>\n",
         ):
             for tree in ("app/src", "app/os"):
-                self.assertEqual(["crux/queue.h"], reasons(run({f"{tree}/a.c": text})), (tree, text))
+                self.assertEqual(["crux/serial.h"], reasons(run({f"{tree}/a.c": text})), (tree, text))
 
     def test_a_commented_frozen_include_is_ignored(self):
-        text = "/* #include <crux/thread.h> */\n// #include <crux/queue.h>\n"
+        text = "/* #include <crux/thread.h> */\n// #include <crux/serial.h>\n"
         self.assertEqual([], run({"app/src/a.c": text}))
         self.assertEqual([], run({"app/os/a.c": text}))
 
@@ -1185,6 +1186,68 @@ class FrozenCruxHeaders(unittest.TestCase):
         self.assertEqual(1, result.returncode)
         self.assertIn("app/os/adapter.c:1", result.stdout)
         self.assertIn("frozen", result.stdout)
+
+
+class RemovedCruxQueue(unittest.TestCase):
+    """Crux no longer publishes <crux/queue.h>, and product code still may not include it.
+
+    The header left the frozen list because the pinned Crux removed it. The guarantee now comes from
+    the list of public headers: with --crux-root (CI always passes it) a <crux/NAME.h> that the
+    checkout does not publish fails in every tree, the composition zone included.
+    """
+
+    PUBLISHED = ("crux/thread.h", "crux/sync.h", "crux/serial.h", "crux/time.h", "crux/logging.h")
+
+    def crux_root(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        root = pathlib.Path(directory.name)
+        for name in self.PUBLISHED:
+            path = root / "components" / "x" / "include" / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("")
+        return root
+
+    def test_the_queue_header_is_not_frozen_any_more(self):
+        self.assertNotIn("crux/queue.h", check_boundary.FROZEN_CRUX_HEADERS)
+
+    def test_the_queue_header_fails_in_every_product_tree_when_crux_does_not_publish_it(self):
+        root = self.crux_root()
+        for path in ("app/src/a.c", "app/os/a.c", "app/compose/a.c"):
+            violations = run({path: "#include <crux/queue.h>\n"}, root)
+            self.assertEqual(["crux/queue.h"], reasons(violations), path)
+            self.assertEqual(
+                "not a public Crux header at the pinned revision", violations[0].reason, path
+            )
+
+    def test_the_queue_header_fails_in_the_workload_as_any_crux_header_does(self):
+        (violation,) = run({"workload/a.c": "#include <crux/queue.h>\n"}, self.crux_root())
+        self.assertEqual("Crux header in portable code", violation.reason)
+
+    def test_the_hardened_scan_forms_find_the_queue_header(self):
+        root = self.crux_root()
+        for text in (
+            "%:include <crux/queue.h>\n",
+            "#include \\\n<crux/queue.h>\n",
+            "#import <crux/queue.h>\n",
+        ):
+            for tree in ("app/src", "app/os"):
+                self.assertEqual(
+                    ["crux/queue.h"], reasons(run({f"{tree}/a.c": text}, root)), (tree, text)
+                )
+
+    def test_the_command_line_with_a_crux_root_reports_the_queue_header(self):
+        root = self.crux_root()
+        repo = Repo({"app/src/main.c": "#include <crux/queue.h>\n"})
+        self.addCleanup(repo.close)
+        result = subprocess.run(
+            [sys.executable, str(SCRIPTS / "check_boundary.py"), "--repo", str(repo.root),
+             "--crux-root", str(root)],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(1, result.returncode, result.stderr)
+        self.assertIn("app/src/main.c:1: crux/queue.h: not a public Crux header", result.stdout)
 
 
 class BuildFiles(unittest.TestCase):

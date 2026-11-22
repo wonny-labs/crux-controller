@@ -333,8 +333,7 @@ current files, read from `app/Kconfig`, `app/CMakeLists.txt`, `app/os/CMakeLists
   `SNTP`, `NET_UDP` and `NET_IPV4`. Its CI build uses `conf/s1.conf;conf/s2.conf;conf/s5.conf` and
   `boards/s2.overlay`, and the Budget row says the same.
 - **It uses an existing zone entry.** `zephyr/net/sntp.h` had been allowed in `app/os` by a separate
-  reviewed pull request ([pull request 49](https://github.com/wonny-labs/crux-controller/pull/49) of the public
-  repository) before S5, as the ground rules above ask. The adapter zone gained a second source,
+  reviewed pull request before S5, as the ground rules above ask. The adapter zone gained a second source,
   `app/os/time_sync_zephyr.c`, which `app/os/CMakeLists.txt` builds only when S5 is on.
 - **Three files instead of two for the logic.** The plain-C policy is `app/src/time_sync_policy.[ch]`, the
   glue that calls the Crux Time authority is `app/src/time_sync.[ch]`, and the port that the glue calls is

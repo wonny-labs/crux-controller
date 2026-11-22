@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 """Checks that CI runs the Crux Pilot product include check from a verified, immutable download.
 
-The revision of crux-pilot that west.yml pins predates check_domain_includes.py, so the
-Boundary check job downloads the script from a commit URL and verifies its SHA-256 before it
-runs. These tests read the workflow only. They do not use the network.
+The Boundary check job downloads check_domain_includes.py from a commit URL and verifies its
+SHA-256 before it runs. The revision of crux-pilot that west.yml pins contains the same file with
+the same hash. These tests read the workflow only. They do not use the network.
 """
 
 import pathlib

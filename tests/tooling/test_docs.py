@@ -254,5 +254,50 @@ class Contributing(unittest.TestCase):
         self.assertIn(f"Steps S0 to {last} are built in CI", text("CONTRIBUTING.md"))
 
 
+class GenericWording(unittest.TestCase):
+    """The maintained documents state facts without the pull request or issue number that brought
+    them, and the first-change page does not tie the clone to one hosting address. Records keep
+    their numbers: the changelog, docs/findings/ and docs/history/ are not checked here, and neither
+    is the glossary entry that explains what such numbers mean."""
+
+    MAINTAINED = (
+        "CONTRIBUTING.md", "docs/adding-a-step.md", "docs/architecture.md", "docs/composition-zone.md",
+        "docs/first-change.md", "docs/reviewing.md", "docs/roadmap.md",
+    )
+    NUMBER = re.compile(
+        r"pull request \d+|\bPR \d+|crux-pilot#\d+|crux-controller#\d+|/pull/\d+|/issues/\d+"
+        r"|\bissue #?\d+|(?<![\w&])#\d{1,4}\b"
+    )
+
+    def west_comments(self):
+        return "\n".join(
+            line.split("#", 1)[1] for line in (ROOT / "west.yml").read_text().splitlines() if "#" in line
+        )
+
+    def test_the_maintained_documents_name_no_pull_request_or_issue_number(self):
+        for name in self.MAINTAINED:
+            self.assertEqual([], self.NUMBER.findall(text(name)), name)
+
+    def test_the_west_manifest_comments_name_no_pull_request_or_issue_number(self):
+        self.assertEqual([], self.NUMBER.findall(" ".join(self.west_comments().split())))
+
+    def test_the_glossary_states_the_queue_removal_without_a_number(self):
+        entry = text("docs/glossary.md")
+        entry = entry[entry.index("**Frozen headers.**"):]
+        entry = entry[: entry.index("**", len("**Frozen headers.**"))]
+        self.assertEqual([], self.NUMBER.findall(entry))
+
+    def test_the_first_change_page_clones_from_the_address_you_were_given(self):
+        body = text("docs/first-change.md")
+        self.assertIn("git clone <repository-url> crux-controller", body)
+        self.assertIn("the address you were given", body)
+        self.assertNotIn("git clone https://", body)
+        self.assertNotIn("on GitHub", body)
+
+    def test_the_documents_say_the_ci_where_the_sentence_is_not_about_github(self):
+        self.assertNotIn("GitHub Actions", text("docs/roadmap.md"))
+        self.assertNotIn("GitHub Actions", text("docs/glossary.md"))
+
+
 if __name__ == "__main__":
     unittest.main()
