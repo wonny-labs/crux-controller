@@ -103,14 +103,17 @@ A pin moves in its own small pull request, with the reason in the commit message
 
 `crux-pin-update.yml` keeps one such pull request open, on the branch `bot/crux-pin`, and refreshes
 it when Crux main moves. It runs `scripts/crux-pin-bot.py` of the Crux that `west.yml` pins, never a
-script from Crux main. The bot does step 1 for `west.yml` and runs `scripts/crux-pin-hook`, which does
-the rest of steps 1 and 2 and fails when a quote it expects is missing. Step 3 comes from CI: after
-each refresh and each `release` or `budget` run, `scripts/pin_evidence.py` copies the hash, the
-`firmware_identity` and the budget tables from their logs into the pull request body. Nothing merges
-itself. A person reads the Crux changes, adds a commit with the reason, the comment above the pin and
-the `CHANGELOG.md` entry (the bot then stops refreshing the branch), compares the evidence with the
-previous pin and approves the merge. `Jenkinsfile.example` runs the same scripts for a copy built by
-Jenkins. The first move to a Crux commit that has `scripts/crux-pin-bot.py` is made by hand.
+script from Crux main. The bot rewrites the revision in `west.yml` and runs `scripts/crux-pin-hook`,
+which moves the commit where `tests/tooling/test_manifest.py`, `docs/dependencies.md`, `RELEASE.md`,
+`docs/adding-a-step.md`, the pin checks of `tests/tooling` and the current-pin line of `CHANGELOG.md`
+quote it, and fails when a quote it expects is missing. The comment above the pin and the
+`CHANGELOG.md` entry stay manual. Step 3 comes from CI: after each refresh and each `release` or
+`budget` run, `scripts/pin_evidence.py` copies the hash, the `firmware_identity` and the budget tables
+from their logs into the pull request body. Nothing merges itself. A person reads the Crux changes,
+adds a commit with the reason, the pin comment and the `CHANGELOG.md` entry (the bot then stops
+refreshing the branch), compares the evidence with the previous pin and approves the merge.
+`Jenkinsfile.example` runs the same bot for a copy built by Jenkins; that path has no evidence step yet.
+The first move to a Crux commit that has `scripts/crux-pin-bot.py` is made by hand.
 
 ## Changing behaviour
 

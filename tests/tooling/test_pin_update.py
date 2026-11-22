@@ -230,8 +230,22 @@ class Workflow(unittest.TestCase):
         self.assertEqual({"CRUX_PIN_TOKEN"}, set(re.findall(r"secrets\.([A-Z_]+)", self.text)))
         self.assertNotRegex(self.text, r"secrets\.CRUX_PIN_TOKEN *\|\|")
         update = self.jobs["update"]
-        self.assertEqual("${{ secrets.CRUX_PIN_TOKEN }}", update["env"]["CRUX_PIN_TOKEN"])
         self.assertNotIn("github.token", yaml.safe_dump(update))
+        # Only the steps that need the token see it; not pip or west.
+        self.assertNotIn("env", update)
+        holders = [s.get("name") or s.get("uses") for s in update["steps"]
+                   if "CRUX_PIN_TOKEN" in yaml.safe_dump(s.get("env", {})) + yaml.safe_dump(s.get("with", {}))]
+        self.assertEqual(["Check that the token is set", "actions/checkout@v4",
+                          "Move the pin and refresh the pull request"], holders)
+        self.assertIn("--token-env CRUX_PIN_TOKEN", self.commands("update"))
+
+    def test_the_update_job_runs_only_on_the_default_branch(self):
+        self.assertIn("github.ref_name == github.event.repository.default_branch", self.jobs["update"]["if"])
+
+    def test_the_evidence_job_ignores_pull_requests_from_forks(self):
+        evidence = self.commands("evidence")
+        self.assertIn("isCrossRepository", evidence)
+        self.assertIn("select(.isCrossRepository == false)", evidence)
 
     def test_nothing_merges_itself(self):
         for word in ("gh pr merge", "--auto", "automerge", "auto-merge", "git push"):
@@ -297,6 +311,31 @@ class Workflow(unittest.TestCase):
             self.assertNotIn(word, self.text)
 
 
+class ArchitectureNamesTheFiles(unittest.TestCase):
+    @staticmethod
+    def row(start):
+        for line in (ROOT / "docs" / "architecture.md").read_text().splitlines():
+            if line.startswith(start):
+                return line
+        raise AssertionError(f"docs/architecture.md has no row {start}")
+
+    def test_the_workflows_row_names_every_workflow(self):
+        row = self.row("| `.github/workflows/` |")
+        for path in sorted(WORKFLOWS.glob("*.yml")):
+            self.assertIn(f"`{path.name}`", row)
+
+    def test_the_top_level_files_row_names_the_jenkins_example(self):
+        self.assertIn("`Jenkinsfile.example`", self.row("| `README.md`, `CONTRIBUTING.md`"))
+
+
+class Contributing(unittest.TestCase):
+    def test_the_pin_paragraph_says_what_stays_manual_and_the_jenkins_gap(self):
+        text = " ".join((ROOT / "CONTRIBUTING.md").read_text().split())
+        self.assertNotIn("does the rest of steps 1 and 2", text)
+        self.assertIn("stay manual", text)
+        self.assertIn("no evidence step", text)
+
+
 class BudgetLogHasTheTables(unittest.TestCase):
     def test_the_budget_job_prints_its_summary_to_the_log_as_well(self):
         job = yaml.safe_load((WORKFLOWS / "budget.yml").read_text())["jobs"]["budget"]
@@ -314,6 +353,25 @@ class JenkinsExample(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.text = JENKINS.read_text()
+
+    GUARD = "when { beforeAgent true; allOf { branch 'main'; not { changeRequest() } } }"
+
+    def test_it_runs_only_on_main_and_never_for_a_pull_request_or_the_bot_branch(self):
+        self.assertIn("agent none", self.text)
+        self.assertEqual(1, self.text.count(self.GUARD))
+        # The guarded stage holds the agent and every step, so nothing runs before the guard.
+        guard = self.text.index(self.GUARD)
+        self.assertLess(guard, self.text.index("dockerfile {"))
+        self.assertLess(guard, self.text.index("crux-pin-bot.py --host"))
+        self.assertIn("own scheduled", self.text)
+        self.assertIn("BRANCH_NAME", self.text)
+
+    def test_the_push_gets_its_credentials_explicitly(self):
+        self.assertIn("gitUsernamePassword(credentialsId: '<", self.text)
+        self.assertNotIn("credentials of the checkout", self.text)
+
+    def test_it_says_the_evidence_step_is_missing(self):
+        self.assertIn("no evidence step", self.text)
 
     def test_it_is_an_example_and_not_an_active_pipeline(self):
         self.assertFalse((ROOT / "Jenkinsfile").exists())

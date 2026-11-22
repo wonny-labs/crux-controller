@@ -1,21 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 // Example only. Jenkins does not run this file: a pipeline job reads a file named Jenkinsfile.
-// For a copy of this repository that Jenkins builds from Bitbucket Cloud. Copy it to Jenkinsfile and
-// replace each <placeholder>. It does what .github/workflows/crux-pin-update.yml does: once a day it
-// runs crux-pin-bot.py of the Crux that west.yml pins (never a script from Crux main), which moves the
-// pin and opens or refreshes one pull request on bot/crux-pin. It never merges. The checks and the
-// step 3 evidence come from the pull request build of the copy; that build can run
-// scripts/pin_evidence.py evidence over its release dry run and budget logs.
+// For a copy of this repository that Jenkins builds from Bitbucket Cloud. Put it in its own scheduled
+// Pipeline job on main, not in the Jenkinsfile of the pull request builds, and replace each
+// <placeholder>. It does what .github/workflows/crux-pin-update.yml does: once a day it runs
+// crux-pin-bot.py of the Crux that west.yml pins (never a script from Crux main), which moves the pin
+// and opens or refreshes one pull request on bot/crux-pin. It never merges.
+// The guard below runs it only on main, never for a pull request or for bot/crux-pin, which pins a
+// Crux nobody has reviewed yet. In a single-branch Pipeline job BRANCH_NAME is unset and the guard
+// never matches: use when { expression { env.BRANCH_NAME == null || env.BRANCH_NAME == 'main' } } there.
+// Known gap: the Jenkins path has no evidence step yet; the step 3 evidence is GitHub only.
 // The Crux interface is the one of crux-pilot pull request 537.
 
 pipeline {
-  agent {
-    dockerfile {
-      dir '.devcontainer'
-      filename 'Dockerfile'
-      additionalBuildArgs '--platform=linux/amd64'
-    }
-  }
+  agent none
   triggers { cron('H 4 * * *') }
   options {
     disableConcurrentBuilds()
@@ -25,36 +22,50 @@ pipeline {
     BITBUCKET_REPOSITORY = '<workspace>/<repository>'
   }
   stages {
-    stage('Fetch the pinned Crux') {
-      steps {
-        // A second checkout in a subfolder: west makes the folder above the manifest its workspace.
-        dir('crux-controller') { checkout scm }
-        // West needs read access to the Crux remote of west.yml, for example a Git credential helper.
-        sh '''
-          python3 -m venv .venv
-          .venv/bin/pip install -q west==1.4.0 pyyaml==6.0.3
-          rm -rf .west
-          .venv/bin/west init -l crux-controller
-          .venv/bin/west update crux-pilot
-          test -f crux-pilot/scripts/crux-pin-bot.py || {
-            echo "The pinned Crux has no scripts/crux-pin-bot.py. Move the pin by hand once (CONTRIBUTING.md)." >&2
-            exit 1
-          }
-        '''
+    stage('Crux pin') {
+      when { beforeAgent true; allOf { branch 'main'; not { changeRequest() } } }
+      agent {
+        dockerfile {
+          dir '.devcontainer'
+          filename 'Dockerfile'
+          additionalBuildArgs '--platform=linux/amd64'
+        }
       }
-    }
-    stage('Move the pin and refresh the pull request') {
-      steps {
-        withCredentials([string(credentialsId: '<Jenkins credentials ID>', variable: 'CRUX_PIN_TOKEN')]) {
-          // Single quotes: the shell, not Groovy, expands the token: a Bitbucket Cloud access token
-          // with pull request write access. The push uses the credentials of the checkout.
-          dir('crux-controller') {
+      stages {
+        stage('Fetch the pinned Crux') {
+          steps {
+            // A second checkout in a subfolder: west makes the folder above the manifest its workspace.
+            dir('crux-controller') { checkout scm }
+            // West needs read access to the Crux remote of west.yml, for example a Git credential helper.
             sh '''
-              ../.venv/bin/python scripts/pin_evidence.py body > ../review.md
-              ../.venv/bin/python ../crux-pilot/scripts/crux-pin-bot.py --host bitbucket-cloud \
-                --repo "$BITBUCKET_REPOSITORY" --manifest west.yml --project crux-pilot \
-                --base main --branch bot/crux-pin --append-body ../review.md
+              python3 -m venv .venv
+              .venv/bin/pip install -q west==1.4.0 pyyaml==6.0.3
+              rm -rf .west
+              .venv/bin/west init -l crux-controller
+              .venv/bin/west update crux-pilot
+              test -f crux-pilot/scripts/crux-pin-bot.py || {
+                echo "The pinned Crux has no scripts/crux-pin-bot.py. Move the pin by hand once (CONTRIBUTING.md)." >&2
+                exit 1
+              }
             '''
+          }
+        }
+        stage('Move the pin and refresh the pull request') {
+          steps {
+            // CRUX_PIN_TOKEN: a Bitbucket Cloud access token with pull request write access, for the
+            // pull request. The bot pushes its branch with plain Git, which takes its
+            // credentials from gitUsernamePassword. Single quotes: the shell, not Groovy, expands them.
+            withCredentials([string(credentialsId: '<Jenkins token credentials ID>', variable: 'CRUX_PIN_TOKEN'),
+                             gitUsernamePassword(credentialsId: '<Jenkins Git credentials ID>', gitToolName: 'Default')]) {
+              dir('crux-controller') {
+                sh '''
+                  ../.venv/bin/python scripts/pin_evidence.py body > ../review.md
+                  ../.venv/bin/python ../crux-pilot/scripts/crux-pin-bot.py --host bitbucket-cloud \
+                    --repo "$BITBUCKET_REPOSITORY" --manifest west.yml --project crux-pilot \
+                    --base main --branch bot/crux-pin --token-env CRUX_PIN_TOKEN --append-body ../review.md
+                '''
+              }
+            }
           }
         }
       }

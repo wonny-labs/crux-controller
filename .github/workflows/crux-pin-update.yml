@@ -39,15 +39,20 @@ concurrency:
 jobs:
   update:
     name: Refresh the Crux pin pull request
-    if: github.event_name != 'workflow_run'
+    # Only from the default branch: never from bot/crux-pin, which pins a Crux nobody reviewed yet.
+    if: >-
+      github.event_name != 'workflow_run' &&
+      github.ref_name == github.event.repository.default_branch
     runs-on: ubuntu-24.04
     timeout-minutes: 15
-    env:
-      CRUX_PIN_TOKEN: ${{ secrets.CRUX_PIN_TOKEN }}
     steps:
       - name: Check that the token is set
+        env:
+          CRUX_PIN_TOKEN: ${{ secrets.CRUX_PIN_TOKEN }}
         run: |
           test -n "$CRUX_PIN_TOKEN" || { echo "::error::Set the secret CRUX_PIN_TOKEN." >&2; exit 1; }
+      # The checkout keeps the token for the push: open-pin-pr.py pushes through the origin remote and
+      # uses the token only for the pull request itself.
       - uses: actions/checkout@v4
         with:
           path: crux-controller
@@ -67,11 +72,13 @@ jobs:
           }
       - name: Move the pin and refresh the pull request
         working-directory: crux-controller
+        env:
+          CRUX_PIN_TOKEN: ${{ secrets.CRUX_PIN_TOKEN }}
         run: |
           python scripts/pin_evidence.py body > "$RUNNER_TEMP/review.md"
           python ../crux-pilot/scripts/crux-pin-bot.py --host github --repo "$GITHUB_REPOSITORY" \
             --manifest west.yml --project crux-pilot --base main --branch bot/crux-pin \
-            --append-body "$RUNNER_TEMP/review.md"
+            --token-env CRUX_PIN_TOKEN --append-body "$RUNNER_TEMP/review.md"
 
   evidence:
     name: Put the CI evidence into the pin pull request
@@ -102,7 +109,8 @@ jobs:
         run: |
           set -euo pipefail
           found="$(gh pr list --repo "$GITHUB_REPOSITORY" --head bot/crux-pin --state open \
-            --json number,headRefOid --jq '.[0] // empty | "\(.number) \(.headRefOid)"')"
+            --json number,headRefOid,isCrossRepository \
+            --jq '[.[] | select(.isCrossRepository == false)] | .[0] // empty | "\(.number) \(.headRefOid)"')"
           if [ -z "$found" ]; then
             echo "No open pin pull request. Nothing to do."
             exit 0

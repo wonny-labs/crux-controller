@@ -69,7 +69,10 @@ def fixture(pin):
     }
 
 
-FINDINGS = f"The current pin is `{OLD}` (see `west.yml`).\n"
+# The index of the notes points at west.yml instead of quoting the pin; a dated note keeps the
+# commit it was written at, which can be the old pin.
+FINDINGS = "The current pin is in `west.yml`.\n"
+NOTE = f"Read at `{OLD}`.\n"
 
 
 class Workspace:
@@ -84,6 +87,7 @@ class Workspace:
             self.write(name, body)
         self.write("west.yml", west_yml(revision))
         self.write("docs/findings/README.md", FINDINGS)
+        self.write("docs/findings/s9-note.md", NOTE)
 
     def write(self, name, body):
         path = self.root / name
@@ -163,6 +167,12 @@ class HookMovesThePin(unittest.TestCase):
     def test_findings_are_untouched(self):
         self.assertEqual(0, self.work.run().returncode)
         self.assertEqual(FINDINGS, self.work.read("docs/findings/README.md"))
+        self.assertEqual(NOTE, self.work.read("docs/findings/s9-note.md"))
+
+    def test_no_quote_is_under_docs_findings(self):
+        source = HOOK.read_text()
+        self.assertNotIn('"docs/findings/', source)
+
 
     def test_west_yml_is_not_written_by_the_hook(self):
         before = self.work.read("west.yml")
@@ -331,6 +341,15 @@ class HookOnTheRealFiles(unittest.TestCase):
                                    cwd=copy, env=environment, capture_output=True, text=True)
             self.assertEqual(0, again.returncode, again.stdout + again.stderr)
             self.assertIn("already", again.stdout)
+
+
+class FindingsIndex(unittest.TestCase):
+    def test_the_index_of_the_notes_quotes_no_pin_and_points_at_west_yml(self):
+        import re
+
+        text = (ROOT / "docs" / "findings" / "README.md").read_text()
+        self.assertIsNone(re.search(r"\b[0-9a-f]{40}\b", text))
+        self.assertIn("The current pin is in `west.yml`.", text)
 
 
 if __name__ == "__main__":
