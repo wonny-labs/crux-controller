@@ -1175,16 +1175,17 @@ class Documentation(unittest.TestCase):
         cls.ref = read(ROOT / "docs" / "dev-container.md")
         cls.readme = read(ROOT / "README.md")
 
-    def test_the_section_says_that_nobody_ran_it_on_wsl2_and_only_x86_64_ran_in_ci(self):
-        self.assertIn("Nobody has run it on WSL2 yet", self.section)
+    def test_the_section_names_the_supported_route_and_only_x86_64_ran_in_ci(self):
+        self.assertIn("This is the supported route", self.section)
+        self.assertNotIn("WSL2", self.section)
         self.assertIn("x86_64", self.section)
         self.assertIn("binfmt", self.ref)
         self.assertNotIn("emulated and slow", self.section)
         self.assertNotIn("emulated and slow", self.ref)
 
     def test_the_readme_does_not_promise_other_architectures(self):
-        line = self.readme[self.readme.index("On Windows with WSL2"):]
-        line = line[:line.index("yet)")]
+        line = self.readme[self.readme.index("Supported:"):]
+        line = line[:line.index(".")]
         self.assertIn("x86_64", line)
         self.assertNotIn("any host", line)
 
@@ -1198,8 +1199,8 @@ class Documentation(unittest.TestCase):
 
     def test_the_section_covers_a_failed_setup_and_the_wsl_resources(self):
         self.assertIn("bash .devcontainer/setup.sh", self.section)
-        self.assertIn(".wslconfig", self.section)
-        self.assertIn("processors", self.section)
+        self.assertIn(".wslconfig", self.ref)
+        self.assertIn("processors", self.ref)
 
     def test_the_product_include_check_is_not_said_to_predate_the_pin_in_the_workflow(self):
         self.assertNotIn("predates", read(WORKFLOW))
