@@ -72,9 +72,8 @@ These are known limits of what the checks and tests cover. They are facts about 
 - **Parts of the Zephyr-side glue are not run by any test.** The start order and the decisions in `app/src/composition.c`, the
   watchdog feed path of `system` (its scenario cannot show a feed cycle) and the web page script of `management` (its
   scenario serves the bytes, and nothing runs them) are never run in any test.
-- **No check runs on a board.** CI builds the board images and runs the `native_sim` scenarios; `sntp` and `management`
-  run only on `native_sim`, never on a board. What has run on a board is on the
-  [roadmap](roadmap.md#what-has-run-on-a-board).
+- **No check runs on a board.** CI builds the board images and runs the `native_sim` scenarios, never on a board. What has run
+  on a board is on the [roadmap](roadmap.md#what-has-run-on-a-board).
 - **The Dev Container and WSL2 were not tried by anyone.** The Dev Container was not started on a developer machine, so
   WSL2, Docker Engine in WSL2 and the proxy settings of `devcontainer.json` have not run there. The Dev Container job
   of CI covers an x86_64 runner only ([setup checks record](history/setup-checks.md)).

@@ -330,7 +330,7 @@ class ManagementConfiguration(unittest.TestCase):
         text = " ".join(kconfig_block("CRUX_CONTROLLER_MANAGEMENT").split())
         for needle in ("TLS 1.3", "self-signed", "RAM disk", "nothing persists", "no account",
                        "nobody can log in", "never run on a board", "not measured",
-                       "save route", "file", "system", "192.168.77.2"):
+                       "save route", "It does not combine with file,", "or with system,", "192.168.77.2"):
             self.assertIn(needle, text, needle)
 
     def test_the_help_names_no_provider_symbol_that_the_product_does_not_select(self):
@@ -431,6 +431,12 @@ class ManagementConfiguration(unittest.TestCase):
         self.assertIn("select them for themselves", text)
 
 
+# A build file names the management configuration by its option, its fragment or overlay, its old step id, or
+# in prose as the capability, image, fragment, overlay, job or configuration ("secure management group" does not
+# match).
+MANAGEMENT_NAMED = (r"CRUX_CONTROLLER_MANAGEMENT|conf/management|boards/management|\bS6\b"
+                    r"|\bmanagement (?:capability|image|fragment|overlay|job|configuration)\b")
+
 class ManagementNotBuilt(unittest.TestCase):
     """What the build files under app/ may name. Management is built, so the groundwork's assertions
     that no file names it were replaced, one by one, by assertions that only the files of management
@@ -460,7 +466,7 @@ class ManagementNotBuilt(unittest.TestCase):
 
     # Approved behaviour change: the management capability is now built, so the old assertion that no build file names
     # it is replaced by one that only its own files do. The files of the other steps stay clean.
-    management_FILES = {"Kconfig", "conf/workload.conf", "conf/management.conf", "boards/management.overlay", "CMakeLists.txt",
+    MANAGEMENT_FILES = {"Kconfig", "conf/workload.conf", "conf/management.conf", "boards/management.overlay", "CMakeLists.txt",
                 "management/management.cmake", "management/entropy.cmake",
                 "management/reviewed-routes.txt", "compose/CMakeLists.txt"}
 
@@ -468,15 +474,14 @@ class ManagementNotBuilt(unittest.TestCase):
         for pattern in self.BUILD_FILES:
             for path in sorted((ROOT / "app").rglob(pattern)):
                 relative = path.relative_to(ROOT / "app").as_posix()
-                if relative in self.management_FILES:
+                if relative in self.MANAGEMENT_FILES:
                     continue
-                self.assertNotRegex(path.read_text(), r"CRUX_CONTROLLER_MANAGEMENT|conf/management|boards/management|\bS6\b",
-                                    relative)
+                self.assertNotRegex(path.read_text(), MANAGEMENT_NAMED, relative)
 
     def test_the_other_steps_fragments_and_overlays_do_not_name_management(self):
         for name in ("conf/net.conf", "conf/file.conf", "conf/system.conf", "conf/sntp.conf", "prj.conf",
                      "boards/net.overlay", "boards/file.overlay", "boards/system.overlay"):
-            self.assertNotRegex((ROOT / "app" / name).read_text(), r"\bS6\b|CRUX_CONTROLLER_MANAGEMENT", name)
+            self.assertNotRegex((ROOT / "app" / name).read_text(), MANAGEMENT_NAMED, name)
 
     # Approved behaviour change: composition.c includes the port header, and the composition source
     # includes it and the policy header. The assertion that nothing includes them becomes a list of
@@ -1324,7 +1329,7 @@ class ManagementWorkflows(unittest.TestCase):
     def commands(self):
         return "\n".join(step.get("run", "") for step in self.job()["steps"])
 
-    def test_ci_has_an_management_job_named_for_the_step_build_jobs_and_asking_for_no_permission(self):
+    def test_ci_has_a_management_job_named_for_the_step_build_jobs_and_asking_for_no_permission(self):
         job = self.job()
         self.assertRegex(job["name"], r"^management build \(")
         self.assertEqual(self.BOARD, job["env"]["BOARD"])
@@ -1882,7 +1887,7 @@ class ManagementFindings(unittest.TestCase):
 
     def test_the_changelog_records_the_groundwork_and_that_no_image_changes(self):
         text = " ".join((ROOT / "CHANGELOG.md").read_text().split())
-        self.assertIn("management", text)
+        self.assertIn("S6", text)
         self.assertIn("s6-https-management-gaps.md", text)
         self.assertIn("no firmware image", text)
 

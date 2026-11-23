@@ -84,8 +84,8 @@ pulls an image.
 
    Read the lines above it, fix the cause and run the same command again: the setup carries on where it stopped.
 
-Every check of this repository runs through the same script; the
-[Dev Container reference](dev-container.md#commands-inside-the-container) lists the commands. The VS Code route, the folder
+The commands of the [Tutorial](tutorial.md) and the checks listed in the
+[Dev Container reference](dev-container.md#commands-inside-the-container) run through the same script. The VS Code route, the folder
 layout and what to do after a pin or SDK change are in the [Dev Container reference](dev-container.md).
 
 ## Host notes

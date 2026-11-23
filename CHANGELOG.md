@@ -17,8 +17,9 @@ build configurations by their earlier step ids, S0 to S6.
   case variables (`FILE_CASE`, `SYSTEM_CASE`, `SNTP_CASE`), the tooling tests (`test_<name>.py`), the budget tool
   option (`--config`) and `docs/adding-a-capability.md` carry the new names. `docs/findings/README.md` maps each
   old id to its name, and the notes in `docs/findings/` and `docs/history/` keep the ids they were written with.
-  No source behaviour, limit or assertion changes; the firmware identity of each image changes with its Kconfig
-  names.
+  No limit changes and no assertion is weakened. The `management` image reports the project version
+  `crux-controller-management` instead of `crux-controller-s6`, and the firmware identity of each image changes
+  with its Kconfig names.
 - The documents are reworked by page type: the README is an entry page (capabilities, quick start, where to read
   next, one status line), and the board-run status, sizes and evidence links are on the roadmap and in the
   findings index.

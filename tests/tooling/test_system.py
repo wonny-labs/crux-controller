@@ -431,7 +431,7 @@ class SystemWorkflows(unittest.TestCase):
         budget = yaml.safe_load((WORKFLOWS / "budget.yml").read_text())
         return {row["config"]: row for row in budget["jobs"]["budget"]["strategy"]["matrix"]["include"]}
 
-    def test_ci_has_an_system_job_that_builds_the_board_image_with_the_gate_required(self):
+    def test_ci_has_a_system_job_that_builds_the_board_image_with_the_gate_required(self):
         self.assertIn("system", self.ci()["jobs"])
         job = self.ci()["jobs"]["system"]
         self.assertEqual(BOARD, job["env"]["BOARD"])
@@ -487,7 +487,7 @@ class SystemWorkflows(unittest.TestCase):
         self.assertIn("tests/native_sim", self.commands("workload"))
         self.assertIn("native_sim/native/64", self.commands("workload"))
 
-    def test_the_budget_matrix_has_an_system_row_on_the_workload_base(self):
+    def test_the_budget_matrix_has_a_system_row_on_the_workload_base(self):
         rows = self.budget_rows()
         self.assertIn("system", rows)
         self.assertEqual("conf/workload.conf;conf/system.conf", rows["system"]["conf"])

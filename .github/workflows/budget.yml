@@ -36,25 +36,25 @@ jobs:
             conf: "conf/workload.conf;conf/net.conf"
             overlay: "boards/net.overlay"
             require: ""
-          # file is built on workload, without the network of net. Its fragment and overlay would build
+          # file is built on workload, without the network that net configures. Its fragment and overlay would build
           # silently without File if a Kconfig dependency were unmet, so the build is checked.
           - config: file
             conf: "conf/workload.conf;conf/file.conf"
             overlay: "boards/file.overlay"
             require: "CONFIG_CRUX_CONTROLLER_FILE=y CONFIG_CRUX_FILE_FATFS_RT1060=y"
-          # system is built on workload, without the network of net or the File storage of file. Its fragment
+          # system is built on workload, without the network that net configures or the File storage of file. Its fragment
           # would build silently without System if a Kconfig dependency were unmet, so the build is checked.
           - config: system
             conf: "conf/workload.conf;conf/system.conf"
             overlay: "boards/system.overlay"
             require: "CONFIG_CRUX_CONTROLLER_SYSTEM=y CONFIG_CRUX_SYSTEM=y"
-          # sntp is built on the network of net, with the SNTP library. Its fragment would build
+          # sntp is built on the network that net configures, with the SNTP library. Its fragment would build
           # silently without SNTP if a Kconfig dependency were unmet, so the build is checked.
           - config: sntp
             conf: "conf/workload.conf;conf/net.conf;conf/sntp.conf"
             overlay: "boards/net.overlay"
             require: "CONFIG_CRUX_CONTROLLER_SNTP=y CONFIG_CRUX_CONTROLLER_NET=y CONFIG_SNTP=y"
-          # management is built on the network of net, with the Mbed TLS profile of Crux Access, the web
+          # management is built on the network that net configures, with the Mbed TLS profile of Crux Access, the web
           # server and the RAM disk. Its fragment would build silently without management if a Kconfig
           # dependency were unmet, so the build is checked. It is the only row that needs the Mbed
           # TLS group, which the step below switches on in this runner.

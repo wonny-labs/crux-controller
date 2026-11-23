@@ -831,7 +831,8 @@ class SntpFindings(unittest.TestCase):
         self.assertIsNotNone(row)
         self.assertIn("not run", row.group(0))
         self.assertIn("s5-time-synchronisation.md", (ROOT / "docs" / "findings" / "README.md").read_text())
-        self.assertIn("sntp has never run on a board", " ".join(roadmap.split()))
+        self.assertIn("No `base`, `workload`-only, `file`, `system`, `sntp` or `management` image has run on a board.",
+                      " ".join(roadmap.split()))
 
     def test_the_changelog_names_sntp_and_its_limits(self):
         text = " ".join((ROOT / "CHANGELOG.md").read_text().split())

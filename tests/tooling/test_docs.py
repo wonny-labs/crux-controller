@@ -202,9 +202,9 @@ class Contributing(unittest.TestCase):
         return yaml.safe_load((ROOT / ".github" / "workflows" / name).read_text())
 
     def build_steps(self):
+        # Found in ci.yml alone, independently of the Budget matrix: every job named "<name> build (...)".
         names = [job["name"] for job in self.workflow("ci.yml")["jobs"].values()]
-        configs = "|".join(re.escape(c) for c in self.budget_steps())
-        steps = [m.group(1) for m in (re.match(rf"({configs}) build\b", n) for n in names) if m]
+        steps = [m.group(1) for m in (re.match(r"(\S+) build \(", n) for n in names) if m]
         self.assertTrue(steps, "no build job of a configuration found in ci.yml")
         return steps
 
@@ -259,7 +259,8 @@ class Contributing(unittest.TestCase):
         # Every configuration that has a build job (all but workload, whose job runs native_sim too) is
         # in the budget matrix, and the role section lists the whole matrix in its order.
         steps = self.budget_steps()
-        self.assertTrue(set(self.build_steps()) <= set(steps))
+        # The workload job is named without "build" because it also runs the native_sim scenarios.
+        self.assertEqual(set(steps), set(self.build_steps()) | {"workload"})
         listed = ", ".join(f"`{s}`" for s in steps[:-1]) + f" and `{steps[-1]}`"
         self.assertIn(f"The build configurations {listed} are built in CI", text("CONTRIBUTING.md"))
 

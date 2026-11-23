@@ -104,7 +104,7 @@ class FileWorkflows(unittest.TestCase):
     def commands(self, job):
         return "\n".join(step.get("run", "") for step in self.ci()["jobs"][job]["steps"])
 
-    def test_ci_has_an_file_job_that_builds_the_board_image_with_the_gate_required(self):
+    def test_ci_has_a_file_job_that_builds_the_board_image_with_the_gate_required(self):
         self.assertIn("file", self.ci()["jobs"])
         job = self.ci()["jobs"]["file"]
         self.assertEqual(BOARD, job["env"]["BOARD"])
@@ -137,7 +137,7 @@ class FileWorkflows(unittest.TestCase):
         cases = yaml.safe_load((ROOT / "tests" / "native_sim" / "file" / "testcase.yaml").read_text())
         self.assertGreaterEqual(len(cases["tests"]), 5)
 
-    def test_the_budget_matrix_has_an_file_row_on_the_workload_base(self):
+    def test_the_budget_matrix_has_a_file_row_on_the_workload_base(self):
         budget = yaml.safe_load((WORKFLOWS / "budget.yml").read_text())
         rows = {row["config"]: row for row in budget["jobs"]["budget"]["strategy"]["matrix"]["include"]}
         self.assertIn("file", rows)

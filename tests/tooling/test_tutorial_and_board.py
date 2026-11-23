@@ -19,7 +19,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 TUTORIAL = "docs/tutorial.md"
 BOARD_PAGE = "docs/board-bring-up.md"
 CI = ROOT / ".github" / "workflows" / "ci.yml"
-net_NOTE = "docs/findings/s2-first-board-run.md"
+NET_NOTE = "docs/findings/s2-first-board-run.md"
 
 
 def read(name):
@@ -271,7 +271,7 @@ class BoardPage(Common, unittest.TestCase):
         self.assertNotRegex("\n".join(code_blocks(read(BOARD_PAGE))), r"(?i)(curl|wget)[^\n]*segger")
 
     def test_the_net_hashes_and_network_values_are_those_of_the_net_note(self):
-        page, note = read(BOARD_PAGE), read(net_NOTE)
+        page, note = read(BOARD_PAGE), read(NET_NOTE)
         hashes = set(re.findall(r"\b[0-9a-f]{64}\b", page))
         self.assertTrue(hashes)
         for value in hashes:

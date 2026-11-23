@@ -146,7 +146,7 @@ int composition_start(void)
     (void)time_sync_start();
 #endif
 #ifdef CONFIG_CRUX_CONTROLLER_MANAGEMENT
-    /* management: start HTTPS management after the network of net has configured the interface and
+    /* management: start HTTPS management after the net configuration has set up the interface and
      * after every other capability, and before the workload threads. The listener binds the address
      * of the board, which net's network configuration has already set before the main thread runs.
      */

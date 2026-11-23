@@ -9,7 +9,7 @@ target_sources(app PRIVATE src/main.c src/composition.c)
 target_link_libraries(app PRIVATE crux::time)
 target_compile_options(app PRIVATE -Wall -Wextra -Werror)
 
-# The workload capability and later: the workload on Zephyr threads, a message queue and Crux Logging. Its
+# workload and every configuration built on it: the workload on Zephyr threads, a message queue and Crux Logging. Its
 # portable core is a library of this repository, and the thread and queue calls are the source of
 # the adapter zone (app/os), so the application takes no include path of its own and links neither
 # Crux Thread nor Crux Queue. The switch is the product's own option, CRUX_CONTROLLER_WORKLOAD.

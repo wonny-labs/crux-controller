@@ -315,7 +315,7 @@ start fails, or the producer thread ends, nothing feeds it, the board resets, an
 stops the product from arming it again, it would keep resetting. The finding marks this **Open**, because no
 board has run it, and says: "Any future board run must be supervised and time-limited."
 
-So an `system` board run, if it is ever authorised, must be supervised by a person who is present, with a time
+So a `system` board run, if it is ever authorised, must be supervised by a person who is present, with a time
 limit and a way to stop it decided and written down before the board is programmed. Proposed: also write
 down, beforehand, what a reset loop looks like in the capture (the boot lines repeat and the uptime restarts)
 and what the operator does then. How to stop a reset loop on the bench is not recorded in this repository.
@@ -350,7 +350,7 @@ doubtful one.
 - The authorisation itself. The commands on this page are untested and grant nothing.
 - A qualification, a performance measurement, or the physical behaviour of the board beyond what the `net` note
   records.
-- A run of any image other than `net` (`workload`, `file`, `system`, `sntp` and `management` are mentioned above only to say they have not run).
+- A run of any image other than `net`.
 - A cold power cycle. The `net` note lists it as not shown: its runs restarted the image by programming and
   reset.
 - Other probes and runners (LinkServer, pyOCD), which `board.cmake` also configures.

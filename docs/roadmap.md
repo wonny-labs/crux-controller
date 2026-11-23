@@ -41,8 +41,7 @@ Around the configurations:
   CI against static size only. Stack use, heap use and timing are not measured.
 - Release tooling and a dry run that publishes nothing, a rebuild comparison at another path, and a daily
   build against the current `crux-pilot` main that is information only.
-- The findings, one per capability where building it taught something, are listed in the
-  [findings index](findings/README.md).
+- The findings notes are listed in the [findings index](findings/README.md).
 
 ## Static size per configuration
 
@@ -76,28 +75,6 @@ The `net` image that CI built at `8d47942d` has the `zephyr.bin` SHA-256
 that revision. This is not the image that ran on the board: the board runs used the `net` image with the
 SHA-256 recorded in [docs/findings/s2-first-board-run.md](findings/s2-first-board-run.md), built at an earlier
 Crux pin.
-
-## What `sntp` does
-
-What the code on `main` does, read from `app/Kconfig`, `app/src/time_sync*.c` and `app/os/time_sync_zephyr.c`:
-
-- A low-priority thread (Zephyr priority 10) waits five seconds after start, then queries one IPv4 SNTP
-  server and repeats after each interval. The defaults are the server `192.168.77.1` (the `net` peer), 600
-  seconds between queries and a 3000 ms timeout for one query.
-- The application's policy decides what an answer may do. It never sets the clock for a failed,
-  kiss-o'-death or out-of-range answer. It sets any in-range answer while the clock is not synchronised, and
-  corrects a synchronised clock for a difference from 100 ms up to 1000 ms. A larger difference is refused
-  once and marks synchronisation lost. When a round fails or is out of range and the clock is synchronised, it is
-  marked not synchronised if more than 1800 seconds have passed since the last good answer.
-- The one caller of the Crux Time authority is `app/src/time_sync.c`. The Zephyr SNTP library is called only
-  in the adapter zone, through `sntp_simple()`.
-- Limits, as `docs/findings/s5-time-synchronisation.md` and the `app/Kconfig` help text state them: SNTP
-  here is unauthenticated, so a server or anything on the path that answers with an in-range time can move
-  the clock; the clock is stepped, not slewed; nothing persists time, so it is not valid after a reset
-  until the first answer; the server must be an IPv4 address because the image has no DNS resolver; stack
-  use of the thread and query timing are not measured.
-
-**sntp has never run on a board.**
 
 ## What has run on a board
 

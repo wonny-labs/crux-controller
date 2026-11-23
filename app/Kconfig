@@ -75,7 +75,7 @@ config CRUX_CONTROLLER_SNTP
 	  here is unauthenticated: a server, or anything on the path, that answers with a time in range
 	  can move the clock. The time is not persisted: there is no RTC, and after a reset it is not
 	  valid until the first answer. The server is an IPv4 address because the image has no DNS
-	  resolver. Built on the net network. Built and never run on a board.
+	  resolver. Built on the net configuration. Built and never run on a board.
 
 config CRUX_CONTROLLER_TIME_SERVER
 	string "IPv4 address of the SNTP server"
@@ -150,7 +150,7 @@ config CRUX_CONTROLLER_MANAGEMENT
 	bool "management: manage the device over HTTPS"
 	depends on CRUX_CONTROLLER_NET && !CRUX_CONTROLLER_FILE && !CRUX_CONTROLLER_SYSTEM && CRUX_ACCESS && CRUX_WEB_MANAGEMENT && CRUX_TLS_CERTIFICATE && CRUX_SYSTEM
 	help
-	  Start the Crux management services behind the Zephyr HTTP server, on the network of net: login
+	  Start the Crux management services behind the Zephyr HTTP server, on the network that net configures: login
 	  and sessions of Crux Access, the status service, the configuration service and a packaged
 	  page, served as HTTPS on 192.168.77.2 port 443 and nowhere else. The server offers TLS 1.3
 	  only, with one cipher suite. The certificate is self-signed and made on the device at its
