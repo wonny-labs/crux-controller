@@ -8,7 +8,7 @@ twice on a board (see `docs/findings/s2-first-board-run.md`); nothing else has r
 
 ### Build and manifest
 
-- The west manifest imports `crux-pilot` at a pinned commit (`1c4cf284`, which publishes the File
+- The west manifest imports `crux-pilot` at a pinned commit (`1c4cf284`, which contains the File
   composition interface `<crux/file_zephyr.h>`) and adds `picolibc` as a test-only project. A CI job
   checks the pins with `west crux-pins` and has a negative control that must fail.
 - The `crux-pilot` pin moved from `37c92b18` to `dfd3ad7d`, which adds the public management headers
