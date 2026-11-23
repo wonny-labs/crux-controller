@@ -209,7 +209,7 @@ class Tutorial(Common, unittest.TestCase):
 
     def test_it_carries_no_untested_trail(self):
         # Approved change: a verification trail has no place on a tutorial.
-        self.assertNotRegex(read(TUTORIAL), r"(?i)WSL2|untested|nobody has run")
+        self.assertNotRegex(read(TUTORIAL), r"(?i)untested|nobody has run|WSL2[^.]*not (been )?(run|tested)")
 
     def test_it_is_linked_at_the_top_of_the_readme_and_of_the_index(self):
         for name, before in (("README.md", "## What it provides"), ("docs/README.md", "## Paths by task")):

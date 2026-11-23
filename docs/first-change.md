@@ -15,7 +15,8 @@ Read the [README](../README.md) and [CONTRIBUTING.md](../CONTRIBUTING.md) first 
 - Python 3 with PyYAML (CI uses Python 3.12) and clang-format 18.1.8, the version that the format check requires.
 
 [Set up without the Dev Container](native-setup.md#what-you-need-first) lists the tools in more detail. The commands
-on this page use no Linux-only tool, except where a step says so.
+on this page use no Linux-only tool, except where a step says so. On Windows, use the Dev Container route in
+[Getting started](getting-started.md).
 
 ## 2. Get the repository and make a branch
 
@@ -108,7 +109,7 @@ What each one tells you:
 - `check-format.sh` checks that every C file is formatted as `.clang-format` says, with clang-format 18.1.8. It
   prints the number of files it checked. To fix a file, run that clang-format on it.
 
-Three more checks run in CI and need Linux tools:
+Three more checks run in CI and need tools that step 1 does not install:
 
 - clang-tidy 18 over the sources that the host tests build, which include the files in `tests/host`:
   `CLANG_TIDY=clang-tidy-18 python3 scripts/analyze_host.py`. Run it on Linux or in the Dev Container.
