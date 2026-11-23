@@ -98,6 +98,27 @@ class BashCompletion(unittest.TestCase):
         self.run_setup(XDG_DATA_HOME=str(data))
         self.assertTrue((data / "bash-completion" / "completions" / "west").is_file())
 
+    def test_it_follows_bash_completion_user_dir(self):
+        folder = self.fixture.base / "user-completions"
+        self.run_setup(BASH_COMPLETION_USER_DIR=str(folder), XDG_DATA_HOME=str(self.fixture.base / "data"))
+        self.assertTrue((folder / "completions" / "west").is_file())
+        self.assertFalse((self.fixture.base / "data" / "bash-completion").exists())
+
+    def test_a_failed_completion_warns_and_the_setup_goes_on_with_the_old_file_kept(self):
+        self.target.parent.mkdir(parents=True)
+        self.target.write_text("previous\n")
+        result = self.run_setup(FAKE_COMPLETION_FAIL="1")
+        self.assertIn("warning", result.stderr)
+        self.assertIn("west Tab completion", result.stderr)
+        self.assertEqual("previous\n", self.target.read_text())
+        self.assertEqual(["west completion bash"], [n for n in self.fixture.calls("west completion")])
+        self.assertTrue(self.fixture.calls("west init"), "the later steps still run")
+        self.assertTrue(self.fixture.sdk_installs())
+        self.assertEqual(["west"], sorted(p.name for p in self.target.parent.iterdir()))
+
+    def test_the_completion_step_has_a_name_of_its_own(self):
+        self.assertIn('step "the west Tab completion"', (DEVCONTAINER / "setup.sh").read_text())
+
     def test_no_shell_start_file_is_edited(self):
         text = (DEVCONTAINER / "setup.sh").read_text()
         self.assertNotIn(".bashrc >>", text)

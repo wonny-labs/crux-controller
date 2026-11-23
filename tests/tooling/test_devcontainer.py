@@ -564,6 +564,11 @@ init)
     echo "[manifest]" >.west/config
     ;;
 completion)
+    if [ "${FAKE_COMPLETION_FAIL:-}" = 1 ]; then
+        echo "# partial"
+        echo "west: completion failed" >&2
+        exit 1
+    fi
     echo "# west completion script for $2"
     ;;
 update)
