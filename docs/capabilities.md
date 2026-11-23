@@ -18,9 +18,9 @@ includes a socket header.
 | The query failed, timed out or the server sent a kiss-o'-death | none; never sets | `error`, `timeout`, `kiss-of-death` |
 | The answer is outside 2000-01-01 to 2100-01-01, or its fraction is not below one second | refused; never sets | `out-of-range` |
 | The Crux Time snapshot could not be read | none; never sets, counted as a failed round | `clock-unreadable` |
-| Any row above, while the last good answer is older than the stale age | the clock is marked not synchronised (`crux_realtime_set_synchronized(false)`) | the failure reason, action `mark-stale` |
+| Any row above, while the clock is synchronised (or the snapshot could not be read) and the last good answer is older than the stale age | the clock is marked not synchronised (`crux_realtime_set_synchronized(false)`) | the failure reason, action `mark-stale` |
 | The clock is not valid and an in-range answer arrives | set, source EXTERNAL, synchronised | `first-sync` |
-| The clock is valid but not synchronised and an in-range answer arrives | set, whatever the difference | `resync` |
+| The clock is valid but not synchronised (stale, lost after a refused step, or a reading outside the supported range) and an in-range answer arrives | set, whatever the difference | `resync` |
 | Synchronised, difference below the correction threshold | none; the answer confirms the clock | `within-threshold` |
 | Synchronised, difference from the threshold up to the maximum step | set | `correction` |
 | Synchronised, difference above the maximum step | refused; the clock is marked not synchronised | `step-too-large` |
@@ -51,7 +51,7 @@ Limits:
 - The clock is set with a step, not a slew; time as read can go backwards by up to the maximum step.
 - The path delay is not compensated.
 - Time is not persisted: there is no RTC, so the time is not valid after a reset until the first answer.
-- A query can run past the timeout by up to one round of the library (1600 ms).
+- A query can run past the timeout by up to one round of the library (1600 ms), or longer while it skips answers to earlier requests.
 - `sntp` allows one thread to call `sntp_simple()`, which keeps one static structure.
 
 ## `system`
@@ -73,13 +73,13 @@ workload's producer thread feeds. The code is `app/src/health.c` and `app/src/he
 
 Requirements: the provider needs `WATCHDOG`, `HWINFO` and `REBOOT`, the alias `crux-watchdog0` on an enabled `wdog0`
 node, and no other owner of the native watchdog (`WDT_SHELL`, `HWINFO_SHELL`, `TASK_WDT_HW_FALLBACK`). The interval
-is 500 ms to 64000 ms in steps of 500 ms. The configuration excludes `management` in Kconfig.
+is 500 ms to 64000 ms in steps of 500 ms (Crux behaviour, from `system_zephyr.c`; see [the `system` record](findings/s4-system-composition.md)). The configuration excludes `management` in Kconfig.
 
 Limits:
 
 - On `native_sim` the provider reports the watchdog as not supported, so no scenario shows a feed cycle or a missed
   feed.
-- A feed that the native side refuses is final: every later feed returns `CRUX_ERR_IO`.
+- A feed that the native side refuses is final: every later feed returns `CRUX_ERR_IO` (Crux behaviour; see [the `system` record](findings/s4-system-composition.md)).
 - The watchdog is armed before the workload starts. If the start fails or the producer thread ends, nothing feeds it
   and the board resets in a loop, so a run on a board needs a person present and a time limit.
 

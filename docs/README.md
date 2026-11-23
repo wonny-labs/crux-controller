@@ -27,6 +27,10 @@ worked example and [architecture.md](architecture.md) for the zones and port hea
 [reviewing.md](reviewing.md), the three verdicts in [CONTRIBUTING.md](../CONTRIBUTING.md#review), and the
 [files that need a reviewed change](adding-a-capability.md#files-that-need-a-reviewed-change).
 
+### I want to look up how a capability behaves
+
+[capabilities.md](capabilities.md) is the reference for `sntp`, `system` and `management`.
+
 ### I want to know why
 
 The [capabilities](capabilities.md), the [findings](findings/README.md), the [roadmap](roadmap.md), [why a zone](composition-zone.md#why-a-zone) and the
