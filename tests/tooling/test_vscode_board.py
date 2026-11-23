@@ -104,8 +104,7 @@ class Extension(unittest.TestCase):
         self.assertIn("marus25.cortex-debug", data["customizations"]["vscode"]["extensions"])
 
     def test_cortex_debug_dependencies_come_before_it(self):
-        # Cortex-Debug's extensionDependencies are listed before it. This did not stop the first-creation
-        # popup in a WSL2 test; see docs/troubleshooting.md.
+        # Cortex-Debug's extensionDependencies (its package.json) are listed before it.
         data = json.loads((DEVCONTAINER / "devcontainer.json").read_text())
         extensions = data["customizations"]["vscode"]["extensions"]
         position = extensions.index("marus25.cortex-debug")
@@ -113,6 +112,16 @@ class Extension(unittest.TestCase):
                            "mcu-debug.peripheral-viewer"):
             self.assertIn(dependency, extensions)
             self.assertLess(extensions.index(dependency), position, dependency)
+
+    def test_one_troubleshooting_row_for_the_first_activation_popup(self):
+        # One row: Reload Window once, and how to reset the extensions volume. No test trail in it.
+        rows = [line for line in (ROOT / "docs" / "troubleshooting.md").read_text().splitlines()
+                if "Cannot activate the 'Cortex-Debug' extension" in line]
+        self.assertEqual(1, len(rows), rows)
+        self.assertIn("Reload Window", rows[0])
+        self.assertIn("docker volume rm crux-controller-vscode-extensions", rows[0])
+        for trail in ("not yet tested", "not tested", "should not"):
+            self.assertNotIn(trail, rows[0])
 
 
 if __name__ == "__main__":

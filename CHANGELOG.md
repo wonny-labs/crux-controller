@@ -26,8 +26,6 @@ build configurations by their earlier step ids, S0 to S6.
 
 ### Dev Container and onboarding
 
-- The Dev Container lists Cortex-Debug's dependency extensions before it and keeps the VS Code extensions in the
-  volume `crux-controller-vscode-extensions`, so a rebuild does not install them again.
 - With `CRUX_JLINK=auto`, the image build downloads the J-Link version pinned in `.devcontainer/Dockerfile`
   (`CRUX_JLINK_SEGGER_VERSION`, `CRUX_JLINK_SEGGER_SHA256`) from SEGGER when no package is placed and no
   `CRUX_JLINK_URL` is set, as Crux's Dev Container does. A failed download or a SHA-256 mismatch installs nothing

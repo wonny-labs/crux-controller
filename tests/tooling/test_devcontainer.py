@@ -419,9 +419,8 @@ class DevcontainerJson(unittest.TestCase):
         ), self.data["mounts"])
 
     def test_the_vscode_extensions_survive_a_rebuild_in_a_folder_the_user_owns(self):
-        # The volume keeps the installed extensions across rebuilds (expected to limit Cortex-Debug's
-        # first-activation popup to the first creation; not yet tested). The image creates the folder
-        # for the user, so a new volume takes the user as owner instead of root.
+        # The volume keeps the installed extensions across rebuilds. The image creates the folder for the
+        # user, so a new volume takes the user as owner instead of root.
         self.assertIn("target=/home/vscode/.vscode-server/extensions", " ".join(self.data["mounts"]))
         dockerfile = read(DEVCONTAINER / "Dockerfile")
         self.assertRegex(dockerfile, r'install -d -o "\$USER_UID" -g "\$USER_GID" [^\n]*'
