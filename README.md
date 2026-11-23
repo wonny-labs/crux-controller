@@ -12,16 +12,14 @@ You do not need a board. Set up with [Getting started](docs/getting-started.md),
 [Tutorial](docs/tutorial.md): it takes you from a clone to the host tests, one run of the `native_sim` scenarios with
 Twister (Zephyr's test runner) and one EVKB build.
 
-On Windows with WSL2 and Docker Engine (no Docker Desktop), or on an x86_64 Linux, use the Dev Container (only an
-x86_64 host was exercised, and only in CI; nobody has run it on WSL2 yet). Each command runs in it through
+Supported: x86_64 Linux with Docker Engine, through the Dev Container. Each command runs in it through
 `bash scripts/dev-shell.sh`; [Getting started](docs/getting-started.md#set-up-the-dev-container) covers the set-up.
 Look a failure up by its message in [troubleshooting](docs/troubleshooting.md).
 
 ## Capabilities
 
-Each build configuration adds one Crux capability to the base image `app/prj.conf`. Its Kconfig fragment is
-`app/conf/<name>.conf`, built on top of `workload.conf` (`sntp` and `management` also on top of `net.conf`), with a
-devicetree overlay `app/boards/<name>.overlay` where the capability needs one.
+Each build configuration adds one Crux capability to the base image `app/prj.conf`, through the fragment
+`app/conf/<name>.conf` and, where it needs one, the overlay `app/boards/<name>.overlay`.
 
 | Capability | Build configuration | Code to read |
 |---|---|---|
@@ -42,17 +40,16 @@ it, and [Adding a capability](docs/adding-a-capability.md) shows how a configura
 |---|---|
 | Find any page by task | [Documentation map](docs/README.md) |
 | Understand the source trees, the zones, the threads and how Crux is consumed | [Architecture](docs/architecture.md), with the [glossary](docs/glossary.md) |
-| Know what is built, what has run on a board and what is not yet possible | [Roadmap](docs/roadmap.md) |
+| Know what is built and what has run on a board | [Roadmap](docs/roadmap.md) |
 | Make a first change, from a branch to a pull request | [First change](docs/first-change.md), then [CONTRIBUTING.md](CONTRIBUTING.md) |
 | Add a capability | [Adding a capability](docs/adding-a-capability.md) and [the composition zone](docs/composition-zone.md) |
 | Review a change | [Reviewing](docs/reviewing.md) |
-| Run an image on a board (untested route, needs authorisation) | [Board bring-up](docs/board-bring-up.md) |
+| Run an image on a board | [Board bring-up](docs/board-bring-up.md) |
 | Build a product of your own on Crux | Crux's guides at the pinned revision: [Choosing an API](https://github.com/wonny-labs/crux-pilot/blob/c5439c51741bceb8f3327c11882dc3b58bbe2640/docs/choosing-an-api.md), [Composition interfaces](https://github.com/wonny-labs/crux-pilot/blob/c5439c51741bceb8f3327c11882dc3b58bbe2640/docs/composition-interfaces.md), the [Product Composition Guide](https://github.com/wonny-labs/crux-pilot/blob/c5439c51741bceb8f3327c11882dc3b58bbe2640/docs/product-composition.md) with its [product template](https://github.com/wonny-labs/crux-pilot/blob/c5439c51741bceb8f3327c11882dc3b58bbe2640/templates/product/README.md), and [Component readiness](https://github.com/wonny-labs/crux-pilot/blob/c5439c51741bceb8f3327c11882dc3b58bbe2640/docs/component-readiness.md) |
 
 ## Status
 
-There is no release. CI builds every configuration, the [roadmap](docs/roadmap.md) says what has run on a board, and
-the [documentation map](docs/README.md#known-limits-not-scheduled) lists the known limits of the checks.
+There is no release. CI builds every configuration, and the [roadmap](docs/roadmap.md) says what has run on a board.
 
 ## Contributing
 
@@ -63,7 +60,5 @@ added.
 ## Licence, support and ownership
 
 - Licence: Apache-2.0. See `LICENSE`.
-- Support: no support period is promised. Only the latest release is supported.
-- Ownership: the repository owner, the account in `CODEOWNERS`, decides merges, tags, releases and any run on a
-  board ([glossary](docs/glossary.md#people-and-board-procedures)).
-- Security reports: see `SECURITY.md`, and do not use a public issue for them. Releases: see `RELEASE.md`.
+- Ownership: the repository owner, the account in `CODEOWNERS` ([glossary](docs/glossary.md#people-and-board-procedures)).
+- Support and security reports: `SECURITY.md`. Releases: `RELEASE.md`.

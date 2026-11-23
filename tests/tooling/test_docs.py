@@ -129,11 +129,7 @@ class Dependencies(unittest.TestCase):
 
 
 class Tracking(unittest.TestCase):
-    """The pages say where the management finding is tracked, and do not promise a filing.
-
-    The tracking paragraph left the README for the history page, which keeps the README as it was."""
-
-    HISTORY = "docs/history/readme-before-entry-point.md"
+    """The pages say where the management finding is tracked, and do not promise a filing."""
 
     def test_the_finding_names_the_issues_that_track_it(self):
         body = text("docs/findings/management-has-no-public-composition.md")
@@ -141,24 +137,6 @@ class Tracking(unittest.TestCase):
         self.assertRegex(body, r"#40\b")
         self.assertRegex(body, r"#44\b")
         self.assertIn("has not happened", body)
-
-    def test_the_readme_names_the_epic_and_its_steps_and_no_trial_issue(self):
-        body = text(self.HISTORY)
-        self.assertNotIn("trial issue", body)
-        for number in ("#44", "#40", "#41", "#42", "#43"):
-            self.assertRegex(body, re.escape(number) + r"\b", number)
-        self.assertIn("Nothing has been filed in `crux-pilot` yet", body)
-
-    def test_the_readme_claims_only_the_stage_2_steps_for_the_epic(self):
-        body = text(self.HISTORY)
-        self.assertIn(
-            "Stage 2 steps and their findings are tracked in this repository's own issues: "
-            "the epic #44 and its children #40 (the management finding), #41 (S4), #42 and #43. "
-            "Earlier findings are recorded in `docs/findings/`.",
-            body,
-        )
-        self.assertNotIn("The platform questions and findings are tracked", body)
-        self.assertNotIn("Implementation is tracked in this repository's own milestones", body)
 
     def test_the_main_documents_point_at_the_tracking_history(self):
         for name in ("docs/roadmap.md", "docs/README.md", "docs/glossary.md"):
@@ -191,7 +169,10 @@ class CiEvidenceRationale(unittest.TestCase):
 
     def test_the_section_agrees_with_the_dev_container_about_wsl2(self):
         self.assertIn("nobody has run the Dev Container on WSL2", self.section())
-        self.assertIn("Nobody has run it on WSL2 yet", text("docs/getting-started.md"))
+        # Getting started names one supported route and does not describe a route that was not run.
+        self.assertIn("x86_64 Linux machine with Docker Engine. This is the supported route",
+                      text("docs/getting-started.md"))
+        self.assertNotIn("WSL2", text("docs/getting-started.md"))
 
 
 class Contributing(unittest.TestCase):

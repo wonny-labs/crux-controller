@@ -6,8 +6,7 @@ written and is not updated. The current facts are in [the roadmap](../roadmap.md
 record of the board runs is [docs/findings/s2-first-board-run.md](../findings/s2-first-board-run.md).
 
 Each section names the page and the section that the text came from. The text is unchanged; only the targets of
-relative links were rewritten so that they resolve from this folder. The tracking paragraph and the board-run
-summary of the README are in [readme-before-entry-point.md](readme-before-entry-point.md).
+relative links were rewritten so that they resolve from this folder.
 
 ## From `docs/roadmap.md`: Short version, the S5 bullet
 
