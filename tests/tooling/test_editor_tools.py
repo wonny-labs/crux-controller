@@ -84,6 +84,13 @@ class BashCompletion(unittest.TestCase):
         self.assertEqual("# west completion script for bash\n", self.target.read_text())
         self.assertIn("west completion bash", self.fixture.calls("west"))
 
+    def test_on_the_first_run_it_is_written_after_west_update(self):
+        # `completion` is a Zephyr extension command: west knows it only after west update.
+        result = self.run_setup()
+        self.assertNotIn("warning", result.stderr)
+        log = self.fixture.calls("west")
+        self.assertLess(log.index("west update"), log.index("west completion bash"))
+
     def test_it_is_written_again_on_every_run_after_the_tools_are_installed(self):
         self.run_setup()
         self.target.write_text("stale\n")

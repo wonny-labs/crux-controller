@@ -564,6 +564,11 @@ init)
     echo "[manifest]" >.west/config
     ;;
 completion)
+    # `completion` is a Zephyr extension command: west knows it only in a workspace after west update.
+    if [ ! -d zephyr/scripts ]; then
+        echo "west: unknown command \"completion\"" >&2
+        exit 1
+    fi
     if [ "${FAKE_COMPLETION_FAIL:-}" = 1 ]; then
         echo "# partial"
         echo "west: completion failed" >&2
