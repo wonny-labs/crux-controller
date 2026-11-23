@@ -13,6 +13,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+import unittest.mock
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts" / "bootstrap.sh"
@@ -40,8 +41,19 @@ class BootstrapDispatch(unittest.TestCase):
         return subprocess.run(["bash", str(self.repo / "scripts" / "bootstrap.sh")],
                               capture_output=True, text=True, env=env)
 
+    def hermetic_path(self, *front):
+        """A PATH with only the tools the script uses, so that J-Link on the machine cannot show through."""
+        tools = pathlib.Path(self._tmp.name) / "tools"
+        if not tools.exists():
+            tools.mkdir()
+            for name in ("bash", "dirname", "cat"):
+                os.symlink(shutil.which(name), tools / name)
+        return ":".join([*map(str, front), str(tools)])
+
     def run_script_args(self, *args, **extra):
-        env = {k: v for k, v in os.environ.items() if k != "CRUX_BOOTSTRAP"}
+        env = {k: v for k, v in os.environ.items() if k not in ("CRUX_BOOTSTRAP", "ZEPHYR_SDK_INSTALL_DIR")}
+        env["PATH"] = self.hermetic_path()
+        env["CRUX_DOCKERENV"] = "/nonexistent"
         env.update(extra)
         return subprocess.run(["bash", str(self.repo / "scripts" / "bootstrap.sh"), *args],
                               capture_output=True, text=True, env=env)
@@ -117,11 +129,31 @@ class BootstrapDispatch(unittest.TestCase):
         tool.mkdir()
         (tool / "JLinkExe").write_text("#!/bin/sh\n")
         (tool / "JLinkExe").chmod(0o755)
-        result = self.run_script_args("status", PATH=f"{tool}:/usr/bin:/bin", CRUX_DOCKERENV="/nonexistent")
+        result = self.run_script_args("status", PATH=self.hermetic_path(tool))
         self.assertIn("bootstrap: J-Link software  installed", result.stderr)
 
+    def test_the_status_tests_do_not_depend_on_the_machine_they_run_on(self):
+        # Inside the Dev Container the SDK is installed and J-Link may be on PATH; the status of a bare
+        # throwaway workspace must not change with that.
+        sdk = self.repo.parent / "host-sdk"
+        sdk.mkdir()
+        (sdk / ".crux-installed").write_text("")
+        fake = self.repo.parent / "host-bin"
+        fake.mkdir()
+        (fake / "JLinkExe").write_text("#!/bin/sh\n")
+        (fake / "JLinkExe").chmod(0o755)
+        flag = self.repo.parent / "dockerenv"
+        flag.write_text("")
+        with unittest.mock.patch.dict(os.environ, {"ZEPHYR_SDK_INSTALL_DIR": str(sdk),
+                                                   "PATH": f"{fake}:{os.environ['PATH']}"}):
+            result = self.run_script_args("status", CRUX_DOCKERENV=str(flag))
+        self.assertIn("workspace   not set up", result.stderr)
+        self.assertIn("Zephyr SDK  not installed", result.stderr)
+        self.assertNotIn("installed (", result.stderr)
+        self.assertIn(".devcontainer/jlink/packages/", result.stderr)
+
     def test_status_installs_nothing_and_says_what_is_missing(self):
-        result = self.run_script_args("status", CRUX_DOCKERENV="/nonexistent", PATH="/usr/bin:/bin")
+        result = self.run_script_args("status")
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual([], self.calls())
         self.assertIn("workspace   not set up", result.stderr)
@@ -135,14 +167,14 @@ class BootstrapDispatch(unittest.TestCase):
         sdk = workspace / "sdk"
         sdk.mkdir()
         (sdk / ".crux-installed").write_text("")
-        result = self.run_script_args("status", ZEPHYR_SDK_INSTALL_DIR=str(sdk), CRUX_DOCKERENV="/nonexistent")
+        result = self.run_script_args("status", ZEPHYR_SDK_INSTALL_DIR=str(sdk))
         self.assertIn("workspace   ok", result.stderr)
         self.assertIn("Zephyr SDK  ok", result.stderr)
 
     def test_status_names_the_jlink_package_folder_in_a_container_without_the_software(self):
         flag = self.repo.parent / "dockerenv"
         flag.write_text("")
-        result = self.run_script_args("status", CRUX_DOCKERENV=str(flag), PATH="/usr/bin:/bin")
+        result = self.run_script_args("status", CRUX_DOCKERENV=str(flag))
         self.assertIn(".devcontainer/jlink/packages/", result.stderr)
 
     def test_board_host_is_refused_in_the_container(self):
@@ -153,7 +185,7 @@ class BootstrapDispatch(unittest.TestCase):
         self.assertIn("not in the Dev Container", result.stderr)
 
     def test_board_host_without_the_crux_checkout_says_to_open_the_container_once(self):
-        result = self.run_script_args("board-host", CRUX_DOCKERENV="/nonexistent")
+        result = self.run_script_args("board-host")
         self.assertEqual(1, result.returncode)
         self.assertIn("open the Dev Container once", result.stderr)
 
@@ -161,7 +193,7 @@ class BootstrapDispatch(unittest.TestCase):
         crux = self.repo.parent / "crux-pilot" / "scripts"
         crux.mkdir(parents=True)
         (crux / "bootstrap.sh").write_text(f'#!/usr/bin/env bash\necho "crux $*" >> "{self.log}"\n')
-        result = self.run_script_args("board-host", CRUX_DOCKERENV="/nonexistent")
+        result = self.run_script_args("board-host")
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual(["crux board-host"], self.calls())
 
