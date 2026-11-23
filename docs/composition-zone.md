@@ -1,41 +1,38 @@
 # The composition zone
 
-Status: a rule of the boundary check. "Composition" has four meanings; see the
-[glossary](glossary.md#product-platform-and-composition). `file` (Crux File) uses it: `app/compose/storage_mount.c`
-implements the port `app/src/storage_port.h`. The check skips each absent tree, as long as at least one of the four exists, so an image
-without the zone has no zone to check. It fails when none exists, which means
-that it was run from the wrong directory (see [Running the check](#running-the-check)). The zone also admits the headers that the HTTPS management
-interface (Mbed profile) needs, see [The web composition](#the-web-composition).
+This page is the reference for the include rules of the source trees: what each tree may include and why. "Composition"
+has four meanings; see the [glossary](glossary.md#product-platform-and-composition). `file` (Crux File) uses the
+composition zone: `app/compose/storage_mount.c` implements the port `app/src/storage_port.h`. The zone also admits the
+headers that the HTTPS management interface (Mbed profile) needs, see [The web composition](#the-web-composition).
 
 ## Running the check
 
 CI runs two checks in the `Boundary check` job: this repository's `scripts/check_boundary.py`, with the headers
 that the pinned Crux publishes, and the product include check, which comes from `crux-pilot`. Run them from the
-west workspace directory (the one that holds `crux-controller` and `crux-pilot`; see
-[getting-started.md](getting-started.md)):
+repository root; the west workspace holds `crux-pilot` beside the clone:
 
 ```bash
-python crux-controller/scripts/check_boundary.py --repo crux-controller --crux-root crux-pilot
-python3 crux-pilot/templates/product/check_domain_includes.py --product crux-controller
+python scripts/check_boundary.py --crux-root ../crux-pilot
+python ../crux-pilot/templates/product/check_domain_includes.py --product .
 ```
 
 The first command checks `app/src`, `app/compose`, `app/os` and `workload` against the public `<crux/NAME.h>`
-headers of the checkout. The second is the product include check: the script
-`templates/product/check_domain_includes.py` of `crux-pilot` (see [the glossary](glossary.md#boundary-and-zones)). In product mode (`--product`) it reads every C and C++ source under the repository and fails on an
-include of `<crux/thread.h>`, `<crux/sync.h>` or `<crux/serial.h>`, which Crux marks frozen, or of `<crux/queue.h>`,
-which Crux removed.
-Its stricter rules (no Zephyr header and no composition interface) apply only to a directory named `domain/`, and this
-repository has none, so here it checks the frozen headers across all sources. This overlaps the first command on the
-frozen headers, and it also covers every source file under the repository, including the tests.
+headers of the checkout. The second is the product include check, the script
+`templates/product/check_domain_includes.py` of `crux-pilot` (see [the glossary](glossary.md#boundary-and-zones)).
+In product mode (`--product`) it reads every C and C++ source under the repository, the tests included, and fails on
+an include of `<crux/thread.h>`, `<crux/sync.h>`, `<crux/serial.h>` or `<crux/queue.h>`. Its stricter rules apply only
+to a directory named `domain/`, which this repository does not have.
 
 CI downloads that script from a fixed commit of `crux-pilot` and checks its SHA-256 before it runs it (the step
 `Run the Crux Pilot product include check` of the `Boundary check` job). A second step of the job runs the same
 script through the wrapper `check-includes.sh` of `crux-pilot`, downloaded and checked the same way. The pinned
-`crux-pilot` contains the same script with the same SHA-256, as the comment above the step says, so a local run uses
-the pinned copy. Both commands print nothing but a pass line on success. Without `--crux-root`, `python scripts/check_boundary.py` from the repository
-root checks the same rules but cannot tell that a `<crux/NAME.h>` name is not a public header. If none
-of the four trees exists under `--repo`, for example because the command ran in the workspace directory
-without `--repo`, the script exits with status 2 and says so, and it does not report a pass.
+`crux-pilot` contains the same script with the same SHA-256, so a local run uses the pinned copy. Both commands print
+nothing but a pass line on success.
+
+Without `--crux-root`, `scripts/check_boundary.py` checks the same rules but cannot tell that a `<crux/NAME.h>` name
+is not a public header. The check skips each absent tree as long as at least one of the four exists. If none exists
+under `--repo`, because it ran from the wrong directory, the script exits with status 2 and says so, and it does not
+report a pass.
 
 ## Why a zone
 
@@ -45,18 +42,6 @@ system. Application code stays on `<crux/file.h>`. A boundary that lets `app/src
 interface would let the application name a provider, and a boundary without any way to include it
 would leave File unusable. So the include is allowed in one directory and nowhere else. The Web
 composition interface `<crux/web_zephyr.h>` follows the same rule.
-
-```mermaid
-flowchart LR
-    SRC["app/src<br/>application code<br/>ISO C, Sockets profile, public crux/NAME.h"]
-    PORT["app/src/storage_port.h<br/>product-owned header<br/>declared by the application"]
-    ZONE["app/compose<br/>composition zone<br/>crux/file_zephyr.h, crux/web_zephyr.h<br/>+ three Zephyr headers"]
-    CRUX["crux::file_zephyr<br/>Zephyr fs and devicetree"]
-    SRC -->|includes| PORT
-    ZONE -->|implements, includes| PORT
-    ZONE --> CRUX
-    SRC -. "fails: composition interface, Zephyr header,<br/>quoted include of a zone header" .-> ZONE
-```
 
 The application declares the port header and calls it. The zone implements it. The link joins them;
 no include does. The port header lives in `app/src`, so the rules of `app/src` scan it, and it cannot
@@ -151,18 +136,6 @@ that OS facilities use Zephyr directly in product adapters, while product behavi
 `app/src`. The application declares a small product-owned port header in `app/src`, calls it, and
 the adapter in `app/os` implements it with Zephyr kernel calls. The link joins them; no include does.
 
-```mermaid
-flowchart LR
-    SRC["app/src<br/>product behaviour, plain C<br/>ISO C, Sockets profile, public crux/NAME.h"]
-    PORT["app/src port header<br/>product-owned, declared by the application"]
-    OS["app/os<br/>adapter zone<br/>zephyr/kernel.h, zephyr/net/sntp.h"]
-    KERNEL["Zephyr kernel<br/>threads, queues, sleeping"]
-    SRC -->|includes| PORT
-    OS -->|implements, includes| PORT
-    OS --> KERNEL
-    SRC -. "fails: the two Zephyr headers,<br/>quoted include of an adapter header" .-> OS
-```
-
 The adapter zone may include ISO C headers, public `<crux/NAME.h>` headers, its own tree, header
 files (`.h`) of `app/src` and exactly two Zephyr headers, `zephyr/kernel.h` and `zephyr/net/sntp.h`
 (`OS_ADAPTER_ZEPHYR_HEADERS` in `scripts/check_boundary.py`, no wildcard). It fails on the Sockets
@@ -183,19 +156,13 @@ The adapter zone's allow-list is the whole list, and each entry has a reason:
 | `zephyr/kernel.h` | Threads, message queues and sleeping, the OS facilities the zone exists for. |
 | `zephyr/net/sntp.h` | The Zephyr SNTP library, for a product time-source adapter. See below. |
 
-Why `zephyr/net/sntp.h`: Crux deliberately provides no SNTP client and leaves the choice of a time
-source to the product, because its Time contract designates the product as the owner of the Time
-Authority. A product that wants SNTP has two choices. It can reuse the Zephyr SNTP library, which
-this entry allows, or it can write its own SNTP packet parser, which is more product code to
-review and test than a call into a maintained library. The public Crux interface is not enough
-because it offers no time-source client at all. The adapter uses the library's simple string-based query
-(`sntp_simple()`, which takes a host name and a timeout), so it includes no socket type and no socket
-header itself, and the rule keeps `allow_sockets` off for the zone: `zephyr/net/socket.h`, the
-Sockets profile headers and every other network header still fail there. The check reads direct
-includes only, so this relies on the zone not including socket headers itself, which the rule
-continues to forbid; a header that the library header includes in turn is not an include of the
-zone. The allow-list entry allows the include and nothing else. The one source that uses it is
-`app/os/time_sync_zephyr.c` (`sntp`), which calls `sntp_simple()` and nothing else of the library.
+Why `zephyr/net/sntp.h`: Crux provides no SNTP client and leaves the choice of a time source to the product,
+because its Time contract designates the product as the owner of the Time Authority. The Zephyr SNTP library is a
+maintained alternative to a product-written packet parser, and the public Crux interface offers no time-source
+client. The adapter uses the library's string-based query (`sntp_simple()`), so it includes no socket type and no
+socket header itself, and the rule keeps `allow_sockets` off for the zone. The check reads direct includes only; the
+allow-list entry allows the include and nothing else. The one source that uses it is `app/os/time_sync_zephyr.c`
+(`sntp`).
 
 Why `zephyr/kernel.h` is not on the composition zone's list: that zone exists to mount a file system
 and bind it to Crux, and `COMPOSITION_ZEPHYR_HEADERS` names only what that and the web composition
@@ -210,10 +177,9 @@ set) and of this page, in one pull request.
 The same limit applies as for the composition zone: the check reads includes only, so the adapter
 zone adds no include path to the application target. The tree `app/os` holds two sources,
 `workload_os_zephyr.c` (every configuration) and `time_sync_zephyr.c` (`sntp` only), which its `CMakeLists.txt` adds to
-the application target. The zone is not a library of its own: as a static library it left the references to the
-kernel's message queue unresolved in the CI link of the `workload` and `file` images. `tests/tooling/test_os_adapter.py` checks that the zone adds no include path
-and no library, and that the application target links neither a zone library nor Crux Thread nor Crux
-Queue.
+the application target; the zone is not a library of its own. `tests/tooling/test_os_adapter.py` checks that the zone
+adds no include path and no library, and that the application target links neither a zone library nor Crux Thread nor
+Crux Queue.
 
 ### The frozen Crux headers
 
@@ -225,11 +191,9 @@ contracts back. The rule is a field of the `Rule` of each of the two trees. It d
 `workload`, which has no Crux header at all, and it does not change `app/compose`. Adding or removing a
 name is a reviewed change of the script, of `tests/tooling/test_boundary.py` and of this page.
 
-`<crux/queue.h>` is not on the list: the pinned Crux does not publish it and has no `CONFIG_CRUX_QUEUE`,
-so the CI option checks do not look for that option. An include of it fails all the same: with `--crux-root`, which CI always passes, a
-`<crux/NAME.h>` that the checkout does not publish fails in every tree, the composition zone included,
-and the product include check refuses it in every source of the repository.
-`tests/tooling/test_boundary.py` (`RemovedCruxQueue`) checks the first. Without `--crux-root` the name
+The check refuses a `<crux/NAME.h>` that Crux does not publish: with `--crux-root`, which CI always passes, in
+every tree, the composition zone included, and the product include check refuses `<crux/queue.h>` in every source of
+the repository. `tests/tooling/test_boundary.py` (`RemovedCruxQueue`) checks the first. Without `--crux-root` the name
 passes the shape test, as any unknown `<crux/NAME.h>` does (see [Running the check](#running-the-check)).
 
 ## What the zones do not cover

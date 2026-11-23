@@ -40,9 +40,6 @@
     "docs/board-bring-up.md": {
       "verification": 12
     },
-    "docs/composition-zone.md": {
-      "status": 1
-    },
     "docs/dev-container.md": {
       "verification": 9
     },
