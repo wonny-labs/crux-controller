@@ -1602,7 +1602,7 @@ class S6StepNote(unittest.TestCase):
     NOTE = ROOT / "docs" / "findings" / "s6-https-management.md"
     # The note records its results at the pin it was written at; the manifest has moved on since.
     NOTE_PIN = "8e3737d25d048b14a00c01da00494f58a62958c6"
-    PIN = "1c4cf2848c3dca1997bf3be0193e4b38374e7759"
+    PIN = "c5439c51741bceb8f3327c11882dc3b58bbe2640"
 
     def text(self):
         return self.NOTE.read_text()

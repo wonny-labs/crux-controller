@@ -15,18 +15,20 @@ manifest:
   projects:
     - name: crux-pilot
       remote: crux
-      # Commit of crux-pilot origin/main of 22 November 2026. It follows
-      # 2c017f68 and moves Crux's samples into purpose folders (the controller sample is removed from
-      # Crux), adds one board-ready Dev Container with scripts/bootstrap.sh, the Settings File selection
-      # that does not depend on Reliance Edge, and the pin bot. The Crux manifest, the public headers
-      # and the Zephyr module name (crux) are as before. The earlier revision's File composition
+      # Commit of crux-pilot origin/main of 23 November 2026. It follows 1c4cf284 (Crux's samples in
+      # purpose folders, the controller sample removed from Crux, one board-ready Dev Container with
+      # scripts/bootstrap.sh, the Settings File selection that does not depend on Reliance Edge, the
+      # pin bot), renames the samples time/clock_shell to time/shell and file/write_read to file/basic,
+      # and lets the Dev Container image build download the pinned J-Link package when none is given
+      # (CI and automated image builds pass CRUX_JLINK=0). The Crux manifest, the public headers and
+      # the Zephyr module name (crux) are as before. The earlier revision's File composition
       # interface <crux/file_zephyr.h>, the public management headers, the simulated native_sim System
       # watchdog, the web header deadline (CONFIG_CRUX_WEB_HEADER_DEADLINE_MS, default 10000) and the
       # move of the crypto modules to the revisions of Zephyr's v4.4-branch stay in it: Mbed TLS 4.1.1
       # plus 8 commits and TF-PSA-Crypto 1.1.1 plus 24 commits, as the dependency review of crux-pilot
       # counts them. Both are in the optional group crux-secure-management, which stays off here. No
       # Crux tag exists yet, so this is a commit, not a tag.
-      revision: 1c4cf2848c3dca1997bf3be0193e4b38374e7759
+      revision: c5439c51741bceb8f3327c11882dc3b58bbe2640
       # The Crux manifest puts Mbed TLS and TF-PSA-Crypto in the same optional group
       # (crux-secure-management) as wolfSSL, wolfSSH and wolfPSA, which are GPL or commercial.
       # Blocking the three wolf projects by name keeps them out of the resolved manifest, so
