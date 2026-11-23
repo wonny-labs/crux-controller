@@ -1,0 +1,4 @@
+# clangd (the VS Code clangd extension of the Dev Container) reads the compile database of the board build
+# that the VS Code task "Build firmware" writes; Zephyr writes compile_commands.json into every build folder.
+CompileFlags:
+  CompilationDatabase: build/net

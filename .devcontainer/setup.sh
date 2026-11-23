@@ -157,6 +157,12 @@ if [[ "$(cat "$stamp.tools" 2>/dev/null || true)" != "$tools_hash" ]]; then
     python -m pip install --no-cache-dir -r "$tools"
     printf '%s\n' "$tools_hash" >"$stamp.tools"
 fi
+# Tab completion for west in bash (`west completion bash`). The west of the virtual environment is in the
+# cache volume, not in the image, so the script is written here on every run, into the user folder that
+# bash-completion loads on the first Tab after `west`. No shell start file is edited.
+completions="${BASH_COMPLETION_USER_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/bash-completion}/completions"
+mkdir -p "$completions"
+west completion bash >"$completions/west"
 
 # 2. The workspace, only when it is not initialised yet, or when an earlier update did not finish.
 # ZEPHYR_BASE points into the workspace and does not exist before the update. The pending marker
