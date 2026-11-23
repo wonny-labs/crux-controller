@@ -78,8 +78,8 @@ twice on a board (see `docs/findings/s2-first-board-run.md`); nothing else has r
 - The `crux-pilot` pin moved from `2c017f68` to `1c4cf284`, the head of Crux `main` after its onboarding
   change (one board-ready Dev Container with `scripts/bootstrap.sh`, samples sorted by purpose, the controller
   sample removed from Crux, the Settings File selection that does not depend on Reliance Edge, the pin bot). The
-  Crux manifest, the public headers and the module name are as before. No controller code changes; two comments in
-  `app/conf/` name the moved Crux sample folders. The S2 firmware hash and the budget tables
+  Crux manifest, the public headers and the module name are as before. No controller code changes; four comments in
+  `app/conf/` and `app/boards/` name the moved Crux files and sample folders. The S2 firmware hash and the budget tables
   are in the pull request, because they come from CI.
 - The `crux-pilot` import blocks wolfSSL, wolfSSH and wolfPSA by name, so enabling the Mbed TLS group
   would activate Mbed TLS and TF-PSA-Crypto and no GPL stack (checked on the project list; no job
