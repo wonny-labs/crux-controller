@@ -1,0 +1,80 @@
+{
+  "comment": "Page types and marker allowlist for tests/tooling/test_docs_page_types.py. Lower a count when a page is fixed; never raise one.",
+  "types": {
+    "CONTRIBUTING.md": "reference",
+    "README.md": "entry",
+    "RELEASE.md": "reference",
+    "SECURITY.md": "reference",
+    "docs/README.md": "entry",
+    "docs/adding-a-capability.md": "how-to",
+    "docs/architecture.md": "explanation",
+    "docs/board-bring-up.md": "how-to",
+    "docs/composition-zone.md": "reference",
+    "docs/dependencies.md": "reference",
+    "docs/dev-container.md": "reference",
+    "docs/documentation-guidelines.md": "reference",
+    "docs/first-change.md": "tutorial",
+    "docs/getting-started.md": "entry",
+    "docs/glossary.md": "reference",
+    "docs/native-setup.md": "how-to",
+    "docs/reviewing.md": "explanation",
+    "docs/roadmap.md": "reference",
+    "docs/troubleshooting.md": "reference",
+    "docs/tutorial.md": "tutorial"
+  },
+  "allowlist": {
+    "CONTRIBUTING.md": {
+      "provenance": 1,
+      "verification": 1
+    },
+    "README.md": {
+      "verification": 2
+    },
+    "RELEASE.md": {
+      "status": 1
+    },
+    "docs/README.md": {
+      "verification": 8
+    },
+    "docs/adding-a-capability.md": {
+      "history": 1,
+      "verification": 1
+    },
+    "docs/architecture.md": {
+      "verification": 4
+    },
+    "docs/board-bring-up.md": {
+      "verification": 12
+    },
+    "docs/composition-zone.md": {
+      "status": 1
+    },
+    "docs/dev-container.md": {
+      "verification": 9
+    },
+    "docs/first-change.md": {
+      "verification": 1
+    },
+    "docs/getting-started.md": {
+      "verification": 5
+    },
+    "docs/glossary.md": {
+      "verification": 2
+    },
+    "docs/native-setup.md": {
+      "verification": 3
+    },
+    "docs/reviewing.md": {
+      "verification": 2
+    },
+    "docs/roadmap.md": {
+      "verification": 5
+    },
+    "docs/troubleshooting.md": {
+      "verification": 8
+    },
+    "docs/tutorial.md": {
+      "verification": 2
+    }
+  }
+}
