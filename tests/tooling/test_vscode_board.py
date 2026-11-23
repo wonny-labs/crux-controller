@@ -74,6 +74,30 @@ class BuildTask(unittest.TestCase):
         self.assertEqual("/workspaces/ws", task["options"]["cwd"])
 
 
+class FlashTask(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.tasks = {t["label"]: t for t in load(VSCODE / "tasks.json")["tasks"]}
+
+    def test_build_and_flash_builds_first_then_flashes_with_the_jlink_runner(self):
+        task = self.tasks["Board: Build and flash"]
+        self.assertEqual(["Build firmware"], task["dependsOn"])
+        text = " ".join([task["command"], *task.get("args", [])])
+        self.assertIn("west flash -d crux-controller/build/s2 --runner jlink", text)
+        self.assertEqual("/workspaces/ws", task["options"]["cwd"])
+
+    def test_the_flash_task_sets_no_fixed_speed_so_the_runner_uses_auto(self):
+        text = " ".join([self.tasks["Board: Build and flash"]["command"],
+                         *self.tasks["Board: Build and flash"].get("args", [])])
+        self.assertNotIn("--speed", text)
+
+    def test_nothing_flashes_unless_the_task_is_chosen(self):
+        for label, task in self.tasks.items():
+            if label != "Board: Build and flash":
+                self.assertNotIn("west flash", " ".join([task["command"], *task.get("args", [])]), label)
+            self.assertNotIn("runOn", task, label)
+
+
 class Extension(unittest.TestCase):
     def test_the_dev_container_installs_cortex_debug(self):
         data = json.loads((DEVCONTAINER / "devcontainer.json").read_text())

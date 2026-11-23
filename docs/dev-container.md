@@ -300,9 +300,9 @@ west build -p always -b 'mimxrt1060_evk@B//qspi' -d crux-controller/build/s1 \
 
 `CLANG_TIDY` is set in the image, as the static analysis job needs it. The optional S6 steps, the stronger boundary
 check and the product include check of [Set up without the Dev Container](native-setup.md) work unchanged from `/workspaces/ws` (the pinned
-`crux-pilot` contains the product include check); the container does not switch the Mbed TLS group on by itself. The container does not reach a board: there is no USB or probe
-passthrough, and a `native_sim` run is not a board run. An optional board container in `.devcontainer/board/`, with
-USB access for a J-Link probe, is described in [board-bring-up.md](board-bring-up.md); it is untested on hardware.
+`crux-pilot` contains the product include check); the container does not switch the Mbed TLS group on by itself. The container mounts the USB bus of the host and can have the J-Link software
+(`.devcontainer/jlink/`), so a probe can be reached from it after the host steps of
+[board-bring-up.md](board-bring-up.md); that route is untested on hardware, and a `native_sim` run is not a board run.
 
 ## After a pin or SDK change
 

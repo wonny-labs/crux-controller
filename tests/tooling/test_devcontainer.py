@@ -114,8 +114,10 @@ class Dockerfile(unittest.TestCase):
         self.assertIn(pinned, self.text)
 
     def test_the_image_does_not_bake_in_secrets_or_the_workspace(self):
-        for word in ("COPY ", "ADD ", "docker.sock", "host.docker.internal"):
+        for word in ("ADD ", "docker.sock", "host.docker.internal"):
             self.assertNotIn(word, self.text)
+        # The one COPY is the J-Link folder of the build context (.devcontainer/jlink/), never the workspace.
+        self.assertEqual(["COPY jlink/ /tmp/crux-jlink/"], re.findall(r"(?m)^COPY .*$", self.text))
 
     PROXY_NAMES = ("HTTP_PROXY", "http_proxy", "HTTPS_PROXY", "https_proxy", "NO_PROXY", "no_proxy")
 
@@ -205,11 +207,10 @@ class RepositoryFiles(unittest.TestCase):
             self.assertIn(line, self.ignore)
 
     def test_the_container_files_use_lf_line_endings(self):
-        # Every file under .devcontainer, including the optional board container in a subfolder. A J-Link
-        # package that a developer put into .devcontainer/board/jlink/ is a local binary, ignored by Git.
+        # Every file under .devcontainer, including the J-Link folder. A J-Link package that a developer put
+        # into .devcontainer/jlink/packages/ is a local binary, ignored by Git.
         files = sorted(p for p in DEVCONTAINER.rglob("*") if p.is_file() and p.suffix != ".deb")
-        files += [ROOT / "scripts" / "dev-shell.sh", ROOT / "scripts" / "board-shell.sh",
-                  ROOT / "scripts" / "bootstrap.sh"]
+        files += [ROOT / "scripts" / "dev-shell.sh", ROOT / "scripts" / "bootstrap.sh"]
         self.assertIn(DEVCONTAINER / "Dockerfile", files)
         for path in files:
             self.assertNotIn(b"\r", path.read_bytes(), path.name)
@@ -437,16 +438,17 @@ class DevcontainerJson(unittest.TestCase):
         self.assertEqual("bash .devcontainer/check-host.sh", command)  # bash, so a lost execute bit does not matter
         self.assertTrue((DEVCONTAINER / "check-host.sh").is_file())
 
-    def test_the_mounts_and_the_run_arguments_are_unchanged(self):
+    def test_the_mounts_are_unchanged_and_the_run_arguments_add_only_the_usb_bus(self):
         self.assertEqual(["source=crux-controller-dev-cache-${devcontainerId},target=/opt/crux-cache,type=volume"],
                          self.data["mounts"])
         self.assertEqual("source=${localWorkspaceFolder}/..,target=/workspaces/ws,type=bind",
                          self.data["workspaceMount"])
-        self.assertEqual(["--platform=linux/amd64"], self.data["runArgs"])
+        self.assertEqual(["--platform=linux/amd64", "--device-cgroup-rule=c 189:* rmw", "-v",
+                          "/dev/bus/usb:/dev/bus/usb"], self.data["runArgs"])
 
     def test_the_bootstrap_entry_runs_after_creation(self):
         # scripts/bootstrap.sh runs setup.sh; tests/tooling/test_bootstrap.py tests the entry.
-        self.assertEqual("bash scripts/bootstrap.sh", self.data["postCreateCommand"])
+        self.assertEqual("bash scripts/bootstrap.sh --keep-going", self.data["postCreateCommand"])
 
     def test_the_workspace_target_is_the_one_of_the_dockerfile_environment(self):
         target = re.search(r"target=([^,]+)", self.data["workspaceMount"]).group(1)

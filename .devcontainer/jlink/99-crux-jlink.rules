@@ -1,0 +1,5 @@
+# Give the plugdev group access to SEGGER J-Link probes (USB vendor ID 1366).
+# `scripts/bootstrap.sh board-host` installs it on the Linux host that owns the probe
+# (the WSL2 distribution, or a native Linux machine), not in the container. See
+# docs/board-jlink-usbipd.md.
+SUBSYSTEM=="usb", ATTR{idVendor}=="1366", GROUP="plugdev", MODE="0660"

@@ -8,6 +8,14 @@
       "options": { "cwd": "/workspaces/ws" },
       "group": { "kind": "build", "isDefault": true },
       "problemMatcher": ["$gcc"]
+    },
+    {
+      "label": "Board: Build and flash",
+      "type": "shell",
+      "command": "west flash -d crux-controller/build/s2 --runner jlink",
+      "dependsOn": ["Build firmware"],
+      "options": { "cwd": "/workspaces/ws" },
+      "problemMatcher": []
     }
   ]
 }

@@ -142,7 +142,7 @@ Nothing here needs a board. To run an image on the RT1060-EVKB you also need:
 - a SEGGER J-Link probe on the board's debug port (an external probe, or the on-board debug probe if it runs
   J-Link firmware), and a way to read the UART log, as [What is needed](board-bring-up.md#what-is-needed) lists;
 - on Windows, usbipd-win on the Windows side to pass the probe's USB device to WSL2;
-- the optional board container in `.devcontainer/board/`, which adds USB access for the probe to the Dev Container.
+- the J-Link software in the Dev Container: a package that you download, or a copy that your organisation hosts, as the board route's [J-Link step](board-bring-up.md#3-open-the-dev-container-with-the-probe) says. Without it the Dev Container works for everything except a board.
 
 The [board route](board-bring-up.md) gives the steps. It is untested on hardware, and nothing may touch a board
 without the project owner's explicit authorisation for the task.
