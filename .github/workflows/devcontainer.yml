@@ -43,6 +43,9 @@ jobs:
     timeout-minutes: 90
     env:
       GH_TOKEN: ${{ github.token }}
+      # The SEGGER download accepts SEGGER's terms of use, and no step here uses a probe, so CI
+      # builds the image without the J-Link software (scripts/dev-shell.sh passes this by name).
+      CRUX_JLINK: "0"
     steps:
       # The clone sits in the workspace directory, as in the dev container layout.
       - uses: actions/checkout@v4
