@@ -66,17 +66,20 @@ ENV ZEPHYR_SDK_INSTALL_DIR=/opt/crux-cache/sdk/zephyr-sdk-${ZEPHYR_SDK_VERSION} 
     CLANG_TIDY=clang-tidy-18 \
     PATH=/opt/crux-cache/venv/bin:${PATH}
 
-# SEGGER J-Link software for flashing and debugging a board (docs/board-bring-up.md). The package comes from a
-# file that the developer downloaded from SEGGER, accepting its licence, and placed in
-# .devcontainer/jlink/packages/, or from CRUX_JLINK_URL, a copy that an organisation hosts, checked against
-# CRUX_JLINK_DEB_SHA256. Nothing is downloaded from SEGGER and no licence is accepted for anyone (see
-# jlink/install-jlink.sh). CRUX_JLINK=auto installs it when one of the two is given and otherwise prints a
-# warning and builds the image without it, so Host and native_sim work for everyone; 1 requires it; 0 skips it.
+# SEGGER J-Link software for flashing and debugging a board (docs/board-bring-up.md). The package comes from
+# the first of: a file the developer placed in .devcontainer/jlink/packages/; CRUX_JLINK_URL, a copy that an
+# organisation hosts, checked against CRUX_JLINK_DEB_SHA256; the version pinned below, downloaded from
+# SEGGER's download endpoint and checked against the pinned SHA-256. That download accepts SEGGER's terms of
+# use (see jlink/install-jlink.sh). CRUX_JLINK=auto (devcontainer.json) installs it and, when none of the
+# three gives a package, prints a warning and builds the image without it, so Host and native_sim work for
+# everyone; 1 requires it; 0 skips it. To bump J-Link, change the two CRUX_JLINK_SEGGER_* values together.
 # The proxy build arguments are not declared here, as above.
 ARG CRUX_JLINK=auto
 ARG CRUX_JLINK_DEB=
 ARG CRUX_JLINK_DEB_SHA256=
 ARG CRUX_JLINK_URL=
+ARG CRUX_JLINK_SEGGER_VERSION=V996a
+ARG CRUX_JLINK_SEGGER_SHA256=e23591160efa39e0f9e184031195a594d962853a801a1261b168a02644ab2a0a
 COPY jlink/ /tmp/crux-jlink/
 RUN if [ "$CRUX_JLINK" != 0 ]; then \
         sh /tmp/crux-jlink/install-jlink.sh /tmp/crux-jlink/packages \

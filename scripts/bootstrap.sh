@@ -93,8 +93,9 @@ if [[ "$mode" == status ]]; then
     elif in_container; then
         cat <<'NOTE'
 J-Link software is not installed in this container. Host and native_sim work without it; flashing and
-debugging a board need it. Download JLink_Linux_<version>_x86_64.deb from SEGGER (accept its licence there),
-place it in .devcontainer/jlink/packages/ on the host, then run "Dev Containers: Rebuild Container".
+debugging a board need it. The image build downloads the pinned version from SEGGER; if that failed, run
+"Dev Containers: Rebuild Container Without Cache" to try again. Or place JLink_Linux_<version>_x86_64.deb
+from SEGGER in .devcontainer/jlink/packages/ on the host and run "Dev Containers: Rebuild Container".
 See docs/board-bring-up.md.
 NOTE
     fi

@@ -15,9 +15,10 @@
 #
 # The container gets the USB bus of the host when /dev/bus/usb exists (CRUX_BOARD_USB_DIR names another folder),
 # with a device cgroup rule for USB devices (character major 189) and nothing else; it is never privileged.
-# The SEGGER J-Link software is installed when the build arguments name a package: a file in
-# .devcontainer/jlink/packages/, or CRUX_JLINK_URL with CRUX_JLINK_DEB_SHA256 in the environment (passed by
-# name only). Without either the image builds without it.
+# The SEGGER J-Link software is installed from a file in .devcontainer/jlink/packages/, from CRUX_JLINK_URL
+# with CRUX_JLINK_DEB_SHA256, or else from the version pinned in .devcontainer/Dockerfile, which the build
+# downloads from SEGGER. Any CRUX_JLINK* variable set in the environment is passed by name only;
+# CRUX_JLINK=0 skips the J-Link software.
 #
 # CRUX_DEV_IMAGE overrides the image name. GH_TOKEN, when set, is passed to the container for the
 # SDK download. See docs/dev-container.md, "Network and prerequisites".
@@ -47,7 +48,8 @@ usb_dir="${CRUX_BOARD_USB_DIR:-/dev/bus/usb}"
 
 # The J-Link build arguments go by name, so that a hosted URL does not appear on the command line.
 build_args=()
-for name in CRUX_JLINK CRUX_JLINK_DEB CRUX_JLINK_DEB_SHA256 CRUX_JLINK_URL; do
+for name in CRUX_JLINK CRUX_JLINK_DEB CRUX_JLINK_DEB_SHA256 CRUX_JLINK_URL \
+    CRUX_JLINK_SEGGER_VERSION CRUX_JLINK_SEGGER_SHA256; do
     if [[ -n "${!name:-}" ]]; then
         build_args+=(--build-arg "$name")
     fi

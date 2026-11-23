@@ -3,8 +3,8 @@
 
 The tests are structural: the pages have the sections that a reader needs, their links resolve, every
 repository file that a command names exists, the build and run commands are those of the CI jobs, and the
-Dev Container keeps the safety properties of the route (no privileged container, the J-Link package only from
-a file you download or a copy you host, a read-only compare before any write). They do not pin sentences. The
+Dev Container keeps the safety properties of the route (no privileged container, the J-Link package from the
+pinned download, a placed file or a hosted copy, a read-only compare before any write). They do not pin sentences. The
 Dev Container files are tested in test_one_container.py. Nothing here starts Docker, touches USB or uses the
 network.
 """
@@ -261,8 +261,13 @@ class BoardPage(Common, unittest.TestCase):
             if "--privileged" in line:
                 self.assertRegex(line, r"(?i)\bno\b|\bnot\b|never|without", line)
 
-    def test_the_jlink_package_comes_from_a_file_you_download(self):
-        self.assertIn(".devcontainer/jlink/packages/", read(BOARD_PAGE))
+    def test_the_jlink_software_comes_from_the_pinned_download_or_an_override(self):
+        body = norm(read(BOARD_PAGE))
+        self.assertIn(".devcontainer/jlink/packages/", body)
+        self.assertIn("CRUX_JLINK_URL", body)
+        self.assertIn("CRUX_JLINK_SEGGER_VERSION", body)
+        self.assertIn("accepts SEGGER's terms of use", body)
+        # The build downloads it; no command on the page fetches it by hand.
         self.assertNotRegex("\n".join(code_blocks(read(BOARD_PAGE))), r"(?i)(curl|wget)[^\n]*segger")
 
     def test_the_s2_hashes_and_network_values_are_those_of_the_s2_note(self):
