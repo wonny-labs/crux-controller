@@ -120,6 +120,8 @@ class Extension(unittest.TestCase):
         self.assertEqual(1, len(rows), rows)
         self.assertIn("Reload Window", rows[0])
         self.assertIn("docker volume rm crux-controller-vscode-extensions", rows[0])
+        # Docker refuses to remove a volume that a stopped container still uses, so the row says to remove it.
+        self.assertIn("remove the Dev Container's container", rows[0])
         for trail in ("not yet tested", "not tested", "should not"):
             self.assertNotIn(trail, rows[0])
 
