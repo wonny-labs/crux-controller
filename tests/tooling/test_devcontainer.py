@@ -419,6 +419,14 @@ class DevcontainerJson(unittest.TestCase):
             and "${devcontainerId}" in mount for mount in self.data["mounts"]
         ), self.data["mounts"])
 
+    def test_the_vscode_extensions_survive_a_rebuild_in_a_folder_the_user_owns(self):
+        # The volume keeps the installed extensions across rebuilds. The image creates the folder for the
+        # user, so a new volume takes the user as owner instead of root.
+        self.assertIn("target=/home/vscode/.vscode-server/extensions", " ".join(self.data["mounts"]))
+        dockerfile = read(DEVCONTAINER / "Dockerfile")
+        self.assertRegex(dockerfile, r'install -d -o "\$USER_UID" -g "\$USER_GID" [^\n]*'
+                                     r'/home/vscode/\.vscode-server/extensions\n')
+
     PROXY_NAMES = ("HTTP_PROXY", "http_proxy", "HTTPS_PROXY", "https_proxy", "NO_PROXY", "no_proxy")
 
     def test_it_has_a_clear_name(self):
@@ -439,8 +447,10 @@ class DevcontainerJson(unittest.TestCase):
         self.assertEqual("bash .devcontainer/check-host.sh", command)  # bash, so a lost execute bit does not matter
         self.assertTrue((DEVCONTAINER / "check-host.sh").is_file())
 
-    def test_the_mounts_are_unchanged_and_the_run_arguments_add_only_the_usb_bus(self):
-        self.assertEqual(["source=crux-controller-dev-cache-${devcontainerId},target=/opt/crux-cache,type=volume"],
+    def test_the_mounts_are_the_cache_and_the_extensions_and_the_run_arguments_add_only_the_usb_bus(self):
+        self.assertEqual(["source=crux-controller-dev-cache-${devcontainerId},target=/opt/crux-cache,type=volume",
+                          "source=crux-controller-vscode-extensions,target=/home/vscode/.vscode-server/extensions,"
+                          "type=volume"],
                          self.data["mounts"])
         self.assertEqual("source=${localWorkspaceFolder}/..,target=/workspaces/ws,type=bind",
                          self.data["workspaceMount"])

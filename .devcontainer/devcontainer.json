@@ -26,7 +26,8 @@
   "workspaceMount": "source=${localWorkspaceFolder}/..,target=/workspaces/ws,type=bind",
   "workspaceFolder": "/workspaces/ws/crux-controller",
   "mounts": [
-    "source=crux-controller-dev-cache-${devcontainerId},target=/opt/crux-cache,type=volume"
+    "source=crux-controller-dev-cache-${devcontainerId},target=/opt/crux-cache,type=volume",
+    "source=crux-controller-vscode-extensions,target=/home/vscode/.vscode-server/extensions,type=volume"
   ],
   "initializeCommand": "bash .devcontainer/check-host.sh",
   "containerEnv": {
@@ -51,6 +52,10 @@
         "ms-vscode.cpptools",
         "ms-vscode.cmake-tools",
         "ms-python.python",
+        "mcu-debug.debug-tracker-vscode",
+        "mcu-debug.memory-view",
+        "mcu-debug.rtos-views",
+        "mcu-debug.peripheral-viewer",
         "marus25.cortex-debug",
         "redhat.vscode-yaml"
       ],

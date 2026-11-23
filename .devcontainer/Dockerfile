@@ -75,7 +75,8 @@ RUN apt-get update \
 RUN if [ "$USER_GID" != "$(id -g vscode)" ]; then groupmod -o --gid "$USER_GID" vscode; fi \
     && if [ "$USER_UID" != "$(id -u vscode)" ]; then usermod -o --uid "$USER_UID" vscode; fi \
     && chown -R "$USER_UID:$USER_GID" /home/vscode \
-    && install -d -o "$USER_UID" -g "$USER_GID" /opt/crux-cache
+    && install -d -o "$USER_UID" -g "$USER_GID" /opt/crux-cache \
+    && install -d -o "$USER_UID" -g "$USER_GID" /home/vscode/.vscode-server /home/vscode/.vscode-server/extensions
 
 # The Zephyr SDK version of the CI jobs. The SDK and the virtual environment are installed by
 # .devcontainer/setup.sh into /opt/crux-cache, which is a named volume.
