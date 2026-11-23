@@ -27,7 +27,7 @@ twice on a board (see `docs/findings/s2-first-board-run.md`); nothing else has r
 
 ### Build and manifest
 
-- The west manifest imports `crux-pilot` at a pinned commit (`1c4cf284`, which contains the File
+- The west manifest imports `crux-pilot` at a pinned commit (`c5439c51`, which contains the File
   composition interface `<crux/file_zephyr.h>`) and adds `picolibc` as a test-only project. A CI job
   checks the pins with `west crux-pins` and has a negative control that must fail.
 - The `crux-pilot` pin moved from `37c92b18` to `dfd3ad7d`, which adds the public management headers
@@ -86,6 +86,12 @@ twice on a board (see `docs/findings/s2-first-board-run.md`); nothing else has r
   Crux manifest, the public headers and the module name are as before. No controller code changes; four comments in
   `app/conf/` and `app/boards/` name the moved Crux files and sample folders. The S2 firmware hash and the budget tables
   are in the pull request, because they come from CI.
+- The `crux-pilot` pin moved from `1c4cf284` to `c5439c51`, the head of Crux `main` after two changes: the
+  samples `time/clock_shell` and `file/write_read` are renamed `time/shell` and `file/basic`, and the Dev Container
+  image build downloads the pinned J-Link package when none is given (CI and automated image builds pass
+  `CRUX_JLINK=0`). The Crux manifest, the public headers and the module name are as before. No controller file named
+  the renamed samples, and the J-Link installer and its pinned version already match Crux. The S2 firmware hash and
+  the budget tables are in the pull request, because they come from CI.
 - The `crux-pilot` import blocks wolfSSL, wolfSSH and wolfPSA by name, so enabling the Mbed TLS group
   would activate Mbed TLS and TF-PSA-Crypto and no GPL stack (checked on the project list; no job
   enables the group or fetches with it on, and it stays off in every job).

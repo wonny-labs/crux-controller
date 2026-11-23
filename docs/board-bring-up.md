@@ -6,7 +6,7 @@ read-only compare of the flash first, then `west flash` and `west debug` with th
 followed this route with this repository's firmware on any board. The only board runs this repository records
 are the two S2 runs in [docs/findings/s2-first-board-run.md](findings/s2-first-board-run.md); they followed a
 gated procedure with another tool (a target test driver of `crux-pilot`), not this route. The probe, container
-and host steps are Crux's, and [Crux's board guide](https://github.com/wonny-labs/crux-pilot/blob/1c4cf2848c3dca1997bf3be0193e4b38374e7759/docs/board-jlink-usbipd.md) says what has run there. Read the
+and host steps are Crux's, and [Crux's board guide](https://github.com/wonny-labs/crux-pilot/blob/c5439c51741bceb8f3327c11882dc3b58bbe2640/docs/board-jlink-usbipd.md) says what has run there. Read the
 [roadmap](roadmap.md) for what has run here, and the [glossary](glossary.md) for the terms.
 
 **Authorisation.** Physical programming, reset and any other operation on the board need the project
@@ -106,8 +106,8 @@ This runs the step of the Crux checkout in the workspace folder (`crux-pilot/scr
 so the Dev Container must have been created once, which fetches Crux; the script says so when it is not there.
 It never talks to the probe or the board, and it refuses to run inside the container. A probe that
 re-enumerates gets a new device node, so run it again after a reattach. The rule
-([99-crux-jlink.rules](https://github.com/wonny-labs/crux-pilot/blob/1c4cf2848c3dca1997bf3be0193e4b38374e7759/.devcontainer/jlink/99-crux-jlink.rules), in the Crux checkout; this repository keeps no copy) gives the SEGGER vendor id to the group
-`plugdev` with mode `0660`, not `0666`. [Crux's board guide](https://github.com/wonny-labs/crux-pilot/blob/1c4cf2848c3dca1997bf3be0193e4b38374e7759/docs/board-jlink-usbipd.md) lists what each result of the script means
+([99-crux-jlink.rules](https://github.com/wonny-labs/crux-pilot/blob/c5439c51741bceb8f3327c11882dc3b58bbe2640/.devcontainer/jlink/99-crux-jlink.rules), in the Crux checkout; this repository keeps no copy) gives the SEGGER vendor id to the group
+`plugdev` with mode `0660`, not `0666`. [Crux's board guide](https://github.com/wonny-labs/crux-pilot/blob/c5439c51741bceb8f3327c11882dc3b58bbe2640/docs/board-jlink-usbipd.md) lists what each result of the script means
 and how the node permissions look on WSL2.
 
 ## 3. Open the Dev Container with the probe
