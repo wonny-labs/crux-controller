@@ -1,9 +1,9 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
 /*
- * The adapter zone of step S5: the one place that queries an SNTP server and runs the thread that
- * does it. It implements the port that app/src declares (time_sync_port.h) with two Zephyr headers
- * of the allow-list of docs/composition-zone.md for this zone, <zephyr/kernel.h> and
+ * The adapter zone of the sntp capability: the one place that queries an SNTP server and runs the
+ * thread that does it. It implements the port that app/src declares (time_sync_port.h) with two
+ * Zephyr headers of the allow-list of docs/composition-zone.md for this zone, <zephyr/kernel.h> and
  * <zephyr/net/sntp.h>. It includes no socket header, which the zone may not, so it calls the
  * library's string-based one-shot query sntp_simple() and nothing else of it: sntp_init() and
  * sntp_query() need a socket address type. The adapter never sets a clock. The product's glue

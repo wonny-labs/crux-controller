@@ -14,7 +14,7 @@
  *   storage_port_bind()   makes File ready. Until it succeeds, every File call returns
  *                         CRUX_FILE_ERR_NOT_READY.
  *
- * Step S6 does not bind the directory "files". It makes the volume available with
+ * The management capability does not bind the directory "files". It makes the volume available with
  * storage_port_mount() and then calls, once, from thread context:
  *
  *   storage_port_bind_store()  creates the two directories of the credential store on the mounted

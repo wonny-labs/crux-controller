@@ -57,7 +57,7 @@ jobs:
       # The Crux import is narrowed by name, so switching the Mbed TLS group on would activate the
       # Mbed modules and not the GPL stacks that share their group. The three steps below read the
       # resolved project list (west list does not clone anything) and run before the control that
-      # edits west.yml. This job fetches nothing with the group on. The S6 job does, after the same
+      # edits west.yml. This job fetches nothing with the group on. The management job does, after the same
       # check.
       - name: Mbed-only check, default workspace
         run: |
@@ -148,8 +148,8 @@ jobs:
           cmake --build build/host
           ctest --test-dir build/host --output-on-failure
 
-  s1:
-    name: S1 (native_sim and RT1060-EVKB)
+  workload:
+    name: workload (native_sim and RT1060-EVKB)
     runs-on: ubuntu-24.04
     env:
       BOARD: mimxrt1060_evk@B//qspi
@@ -191,43 +191,43 @@ jobs:
         run: |
           west sdk install --version "$SDK_VERSION" --install-base "$GITHUB_WORKSPACE/sdk" \
             --gnu-toolchains arm-zephyr-eabi --personal-access-token "$GH_TOKEN"
-      - name: Run the S1 scenario on native_sim
+      - name: Run the workload scenario on native_sim
         env:
           ZEPHYR_BASE: ${{ github.workspace }}/zephyr
         run: |
           west twister -p native_sim/native/64 -T crux-controller/tests/native_sim \
             --inline-logs --clobber-output -O twister-out
-      - name: Cross-build S1 with the baseline gate required
+      - name: Cross-build workload with the baseline gate required
         env:
           ZEPHYR_BASE: ${{ github.workspace }}/zephyr
         run: |
-          west build -p always -b '${{ env.BOARD }}' -d crux-controller/build/s1 \
+          west build -p always -b '${{ env.BOARD }}' -d crux-controller/build/workload \
             crux-controller/app -- -DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON \
-            -DEXTRA_CONF_FILE=conf/s1.conf
+            -DEXTRA_CONF_FILE=conf/workload.conf
       - name: Check the outputs exist
         run: |
           for output in zephyr.bin zephyr.meta; do
-            test -f "crux-controller/build/s1/zephyr/$output" || {
+            test -f "crux-controller/build/workload/zephyr/$output" || {
               echo "missing $output" >&2
               exit 1
             }
           done
-      - name: Check the resolved S1 configuration
+      - name: Check the resolved workload configuration
         run: |
-          build=crux-controller/build/s1/zephyr
-          for option in CONFIG_CRUX_CONTROLLER_S1=y CONFIG_CRUX_LOGGING=y \
+          build=crux-controller/build/workload/zephyr
+          for option in CONFIG_CRUX_CONTROLLER_WORKLOAD=y CONFIG_CRUX_LOGGING=y \
               CONFIG_CRUX_CONTROLLER_WORKER_STACK=4096; do
             grep -qx "$option" "$build/.config" || { echo "missing $option" >&2; exit 1; }
           done
-          # The product does not call the Crux Thread provider, so no step selects it.
+          # The product does not call the Crux Thread provider, so no configuration selects it.
           for option in CONFIG_CRUX_THREAD=y; do
             ! grep -qx "$option" "$build/.config" || { echo "unexpected $option" >&2; exit 1; }
           done
           grep -q 'zephyr,log-uart' "$build/zephyr.dts" || { echo "no log UART selection" >&2; exit 1; }
-          ! grep -qx 'CONFIG_CRUX_CONTROLLER_S2=y' "$build/.config"
+          ! grep -qx 'CONFIG_CRUX_CONTROLLER_NET=y' "$build/.config"
 
-  s2:
-    name: S2 build (RT1060-EVKB, networking)
+  net:
+    name: net build (RT1060-EVKB, networking)
     runs-on: ubuntu-24.04
     env:
       BOARD: mimxrt1060_evk@B//qspi
@@ -267,45 +267,45 @@ jobs:
         run: |
           west sdk install --version "$SDK_VERSION" --install-base "$GITHUB_WORKSPACE/sdk" \
             --gnu-toolchains arm-zephyr-eabi --personal-access-token "$GH_TOKEN"
-      - name: Cross-build S2 with the baseline gate required
+      - name: Cross-build net with the baseline gate required
         env:
           ZEPHYR_BASE: ${{ github.workspace }}/zephyr
         run: |
-          west build -p always -b '${{ env.BOARD }}' -d crux-controller/build/s2 \
+          west build -p always -b '${{ env.BOARD }}' -d crux-controller/build/net \
             crux-controller/app -- -DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON \
-            "-DEXTRA_CONF_FILE=conf/s1.conf;conf/s2.conf" \
-            "-DEXTRA_DTC_OVERLAY_FILE=boards/s2.overlay"
+            "-DEXTRA_CONF_FILE=conf/workload.conf;conf/net.conf" \
+            "-DEXTRA_DTC_OVERLAY_FILE=boards/net.overlay"
       - name: Check the outputs exist
         run: |
           for output in zephyr.bin zephyr.meta; do
-            test -f "crux-controller/build/s2/zephyr/$output" || {
+            test -f "crux-controller/build/net/zephyr/$output" || {
               echo "missing $output" >&2
               exit 1
             }
           done
-          echo "Built S2 for $BOARD. No flash, reset or hardware command was run."
-      - name: Check the resolved S2 configuration and devicetree
+          echo "Built net for $BOARD. No flash, reset or hardware command was run."
+      - name: Check the resolved net configuration and devicetree
         run: |
-          build=crux-controller/build/s2/zephyr
+          build=crux-controller/build/net/zephyr
           # A fragment or overlay that is silently not applied would still build, so check
           # what the build resolved, not what the command line asked for.
-          for option in CONFIG_CRUX_CONTROLLER_S2=y CONFIG_CRUX_SOCKETS=y CONFIG_CRUX_NETIF=y \
+          for option in CONFIG_CRUX_CONTROLLER_NET=y CONFIG_CRUX_SOCKETS=y CONFIG_CRUX_NETIF=y \
               'CONFIG_NET_CONFIG_MY_IPV4_ADDR="192.168.77.2"' CONFIG_NET_CONFIG_SETTINGS=y; do
             grep -qxF "$option" "$build/.config" || { echo "missing $option" >&2; exit 1; }
           done
           grep -Eq 'local-mac-address = \[ *02 *43 *52 *55 *58 *20 *\]' "$build/zephyr.dts" || {
-            echo "the S2 overlay did not set the MAC address" >&2
+            echo "the net overlay did not set the MAC address" >&2
             grep -n 'mac' "$build/zephyr.dts" | head -20 >&2 || true
-            grep -rn 's2.overlay' crux-controller/build/s2/CMakeCache.txt | head -5 >&2 || true
+            grep -rn 'net.overlay' crux-controller/build/net/CMakeCache.txt | head -5 >&2 || true
             exit 1
           }
           ! grep -q 'green_led' "$build/zephyr.dts" || {
-            echo "the S2 overlay did not delete green_led" >&2
+            echo "the net overlay did not delete green_led" >&2
             exit 1
           }
 
-  s3:
-    name: S3 build (RT1060-EVKB, File)
+  file:
+    name: file build (RT1060-EVKB, File)
     runs-on: ubuntu-24.04
     env:
       BOARD: mimxrt1060_evk@B//qspi
@@ -345,29 +345,29 @@ jobs:
         run: |
           west sdk install --version "$SDK_VERSION" --install-base "$GITHUB_WORKSPACE/sdk" \
             --gnu-toolchains arm-zephyr-eabi --personal-access-token "$GH_TOKEN"
-      - name: Cross-build S3 with the baseline gate required
+      - name: Cross-build file with the baseline gate required
         env:
           ZEPHYR_BASE: ${{ github.workspace }}/zephyr
         run: |
-          west build -p always -b '${{ env.BOARD }}' -d crux-controller/build/s3 \
+          west build -p always -b '${{ env.BOARD }}' -d crux-controller/build/file \
             crux-controller/app -- -DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON \
-            "-DEXTRA_CONF_FILE=conf/s1.conf;conf/s3.conf" \
-            "-DEXTRA_DTC_OVERLAY_FILE=boards/s3.overlay"
+            "-DEXTRA_CONF_FILE=conf/workload.conf;conf/file.conf" \
+            "-DEXTRA_DTC_OVERLAY_FILE=boards/file.overlay"
       - name: Check the outputs exist
         run: |
           for output in zephyr.bin zephyr.meta; do
-            test -f "crux-controller/build/s3/zephyr/$output" || {
+            test -f "crux-controller/build/file/zephyr/$output" || {
               echo "missing $output" >&2
               exit 1
             }
           done
-          echo "Built S3 for $BOARD. No flash, reset or hardware command was run."
-      - name: Check the resolved S3 configuration and devicetree
+          echo "Built file for $BOARD. No flash, reset or hardware command was run."
+      - name: Check the resolved file configuration and devicetree
         run: |
-          build=crux-controller/build/s3/zephyr
+          build=crux-controller/build/file/zephyr
           # An unmet Kconfig dependency only warns and a missing overlay entry would still
           # build, so check what the build resolved, not what the command line asked for.
-          for option in CONFIG_CRUX_CONTROLLER_S3=y CONFIG_CRUX_FILE_FATFS_RT1060=y \
+          for option in CONFIG_CRUX_CONTROLLER_FILE=y CONFIG_CRUX_FILE_FATFS_RT1060=y \
               CONFIG_FILE_SYSTEM=y CONFIG_FAT_FILESYSTEM_ELM=y CONFIG_DISK_DRIVER_SDMMC=y; do
             grep -qxF "$option" "$build/.config" || { echo "missing $option" >&2; exit 1; }
           done
@@ -377,7 +377,7 @@ jobs:
             ! grep -qxF "$option" "$build/.config" || { echo "unexpected $option" >&2; exit 1; }
           done
           grep -q 'controller_storage' "$build/zephyr.dts" || {
-            echo "the S3 overlay did not add the fstab entry" >&2
+            echo "the file overlay did not add the fstab entry" >&2
             exit 1
           }
           grep -q 'zephyr,fstab,fatfs' "$build/zephyr.dts" || {
@@ -388,7 +388,7 @@ jobs:
         run: |
           nm=$(find "$ZEPHYR_SDK_INSTALL_DIR" -name 'arm-zephyr-eabi-nm' -type f | head -n 1)
           test -n "$nm" || { echo "no nm in the SDK" >&2; exit 1; }
-          "$nm" crux-controller/build/s3/zephyr/zephyr.elf > symbols.txt
+          "$nm" crux-controller/build/file/zephyr/zephyr.elf > symbols.txt
           # The composition and the binding are linked. The formatting functions are not.
           for symbol in storage_port_mount storage_port_bind crux_file_zephyr_bind \
               config_store_save config_store_load fs_mount; do
@@ -398,8 +398,8 @@ jobs:
             ! grep -qE " [Tt] ${symbol}$" symbols.txt || { echo "linked: $symbol" >&2; exit 1; }
           done
 
-  s4:
-    name: S4 build (RT1060-EVKB, System)
+  system:
+    name: system build (RT1060-EVKB, System)
     runs-on: ubuntu-24.04
     env:
       BOARD: mimxrt1060_evk@B//qspi
@@ -439,30 +439,30 @@ jobs:
         run: |
           west sdk install --version "$SDK_VERSION" --install-base "$GITHUB_WORKSPACE/sdk" \
             --gnu-toolchains arm-zephyr-eabi --personal-access-token "$GH_TOKEN"
-      - name: Cross-build S4 with the baseline gate required
+      - name: Cross-build system with the baseline gate required
         env:
           ZEPHYR_BASE: ${{ github.workspace }}/zephyr
         run: |
-          west build -p always -b '${{ env.BOARD }}' -d crux-controller/build/s4 \
+          west build -p always -b '${{ env.BOARD }}' -d crux-controller/build/system \
             crux-controller/app -- -DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON \
-            "-DEXTRA_CONF_FILE=conf/s1.conf;conf/s4.conf" \
-            "-DEXTRA_DTC_OVERLAY_FILE=boards/s4.overlay"
+            "-DEXTRA_CONF_FILE=conf/workload.conf;conf/system.conf" \
+            "-DEXTRA_DTC_OVERLAY_FILE=boards/system.overlay"
       - name: Check the outputs exist
         run: |
           for output in zephyr.bin zephyr.meta; do
-            test -f "crux-controller/build/s4/zephyr/$output" || {
+            test -f "crux-controller/build/system/zephyr/$output" || {
               echo "missing $output" >&2
               exit 1
             }
           done
-          echo "Built S4 for $BOARD. No flash, reset or hardware command was run."
-      - name: Check the resolved S4 configuration and devicetree
+          echo "Built system for $BOARD. No flash, reset or hardware command was run."
+      - name: Check the resolved system configuration and devicetree
         run: |
-          build=crux-controller/build/s4/zephyr
+          build=crux-controller/build/system/zephyr
           # An unmet Kconfig dependency only warns and a missing overlay entry would not stop
           # the build before the provider checks it, so check what the build resolved, not what
           # the command line asked for.
-          for option in CONFIG_CRUX_CONTROLLER_S4=y CONFIG_CRUX_SYSTEM=y CONFIG_WATCHDOG=y \
+          for option in CONFIG_CRUX_CONTROLLER_SYSTEM=y CONFIG_CRUX_SYSTEM=y CONFIG_WATCHDOG=y \
               CONFIG_HWINFO=y CONFIG_REBOOT=y; do
             grep -qxF "$option" "$build/.config" || { echo "missing $option" >&2; exit 1; }
           done
@@ -474,7 +474,7 @@ jobs:
             ! grep -qxF "$option" "$build/.config" || { echo "unexpected $option" >&2; exit 1; }
           done
           grep -Eq 'crux-watchdog0 = &?wdog0' "$build/zephyr.dts" || {
-            echo "the S4 overlay did not set the crux-watchdog0 alias" >&2
+            echo "the system overlay did not set the crux-watchdog0 alias" >&2
             grep -n 'crux-watchdog0' "$build/zephyr.dts" >&2 || true
             exit 1
           }
@@ -487,7 +487,7 @@ jobs:
         run: |
           nm=$(find "$ZEPHYR_SDK_INSTALL_DIR" -name 'arm-zephyr-eabi-nm' -type f | head -n 1)
           test -n "$nm" || { echo "no nm in the SDK" >&2; exit 1; }
-          "$nm" crux-controller/build/s4/zephyr/zephyr.elf > symbols.txt
+          "$nm" crux-controller/build/system/zephyr/zephyr.elf > symbols.txt
           # The policy, the glue and the public System calls that it makes are linked.
           for symbol in health_report_reset_cause health_watchdog_start health_cycle \
               health_feed_result health_watchdog_timeout crux_watchdog_start crux_watchdog_feed \
@@ -495,8 +495,8 @@ jobs:
             grep -qE " [Tt] ${symbol}$" symbols.txt || { echo "not linked: $symbol" >&2; exit 1; }
           done
 
-  s5:
-    name: S5 build (RT1060-EVKB, SNTP time synchronisation)
+  sntp:
+    name: sntp build (RT1060-EVKB, SNTP time synchronisation)
     runs-on: ubuntu-24.04
     env:
       BOARD: mimxrt1060_evk@B//qspi
@@ -536,31 +536,31 @@ jobs:
         run: |
           west sdk install --version "$SDK_VERSION" --install-base "$GITHUB_WORKSPACE/sdk" \
             --gnu-toolchains arm-zephyr-eabi --personal-access-token "$GH_TOKEN"
-      - name: Cross-build S5 with the baseline gate required
+      - name: Cross-build sntp with the baseline gate required
         env:
           ZEPHYR_BASE: ${{ github.workspace }}/zephyr
         run: |
-          west build -p always -b '${{ env.BOARD }}' -d crux-controller/build/s5 \
+          west build -p always -b '${{ env.BOARD }}' -d crux-controller/build/sntp \
             crux-controller/app -- -DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON \
-            "-DEXTRA_CONF_FILE=conf/s1.conf;conf/s2.conf;conf/s5.conf" \
-            "-DEXTRA_DTC_OVERLAY_FILE=boards/s2.overlay"
+            "-DEXTRA_CONF_FILE=conf/workload.conf;conf/net.conf;conf/sntp.conf" \
+            "-DEXTRA_DTC_OVERLAY_FILE=boards/net.overlay"
       - name: Check the outputs exist
         run: |
           for output in zephyr.bin zephyr.meta; do
-            test -f "crux-controller/build/s5/zephyr/$output" || {
+            test -f "crux-controller/build/sntp/zephyr/$output" || {
               echo "missing $output" >&2
               exit 1
             }
           done
-          echo "Built S5 for $BOARD. No flash, reset or hardware command was run."
-      - name: Check the resolved S5 configuration
+          echo "Built sntp for $BOARD. No flash, reset or hardware command was run."
+      - name: Check the resolved sntp configuration
         run: |
-          build=crux-controller/build/s5/zephyr
-          # An unmet Kconfig dependency only warns, so the step could be built without the SNTP
+          build=crux-controller/build/sntp/zephyr
+          # An unmet Kconfig dependency only warns, so the image could be built without the SNTP
           # library or without the network that it needs. Check what the build resolved, not what
           # the command line asked for, including the defaults of the settings.
-          for option in CONFIG_CRUX_CONTROLLER_S5=y CONFIG_CRUX_CONTROLLER_S2=y \
-              CONFIG_CRUX_CONTROLLER_S1=y CONFIG_SNTP=y CONFIG_CRUX_TIME=y CONFIG_NET_UDP=y \
+          for option in CONFIG_CRUX_CONTROLLER_SNTP=y CONFIG_CRUX_CONTROLLER_NET=y \
+              CONFIG_CRUX_CONTROLLER_WORKLOAD=y CONFIG_SNTP=y CONFIG_CRUX_TIME=y CONFIG_NET_UDP=y \
               CONFIG_NET_IPV4=y 'CONFIG_CRUX_CONTROLLER_TIME_SERVER="192.168.77.1"' \
               CONFIG_CRUX_CONTROLLER_TIME_INTERVAL_S=600 CONFIG_CRUX_CONTROLLER_TIME_TIMEOUT_MS=3000 \
               CONFIG_CRUX_CONTROLLER_TIME_STALE_AGE_S=1800 CONFIG_CRUX_CONTROLLER_TIME_THRESHOLD_MS=100 \
@@ -570,9 +570,9 @@ jobs:
           # Nothing else may own the clock or the time source: no RTC adapter of Crux Time, no
           # uncertainty option of the SNTP library (it changes the time that the library reports),
           # none of the network configuration library's own SNTP clock setters (a second writer of
-          # the clock), no other step, and no Crux Thread or Sync provider.
-          for option in CONFIG_CRUX_TIME_RTC=y CONFIG_SNTP_UNCERTAINTY=y CONFIG_CRUX_CONTROLLER_S3=y \
-              CONFIG_CRUX_CONTROLLER_S4=y CONFIG_CRUX_CONTROLLER_M3=y CONFIG_CRUX_THREAD=y \
+          # the clock), no other capability, and no Crux Thread or Sync provider.
+          for option in CONFIG_CRUX_TIME_RTC=y CONFIG_SNTP_UNCERTAINTY=y CONFIG_CRUX_CONTROLLER_FILE=y \
+              CONFIG_CRUX_CONTROLLER_SYSTEM=y CONFIG_CRUX_CONTROLLER_M3=y CONFIG_CRUX_THREAD=y \
               CONFIG_CRUX_SYNC=y CONFIG_NET_CONFIG_CLOCK_SNTP_INIT=y \
               CONFIG_NET_CONFIG_SNTP_INIT_RESYNC=y; do
             ! grep -qxF "$option" "$build/.config" || { echo "unexpected $option" >&2; exit 1; }
@@ -581,7 +581,7 @@ jobs:
         run: |
           nm=$(find "$ZEPHYR_SDK_INSTALL_DIR" -name 'arm-zephyr-eabi-nm' -type f | head -n 1)
           test -n "$nm" || { echo "no nm in the SDK" >&2; exit 1; }
-          "$nm" crux-controller/build/s5/zephyr/zephyr.elf > symbols.txt
+          "$nm" crux-controller/build/sntp/zephyr/zephyr.elf > symbols.txt
           # The policy, the glue, the adapter and the calls that the glue makes are linked. The
           # absence of other callers of the clock is checked in the sources by the tooling tests:
           # the Crux Time library and the SNTP library define the other authority and query calls
@@ -592,8 +592,8 @@ jobs:
             grep -qE " [Tt] ${symbol}$" symbols.txt || { echo "not linked: $symbol" >&2; exit 1; }
           done
 
-  s6:
-    name: S6 build (HTTPS management, native_sim and RT1060-EVKB)
+  management:
+    name: management build (HTTPS management, native_sim and RT1060-EVKB)
     runs-on: ubuntu-24.04
     env:
       BOARD: mimxrt1060_evk@B//qspi
@@ -660,50 +660,50 @@ jobs:
         run: |
           west sdk install --version "$SDK_VERSION" --install-base "$GITHUB_WORKSPACE/sdk" \
             --gnu-toolchains arm-zephyr-eabi --personal-access-token "$GH_TOKEN"
-      # The scenario is in a sibling of tests/native_sim, so the S1 job, which has no Mbed TLS
+      # The scenario is in a sibling of tests/native_sim, so the workload job, which has no Mbed TLS
       # modules, never selects it.
-      - name: Run the S6 scenario on native_sim
+      - name: Run the management scenario on native_sim
         env:
           ZEPHYR_BASE: ${{ github.workspace }}/zephyr
         run: |
           west twister -p native_sim/native/64 -T crux-controller/tests/native_sim_mbed \
-            --inline-logs --clobber-output -O twister-out-s6
+            --inline-logs --clobber-output -O twister-out-management
       - name: Check that the scenario ran and was not skipped
         run: |
           python - <<'PY'
           import json
 
-          report = json.load(open("twister-out-s6/twister.json"))
-          suites = [suite for suite in report["testsuites"] if "controller.s6.native_sim.https_management" in suite["name"]]
+          report = json.load(open("twister-out-management/twister.json"))
+          suites = [suite for suite in report["testsuites"] if "controller.management.native_sim.https_management" in suite["name"]]
           statuses = [case["status"] for suite in suites for case in suite["testcases"]]
           print([suite["name"] for suite in suites], statuses)
-          assert suites, "the S6 scenario is not in the Twister report"
+          assert suites, "the management scenario is not in the Twister report"
           assert statuses and all(status == "passed" for status in statuses), statuses
           assert len(statuses) == 10, statuses
           PY
-      - name: Cross-build S6 with the baseline gate required
+      - name: Cross-build management with the baseline gate required
         env:
           ZEPHYR_BASE: ${{ github.workspace }}/zephyr
         run: |
-          west build -p always -b '${{ env.BOARD }}' -d crux-controller/build/s6 \
+          west build -p always -b '${{ env.BOARD }}' -d crux-controller/build/management \
             crux-controller/app -- -DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON \
-            "-DEXTRA_CONF_FILE=conf/s1.conf;conf/s2.conf;conf/s6.conf" \
-            "-DEXTRA_DTC_OVERLAY_FILE=boards/s2.overlay;boards/s6.overlay"
+            "-DEXTRA_CONF_FILE=conf/workload.conf;conf/net.conf;conf/management.conf" \
+            "-DEXTRA_DTC_OVERLAY_FILE=boards/net.overlay;boards/management.overlay"
       - name: Check the outputs exist
         run: |
           for output in zephyr.bin zephyr.meta; do
-            test -f "crux-controller/build/s6/zephyr/$output" || {
+            test -f "crux-controller/build/management/zephyr/$output" || {
               echo "missing $output" >&2
               exit 1
             }
           done
-          echo "Built S6 for $BOARD. No flash, reset or hardware command was run."
-      - name: Check the resolved S6 configuration and devicetree
+          echo "Built management for $BOARD. No flash, reset or hardware command was run."
+      - name: Check the resolved management configuration and devicetree
         run: |
-          build=crux-controller/build/s6/zephyr
+          build=crux-controller/build/management/zephyr
           # An unmet Kconfig dependency only warns, so check what the build resolved, not what
           # the command line asked for.
-          for option in CONFIG_CRUX_CONTROLLER_S6=y CONFIG_CRUX_CONTROLLER_S2=y CONFIG_CRUX_CONTROLLER_S1=y \
+          for option in CONFIG_CRUX_CONTROLLER_MANAGEMENT=y CONFIG_CRUX_CONTROLLER_NET=y CONFIG_CRUX_CONTROLLER_WORKLOAD=y \
               CONFIG_CRUX_PSA_THREADING=y CONFIG_PSA_CRYPTO_PROVIDER_MBEDTLS=y CONFIG_MBEDTLS=y \
               CONFIG_CRUX_ACCESS=y CONFIG_CRUX_CONFIG_SERVICE=y CONFIG_CRUX_MGMT_STATUS=y \
               CONFIG_CRUX_TLS_CERTIFICATE=y CONFIG_CRUX_WEB=y CONFIG_CRUX_WEB_SESSION=y \
@@ -722,12 +722,12 @@ jobs:
           for option in CONFIG_CRUX_THREAD=y CONFIG_CRUX_SYNC=y; do
             grep -qxF "$option" "$build/.config" || { echo "missing $option" >&2; exit 1; }
           done
-          # No reboot, network, file service, SSH, command line, plain HTTP, other step, shell,
+          # No reboot, network, file service, SSH, command line, plain HTTP, other capability, shell,
           # card, test entropy or Settings File backend.
           for option in CONFIG_CRUX_REBOOT=y CONFIG_CRUX_NETWORK_SETTINGS=y CONFIG_CRUX_FILE_SERVICE=y \
               CONFIG_CRUX_SSH=y CONFIG_CRUX_CLI=y CONFIG_CRUX_CLI_CONSOLE=y \
               CONFIG_CRUX_WEB_PLAIN_HTTP_FOR_TESTS=y CONFIG_CRUX_DEVELOPMENT_IMAGE=y \
-              CONFIG_CRUX_CONTROLLER_S3=y CONFIG_CRUX_CONTROLLER_S4=y CONFIG_CRUX_CONTROLLER_M3=y \
+              CONFIG_CRUX_CONTROLLER_FILE=y CONFIG_CRUX_CONTROLLER_SYSTEM=y CONFIG_CRUX_CONTROLLER_M3=y \
               CONFIG_CRUX_SERIAL=y CONFIG_SHELL=y CONFIG_DISK_DRIVER_SDMMC=y \
               CONFIG_IMX_USDHC=y CONFIG_CRUX_FILE_FATFS_RT1060=y CONFIG_FS_FATFS_MOUNT_MKFS=y \
               CONFIG_TEST_RANDOM_GENERATOR=y CONFIG_FAKE_ENTROPY_NATIVE_SIM=y \
@@ -743,7 +743,7 @@ jobs:
         run: |
           nm=$(find "$ZEPHYR_SDK_INSTALL_DIR" -name 'arm-zephyr-eabi-nm' -type f | head -n 1)
           test -n "$nm" || { echo "no nm in the SDK" >&2; exit 1; }
-          "$nm" crux-controller/build/s6/zephyr/zephyr.elf > symbols.txt
+          "$nm" crux-controller/build/management/zephyr/zephyr.elf > symbols.txt
           for symbol in management_port_start management_address_parse storage_port_bind_store \
               crux_web_start crux_tls_certificate_start crux_tls_certificate_material_take \
               tls_credential_add crux_access_init crux_credential_start crux_security_event_start \
@@ -879,8 +879,8 @@ jobs:
             exit 2
           fi
 
-  s0:
-    name: S0 build (RT1060-EVKB)
+  base:
+    name: base build (RT1060-EVKB)
     runs-on: ubuntu-24.04
     env:
       BOARD: mimxrt1060_evk@B//qspi

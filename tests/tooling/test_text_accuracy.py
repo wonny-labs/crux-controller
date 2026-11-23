@@ -30,10 +30,10 @@ class ScriptsRow(unittest.TestCase):
 
 
 class ModuleSwitchComment(unittest.TestCase):
-    """app/conf/s3.conf says why it does not repeat CONFIG_CRUX_MODULE."""
+    """app/conf/file.conf says why it does not repeat CONFIG_CRUX_MODULE."""
 
     def test_the_comment_does_not_claim_that_prj_conf_sets_it(self):
-        text = (ROOT / "app" / "conf" / "s3.conf").read_text()
+        text = (ROOT / "app" / "conf" / "file.conf").read_text()
         self.assertNotIn("prj.conf keeps it on", text)
         self.assertTrue((ROOT / "app" / "prj.conf").is_file())
         prj = (ROOT / "app" / "prj.conf").read_text()
@@ -42,7 +42,7 @@ class ModuleSwitchComment(unittest.TestCase):
 
     def test_the_comment_gives_the_real_reason(self):
         header = "\n".join(
-            line for line in (ROOT / "app" / "conf" / "s3.conf").read_text().splitlines()
+            line for line in (ROOT / "app" / "conf" / "file.conf").read_text().splitlines()
             if line.startswith("#")
         )
         flat = " ".join(header.replace("# ", " ").split())

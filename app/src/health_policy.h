@@ -3,10 +3,10 @@
 #define HEALTH_POLICY_H
 
 /*
- * The product's policy for step S4: what a reset cause means at boot, how long the watchdog
- * interval is, and what a refused feed leads to. Plain C with ISO C includes only, so the policy
- * builds and is tested on the host with no Crux or Zephyr header. health.c is the one file that
- * reads the cause, starts the watchdog and feeds it through <crux/system.h>, and it asks this
+ * The product's policy for the system capability: what a reset cause means at boot, how long the
+ * watchdog interval is, and what a refused feed leads to. Plain C with ISO C includes only, so the
+ * policy builds and is tested on the host with no Crux or Zephyr header. health.c is the one file
+ * that reads the cause, starts the watchdog and feeds it through <crux/system.h>, and it asks this
  * policy what to do.
  *
  * Crux System reports mechanisms only: it names no health verdict and no recovery. These rules are

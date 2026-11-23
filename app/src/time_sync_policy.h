@@ -3,11 +3,11 @@
 #define TIME_SYNC_POLICY_H
 
 /*
- * The product's policy for step S5: when an answer from an SNTP server may set the clock of Crux
- * Time, and when Crux has to be told that its time is no longer synchronised. Plain C with ISO C
- * includes only, so the policy builds and is tested on the host with no Crux or Zephyr header.
- * time_sync.c is the one file that reads the Crux Time snapshot and calls the Crux Time authority
- * through <crux/time_authority.h>, and it asks this policy what to do.
+ * The product's policy for the sntp capability: when an answer from an SNTP server may set the
+ * clock of Crux Time, and when Crux has to be told that its time is no longer synchronised. Plain C
+ * with ISO C includes only, so the policy builds and is tested on the host with no Crux or Zephyr
+ * header. time_sync.c is the one file that reads the Crux Time snapshot and calls the Crux Time
+ * authority through <crux/time_authority.h>, and it asks this policy what to do.
  *
  * Crux Time reports mechanisms only. It states that staleness and source policy belong to the
  * application, so these rules are the product's own: conservative defaults for this synthetic

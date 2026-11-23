@@ -1,0 +1,39 @@
+/* The management capability: the RAM disk of the management image, and the watchdog that Crux System owns.
+ *
+ * The file backend is a FatFs volume on a RAM disk of 524,288 bytes in the SDRAM, which holds all
+ * RAM of this board configuration. It is zero at every start, so nothing survives a reset. The
+ * composition zone mounts and formats it through the devicetree entry controller_storage, the
+ * same entry that file declares for the microSD card, and creates the directories of the store.
+ *
+ * Crux System needs the alias crux-watchdog0 and an enabled node for the RT1060's WDOG1, as in
+ * boards/system.overlay, because the status service reads System; the image never arms the watchdog.
+ *
+ * Used only by the management image, through EXTRA_DTC_OVERLAY_FILE after boards/net.overlay, which sets
+ * the Ethernet composition. The logging UART comes from
+ * boards/mimxrt1060_evk_mimxrt1062_qspi.overlay. It is configuration, not code.
+ */
+/ {
+    aliases {
+        crux-watchdog0 = &wdog0;
+    };
+
+    ramdisk0 {
+        compatible = "zephyr,ram-disk";
+        disk-name = "RAM";
+        sector-size = <512>;
+        sector-count = <1024>;
+    };
+
+    fstab {
+        compatible = "zephyr,fstab";
+        controller_storage: controller-storage {
+            compatible = "zephyr,fstab,fatfs";
+            mount-point = "/RAM:";
+            disk-access;
+        };
+    };
+};
+
+&wdog0 {
+    status = "okay";
+};

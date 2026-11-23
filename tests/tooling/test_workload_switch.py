@@ -2,7 +2,7 @@
 """Checks that the workload's build switch belongs to the product, not to a Crux provider.
 
 The workload runs on Zephyr threads and a message queue behind the adapter zone app/os, so the
-build keys on the product's own Kconfig symbol CONFIG_CRUX_CONTROLLER_S1. No file of the product
+build keys on the product's own Kconfig symbol CONFIG_CRUX_CONTROLLER_WORKLOAD. No file of the product
 selects, depends on or tests the Crux Thread, Sync or Queue providers, and the worker stack size of
 every step is the number that it was before the switch moved.
 """
@@ -66,20 +66,20 @@ def worker_stack(*fragments):
     """The stack bytes of each workload thread in an image built from these fragments, or None
     when the image has no workload."""
     options = resolved(*fragments)
-    if options.get("CONFIG_CRUX_CONTROLLER_S1") != "y":
+    if options.get("CONFIG_CRUX_CONTROLLER_WORKLOAD") != "y":
         return None
     return int(options.get("CONFIG_CRUX_CONTROLLER_WORKER_STACK", kconfig_default("CRUX_CONTROLLER_WORKER_STACK")))
 
 
 class ProductSymbol(unittest.TestCase):
     def test_the_product_defines_the_workload_symbol(self):
-        block = kconfig_block("CRUX_CONTROLLER_S1")
+        block = kconfig_block("CRUX_CONTROLLER_WORKLOAD")
         self.assertIn("bool", block)
         self.assertIn("MULTITHREADING", block)
 
     def test_the_symbol_asks_for_the_64_bit_timeouts_that_the_providers_used_to_select(self):
         # The adapter builds absolute deadlines. Crux Thread and Crux Queue selected this option.
-        self.assertRegex(kconfig_block("CRUX_CONTROLLER_S1"),
+        self.assertRegex(kconfig_block("CRUX_CONTROLLER_WORKLOAD"),
                          re.compile(r"^\s*select TIMEOUT_64BIT\s*$", re.M))
 
     def test_app_kconfig_names_no_provider_symbol(self):
@@ -88,11 +88,11 @@ class ProductSymbol(unittest.TestCase):
             self.assertIsNone(provider_option(name).search(text), name)
 
     def test_the_later_steps_and_the_stack_option_depend_on_the_workload_symbol(self):
-        self.assertIn("depends on CRUX_CONTROLLER_S1 && CRUX_SOCKETS && CRUX_NETIF",
-                      kconfig_block("CRUX_CONTROLLER_S2"))
-        self.assertIn("depends on CRUX_CONTROLLER_S1 && CRUX_FILE_FATFS_RT1060",
-                      kconfig_block("CRUX_CONTROLLER_S3"))
-        self.assertIn("depends on CRUX_CONTROLLER_S1", kconfig_block("CRUX_CONTROLLER_WORKER_STACK"))
+        self.assertIn("depends on CRUX_CONTROLLER_WORKLOAD && CRUX_SOCKETS && CRUX_NETIF",
+                      kconfig_block("CRUX_CONTROLLER_NET"))
+        self.assertIn("depends on CRUX_CONTROLLER_WORKLOAD && CRUX_FILE_FATFS_RT1060",
+                      kconfig_block("CRUX_CONTROLLER_FILE"))
+        self.assertIn("depends on CRUX_CONTROLLER_WORKLOAD", kconfig_block("CRUX_CONTROLLER_WORKER_STACK"))
 
     def test_the_stack_option_keeps_the_range_that_the_provider_option_imposed(self):
         # The old BUILD_ASSERT kept this option equal to CRUX_THREAD_STACK_BYTES, whose range is
@@ -111,21 +111,21 @@ class ProductSymbol(unittest.TestCase):
 class BuildFiles(unittest.TestCase):
     def test_the_application_build_keys_on_the_product_symbol(self):
         text = without_hash_comments(APP / "CMakeLists.txt")
-        self.assertRegex(text, re.compile(r"^if\(CONFIG_CRUX_CONTROLLER_S1\)", re.M))
+        self.assertRegex(text, re.compile(r"^if\(CONFIG_CRUX_CONTROLLER_WORKLOAD\)", re.M))
         for name in PROVIDER_SYMBOLS:
             self.assertNotIn(f"CONFIG_{name}", text)
 
     def test_the_workload_blocks_of_the_application_stay_inside_the_switch(self):
         text = without_hash_comments(APP / "CMakeLists.txt")
-        start = text.index("if(CONFIG_CRUX_CONTROLLER_S1)")
+        start = text.index("if(CONFIG_CRUX_CONTROLLER_WORKLOAD)")
         for needle in ("add_subdirectory(../workload", "add_subdirectory(os)",
-                       "src/workload_thread.c", "if(CONFIG_CRUX_CONTROLLER_S2)",
-                       "if(CONFIG_CRUX_CONTROLLER_S3)"):
+                       "src/workload_thread.c", "if(CONFIG_CRUX_CONTROLLER_NET)",
+                       "if(CONFIG_CRUX_CONTROLLER_FILE)"):
             self.assertGreater(text.index(needle), start, needle)
 
     def test_the_composition_keys_on_the_product_symbol(self):
         text = c_code(APP / "src" / "composition.c")
-        self.assertEqual(2, len(re.findall(r"#ifdef CONFIG_CRUX_CONTROLLER_S1\b", text)))
+        self.assertEqual(2, len(re.findall(r"#ifdef CONFIG_CRUX_CONTROLLER_WORKLOAD\b", text)))
         for name in PROVIDER_SYMBOLS:
             self.assertNotIn(f"CONFIG_{name}", text)
 
@@ -151,7 +151,7 @@ class BuildFiles(unittest.TestCase):
             "if(CONFIG_CRUX_THREAD)",
         ):
             self.assertIsNotNone(pattern.search(text), text)
-        for text in ("CONFIG_CRUX_THREADX=y", "CONFIG_CRUX_CONTROLLER_S1=y", "XCONFIG_CRUX_THREAD=y"):
+        for text in ("CONFIG_CRUX_THREADX=y", "CONFIG_CRUX_CONTROLLER_WORKLOAD=y", "XCONFIG_CRUX_THREAD=y"):
             self.assertIsNone(pattern.search(text), text)
         # The pattern of the old test, kept to show what it missed.
         self.assertIsNone(re.search(r"\bCONFIG_CRUX_THREAD\b", "CONFIG_CRUX_THREAD_STACK_BYTES=8192"))
@@ -164,7 +164,7 @@ class Confs(unittest.TestCase):
         )
 
     def test_the_workload_conf_selects_the_product_symbol(self):
-        self.assertEqual("y", conf_options(CONF / "s1.conf").get("CONFIG_CRUX_CONTROLLER_S1"))
+        self.assertEqual("y", conf_options(CONF / "workload.conf").get("CONFIG_CRUX_CONTROLLER_WORKLOAD"))
 
     def test_no_conf_of_the_product_selects_a_provider_the_product_no_longer_uses(self):
         for path in self.fragments():
@@ -176,44 +176,44 @@ class Confs(unittest.TestCase):
                     )
 
     def test_the_skeleton_step_has_no_workload(self):
-        self.assertNotIn("CONFIG_CRUX_CONTROLLER_S1", conf_options(APP / "prj.conf"))
+        self.assertNotIn("CONFIG_CRUX_CONTROLLER_WORKLOAD", conf_options(APP / "prj.conf"))
         self.assertIsNone(worker_stack(APP / "prj.conf"))
 
     def test_the_scenario_asks_for_64_bit_timeouts_itself(self):
         # It builds the adapter without app/Kconfig, so the product symbol cannot select it.
-        options = conf_options(ROOT / "tests" / "native_sim" / "s1" / "prj.conf")
+        options = conf_options(ROOT / "tests" / "native_sim" / "workload" / "prj.conf")
         self.assertEqual("y", options.get("CONFIG_TIMEOUT_64BIT"))
 
 
 class EffectiveWorkerStack(unittest.TestCase):
     """The stack bytes of each workload thread, per step, as they were before the switch moved:
-    4096 where nothing sets the option (S1, S3, the scenario) and 8192 in S2."""
+    4096 where nothing sets the option (workload, file, the scenario) and 8192 in net."""
 
     PROJECT = APP / "prj.conf"
 
-    def test_s1_builds_4096_byte_stacks(self):
-        self.assertEqual(4096, worker_stack(self.PROJECT, CONF / "s1.conf"))
+    def test_workload_builds_4096_byte_stacks(self):
+        self.assertEqual(4096, worker_stack(self.PROJECT, CONF / "workload.conf"))
 
-    def test_s2_builds_8192_byte_stacks(self):
-        self.assertEqual(8192, worker_stack(self.PROJECT, CONF / "s1.conf", CONF / "s2.conf"))
+    def test_net_builds_8192_byte_stacks(self):
+        self.assertEqual(8192, worker_stack(self.PROJECT, CONF / "workload.conf", CONF / "net.conf"))
 
-    def test_s3_builds_4096_byte_stacks(self):
-        self.assertEqual(4096, worker_stack(self.PROJECT, CONF / "s1.conf", CONF / "s3.conf"))
+    def test_file_builds_4096_byte_stacks(self):
+        self.assertEqual(4096, worker_stack(self.PROJECT, CONF / "workload.conf", CONF / "file.conf"))
 
     def test_the_scenario_uses_the_adapter_default_and_it_equals_the_product_default(self):
         # No app/Kconfig in the scenario: the adapter's fallback applies.
         self.assertNotIn("CONFIG_CRUX_CONTROLLER_WORKER_STACK",
-                         conf_options(ROOT / "tests" / "native_sim" / "s1" / "prj.conf"))
+                         conf_options(ROOT / "tests" / "native_sim" / "workload" / "prj.conf"))
         adapter = c_code(APP / "os" / "workload_os_zephyr.c")
         fallback = int(re.search(r"#define WORKLOAD_OS_STACK_DEFAULT_BYTES (\d+)", adapter).group(1))
         self.assertEqual(4096, fallback)
         self.assertEqual(fallback, kconfig_default("CRUX_CONTROLLER_WORKER_STACK"))
 
-    def test_the_default_is_4096_and_s2_is_the_only_override(self):
+    def test_the_default_is_4096_and_net_is_the_only_override(self):
         self.assertEqual(4096, kconfig_default("CRUX_CONTROLLER_WORKER_STACK"))
         for path in sorted(CONF.glob("*.conf")):
             has = "CONFIG_CRUX_CONTROLLER_WORKER_STACK" in conf_options(path)
-            self.assertEqual(path.name == "s2.conf", has, path.name)
+            self.assertEqual(path.name == "net.conf", has, path.name)
 
 
 if __name__ == "__main__":

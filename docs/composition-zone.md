@@ -1,7 +1,7 @@
 # The composition zone
 
 Status: a rule of the boundary check. "Composition" has four meanings; see the
-[glossary](glossary.md#product-platform-and-composition). Step S3 (File) is its first user: `app/compose/storage_mount.c`
+[glossary](glossary.md#product-platform-and-composition). `file` (Crux File) uses it: `app/compose/storage_mount.c`
 implements the port `app/src/storage_port.h`. The check skips each absent tree, as long as at least one of the four exists, so an image
 without the zone has no zone to check. It fails when none exists, which means
 that it was run from the wrong directory (see [Running the check](#running-the-check)). The zone also admits the headers that the HTTPS management
@@ -108,9 +108,9 @@ Left off on purpose, and why:
 | Header | Why it is not on the list |
 |---|---|
 | `zephyr/storage/disk_access.h` | `disk_access_init` only tells a missing card from a failed mount. `fs_mount` reports both, and a product that must tell them apart can ask for the header in a reviewed change. |
-| `ff.h` | The FatFs library header. Every reference composition in Crux includes it to declare a `FATFS` object. A mount that the devicetree describes as `zephyr,fstab,fatfs` makes Zephyr declare that object, so the zone does not need the header. Whether that route works for the S3 composition is a question of step S3, which records its answer in its own findings note. |
+| `ff.h` | The FatFs library header. Every reference composition in Crux includes it to declare a `FATFS` object. A mount that the devicetree describes as `zephyr,fstab,fatfs` makes Zephyr declare that object, so the zone does not need the header. Whether that route works for the `file` composition is a question of `file`, which records its answer in its findings note. |
 | `zephyr/kernel.h`, `zephyr/sys/printk.h`, `zephyr/logging/log.h` | The composition returns a result code. The application logs through Crux Logging and runs its threads through the adapter zone `app/os`. `zephyr/kernel.h` is allowed in the adapter zone `app/os` and stays off this list, see [The adapter zone](#the-adapter-zone). `zephyr/net/sntp.h` is also allowed only in the adapter zone `app/os` and stays off this list, see [The adapter zone](#the-adapter-zone). |
-| `zephyr/fs/littlefs.h`, `zephyr/fs/fs_sys.h` | Provider and file system specifics that S3 does not select. |
+| `zephyr/fs/littlefs.h`, `zephyr/fs/fs_sys.h` | Provider and file system specifics that `file` does not select. |
 | `zephyr/drivers/*`, other `zephyr/net/*` headers (`zephyr/net/socket.h`, `zephyr/net/http/*`, `zephyr/net/net_if.h` and the rest), vendor `fsl_*.h` | Not part of binding a file system or the web server. A driver or network detail in the zone would be a second product layer, not a composition. `zephyr/net/tls_credentials.h` is the one network header on the list. |
 
 A change to the list is a change of `scripts/check_boundary.py`, of
@@ -120,7 +120,7 @@ page, in one reviewed pull request.
 ## The web composition
 
 The HTTPS management interface (Mbed profile) is composed in `app/compose`, as File is, by
-`management_start.c` (step S6). The reason is that Crux publishes its binding to the Zephyr HTTP server as a composition interface:
+`management_start.c` (`management`). The reason is that Crux publishes its binding to the Zephyr HTTP server as a composition interface:
 `<crux/web_zephyr.h>` with the CMake target `crux::web_zephyr`. It declares `crux_web_start()`,
 which binds the web core to Zephyr's HTTP server, its sockets and the TLS security tag, so only the
 platform composition of a product calls it. That is the same reason as for `<crux/file_zephyr.h>`,
@@ -136,7 +136,7 @@ Crux private or port headers and on any other composition interface. The portabl
 (`<crux/web.h>`, `<crux/web_session.h>`, `<crux/web_management.h>`), `<crux/tls_certificate.h>`
 and `<crux/tls_certificate_start.h>` are ordinary public headers. `app/src`, `app/os` and `workload` fail on
 `<crux/web_zephyr.h>` and on `zephyr/net/tls_credentials.h`.
-Step S6 is the composition source that uses them: `app/compose/management_start.c` includes the Zephyr and
+`management` is the composition source that uses them: `app/compose/management_start.c` includes the Zephyr and
 composition headers named above, and no other entry is needed for it. The route sources, the packaged
 page and the route table are not in the zone: they belong to the target `app` and are named by
 `app/management/management.cmake`, which Crux's route function equips with the private include directories of
@@ -195,7 +195,7 @@ Sockets profile headers and every other network header still fail there. The che
 includes only, so this relies on the zone not including socket headers itself, which the rule
 continues to forbid; a header that the library header includes in turn is not an include of the
 zone. The allow-list entry allows the include and nothing else. The one source that uses it is
-`app/os/time_sync_zephyr.c` (step S5), which calls `sntp_simple()` and nothing else of the library.
+`app/os/time_sync_zephyr.c` (`sntp`), which calls `sntp_simple()` and nothing else of the library.
 
 Why `zephyr/kernel.h` is not on the composition zone's list: that zone exists to mount a file system
 and bind it to Crux, and `COMPOSITION_ZEPHYR_HEADERS` names only what that and the web composition
@@ -209,9 +209,9 @@ set) and of this page, in one pull request.
 
 The same limit applies as for the composition zone: the check reads includes only, so the adapter
 zone adds no include path to the application target. The tree `app/os` holds two sources,
-`workload_os_zephyr.c` (every step) and `time_sync_zephyr.c` (step S5 only), which its `CMakeLists.txt` adds to
+`workload_os_zephyr.c` (every configuration) and `time_sync_zephyr.c` (`sntp` only), which its `CMakeLists.txt` adds to
 the application target. The zone is not a library of its own: as a static library it left the references to the
-kernel's message queue unresolved in the CI link of the S1 and S3 images. `tests/tooling/test_os_adapter.py` checks that the zone adds no include path
+kernel's message queue unresolved in the CI link of the `workload` and `file` images. `tests/tooling/test_os_adapter.py` checks that the zone adds no include path
 and no library, and that the application target links neither a zone library nor Crux Thread nor Crux
 Queue.
 
@@ -225,9 +225,8 @@ contracts back. The rule is a field of the `Rule` of each of the two trees. It d
 `workload`, which has no Crux header at all, and it does not change `app/compose`. Adding or removing a
 name is a reviewed change of the script, of `tests/tooling/test_boundary.py` and of this page.
 
-`<crux/queue.h>` was the fourth name on the list. The pinned Crux no longer publishes it (Crux Queue
-and `CONFIG_CRUX_QUEUE` were removed), so it left the list, and the CI option checks no longer look for
-`CONFIG_CRUX_QUEUE`. An include of it still fails: with `--crux-root`, which CI always passes, a
+`<crux/queue.h>` is not on the list: the pinned Crux does not publish it and has no `CONFIG_CRUX_QUEUE`,
+so the CI option checks do not look for that option. An include of it fails all the same: with `--crux-root`, which CI always passes, a
 `<crux/NAME.h>` that the checkout does not publish fails in every tree, the composition zone included,
 and the product include check refuses it in every source of the repository.
 `tests/tooling/test_boundary.py` (`RemovedCruxQueue`) checks the first. Without `--crux-root` the name
@@ -238,7 +237,7 @@ passes the shape test, as any unknown `<crux/NAME.h>` does (see [Running the che
 - The CMake side. The check reads includes only and does not see include paths from CMake. The
   composition zone is built as its own library (`app/compose/CMakeLists.txt`) that links `crux::file_zephyr`
   privately, so the application target gets no include path from it. `tests/tooling/test_boundary.py`
-  keeps checking that `app/CMakeLists.txt` adds none, and `tests/tooling/test_s3.py` checks that
+  keeps checking that `app/CMakeLists.txt` adds none, and `tests/tooling/test_file.py` checks that
   only the composition zone's library links the composition interface and that the zone adds no
   include path.
 - Whether a mount works. The check does not run anything.

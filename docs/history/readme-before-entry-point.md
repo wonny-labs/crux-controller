@@ -67,7 +67,7 @@ Then take the page for your task:
 
 - To make a first change, with a small example from branch to pull request:
   [docs/first-change.md](../first-change.md).
-- To add a step: [docs/adding-a-step.md](../adding-a-step.md).
+- To add a step: [docs/adding-a-step.md](../adding-a-capability.md).
 - To review a change: [docs/reviewing.md](../reviewing.md).
 - For what the checks and tests do not cover: [known limits](../README.md#known-limits-not-scheduled).
 - To keep a copy of this repository in your own repository: [docs/team-copy.md](team-copy.md).
@@ -170,7 +170,7 @@ Nothing else has run on a board.
 | S6 | Management over HTTPS on the S2 network: Crux Access, the web server on the Mbed TLS profile, the status and configuration services and a packaged page, on a RAM disk (no account, so no login) | yes, one image of ten cases with an in-process TLS client; no successful login, fake entropy | yes, on the S2 base, with the Mbed TLS group switched on in the job's own runner | not run |
 
 Every step is checked against its declared resource limits (`budgets/limits.json`, placeholders). The static
-sizes that CI reads for each step are in [docs/roadmap.md](../roadmap.md#static-size-per-step).
+sizes that CI reads for each step are in [docs/roadmap.md](../roadmap.md#static-size-per-configuration).
 
 The findings record what each step taught and what the board runs show:
 
@@ -228,7 +228,7 @@ says what each pinned project is for and under which licence it states it is dis
 ### How it is tracked
 
 These documents call S3 a Stage 1 step and S4 a Stage 2 step; they do not place S5. The stage is a
-planning label, not a property of the code ([glossary](../glossary.md#steps-and-stages)).
+planning label, not a property of the code ([glossary](../glossary.md#capabilities-and-build-configurations)).
 Stage 2 steps and their findings are tracked in this repository's own issues: the epic #44 and its children #40 (the management finding), #41 (S4), #42 and #43. Earlier findings are recorded in `docs/findings/`. These numbers are issues of the public GitHub repository, and their open or closed state can lag
 behind the code: the documents and the CI checks of a commit are the reference for what exists. The pull request that added step S5 is
 [pull request 50](https://github.com/wonny-labs/crux-controller/pull/50) of that repository. Nothing has been

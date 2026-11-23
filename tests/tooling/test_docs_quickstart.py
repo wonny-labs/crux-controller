@@ -243,7 +243,7 @@ class Structure(Page):
         titles = [title for _, title, _ in headings(self.text)]
         self.assertNotIn("Why the evidence comes from CI", titles)
         native_titles = [title for _, title, _ in headings(self.native)]
-        for earlier in ("Run the S1 to S5 scenarios", "Run the host tests",
+        for earlier in ("Run the `workload` to `sntp` scenarios", "Run the host tests",
                         "Run the tooling tests and the boundary check", "If something fails"):
             self.assertIn(earlier, native_titles, earlier)
         self.assertIn("why-the-evidence-comes-from-ci", anchors(read(ROOT / "docs" / "architecture.md")))
@@ -288,7 +288,7 @@ class Structure(Page):
     def test_the_headings_that_other_files_link_to_still_exist(self):
         for anchor in ("dev-container", "set-up-the-dev-container"):
             self.assertIn(anchor, anchors(self.text))
-        for anchor in ("what-you-need-first", "run-the-s1-to-s5-scenarios"):
+        for anchor in ("what-you-need-first", "run-the-workload-to-sntp-scenarios"):
             self.assertIn(anchor, anchors(self.native))
         for anchor in ("commands-inside-the-container", "behind-a-proxy-or-with-a-company-certificate", "layout"):
             self.assertIn(anchor, anchors(self.ref))
@@ -334,8 +334,8 @@ class QuickStart(Page):
         self.assertIn("-w /workspaces/ws/crux-controller", self.shell)
         container_job = norm(read(WORKFLOWS / "devcontainer.yml"))
         self.assertIn("cd /workspaces/ws " + ONE_SHOT_TWISTER, container_job)
-        ci_steps = yaml.safe_load(read(WORKFLOWS / "ci.yml"))["jobs"]["s1"]["steps"]
-        ci_run = [step["run"] for step in ci_steps if step.get("name") == "Run the S1 scenario on native_sim"]
+        ci_steps = yaml.safe_load(read(WORKFLOWS / "ci.yml"))["jobs"]["workload"]["steps"]
+        ci_run = [step["run"] for step in ci_steps if step.get("name") == "Run the workload scenario on native_sim"]
         self.assertEqual([ONE_SHOT_TWISTER], [norm(run) for run in ci_run])
 
     def test_the_tooling_tests_run_through_the_script_as_the_container_job_runs_them(self):
@@ -345,8 +345,8 @@ class QuickStart(Page):
                       norm(read(WORKFLOWS / "devcontainer.yml")))
 
     def test_one_scenario_has_a_command_and_its_directory_exists(self):
-        self.assertIn("-T crux-controller/tests/native_sim/s1", self.tutorial)
-        self.assertTrue((ROOT / "tests" / "native_sim" / "s1" / "testcase.yaml").is_file())
+        self.assertIn("-T crux-controller/tests/native_sim/workload", self.tutorial)
+        self.assertTrue((ROOT / "tests" / "native_sim" / "workload" / "testcase.yaml").is_file())
 
     def test_the_quick_start_says_where_the_outputs_are(self):
         self.assertIn("twister-out", self.tutorial)
@@ -369,7 +369,7 @@ class Counts(NativePage):
         self.assertIn("17 of 17 executed test configurations passed", self.text)
         self.assertIn("31 of 31 executed test cases passed", self.text)
 
-    def test_the_s6_directory_has_one_configuration_and_ten_test_cases(self):
+    def test_the_management_directory_has_one_configuration_and_ten_test_cases(self):
         self.assertEqual(1, len(testcase_ids(ROOT / "tests" / "native_sim_mbed")))
         self.assertEqual(10, ztest_count(ROOT / "tests" / "native_sim_mbed"))
         self.assertIn("1 of 1 executed test configurations passed", self.text)
@@ -587,7 +587,7 @@ class CarriageReturnScan(unittest.TestCase):
             root = pathlib.Path(directory)
             (root / "lf.txt").write_bytes(b"one\n")
             (root / "crlf.txt").write_bytes(b"one\r\n")
-            for folder in (".hidden", "build", "__pycache__", ".pytest_cache", "twister-out-s1", ".venv"):
+            for folder in (".hidden", "build", "__pycache__", ".pytest_cache", "twister-out-workload", ".venv"):
                 (root / folder).mkdir()
                 (root / folder / "f.txt").write_bytes(b"\r\n")
             (root / "mod.pyc").write_bytes(b"\r\n")
@@ -712,10 +712,10 @@ class Troubleshooting(unittest.TestCase):
             "scripts/analyze_host.py": ("cannot run cmake", "Not analysed",
                                         "is version", "cannot run"),
             "scripts/check_spdx.py": ("needs the first line",),
-            "budgets/check.py": ("unknown step, no limits are declared for it",
+            "budgets/check.py": ("unknown build configuration, no limits are declared for it",
                                  "measured but no limit is declared",
                                  "a limit is declared but the region was not measured"),
-            ".github/workflows/budget.yml": ("the step was not built",),
+            ".github/workflows/budget.yml": ("the capability was not built",),
             "scripts/dev-shell.sh": ("the clone must be in a folder named crux-controller",),
             ".devcontainer/setup.sh": ("the clone is in a folder named", "looks like a home directory",
                                        "failed during", "which is not a readable file",
@@ -757,7 +757,7 @@ class Troubleshooting(unittest.TestCase):
         self.assertIn(strong, norm(read(WORKFLOWS / "ci.yml")))
 
     def test_the_doc_pinned_tests_it_names_exist(self):
-        for name in ("test_text_accuracy.py", "test_s4.py", "test_s5.py", "test_s6.py"):
+        for name in ("test_text_accuracy.py", "test_system.py", "test_sntp.py", "test_management.py"):
             self.assertIn(name, self.text)
             self.assertTrue((ROOT / "tests" / "tooling" / name).is_file(), name)
 
@@ -773,7 +773,7 @@ class Troubleshooting(unittest.TestCase):
         for workflow in ("ci.yml", "budget.yml", "devcontainer.yml"):
             names += [job["name"] for job in yaml.safe_load(read(WORKFLOWS / workflow))["jobs"].values()]
         quoted = ("Tooling tests", "Static analysis", "Patch style", "Boundary check", "West pins", "Budget",
-                  "Dev container", "S1", "S2 build")
+                  "Dev container", "workload", "net build")
         for job in quoted:
             self.assertIn(f"`{job}`", guide)
             self.assertTrue(any(name.startswith(job) for name in names), job)
@@ -782,7 +782,7 @@ class Troubleshooting(unittest.TestCase):
         self.assertIn("PEP 668", self.text)
         self.assertIn("externally-managed-environment", self.text)
         self.assertIn("-Werror=enum-compare", self.text)
-        self.assertIn("-Werror=enum-compare", read(ROOT / "docs" / "adding-a-step.md"))
+        self.assertIn("-Werror=enum-compare", read(ROOT / "docs" / "adding-a-capability.md"))
 
     def test_the_text_has_no_private_planning_reference(self):
         self.assertIsNone(re.search(r"\b(?:OD|WD)[0-9]+\b|skeleton plan|work package", self.text, re.I))

@@ -267,7 +267,7 @@ class CiJobTable(unittest.TestCase):
     def test_the_row_names_every_job_of_ci_yml(self):
         row = ci_row()
         for job_id, job in self.jobs.items():
-            # The row shortens a name to its first words: "S1 (native_sim and ...)" is `S1`.
+            # The row shortens a name to its first words: "workload (native_sim and ...)" is `workload`.
             short = job["name"].split(" (")[0]
             self.assertIn(f"`{short}`", row, job_id)
 

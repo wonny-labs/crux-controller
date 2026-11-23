@@ -93,36 +93,36 @@ jobs:
         run: |
           west sdk install --version "$SDK_VERSION" --install-base "$GITHUB_WORKSPACE/sdk" \
             --gnu-toolchains arm-zephyr-eabi --personal-access-token "$GH_TOKEN"
-      - name: Build the S2 image with the baseline gate required
+      - name: Build the net image with the baseline gate required
         working-directory: ${{ env.FRESH }}
         env:
           ZEPHYR_BASE: ${{ env.FRESH }}/zephyr
         run: |
           python crux-pilot/scripts/record-build-provenance.py --repo crux-controller \
             --workspace . --capture-inputs crux-controller/build/inputs.json
-          west spdx --init -d crux-controller/build/s2
-          west build -p always -b "$BOARD" -d crux-controller/build/s2 \
+          west spdx --init -d crux-controller/build/net
+          west build -p always -b "$BOARD" -d crux-controller/build/net \
             crux-controller/app -- -DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON \
-            "-DEXTRA_CONF_FILE=conf/s1.conf;conf/s2.conf" \
-            "-DEXTRA_DTC_OVERLAY_FILE=boards/s2.overlay"
-          west build -d crux-controller/build/s2 -t rom_report
-          west build -d crux-controller/build/s2 -t ram_report
+            "-DEXTRA_CONF_FILE=conf/workload.conf;conf/net.conf" \
+            "-DEXTRA_DTC_OVERLAY_FILE=boards/net.overlay"
+          west build -d crux-controller/build/net -t rom_report
+          west build -d crux-controller/build/net -t ram_report
           python crux-pilot/scripts/record-build-provenance.py --repo crux-controller \
-            --workspace . --build-dir crux-controller/build/s2 --target "$BOARD" \
+            --workspace . --build-dir crux-controller/build/net --target "$BOARD" \
             --inputs crux-controller/build/inputs.json
-          west spdx -d crux-controller/build/s2
+          west spdx -d crux-controller/build/net
       - name: Parse the west spdx output
         run: |
           # Answers whether the SPDX files that west spdx wrote parse as tag-value
           # SPDX 2.3 and have the document header fields. Prints the package count of
           # each document. Reads the files in place: nothing is copied or uploaded.
           set -o pipefail
-          python crux-controller/release/parse_spdx.py --dir "$FRESH/crux-controller/build/s2/spdx" \
+          python crux-controller/release/parse_spdx.py --dir "$FRESH/crux-controller/build/net/spdx" \
             | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Assemble the bundle
         run: |
           python crux-controller/release/assemble_bundle.py \
-            --build-dir "$FRESH/crux-controller/build/s2" \
+            --build-dir "$FRESH/crux-controller/build/net" \
             --lock west.frozen.yml --pins-report pins-report.txt \
             --out-dir bundle \
             --product-version "$PRODUCT_VERSION" --security-counter "$SECURITY_COUNTER" \
@@ -140,8 +140,8 @@ jobs:
           rm -rf extended
           cp -r bundle extended
           mkdir extended/spdx
-          cp "$FRESH/crux-controller/build/s2/spdx/"*.spdx extended/spdx/ 2>/dev/null || true
-          cp "$FRESH/crux-controller/build/s2/provenance.json" extended/ 2>/dev/null || true
+          cp "$FRESH/crux-controller/build/net/spdx/"*.spdx extended/spdx/ 2>/dev/null || true
+          cp "$FRESH/crux-controller/build/net/provenance.json" extended/ 2>/dev/null || true
           ls extended/spdx | head
           python crux-controller/release/check_bundle.py extended 2>&1 | grep 'absolute path' | head -20 || true
       - name: What this run did not do

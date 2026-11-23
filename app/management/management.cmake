@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
-# Step S6: the build of HTTPS management. This file is included by app/CMakeLists.txt, inside the
-# step's block, after find_package(Zephyr) and project(). It is not a subdirectory, because the
+# The management capability: the build of HTTPS management. This file is included by app/CMakeLists.txt, inside the
+# management block, after find_package(Zephyr) and project(). It is not a subdirectory, because the
 # route table is generated for the target `app` and the generator sets properties on `app`'s own
 # sources, which have to be in the same directory scope.
 #
@@ -13,7 +13,7 @@
 #
 # The route sources are Crux's own files. crux_web_routes() hands each of them its private include
 # directories as a property of that one source, so `app` gets no include directory from here and
-# this file adds none. If that does not compile from this repository, the step stops: there is no
+# this file adds none. If that does not compile from this repository, the capability stops: there is no
 # private include path to fall back on (docs/findings/s6-https-management.md).
 #
 # The entropy rules of the board image are in entropy.cmake, which only the image includes: the
@@ -25,11 +25,11 @@
 
 set(crux_root "${ZEPHYR_CRUX_MODULE_DIR}")
 if(NOT crux_root)
-    message(FATAL_ERROR "Step S6 needs the Crux module: ZEPHYR_CRUX_MODULE_DIR is not set")
+    message(FATAL_ERROR "The management capability needs the Crux module: ZEPHYR_CRUX_MODULE_DIR is not set")
 endif()
 
 if(NOT KERNEL_VERSION_STRING)
-    message(FATAL_ERROR "Step S6 reports the Zephyr version to the status service, and the build "
+    message(FATAL_ERROR "The management capability reports the Zephyr version to the status service, and the build "
                         "gave none (KERNEL_VERSION_STRING)")
 endif()
 
@@ -40,7 +40,7 @@ include("${crux_root}/components/web/management/sources.cmake")
 
 target_compile_definitions(app PRIVATE
     MANAGEMENT_PLATFORM_VERSION="zephyr-${KERNEL_VERSION_STRING}"
-    MANAGEMENT_PROJECT_VERSION="crux-controller-s6")
+    MANAGEMENT_PROJECT_VERSION="crux-controller-management")
 
 set(route_sources ${CRUX_WEB_SESSION_ROUTES} ${CRUX_WEB_MANAGEMENT_ROUTES})
 target_sources(app PRIVATE ${route_sources})

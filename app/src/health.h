@@ -3,11 +3,11 @@
 #define HEALTH_H
 
 /*
- * Step S4: the reset cause and a single-owner watchdog, through <crux/system.h>. This is the one
- * file pair of the product that calls Crux System. It needs no Zephyr header and no zone: the
- * watchdog driver, HWINFO and the reboot call sit inside Crux's own binding, and the product
- * supplies only Kconfig symbols and the devicetree alias crux-watchdog0 (conf/s4.conf and
- * boards/s4.overlay). What the product decides is in health_policy.h.
+ * The system capability: the reset cause and a single-owner watchdog, through <crux/system.h>. This
+ * is the one file pair of the product that calls Crux System. It needs no Zephyr header and no
+ * zone: the watchdog driver, HWINFO and the reboot call sit inside Crux's own binding, and the
+ * product supplies only Kconfig symbols and the devicetree alias crux-watchdog0 (conf/system.conf
+ * and boards/system.overlay). What the product decides is in health_policy.h.
  *
  * Call from thread context, after Crux Logging is up. Each call reports through Crux Logging under
  * the tag "system" and returns 0 or a negative crux_status_t.

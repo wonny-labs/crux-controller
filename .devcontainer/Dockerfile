@@ -27,7 +27,7 @@ ARG USER_GID=1000
 # ENV either: the proxy of the company that builds the image must not become part of the environment
 # of every container.
 
-# The packages of the "Install host packages" step of the S1 job, plus python3-venv (CI gets its
+# The packages of the "Install host packages" step of the workload job, plus python3-venv (CI gets its
 # Python from actions/setup-python), curl and sudo for the setup script, and clang-tidy-18 at the
 # version of the "Static analysis" job.
 RUN apt-get update \
