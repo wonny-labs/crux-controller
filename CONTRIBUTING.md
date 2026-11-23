@@ -146,11 +146,12 @@ of the code the tests run.
 The product's own Kconfig symbols use the prefix `CRUX_CONTROLLER_`; they are the product's names, not
 Crux platform symbols.
 
-The Crux platform's sample uses the same prefix. Crux System refuses a configuration that enables the
-sample's `CONFIG_CRUX_CONTROLLER_M3`, as a further owner of the native watchdog next to `WDT_SHELL`,
+Crux's former controller sample used the same prefix. Crux System still refuses a configuration that enables
+`CONFIG_CRUX_CONTROLLER_M3`, as a further owner of the native watchdog next to `WDT_SHELL`,
 `HWINFO_SHELL` and `TASK_WDT_HW_FALLBACK`, not because of the prefix. The note
 `docs/findings/s4-system-composition.md` records this as read at `crux-pilot` `37c92b18`, and the same
-check is in the Crux source at `8e3737d2`. This repository never defines that symbol.
+check was in the Crux source at `8e3737d2` and is at `1c4cf284`
+(`components/system/ports/zephyr/CMakeLists.txt`). This repository never defines that symbol.
 
 ## Commits and pull requests
 

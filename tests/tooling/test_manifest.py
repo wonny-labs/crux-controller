@@ -49,6 +49,20 @@ class ManifestIsOptionA(unittest.TestCase):
         revision = load_manifest()["projects"][0]["revision"]
         self.assertEqual(revision, "1c4cf2848c3dca1997bf3be0193e4b38374e7759")
 
+    def test_every_pinned_crux_link_of_the_readme_uses_the_manifest_revision(self):
+        revision = load_manifest()["projects"][0]["revision"]
+        text = (ROOT / "README.md").read_text()
+        links = re.findall(r"github\.com/wonny-labs/crux-pilot/blob/([0-9a-f]{40})/", text)
+        self.assertTrue(links, "README.md has no pinned Crux link")
+        self.assertEqual({revision}, set(links))
+
+    def test_the_findings_index_names_the_manifest_revision_as_the_current_pin(self):
+        revision = load_manifest()["projects"][0]["revision"]
+        text = (ROOT / "docs" / "findings" / "README.md").read_text()
+        match = re.search(r"The current pin is `([0-9a-f]{40})`", text)
+        self.assertIsNotNone(match)
+        self.assertEqual(revision, match.group(1))
+
     def test_the_pin_comment_does_not_say_the_crypto_move_is_missing(self):
         text = (ROOT / "west.yml").read_text()
         self.assertNotIn("is not in it", text)
