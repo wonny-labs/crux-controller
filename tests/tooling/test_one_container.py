@@ -417,6 +417,11 @@ class DevShellRuns(unittest.TestCase):
         self.assertIn("--build-arg CRUX_JLINK_SEGGER_SHA256 ", build)
         self.assertNotIn("b" * 64, build)
 
+    def test_crux_jlink_0_reaches_the_build_so_ci_skips_the_download(self):
+        self.run_script("true", CRUX_JLINK="0")
+        build = [c for c in self.calls() if c.startswith("build ")][0]
+        self.assertIn("--build-arg CRUX_JLINK ", build)
+
     def test_it_runs_the_bootstrap_entry_for_the_workspace_before_the_command(self):
         self.run_script("west", "--version")
         run = self.run_line()
