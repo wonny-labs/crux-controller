@@ -116,11 +116,9 @@ class Dockerfile(unittest.TestCase):
     def test_the_image_does_not_bake_in_secrets_or_the_workspace(self):
         for word in ("ADD ", "docker.sock", "host.docker.internal"):
             self.assertNotIn(word, self.text)
-        # The COPY lines take the certificate folder, its install script and the J-Link folder of the build
-        # context (.devcontainer/), never the workspace.
-        self.assertEqual(["COPY certs/ /tmp/crux-certs/",
-                          "COPY install-org-certs.sh /tmp/install-org-certs.sh",
-                          "COPY jlink/ /tmp/crux-jlink/"], re.findall(r"(?m)^COPY .*$", self.text))
+        # The only COPY line takes the J-Link folder of the build context (.devcontainer/), never the
+        # workspace. The certificate folder is bind-mounted, not copied (OrganisationCertificatesInTheImage).
+        self.assertEqual(["COPY jlink/ /tmp/crux-jlink/"], re.findall(r"(?m)^COPY .*$", self.text))
 
     PROXY_NAMES = ("HTTP_PROXY", "http_proxy", "HTTPS_PROXY", "https_proxy", "NO_PROXY", "no_proxy")
 
@@ -1209,13 +1207,18 @@ class OrganisationCertificatesInTheImage(unittest.TestCase):
         self.assertTrue(downloads)
         self.assertNotIn(0, downloads)
 
-    def test_the_certificate_files_are_copied_before_the_step_that_installs_them(self):
-        copy = self.text.index("COPY certs/ /tmp/crux-certs/")
-        script = self.text.index("COPY install-org-certs.sh /tmp/install-org-certs.sh")
-        run = self.text.index("RUN sh /tmp/install-org-certs.sh")
-        self.assertLess(copy, run)
-        self.assertLess(script, run)
-        self.assertLess(run, self.text.index("RUN apt-get"))
+    def test_the_certificate_folder_is_bind_mounted_into_the_one_step_and_never_copied(self):
+        # A BuildKit bind mount exposes the folder and the script to that RUN step only, so no file of the
+        # folder is stored in a layer of the image; only what update-ca-certificates installs stays.
+        step = self.runs[0]
+        self.assertTrue(step.startswith("RUN --mount=type=bind,source=certs,target=/tmp/crux-certs "), step)
+        self.assertIn("--mount=type=bind,source=install-org-certs.sh,target=/tmp/install-org-certs.sh", step)
+        self.assertTrue(step.endswith("sh /tmp/install-org-certs.sh /tmp/crux-certs"), step)
+        self.assertNotIn(",rw", step)
+        for line in re.findall(r"(?m)^(?:COPY|ADD) .*$", self.text):
+            self.assertNotIn("certs", line)
+            self.assertNotIn("install-org-certs.sh", line)
+        self.assertLess(self.text.index("RUN --mount=type=bind,source=certs"), self.text.index("RUN apt-get"))
 
     def test_the_package_step_refreshes_the_bundle_after_it_installs_ca_certificates(self):
         # When the base image has no ca-certificates yet, the first step cannot build the bundle: the
@@ -1234,8 +1237,11 @@ class OrganisationCertificatesInTheImage(unittest.TestCase):
     def test_the_bundle_path_is_the_one_that_setup_sh_selects(self):
         self.assertIn(f"system_ca_bundle={SYSTEM_BUNDLE}", read(DEVCONTAINER / "setup.sh"))
 
-    def test_the_temporary_files_are_removed_in_the_same_step(self):
-        self.assertIn("rm -rf /tmp/crux-certs /tmp/install-org-certs.sh", self.runs[0])
+    def test_no_step_turns_certificate_checks_off(self):
+        lowered = (self.text + read(INSTALL_CERTS)).lower()
+        for weakening in ("--no-check-certificate", "curl -k", "--insecure", "--trusted-host",
+                          "git_ssl_no_verify", "sslverify=false", "pythonhttpsverify=0"):
+            self.assertNotIn(weakening, lowered)
 
 
 class OrganisationCertificateFolder(unittest.TestCase):
@@ -1498,6 +1504,11 @@ class Documentation(unittest.TestCase):
         line = line[:line.index("yet)")]
         self.assertIn("x86_64", line)
         self.assertNotIn("any host", line)
+
+    def test_the_certificate_route_names_the_buildkit_bind_mount(self):
+        text = " ".join(self.ref.split())
+        self.assertIn("BuildKit bind mount", text)
+        self.assertIn("a builder without BuildKit stops at that step", text)
 
     def test_the_section_names_the_differences_from_the_ci_runner(self):
         for word in ("actions/setup-python", "python3-venv", "curl", "sudo", "clang-tidy-18"):

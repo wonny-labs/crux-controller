@@ -148,7 +148,10 @@ and every later download. It installs each such file as a `.crt` system certific
 `BEGIN CERTIFICATE` line) as it is, without Windows line ends, and a DER file converted to PEM with
 `openssl x509 -inform der`. A file that holds a private key, a file that is neither PEM nor DER, and a file with
 another ending are skipped with a `certs: skipping` line that names the file; a skipped file does not stop the
-build, so read the build log. An empty folder installs nothing. The image also sets `REQUESTS_CA_BUNDLE`,
+build, so read the build log. An empty folder installs nothing. The step reads the folder through a BuildKit bind
+mount, so the image keeps the installed certificates and no other file of the folder; VS Code and Docker Engine 23
+and later build with BuildKit by default, and a builder without BuildKit stops at that step. The image also sets
+`REQUESTS_CA_BUNDLE`,
 `CURL_CA_BUNDLE`, `SSL_CERT_FILE`, `GIT_SSL_CAINFO`, `PIP_CERT` and `NODE_EXTRA_CA_CERTS` to the system bundle,
 `/etc/ssl/certs/ca-certificates.crt`, for the build and for every terminal of the container, so pip, Python's
 requests, curl, git and Node.js use it. With an empty folder that bundle holds only the CAs of the distribution, as

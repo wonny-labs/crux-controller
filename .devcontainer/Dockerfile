@@ -30,19 +30,20 @@ ARG USER_GID=1000
 # Root certificates of an organisation whose proxy inspects TLS, for every download below. The files
 # that a developer placed in .devcontainer/certs/ (Git ignores them; an empty folder installs nothing)
 # are installed by .devcontainer/install-org-certs.sh, before apt-get, the J-Link download and the
-# setup. The variables point the tools of the image and of every container at the system bundle,
-# which ca-certificates builds; they change nothing when the folder is empty. See docs/dev-container.md,
-# "Behind a proxy or with a company certificate".
-COPY certs/ /tmp/crux-certs/
-COPY install-org-certs.sh /tmp/install-org-certs.sh
-RUN sh /tmp/install-org-certs.sh /tmp/crux-certs \
-    && rm -rf /tmp/crux-certs /tmp/install-org-certs.sh
+# setup. The folder and the script are bind-mounted into that one RUN step (BuildKit), so the image
+# stores the installed certificates and no other file of the folder. The variables point the tools of
+# the image and of every container at the system bundle, which ca-certificates builds; they change
+# nothing when the folder is empty. See docs/dev-container.md, "Behind a proxy or with a company
+# certificate".
 ENV REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt \
     CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt \
     SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
     GIT_SSL_CAINFO=/etc/ssl/certs/ca-certificates.crt \
     PIP_CERT=/etc/ssl/certs/ca-certificates.crt \
     NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
+RUN --mount=type=bind,source=certs,target=/tmp/crux-certs \
+    --mount=type=bind,source=install-org-certs.sh,target=/tmp/install-org-certs.sh \
+    sh /tmp/install-org-certs.sh /tmp/crux-certs
 
 # The packages of the "Install host packages" step of the workload job, plus python3-venv (CI gets its
 # Python from actions/setup-python), curl and sudo for the setup script, and clang-tidy-18 at the
