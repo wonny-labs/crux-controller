@@ -27,8 +27,12 @@ def text(name):
 
 
 class Role(unittest.TestCase):
-    def test_readme_states_the_role_sentence_verbatim(self):
-        self.assertIn(ROLE, text("README.md"))
+    # Approved behaviour change: the README is an entry page and leaves the milestone wording out; the
+    # role sentence has one home, the role section of CONTRIBUTING.md.
+    def test_contributing_states_the_role_sentence_verbatim_and_the_readme_does_not_repeat_it(self):
+        self.assertIn(ROLE, text("CONTRIBUTING.md"))
+        self.assertNotIn("milestone", text("README.md"))
+        self.assertNotIn("exit criterion", text("README.md"))
 
     def test_no_document_says_it_is_simply_not_an_exit_criterion(self):
         for name in DOCS:
@@ -101,9 +105,9 @@ class Dependencies(unittest.TestCase):
 
     def test_the_page_states_the_proof_level_and_why_a_blocklist(self):
         page = text("docs/dependencies.md")
-        # Step S6 added a job that fetches with the group on, so the sentence that no job does is
+        # The management capability added a job that fetches with the group on, so the sentence that no job does is
         # replaced by one that names the two places that do, and the proof level is still stated.
-        for phrase in ("project-list level", "The `S6 build` job and the `Budget` row of S6",
+        for phrase in ("project-list level", "The `management build` job and the `Budget` row of `management`",
                        "only active projects", "not run", "allowlist", "drops Zephyr"):
             self.assertIn(phrase, page, phrase)
         self.assertNotIn("no job fetches or builds with the group on", page)
@@ -112,8 +116,8 @@ class Dependencies(unittest.TestCase):
         page = text("docs/dependencies.md")
         self.assertIn("a project that the group would activate", page)
         self.assertNotIn("a project that Crux adds to the group later", page)
-        self.assertIn("a `west update` with the group on was not run before the S6 job existed", page)
-        self.assertIn("the first CI run of that job was the first fetch with the group on", page)
+        self.assertIn("the first CI run of the `management` job was the first fetch with the group on", page)
+        self.assertIn("records its result at `bb3ffefd`", page)
         self.assertNotIn("which was not run here", page)
 
     def test_the_pinned_crux_revision_matches_the_manifest(self):
@@ -191,21 +195,22 @@ class CiEvidenceRationale(unittest.TestCase):
 
 
 class Contributing(unittest.TestCase):
-    """The guide names the CI jobs and the steps that the workflows actually define."""
+    """The guide names the CI jobs and the build configurations that the workflows actually define."""
 
     @staticmethod
     def workflow(name):
         return yaml.safe_load((ROOT / ".github" / "workflows" / name).read_text())
 
     def build_steps(self):
+        # Found in ci.yml alone, independently of the Budget matrix: every job named "<name> build (...)".
         names = [job["name"] for job in self.workflow("ci.yml")["jobs"].values()]
-        steps = [m.group(1) for m in (re.match(r"(S\d) build\b", n) for n in names) if m]
-        self.assertTrue(steps, "no step build job found in ci.yml")
+        steps = [m.group(1) for m in (re.match(r"(\S+) build \(", n) for n in names) if m]
+        self.assertTrue(steps, "no build job of a configuration found in ci.yml")
         return steps
 
     def budget_steps(self):
         matrix = self.workflow("budget.yml")["jobs"]["budget"]["strategy"]["matrix"]
-        return [entry["step"] for entry in matrix["include"]]
+        return [entry["config"] for entry in matrix["include"]]
 
     def other_job_names(self):
         return [job["name"] for job in self.workflow("ci.yml")["jobs"].values()]
@@ -217,9 +222,9 @@ class Contributing(unittest.TestCase):
 
     def test_the_budget_row_covers_the_steps_of_the_budget_matrix(self):
         steps = self.budget_steps()
-        self.assertEqual(steps[0], "S0", "the budget matrix must start at S0")
-        last = max(steps, key=lambda step: int(step[1:]))
-        self.assertIn(f"`Budget` for S0 to {last}:", text("CONTRIBUTING.md"))
+        self.assertEqual(steps[0], "base", "the budget matrix must start at base")
+        self.assertEqual(len(steps), len(set(steps)))
+        self.assertIn(f"`Budget` for `base` to `{steps[-1]}`:", text("CONTRIBUTING.md"))
 
     def test_the_ci_row_names_the_other_jobs_of_ci_yml(self):
         row = next(
@@ -228,7 +233,7 @@ class Contributing(unittest.TestCase):
         )
         names = self.other_job_names()
         for short in (
-            "Tooling tests", "West pins", "Host tests", "S1", "Boundary check", "Static analysis",
+            "Tooling tests", "West pins", "Host tests", "workload", "Boundary check", "Static analysis",
         ):
             self.assertIn(f"`{short}`", row, short)
             self.assertTrue(
@@ -251,8 +256,13 @@ class Contributing(unittest.TestCase):
         self.assertIn("not analysed", row)
 
     def test_the_role_section_names_the_steps_built_in_ci(self):
-        last = max(self.build_steps(), key=lambda step: int(step[1:]))
-        self.assertIn(f"Steps S0 to {last} are built in CI", text("CONTRIBUTING.md"))
+        # Every configuration that has a build job (all but workload, whose job runs native_sim too) is
+        # in the budget matrix, and the role section lists the whole matrix in its order.
+        steps = self.budget_steps()
+        # The workload job is named without "build" because it also runs the native_sim scenarios.
+        self.assertEqual(set(steps), set(self.build_steps()) | {"workload"})
+        listed = ", ".join(f"`{s}`" for s in steps[:-1]) + f" and `{steps[-1]}`"
+        self.assertIn(f"The build configurations {listed} are built in CI", text("CONTRIBUTING.md"))
 
 
 class GenericWording(unittest.TestCase):
@@ -262,7 +272,7 @@ class GenericWording(unittest.TestCase):
     is the glossary entry that explains what such numbers mean."""
 
     MAINTAINED = (
-        "CONTRIBUTING.md", "docs/adding-a-step.md", "docs/architecture.md", "docs/composition-zone.md",
+        "CONTRIBUTING.md", "docs/adding-a-capability.md", "docs/architecture.md", "docs/composition-zone.md",
         "docs/first-change.md", "docs/reviewing.md", "docs/roadmap.md",
     )
     NUMBER = re.compile(

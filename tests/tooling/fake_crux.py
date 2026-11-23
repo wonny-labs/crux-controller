@@ -4,7 +4,7 @@
 ``check_boundary.check(repo, crux_root)`` asks which ``<crux/NAME.h>`` headers Crux publishes: the
 public ones under ``components/*/include/crux`` and the composition interfaces under
 ``components/*/ports/*/include/crux``. Several tests build such a tree for the product as it is, and
-the composition zone includes more headers once step S6 exists, so the list lives here once.
+the composition zone includes more headers once the management capability exists, so the list lives here once.
 """
 
 import pathlib

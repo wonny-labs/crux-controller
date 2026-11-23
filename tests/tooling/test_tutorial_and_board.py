@@ -19,7 +19,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 TUTORIAL = "docs/tutorial.md"
 BOARD_PAGE = "docs/board-bring-up.md"
 CI = ROOT / ".github" / "workflows" / "ci.yml"
-S2_NOTE = "docs/findings/s2-first-board-run.md"
+NET_NOTE = "docs/findings/s2-first-board-run.md"
 
 
 def read(name):
@@ -146,12 +146,12 @@ class Tutorial(Common, unittest.TestCase):
         self.assertIn("scripts/dev-shell.sh", part)
         self.assertIn("Reopen in Container", part)
 
-    def test_the_build_is_the_s1_cross_build_of_ci(self):
-        expected = norm(ci_step_run("s1", "Cross-build S1 with the baseline gate required"))
+    def test_the_build_is_the_workload_cross_build_of_ci(self):
+        expected = norm(ci_step_run("workload", "Cross-build workload with the baseline gate required"))
         self.assertTrue(any(expected in norm(code) for code in code_blocks(read(TUTORIAL))), expected)
 
     def test_the_native_sim_run_is_the_twister_step_of_ci(self):
-        expected = norm(ci_step_run("s1", "Run the S1 scenario on native_sim"))
+        expected = norm(ci_step_run("workload", "Run the workload scenario on native_sim"))
         self.assertTrue(any(expected in norm(code) for code in code_blocks(read(TUTORIAL))), expected)
 
     def test_the_host_tool_and_boundary_commands_are_those_of_ci(self):
@@ -270,18 +270,18 @@ class BoardPage(Common, unittest.TestCase):
         # The build downloads it; no command on the page fetches it by hand.
         self.assertNotRegex("\n".join(code_blocks(read(BOARD_PAGE))), r"(?i)(curl|wget)[^\n]*segger")
 
-    def test_the_s2_hashes_and_network_values_are_those_of_the_s2_note(self):
-        page, note = read(BOARD_PAGE), read(S2_NOTE)
+    def test_the_net_hashes_and_network_values_are_those_of_the_net_note(self):
+        page, note = read(BOARD_PAGE), read(NET_NOTE)
         hashes = set(re.findall(r"\b[0-9a-f]{64}\b", page))
         self.assertTrue(hashes)
         for value in hashes:
             self.assertIn(value, note, value)
         for value in ("192.168.77.1", "192.168.77.2", "42420", "02:43:52:55:58:20", "180 seconds"):
             self.assertIn(value, page, value)
-        self.assertIn('"192.168.77.2"', read("app/conf/s2.conf"))
+        self.assertIn('"192.168.77.2"', read("app/conf/net.conf"))
 
-    def test_the_s2_board_build_is_the_one_of_ci(self):
-        expected = norm(ci_step_run("s2", "Cross-build S2 with the baseline gate required"))
+    def test_the_net_board_build_is_the_one_of_ci(self):
+        expected = norm(ci_step_run("net", "Cross-build net with the baseline gate required"))
         self.assertTrue(any(expected in norm(code) for code in code_blocks(read(BOARD_PAGE))), expected)
 
     def test_the_jlink_device_and_flash_base_match_zephyrs_board_settings_as_the_page_cites_them(self):

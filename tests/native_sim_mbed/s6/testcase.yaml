@@ -1,9 +1,0 @@
-common:
-  platform_allow:
-    - native_sim/native/64
-  tags:
-    - controller
-    - s6
-tests:
-  controller.s6.native_sim.https_management:
-    timeout: 180

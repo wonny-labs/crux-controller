@@ -84,8 +84,8 @@ pulls an image.
 
    Read the lines above it, fix the cause and run the same command again: the setup carries on where it stopped.
 
-The checks that the `devcontainer` CI job runs also run through the same script; the
-[Dev Container reference](dev-container.md#commands-inside-the-container) lists them. The VS Code route, the folder
+The commands of the [Tutorial](tutorial.md) and the checks listed in the
+[Dev Container reference](dev-container.md#commands-inside-the-container) run through the same script. The VS Code route, the folder
 layout and what to do after a pin or SDK change are in the [Dev Container reference](dev-container.md).
 
 ## Host notes
@@ -117,7 +117,7 @@ On Ubuntu 24.04 on x86_64 you can install the tools of the CI image on the host 
 distribution older than Ubuntu 24.04 cannot do it: Zephyr 4.4 needs Python 3.12, and Ubuntu 22.04 has 3.10. In
 short, from a workspace folder of its own (`~/crux-ws`) with the clone in `crux-controller`:
 
-1. Install the host packages of the `S1` job and `python3-venv`.
+1. Install the host packages of the `workload` job and `python3-venv`.
 2. Create a virtual environment and install `cmake==3.28.4`, `ninja==1.11.1` and `west==1.4.0` in it.
 3. Run `west init -l crux-controller` and `west update`, then install Zephyr's Python requirements.
 4. Install the Zephyr SDK 1.0.1 with the `arm-zephyr-eabi` toolchain and set `ZEPHYR_SDK_INSTALL_DIR` and

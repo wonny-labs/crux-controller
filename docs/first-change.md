@@ -165,7 +165,7 @@ What was not run: clang-tidy and checkpatch on my machine (CI runs them), anythi
 The [table of workflows in CONTRIBUTING.md](../CONTRIBUTING.md#build-and-test) lists the jobs and when they run.
 For this change the jobs to read are `Tooling tests`, `Host tests` (sanitizer off and on), `Boundary check`,
 `Patch style` and `Static analysis`. CONTRIBUTING.md says that `ci.yml` and `budget.yml` run for pull requests, so the
-step build jobs and the `Budget` jobs run as well, although this change does not touch them. A change to
+build jobs of the configurations and the `Budget` jobs run as well, although this change does not touch them. A change to
 `app/`, a configuration fragment, an overlay or `tests/native_sim` takes its evidence from CI, and the pull request
 says so. A build in CI is not a run on a board.
 
@@ -199,6 +199,6 @@ git branch -D test/workload-zero-period
 - To change application code or a build file: [architecture.md](architecture.md) and the "Changing behaviour" section
   of CONTRIBUTING.md. If the check you meet is the boundary check, read [composition-zone.md](composition-zone.md)
   before you look for a way round it. There is none.
-- To add a step: [adding-a-step.md](adding-a-step.md).
+- To add a capability: [adding-a-capability.md](adding-a-capability.md).
 - To run the Zephyr scenarios on your machine: Part B of the [Tutorial](tutorial.md), or
-  [Set up without the Dev Container](native-setup.md#run-the-s1-to-s5-scenarios).
+  [Set up without the Dev Container](native-setup.md#run-the-workload-to-sntp-scenarios).

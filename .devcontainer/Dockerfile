@@ -44,7 +44,7 @@ ENV REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt \
     PIP_CERT=/etc/ssl/certs/ca-certificates.crt \
     NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
 
-# The packages of the "Install host packages" step of the S1 job, plus python3-venv (CI gets its
+# The packages of the "Install host packages" step of the workload job, plus python3-venv (CI gets its
 # Python from actions/setup-python), curl and sudo for the setup script, and clang-tidy-18 at the
 # version of the "Static analysis" job. update-ca-certificates adds the certificates of the first step
 # to the bundle when the base image had no ca-certificates before this step.

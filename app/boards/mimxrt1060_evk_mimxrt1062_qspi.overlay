@@ -1,4 +1,4 @@
-/* Step S1: Crux Logging writes to LPUART1, and nothing else owns it. This is the
+/* The workload capability: Crux Logging writes to LPUART1, and nothing else owns it. This is the
  * composition that crux-pilot documents for its Logging provider on this board. */
 / {
     chosen { zephyr,log-uart = &logging_uarts; };

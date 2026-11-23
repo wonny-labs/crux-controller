@@ -18,7 +18,7 @@ flowchart TD
     B --> C["Freeze the manifest<br/>west manifest --freeze"]
     C --> D["Fresh workspace at another path<br/>from the frozen manifest<br/>west crux-pins again"]
     D --> E["west spdx --init"]
-    E --> F["Build S2<br/>baseline gate required<br/>ROM and RAM reports"]
+    E --> F["Build net<br/>baseline gate required<br/>ROM and RAM reports"]
     F --> G["west spdx"]
     G --> H["Parse the SPDX files<br/>release/parse_spdx.py"]
     H --> I["Assemble the bundle<br/>release/assemble_bundle.py"]
@@ -50,7 +50,7 @@ the SDK version, the runner image, the target, the hash of each bundle item, the
 CI artefact, not on a release page. `release/check_bundle.py` refuses a bundle that holds an image, an
 `.elf` or `.map` file, a file that starts like an ELF, an Intel HEX or S-record dump, or an archive,
 and an item with an absolute path of a build machine. No workflow in this repository uploads an
-artefact, and a test (`tests/tooling/test_s0_build.py`) fails if one starts to.
+artefact, and a test (`tests/tooling/test_base_build.py`) fails if one starts to.
 
 The full SBOM from `west spdx` is parsed in the dry run but is not in the bundle yet. Whether it can go
 out as it is has not been decided.

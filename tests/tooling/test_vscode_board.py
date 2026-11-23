@@ -53,9 +53,9 @@ class LaunchProfiles(unittest.TestCase):
 
     def test_the_elf_is_the_one_of_the_documented_board_build(self):
         guide = (ROOT / "docs" / "board-bring-up.md").read_text()
-        self.assertIn("-d crux-controller/build/s2", guide)
+        self.assertIn("-d crux-controller/build/net", guide)
         for profile in self.by_name.values():
-            self.assertEqual("${workspaceFolder}/build/s2/zephyr/zephyr.elf", profile["executable"])
+            self.assertEqual("${workspaceFolder}/build/net/zephyr/zephyr.elf", profile["executable"])
 
     def test_gdb_comes_from_the_zephyr_sdk_of_the_container(self):
         for profile in self.by_name.values():
@@ -70,7 +70,7 @@ class BuildTask(unittest.TestCase):
         text = " ".join([task["command"], *task.get("args", [])])
         self.assertIn("west build", text)
         self.assertIn("mimxrt1060_evk@B//qspi", text)
-        self.assertIn("-d crux-controller/build/s2", text)
+        self.assertIn("-d crux-controller/build/net", text)
         self.assertEqual("/workspaces/ws", task["options"]["cwd"])
 
 
@@ -83,7 +83,7 @@ class FlashTask(unittest.TestCase):
         task = self.tasks["Board: Build and flash"]
         self.assertEqual(["Build firmware"], task["dependsOn"])
         text = " ".join([task["command"], *task.get("args", [])])
-        self.assertIn("west flash -d crux-controller/build/s2 --runner jlink", text)
+        self.assertIn("west flash -d crux-controller/build/net --runner jlink", text)
         self.assertEqual("/workspaces/ws", task["options"]["cwd"])
 
     def test_the_flash_task_sets_no_fixed_speed_so_the_runner_uses_auto(self):

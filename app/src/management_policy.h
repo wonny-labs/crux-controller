@@ -4,9 +4,9 @@
 
 /*
  * The product's policy for HTTPS management, as data and plain C with ISO C includes only, so the
- * host builds and tests it with no Crux or Zephyr header. Step S6 compiles management_policy.c into
- * its image, and the composition zone (app/compose/management_start.c) copies this data into the
- * Crux types.
+ * host builds and tests it with no Crux or Zephyr header. The management capability compiles
+ * management_policy.c into its image, and the composition zone (app/compose/management_start.c)
+ * copies this data into the Crux types.
  *
  * The permission names below are copies, because this file has no Crux include. What backs each
  * one: "access.manage"  CRUX_ACCESS_PERMISSION_MANAGE, defined in crux/access.h, which also defines
@@ -17,16 +17,17 @@
  *   "status.read"    CRUX_MGMT_STATUS_PERMISSION_READ in crux/management_status.h, read from that
  *                    header at the pinned revision; no second source states the value.
  * Both readings are backed at run time: the composition checks all three names against the Crux
- * macros with management_permission_names_match() at start and refuses on a mismatch, and the S6
- * native_sim scenario, which runs that start, passes in CI. The equality is a start-time
+ * macros with management_permission_names_match() at start and refuses on a mismatch, and the
+ * management native_sim scenario, which runs that start, passes in CI. The equality is a start-time
  * refusal and not a build-time assertion: the composition passes the three Crux macros to
  * management_permission_names_match() below and refuses to start on a false answer. Two string
  * literals cannot be compared by the preprocessor or the compiler in ISO C, so no build-time check
  * does it. The mismatch path of the function has a host test; the composition's refusal on it has
  * no test that runs without Zephyr.
  *
- * Only the permissions that the web routes of step S6 would check are granted: the status and the
- * configuration save. Nothing else is granted, because no other route is planned.
+ * Only the permissions that the web routes of the management capability would check are granted:
+ * the status and the configuration save. Nothing else is granted, because no other route is
+ * planned.
  *
  * The password rule is not set here. A missing rule selects the Crux Access reference rule, which
  * is the intent. Setting one later is a product decision of its own.

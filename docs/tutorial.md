@@ -34,8 +34,8 @@ machine it depends on your connection and has not been timed outside CI.
 |---|---|
 | 1. Host tests, sanitizers off and on | under 1 min |
 | 2. Tooling tests and the boundary check | under 1 min |
-| 3. One `native_sim` run: all scenarios of S1 to S5 | about 3 min |
-| 4. One build: S1 for the RT1060-EVKB | under 1 min |
+| 3. One `native_sim` run: all scenarios of `workload` to `sntp` | about 3 min |
+| 4. One build: `workload` for the RT1060-EVKB | under 1 min |
 
 ## Part A. Host tests
 
@@ -75,7 +75,7 @@ example `bash scripts/dev-shell.sh bash scripts/check-format.sh`;
 ### 3. One `native_sim` run
 
 `native_sim` is a simulated Zephyr board that runs as an ordinary program on the host. Twister, Zephyr's test
-runner, builds and runs every scenario of steps S1 to S5, as the `S1` job does:
+runner, builds and runs every scenario of `workload` to `sntp`, as the `workload` job does:
 
 ```bash
 bash scripts/dev-shell.sh bash -c 'cd /workspaces/ws && west twister -p native_sim/native/64 -T crux-controller/tests/native_sim --inline-logs --clobber-output -O twister-out'
@@ -88,21 +88,21 @@ INFO    - 17 of 17 executed test configurations passed (100.00%), 0 built (not r
 INFO    - 31 of 31 executed test cases passed (100.00%) on 1 out of total ... platforms ...
 ```
 
-All 17 Twister ids of the [scenario table](native-setup.md#run-the-s1-to-s5-scenarios) must be there and
+All 17 Twister ids of the [scenario table](native-setup.md#run-the-workload-to-sntp-scenarios) must be there and
 passed. A lower count means that a scenario did not run.
 
-To run one scenario, here step S1, point `-T` at its directory (this form is ordinary Twister usage and was not
+To run one scenario, here `workload`, point `-T` at its directory (this form is ordinary Twister usage and was not
 run for this page):
 
 ```bash
-bash scripts/dev-shell.sh bash -c 'cd /workspaces/ws && west twister -p native_sim/native/64 -T crux-controller/tests/native_sim/s1 --inline-logs --clobber-output -O twister-out-s1'
+bash scripts/dev-shell.sh bash -c 'cd /workspaces/ws && west twister -p native_sim/native/64 -T crux-controller/tests/native_sim/workload --inline-logs --clobber-output -O twister-out-workload'
 ```
 
-The Twister folders (`twister-out`, `twister-out-s1`) are in the workspace folder, next to the clone
+The Twister folders (`twister-out`, `twister-out-workload`) are in the workspace folder, next to the clone
 (`~/work/crux-controller-workspace`), because the commands ran there; each scenario has its own build folder in
 them, and `--inline-logs` prints the output of a failed scenario. Builds of the repository itself (for example
-`build/host` of the host tests) are under `build/` in the clone, which `.gitignore` excludes. The S6 scenario
-needs the Mbed TLS modules: [Run the S1 to S5 scenarios](native-setup.md#run-the-s1-to-s5-scenarios) shows
+`build/host` of the host tests) are under `build/` in the clone, which `.gitignore` excludes. The `management` scenario
+needs the Mbed TLS modules: [Run the `workload` to `sntp` scenarios](native-setup.md#run-the-workload-to-sntp-scenarios) shows
 how.
 
 No board? Parts A and B run every sample and test.
@@ -119,20 +119,20 @@ board runs.
 
 ### 4. Build the image for the RT1060-EVKB
 
-This is the cross-build of step S1 that the `S1` job of CI runs, from the workspace folder (`/workspaces/ws` in
+This is the cross-build of `workload` that the `workload` job of CI runs, from the workspace folder (`/workspaces/ws` in
 the container is your `~/work/crux-controller-workspace`):
 
 ```bash
 bash scripts/dev-shell.sh bash -s <<'SH'
 set -euo pipefail
 cd /workspaces/ws
-west build -p always -b 'mimxrt1060_evk@B//qspi' -d crux-controller/build/s1 \
+west build -p always -b 'mimxrt1060_evk@B//qspi' -d crux-controller/build/workload \
   crux-controller/app -- -DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON \
-  -DEXTRA_CONF_FILE=conf/s1.conf
+  -DEXTRA_CONF_FILE=conf/workload.conf
 SH
 ```
 
-The image is `build/s1/zephyr/zephyr.bin` in the clone, next to `zephyr.meta`. A build is not a run on a board.
+The image is `build/workload/zephyr/zephyr.bin` in the clone, next to `zephyr.meta`. A build is not a run on a board.
 
 ### 5. Program the board and read its log
 
@@ -147,5 +147,5 @@ authorisation for the task.
 - Pick the next page from the [README](../README.md#where-to-read-next), starting with the
   [roadmap](roadmap.md) and the [architecture](architecture.md).
 - Look up a failure by its message: [troubleshooting.md](troubleshooting.md).
-- The setup without the Dev Container and the S6 scenario: [Set up without the Dev Container](native-setup.md).
+- The setup without the Dev Container and the `management` scenario: [Set up without the Dev Container](native-setup.md).
 - The rules for a change: [CONTRIBUTING.md](../CONTRIBUTING.md).

@@ -11,9 +11,9 @@
  * that Crux uses its reference rule.
  *
  * The composition zone implements this port in app/compose/management_start.c, and
- * app/src/composition.c calls it in step S6. The order below is a reading of three Crux sources at
- * the pinned revision, and it has not run on a board: the "Boot order" section of
- * docs/management-in-a-product.md, the start calls of the module test
+ * app/src/composition.c calls it when management is built. The order below is a reading of
+ * three Crux sources at the pinned revision, and it has not run on a board: the "Boot order"
+ * section of docs/management-in-a-product.md, the start calls of the module test
  * tests/native/management_module/src/main.c (configuration service, management status and security
  * event start, and only then the TLS certificate start), and the header
  * components/web/ports/zephyr/include/crux/web_zephyr.h (services started, TLS material registered

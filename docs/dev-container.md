@@ -9,8 +9,8 @@ commands that run in it, and what to do after a pin or SDK change. To set it up,
 
 CI runs it: the workflow `devcontainer.yml` builds the same image on an Ubuntu 24.04 x86_64 runner,
 runs `scripts/dev-shell.sh` and, inside the container, the tooling tests, the format check, the static analysis, the host tests (sanitizers off and on), both boundary
-checks, the `native_sim` scenarios of [the S1 to S5 section](native-setup.md#run-the-s1-to-s5-scenarios) and the RT1060-EVKB
-cross-build of step S1 (with the baseline gate required) with its output and configuration checks, using the
+checks, the `native_sim` scenarios of [the `workload` to `sntp` section](native-setup.md#run-the-workload-to-sntp-scenarios) and the RT1060-EVKB
+cross-build of `workload` (with the baseline gate required) with its output and configuration checks, using the
 Zephyr SDK that `setup.sh` installs. That is a run of the image and the scripts, not of VS Code or of WSL2 (see the
 [setup checks record](history/setup-checks.md)). If a step fails for you, look the message up in
 [troubleshooting.md](troubleshooting.md), and otherwise open an issue with the output.
@@ -334,15 +334,15 @@ the [Tutorial](tutorial.md)). The scenarios run from the workspace directory, as
 
 ```bash
 cd /workspaces/ws
-# S1 to S5, all scenarios of tests/native_sim, as the S1 job does
+# workload to sntp, all scenarios of tests/native_sim, as the workload job does
 west twister -p native_sim/native/64 -T crux-controller/tests/native_sim \
   --inline-logs --clobber-output -O twister-out
-# S1 only
-west twister -p native_sim/native/64 -T crux-controller/tests/native_sim/s1 \
-  --inline-logs --clobber-output -O twister-out-s1
-# S2 only
-west twister -p native_sim/native/64 -T crux-controller/tests/native_sim/s2 \
-  --inline-logs --clobber-output -O twister-out-s2
+# workload only
+west twister -p native_sim/native/64 -T crux-controller/tests/native_sim/workload \
+  --inline-logs --clobber-output -O twister-out-workload
+# net only
+west twister -p native_sim/native/64 -T crux-controller/tests/native_sim/net \
+  --inline-logs --clobber-output -O twister-out-net
 ```
 
 From the repository (`/workspaces/ws/crux-controller`):
@@ -356,15 +356,15 @@ python scripts/analyze_host.py
 cd .. && python crux-controller/scripts/check_boundary.py --repo crux-controller --crux-root crux-pilot
 ```
 
-The board build of step S1, as the `S1` job runs it (the SDK is already installed):
+The board build of `workload`, as the `workload` job runs it (the SDK is already installed):
 
 ```bash
 cd /workspaces/ws
-west build -p always -b 'mimxrt1060_evk@B//qspi' -d crux-controller/build/s1 \
-  crux-controller/app -- -DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON -DEXTRA_CONF_FILE=conf/s1.conf
+west build -p always -b 'mimxrt1060_evk@B//qspi' -d crux-controller/build/workload \
+  crux-controller/app -- -DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON -DEXTRA_CONF_FILE=conf/workload.conf
 ```
 
-`CLANG_TIDY` is set in the image, as the static analysis job needs it. The optional S6 steps, the stronger boundary
+`CLANG_TIDY` is set in the image, as the static analysis job needs it. The optional `management` job steps, the stronger boundary
 check and the product include check of [Set up without the Dev Container](native-setup.md) work unchanged from `/workspaces/ws` (the pinned
 `crux-pilot` contains the product include check); the container does not switch the Mbed TLS group on by itself. The container mounts the USB bus of the host and can have the J-Link software
 (`.devcontainer/jlink/`), so a probe can be reached from it after the host steps of

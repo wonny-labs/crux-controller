@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
-/* The time synchronisation policy of step S5: plain C, no Crux or Zephyr include. */
+/* The time synchronisation policy of the sntp capability: plain C, no Crux or Zephyr include. */
 
 #include <stdbool.h>
 #include <stdint.h>

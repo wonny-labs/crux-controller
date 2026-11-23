@@ -4,7 +4,7 @@
     {
       "label": "Build firmware",
       "type": "shell",
-      "command": "west build -p auto -b 'mimxrt1060_evk@B//qspi' -d crux-controller/build/s2 crux-controller/app -- -DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON '-DEXTRA_CONF_FILE=conf/s1.conf;conf/s2.conf' '-DEXTRA_DTC_OVERLAY_FILE=boards/s2.overlay'",
+      "command": "west build -p auto -b 'mimxrt1060_evk@B//qspi' -d crux-controller/build/net crux-controller/app -- -DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON '-DEXTRA_CONF_FILE=conf/workload.conf;conf/net.conf' '-DEXTRA_DTC_OVERLAY_FILE=boards/net.overlay'",
       "options": { "cwd": "/workspaces/ws" },
       "group": { "kind": "build", "isDefault": true },
       "problemMatcher": ["$gcc"]
@@ -12,7 +12,7 @@
     {
       "label": "Board: Build and flash",
       "type": "shell",
-      "command": "west flash -d crux-controller/build/s2 --runner jlink",
+      "command": "west flash -d crux-controller/build/net --runner jlink",
       "dependsOn": ["Build firmware"],
       "options": { "cwd": "/workspaces/ws" },
       "problemMatcher": []

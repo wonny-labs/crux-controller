@@ -17,7 +17,7 @@ NEW_PAGES = ("docs/README.md", "docs/first-change.md", "docs/reviewing.md")
 # Documents whose wording this change owns. Findings are kept as recorded and are not listed.
 OWNED = (
     "README.md", "docs/README.md", "docs/first-change.md", "docs/reviewing.md", "docs/history/README.md",
-    "docs/adding-a-step.md", "docs/glossary.md", "docs/architecture.md", "docs/composition-zone.md",
+    "docs/adding-a-capability.md", "docs/glossary.md", "docs/architecture.md", "docs/composition-zone.md",
 )
 # Pages that another change writes. A link to one of them is checked as soon as the page, or the
 # heading for an anchor, exists, and is skipped while it is missing. Remove an entry from this set
@@ -105,7 +105,7 @@ class Index(unittest.TestCase):
     def test_the_index_has_a_reading_time_column_and_a_role_path_for_each_task(self):
         body = read("docs/README.md")
         self.assertIn("Reading time", body)
-        for heading in ("I want to run it", "I want to change code", "I want to add a step",
+        for heading in ("I want to run it", "I want to change code", "I want to add a capability",
                         "I want to review", "I want to know why"):
             self.assertRegex(body, rf"(?m)^#{{2,3}} {heading}\b", heading)
 
@@ -243,9 +243,9 @@ class Glossary(unittest.TestCase):
             self.assertIn(needle, glossary, needle)
 
     def test_the_reviewed_files_entry_points_at_the_list(self):
-        self.assertIn("adding-a-step.md#files-that-need-a-reviewed-change",
+        self.assertIn("adding-a-capability.md#files-that-need-a-reviewed-change",
                       read("docs/glossary.md"))
-        self.assertIn("files-that-need-a-reviewed-change", anchors("docs/adding-a-step.md"))
+        self.assertIn("files-that-need-a-reviewed-change", anchors("docs/adding-a-capability.md"))
 
 
 class Terminology(unittest.TestCase):
@@ -308,16 +308,19 @@ class Terminology(unittest.TestCase):
             for sentence in sentences(text):
                 self.assertLessEqual(len(sentence.split()), 40, f"{label}: {sentence}")
 
+    # Approved behaviour change: the README is an entry page. The role sentence lives in CONTRIBUTING.md,
+    # the README keeps "no release" in its one status line, and the board status is on the roadmap.
     def test_the_role_sentence_and_the_pinned_readme_facts_stay(self):
+        self.assertIn("Crux Controller is the official reference consumer firmware", flat("CONTRIBUTING.md"))
         text = flat("README.md")
-        self.assertIn("Crux Controller is the official reference consumer firmware", text)
-        for needle in ("Steps S0 to S6 are on `main`, and there is no release",
-                       "Nothing else has run on a board."):
-            self.assertIn(needle, text, needle)
+        self.assertIn("There is no release.", text)
+        self.assertIn("docs/roadmap.md", text)
+        self.assertIn("No `base`, `workload`-only, `file`, `system`, `sntp` or `management` image has run on a board.",
+                      flat("docs/roadmap.md"))
 
 
-class AddingAStep(unittest.TestCase):
-    PAGE = "docs/adding-a-step.md"
+class AddingACapability(unittest.TestCase):
+    PAGE = "docs/adding-a-capability.md"
 
     def headings(self):
         return [m.groups() for m in re.finditer(r"(?m)^(#{2,3}) (.*)$", without_code(read(self.PAGE)))]
@@ -358,12 +361,13 @@ class AddingAStep(unittest.TestCase):
         self.assertIn("the second line when the first is a shebang", body)
         self.assertIn("`.conf` files, devicetree overlays, documents", body)
 
-    def test_the_history_of_s5_and_s6_is_an_appendix_at_the_end(self):
+    def test_the_differences_of_sntp_and_management_are_an_appendix_at_the_end(self):
         titles = [t for level, t in self.headings() if level == "##"]
-        self.assertIn("Appendix: what S5 and S6 did differently", titles)
-        appendix = titles.index("Appendix: what S5 and S6 did differently")
+        self.assertIn("Appendix: how `sntp` and `management` differ", titles)
+        appendix = titles.index("Appendix: how `sntp` and `management` differ")
         self.assertEqual(len(titles) - 1, appendix)
-        self.assertNotIn("What S5 did differently", [t for t in titles if t != titles[appendix]])
+        self.assertFalse([t for t in titles if t != titles[appendix] and "sntp" in t], titles)
+        self.assertNotIn("did differently", flat(self.PAGE))
         self.assertNotIn("was updated in a later commit", flat(self.PAGE))
 
     def test_the_drivers_and_hal_section_states_the_rule_and_where_the_reasoning_lives(self):
@@ -414,7 +418,7 @@ class ReviewingProvenance(unittest.TestCase):
     def test_the_items_that_the_review_found_uncited_are_now_marked(self):
         body = " ".join(read("docs/reviewing.md").split())
         for needle in ("CI results were read for the head commit.** Practice.",
-                       "Practice, from [adding-a-step.md](adding-a-step.md), section 2.1",
+                       "Practice, from [adding-a-capability.md](adding-a-capability.md), section 2.1",
                        "Practice: it also reads the resolved configuration",
                        "\"Extend a check rather than loosen it.\"",
                        "Practice: it also gives the command or configuration",
@@ -532,11 +536,11 @@ class KnownLimits(unittest.TestCase):
         self.assertIn("no lint for Python, shell, YAML or CMake", part)
 
     def test_the_untested_glue_statement_does_not_claim_all_glue(self):
-        # S4 compiles health.c and S5 compiles the product's own glue, so only parts are untested.
+        # system compiles health.c and sntp compiles the product's own glue, so only parts are untested.
         part = self.part()
         self.assertIn("Parts of the Zephyr-side glue are not run by any test", part)
         self.assertNotIn("**Zephyr-side glue is not run", read("docs/README.md"))
-        self.assertIn("health.c", read("tests/native_sim/s4/CMakeLists.txt"))
+        self.assertIn("health.c", read("tests/native_sim/system/CMakeLists.txt"))
 
     def test_the_estimate_says_what_it_counts(self):
         self.assertIn("estimate of tests per module", self.part())
@@ -552,8 +556,8 @@ class KnownLimits(unittest.TestCase):
         self.assertIn("watchdog feed path", part)
         self.assertIn("web page script", part)
         self.assertIn("never run in any test", part)
-        s4 = read("tests/native_sim/s4/src/test_s4.c")
-        self.assertIn("a feed cycle and a missed feed cannot be shown here", " ".join(s4.split()))
+        system = read("tests/native_sim/system/src/test_system.c")
+        self.assertIn("a feed cycle and a missed feed cannot be shown here", " ".join(system.split()))
         self.assertEqual([], [p for p in (ROOT / "tests").rglob("*.js")])
 
     def test_the_tooling_tests_statement_names_its_method_and_says_estimate(self):
@@ -564,8 +568,11 @@ class KnownLimits(unittest.TestCase):
 
     def test_the_board_and_environment_statements_match_the_other_pages(self):
         part = self.part()
-        self.assertIn("Step S2 ran twice on a board, on one bench", part)
-        self.assertIn("Step S2 ran twice on a board", flat("README.md"))
+        # Approved behaviour change: the board status has one home, the roadmap; the limits link it.
+        self.assertIn("roadmap.md#what-has-run-on-a-board", part)
+        self.assertIn("Only the `net` image has run on a board: twice, on one RT1060-EVKB Rev B on one bench",
+                      flat("docs/roadmap.md"))
+        self.assertNotIn("ran twice", flat("README.md"))
         self.assertIn("was not started on a developer machine", part)
         self.assertIn("was not started on a developer machine at all", flat("docs/getting-started.md"))
         self.assertIn("WSL2", part)

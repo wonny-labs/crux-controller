@@ -20,15 +20,15 @@ on hardware, and it needs the owner's authorisation).
 [first-change.md](first-change.md), then [CONTRIBUTING.md](../CONTRIBUTING.md). [architecture.md](architecture.md) says
 which directory holds what; [composition-zone.md](composition-zone.md) explains a failed boundary check.
 
-### I want to add a step
+### I want to add a capability
 
-[adding-a-step.md](adding-a-step.md), with [findings/s4-system-composition.md](findings/s4-system-composition.md) as a
+[adding-a-capability.md](adding-a-capability.md), with [findings/s4-system-composition.md](findings/s4-system-composition.md) as a
 worked example and [architecture.md](architecture.md) for the zones and port headers.
 
 ### I want to review
 
 [reviewing.md](reviewing.md), the three verdicts in [CONTRIBUTING.md](../CONTRIBUTING.md#review), and the
-[files that need a reviewed change](adding-a-step.md#files-that-need-a-reviewed-change).
+[files that need a reviewed change](adding-a-capability.md#files-that-need-a-reviewed-change).
 
 ### I want to know why
 
@@ -42,14 +42,14 @@ The [findings](findings/README.md), the [roadmap](roadmap.md), [why a zone](comp
   say where the owner's approval of a merge is recorded.
 - **Boundary rules and the reason for each allow-list entry**: [composition-zone.md](composition-zone.md). The lists
   themselves are in `scripts/check_boundary.py`.
-- **What each step taught, and the decisions taken in it**: the notes in `docs/findings/` ([index](findings/README.md)). They are kept
+- **What building each capability taught, and the decisions taken in it**: the notes in `docs/findings/` ([index](findings/README.md)). They are kept
   as written, and each names the revision of Crux that it was read at. A later result is added as an update.
 - **What exists, what ran on a board and what is not possible**: [roadmap.md](roadmap.md). Its "not yet possible" rows
   are recorded positions, not plans.
 - **The pinned Crux revision**: the `revision` in `west.yml`. The comment above it and `tests/tooling/test_manifest.py`
   record the approved commit, and [CHANGELOG.md](../CHANGELOG.md) records each move.
 - **Tracking**: the issues and pull requests of the public repository. Their open or closed state can lag behind the
-  code. The documents and the CI checks of a commit are the reference. How the steps were tracked is in
+  code. The documents and the CI checks of a commit are the reference. How the work was tracked is in
   [history](history/board-runs-and-tracking.md).
 
 ## Known limits, not scheduled
@@ -70,15 +70,15 @@ These are known limits of what the checks and tests cover. They are facts about 
   green tooling run shows that the text and the configuration agree with the tests, and not that the firmware
   behaves.
 - **Parts of the Zephyr-side glue are not run by any test.** The start order and the decisions in `app/src/composition.c`, the
-  watchdog feed path of step S4 (the S4 scenario cannot show a feed cycle) and the web page script of step S6 (the S6
-  scenario serves its bytes, and nothing runs them) are never run in any test.
-- **Steps S5 and S6 run only on `native_sim`, in CI, and never on a board.** Step S2 ran twice on a board, on one bench.
-  Nothing else has run on a board ([roadmap](roadmap.md#what-has-run-on-a-board)).
+  watchdog feed path of `system` (its scenario cannot show a feed cycle) and the web page script of `management` (its
+  scenario serves the bytes, and nothing runs them) are never run in any test.
+- **No check runs on a board.** CI builds the board images and runs the `native_sim` scenarios, never on a board. What has run
+  on a board is on the [roadmap](roadmap.md#what-has-run-on-a-board).
 - **The Dev Container and WSL2 were not tried by anyone.** The Dev Container was not started on a developer machine, so
   WSL2, Docker Engine in WSL2 and the proxy settings of `devcontainer.json` have not run there. The Dev Container job
   of CI covers an x86_64 runner only ([setup checks record](history/setup-checks.md)).
 - **The board route is untested.** No check shows that the J-Link software ends up in the Dev Container image
-  (CI's image build tries the pinned download, and a failed download only warns), and no step of the
+  (CI builds the image with `CRUX_JLINK=0`, so it neither downloads nor installs it), and no step of the
   [board route](board-bring-up.md) has run on a board.
 
 ## All documents
@@ -88,17 +88,17 @@ These are known limits of what the checks and tests cover. They are facts about 
 | Document | Type | What it is | Reading time |
 |---|---|---|---|
 | [architecture.md](architecture.md) | Explanation | How the repository is built: the four source trees and their include rules, how Crux is consumed, the threads in the image, a map of the files and why the evidence comes from CI. | 14 min |
-| [roadmap.md](roadmap.md) | Reference (status) | What exists on `main`, the static size per step, what has run on a board and what is not yet possible. It promises no dates. | 11 min |
+| [roadmap.md](roadmap.md) | Reference (status) | What is built on `main`, the static size per build configuration, what has run on a board and what is not yet possible. It promises no dates. | 11 min |
 | [tutorial.md](tutorial.md) | Tutorial | The first build and run from a working Dev Container: Part A the host tests and checks, Part B the `native_sim` scenarios, Part C the board image and the board table, with the times of the CI job. | 5 min |
 | [getting-started.md](getting-started.md) | Entry (Getting started) | Getting started: prerequisites, setting up the Dev Container, host notes for WSL2, a proxy and disk, the short route without the Dev Container, and what a board adds. | 5 min |
 | [dev-container.md](dev-container.md) | Reference | The Dev Container in detail: what CI runs in it, host requirements, the hosts it contacts, proxies and certificates, the layout, the VS Code and command-line routes, its commands, and a pin or SDK change. | 13 min |
-| [native-setup.md](native-setup.md) | How-to guide | Setting up on Ubuntu 24.04 without the Dev Container, and running the `native_sim` scenarios (S6 included), the host tests, the tooling tests and the boundary check with the commands of CI. | 8 min |
+| [native-setup.md](native-setup.md) | How-to guide | Setting up on Ubuntu 24.04 without the Dev Container, and running the `native_sim` scenarios (`management` included), the host tests, the tooling tests and the boundary check with the commands of CI. | 8 min |
 | [troubleshooting.md](troubleshooting.md) | Reference | Look a failure up by its message: the cause, the fix and the page that explains more. | 11 min |
 | [first-change.md](first-change.md) | Tutorial | A tutorial from branch to pull request with one small host-test change that needs no Zephyr. | 6 min |
-| [adding-a-step.md](adding-a-step.md) | How-to guide | The recipe for adding a step, its checklist, the rule for drivers and HAL, and the files that need a reviewed change. | 16 min |
+| [adding-a-capability.md](adding-a-capability.md) | How-to guide | The recipe for adding a capability and its build configuration, its checklist, the rule for drivers and HAL, and the files that need a reviewed change. | 16 min |
 | [reviewing.md](reviewing.md) | Explanation (review guide) | A checklist for the reviewer, from CONTRIBUTING.md and from the repository's practice. | 9 min |
 | [composition-zone.md](composition-zone.md) | Reference | The include rules in detail: the composition zone and the adapter zone, each allowed Zephyr header and why, the frozen Crux headers, and how to run the check. | 11 min |
-| [glossary.md](glossary.md) | Reference | The words that this repository uses in a particular sense (step, stage, product, owner, composition, zones, pin, finding and more), with the file where each use can be checked. | 13 min |
+| [glossary.md](glossary.md) | Reference | The words that this repository uses in a particular sense (capability, build configuration, stage, product, owner, composition, zones, pin, finding and more), with the file where each use can be checked. | 13 min |
 | [dependencies.md](dependencies.md) | Reference | What `west.yml` fetches, why, and under which licence each project states it is distributed, and how the Crux import is narrowed. | 5 min |
 | [board-bring-up.md](board-bring-up.md) | How-to guide | The board route for the RT1060-EVKB Rev B, untested on hardware: the probe on WSL2, the Dev Container with the J-Link software, a read-only compare of the flash, `west flash` and `west debug` with J-Link, a run record template, the stop conditions and the authorisation that it needs. | 13 min |
 
@@ -106,15 +106,15 @@ These are known limits of what the checks and tests cover. They are facts about 
 
 | Document | Type | What it is | Reading time |
 |---|---|---|---|
-| [findings/README.md](findings/README.md) | Entry (index) | What a finding is, how the notes are kept, and a table of all notes with the Crux revision each was read at. | 2 min |
+| [findings/README.md](findings/README.md) | Entry (index) | The map from the step ids of the notes to the build configurations, what a finding is, how the notes are kept, and a table of all notes with the Crux revision each was read at. | 2 min |
 | [findings/file-binding-has-no-public-header.md](findings/file-binding-has-no-public-header.md) | Record | A product could not bind the File provider with public means. Closed upstream since. | 1 min |
-| [findings/management-has-no-public-composition.md](findings/management-has-no-public-composition.md) | Record | Which management features had no public composition, and the licence limits. Partly overtaken by step S6. | 5 min |
-| [findings/s2-first-board-run.md](findings/s2-first-board-run.md) | Record | The two runs of the S2 image on one board and bench, and what they show and do not show. | 7 min |
-| [findings/s3-file-composition.md](findings/s3-file-composition.md) | Record | Step S3: composing Crux File through the composition interface, with the friction found. | 6 min |
-| [findings/s4-system-composition.md](findings/s4-system-composition.md) | Record | Step S4: the reset cause and a single-owner watchdog through Crux System, and why the simulator cannot show a feed cycle. | 8 min |
-| [findings/s5-time-synchronisation.md](findings/s5-time-synchronisation.md) | Record | Step S5: setting the Crux Time realtime clock from SNTP, the product policy and its limits. | 15 min |
-| [findings/s6-https-management-gaps.md](findings/s6-https-management-gaps.md) | Record | Groundwork for step S6: the three gaps found by reading. Superseded by the next note, kept as recorded. | 9 min |
-| [findings/s6-https-management.md](findings/s6-https-management.md) | Record | Step S6: what the product had to write for HTTPS management, the CI results at a named revision and what is open. | 10 min |
+| [findings/management-has-no-public-composition.md](findings/management-has-no-public-composition.md) | Record | Which management features had no public composition, and the licence limits. Partly overtaken by `management`. | 5 min |
+| [findings/s2-first-board-run.md](findings/s2-first-board-run.md) | Record | The two runs of the `net` image on one board and bench, and what they show and do not show. | 7 min |
+| [findings/s3-file-composition.md](findings/s3-file-composition.md) | Record | The `file` capability: composing Crux File through the composition interface, with the friction found. | 6 min |
+| [findings/s4-system-composition.md](findings/s4-system-composition.md) | Record | The `system` capability: the reset cause and a single-owner watchdog through Crux System, and why the simulator cannot show a feed cycle. | 8 min |
+| [findings/s5-time-synchronisation.md](findings/s5-time-synchronisation.md) | Record | The `sntp` capability: setting the Crux Time realtime clock from SNTP, the product policy and its limits. | 15 min |
+| [findings/s6-https-management-gaps.md](findings/s6-https-management-gaps.md) | Record | Groundwork for the `management` capability: the three gaps found by reading. Superseded by the next note, kept as recorded. | 9 min |
+| [findings/s6-https-management.md](findings/s6-https-management.md) | Record | The `management` capability: what the product had to write for HTTPS management, the CI results at a named revision and what is open. | 10 min |
 
 ### In `docs/history/`
 
@@ -133,7 +133,7 @@ These pages keep text that left the main documents. They are history, not instru
 
 | Document | Type | What it is | Reading time |
 |---|---|---|---|
-| [README.md](../README.md) | Entry | What the repository is and for whom, the Crux usage step by step, the quick start, where to read next, the status and limits, contributing, the licence and ownership. | 4 min |
+| [README.md](../README.md) | Entry | What the repository is, the quick start, the capability table, where to read next, the status line, contributing, the licence and ownership. | 4 min |
 | [CHANGELOG.md](../CHANGELOG.md) | Record | What each change added. Everything is unreleased. | 9 min |
 | [CONTRIBUTING.md](../CONTRIBUTING.md) | Reference (rules) | The boundary, build and test, the CI jobs, the pin, how to change behaviour, commits and pull requests, review, and the rules of a public repository. | 9 min |
 | [RELEASE.md](../RELEASE.md) | Reference | The release dry run, what the bundle holds (hashes only) and what a tag needs. | 2 min |

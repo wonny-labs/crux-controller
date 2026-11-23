@@ -1,6 +1,6 @@
 # Python tools of the dev container, in the virtual environment that .devcontainer/setup.sh creates.
 # The versions of cmake, ninja, west and clang-format are those of the CI jobs (the "Install pinned
-# build tools" step of the S1 job and the "Static analysis" job); tests/tooling/test_devcontainer.py
+# build tools" step of the workload job and the "Static analysis" job); tests/tooling/test_devcontainer.py
 # compares them. CI does not pin pyyaml: it is pinned here so that the container is repeatable.
 cmake==3.28.4
 ninja==1.11.1

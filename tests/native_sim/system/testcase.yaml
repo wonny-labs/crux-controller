@@ -1,0 +1,13 @@
+common:
+  platform_allow:
+    - native_sim/native/64
+  tags:
+    - controller
+    - system
+tests:
+  controller.system.native_sim.reset_cause:
+    extra_args: SYSTEM_CASE=reset_cause
+  controller.system.native_sim.watchdog_unsupported:
+    extra_args: SYSTEM_CASE=watchdog_unsupported
+  controller.system.native_sim.period_out_of_range:
+    extra_args: SYSTEM_CASE=period_out_of_range
