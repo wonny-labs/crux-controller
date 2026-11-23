@@ -104,8 +104,8 @@ class Extension(unittest.TestCase):
         self.assertIn("marus25.cortex-debug", data["customizations"]["vscode"]["extensions"])
 
     def test_cortex_debug_dependencies_come_before_it(self):
-        # Cortex-Debug's extensionDependencies are listed before it, to avoid "Cannot activate the
-        # 'Cortex-Debug' extension" on the first creation of the container (not yet observed either way).
+        # Cortex-Debug's extensionDependencies are listed before it. This did not stop the first-creation
+        # popup in a WSL2 test; see docs/troubleshooting.md.
         data = json.loads((DEVCONTAINER / "devcontainer.json").read_text())
         extensions = data["customizations"]["vscode"]["extensions"]
         position = extensions.index("marus25.cortex-debug")
