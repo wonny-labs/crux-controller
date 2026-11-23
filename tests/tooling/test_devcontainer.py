@@ -1169,7 +1169,6 @@ class DevcontainerWorkflow(unittest.TestCase):
 CERTS = DEVCONTAINER / "certs"
 INSTALL_CERTS = DEVCONTAINER / "install-org-certs.sh"
 SYSTEM_BUNDLE = "/etc/ssl/certs/ca-certificates.crt"
-PEM = "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\n"
 
 
 def run_instructions(text):
@@ -1470,6 +1469,33 @@ class InstallOrgCertsScript(unittest.TestCase):
         self.assert_stopped(result, "error: .devcontainer/certs/bundle.pem: holds a private key. "
                                     "Put only the CA certificate here, never a key.")
         self.assertNotIn("MIIE", result.stdout + result.stderr)
+
+    def test_a_bundle_is_installed_as_one_file_per_certificate(self):
+        (self.source / "chain.crt").write_text(self.PEM + self.PEM)
+        result = self.run_script()
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(["chain-1.crt", "chain-2.crt"], self.installed())
+        self.assertEqual(self.PEM, (self.target / "chain-2.crt").read_text())
+
+    def test_a_broken_block_after_a_good_one_stops_the_build(self):
+        broken = "-----BEGIN CERTIFICATE-----\nMIIBbroken\n-----END CERTIFICATE-----\n"
+        (self.source / "chain.crt").write_text(self.PEM + broken)
+        result = self.run_script()
+        self.assert_stopped(result, "error: .devcontainer/certs/chain.crt: certificate 2 of 2 is not a valid certificate.")
+
+    def test_a_pem_block_that_is_not_a_certificate_stops_the_build(self):
+        key = "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQ\n-----END PUBLIC KEY-----\n"
+        (self.source / "mixed.pem").write_text(self.PEM + key)
+        result = self.run_script()
+        self.assert_stopped(result, "error: .devcontainer/certs/mixed.pem: holds a PEM block that is not a certificate.")
+
+    def test_a_private_key_stops_the_build_whatever_the_file_ending(self):
+        for name in ("org.key", "notes.txt"):
+            with self.subTest(name):
+                (self.source / name).write_text("-----BEGIN EC PRIVATE KEY-----\nMHcC\n-----END EC PRIVATE KEY-----\n")
+                result = self.run_script()
+                self.assert_stopped(result, f"error: .devcontainer/certs/{name}: holds a private key.")
+                (self.source / name).unlink()
 
     def test_a_bad_file_installs_nothing_even_next_to_a_good_one(self):
         (self.source / "a-good.crt").write_text(self.PEM)

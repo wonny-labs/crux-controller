@@ -458,7 +458,7 @@ class Proxy(RefPage):
         convert = "openssl x509 -inform der -in company.cer -out company.crt"
         self.assertIn(convert, self.setup)
         self.assertIn(convert, self.proxy)
-        for word in ("PEM", "pip.conf", "both routes"):
+        for word in ("PEM", "both routes"):
             self.assertIn(word, self.proxy)
         self.assertIn(".crux-extra-ca.crt", read(DEVCONTAINER / "check-host.sh"))
 

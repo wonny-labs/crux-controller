@@ -146,16 +146,17 @@ again. Git ignores every file there except `README.md` and `.gitkeep`, so the ce
 The first RUN step of the Dockerfile, `.devcontainer/install-org-certs.sh`, runs before `apt-get`, the J-Link download
 and every later download. It installs each such file as a `.crt` system certificate: a PEM file (one with a
 `BEGIN CERTIFICATE` line) as it is, without Windows line ends, and a DER file converted to PEM with
-`openssl x509 -inform der`. A file that holds a private key, a file that is neither PEM nor DER and a PEM file that
-does not parse stop the build with an `error:` line that names the file, and then no certificate is installed; a
-file with another ending is skipped with a `certs: skipping` line. An empty folder installs nothing. The step reads the folder through a BuildKit bind
-mount, so the image keeps the installed certificates and no other file of the folder; VS Code and Docker Engine 23
-and later build with BuildKit by default, and a builder without BuildKit stops at that step. The image also sets
-`REQUESTS_CA_BUNDLE`,
+`openssl x509 -inform der`. A PEM file with several certificates is installed as one file per certificate. A file
+that holds a private key (whatever its ending), a file that is neither PEM nor DER, a PEM file with a block other
+than a certificate and a certificate that does not parse stop the build with an `error:` line that names the file,
+and then no certificate is installed; a file with another ending is skipped with a `certs: skipping` line. An empty
+folder installs nothing. The step reads the folder through a BuildKit bind mount, so the image keeps the installed
+certificates and no other file of the folder; VS Code and Docker Engine 23 and later build with BuildKit by
+default, and a builder without BuildKit stops at that step. The image also sets `REQUESTS_CA_BUNDLE`,
 `CURL_CA_BUNDLE`, `SSL_CERT_FILE`, `GIT_SSL_CAINFO`, `PIP_CERT` and `NODE_EXTRA_CA_CERTS` to the system bundle,
 `/etc/ssl/certs/ca-certificates.crt`, for the build and for every terminal of the container, so pip, Python's
-requests, curl, git and Node.js use it. With an empty folder that bundle holds only the CAs of the distribution, as
-before. The pull of the base image happens on the host, before any of this, and needs the certificate there (see
+requests, curl, git and Node.js use it. With an empty folder that bundle holds only the CAs of the distribution.
+The pull of the base image happens on the host, before any of this, and needs the certificate there (see
 below).
 
 **In the workspace folder (no rebuild).** The setup script also takes the CA certificate as a PEM file, named
@@ -182,9 +183,7 @@ build does not see the file; use the folder above for that.
   ```
 
 The image sets the bundle variables for every terminal (see the folder route above), so the certificate that the
-setup installs reaches pip, requests and git there too. An image built before those variables were added has them
-only inside the setup script: rebuild it, or set `PIP_CERT` to `/etc/ssl/certs/ca-certificates.crt` in that
-terminal, or add a `cert` entry to a `pip.conf`.
+setup installs reaches pip, requests and git there too.
 
 Some of it nobody can do for you, because it is on the host and not in the container (all of this is general
 knowledge, not checked against these files):
@@ -212,44 +211,12 @@ allowed.
 
 ### Get the root certificate
 
-Ask IT for the CA certificate first. Otherwise, on a Windows machine that the proxy already works for (all of this
-is general knowledge, not checked on a machine of this project):
-
-1. Run `certmgr.msc`, open **Trusted Root Certification Authorities**, then **Certificates**.
-2. Find the CA that signs the proxy's certificates (the issuer of the check below), right-click it, **All Tasks**,
-   **Export...**, and choose **Base-64 encoded X.509 (.CER)**. That gives a PEM file.
-3. Rename the file to end in `.crt` (or keep `.cer`: both are installed) and place it in `.devcontainer/certs/`.
-
-To see which CA signs what the proxy presents, run one of these from WSL or the container. With a proxy that you
-set in `http_proxy` and `https_proxy`, as above, pass it with `-proxy` (OpenSSL 1.1.0 and later; the address is the
-placeholder of the example above):
-
-```bash
-openssl s_client -proxy proxy.example.com:3128 -connect www.segger.com:443 -showcerts </dev/null
-```
-
-Without `-proxy` the command connects directly, so it shows the proxy's certificates only when the proxy
-intercepts the connection on its own (a transparent proxy):
-
-```bash
-openssl s_client -connect www.segger.com:443 -showcerts </dev/null
-```
-
-Under `Certificate chain`, each entry has an `s:` (subject) and an `i:` (issuer) line. The server usually sends the
-site's certificate first, so the `i:` line of the last entry usually names the root CA to export; when it names
-your organisation and not a public CA, the proxy re-signs the connection.
-
-To check a file before you rebuild, in the folder that holds it (a DER file needs `-inform der`):
+Ask IT for the root CA certificate as a PEM or DER file. To check a file before you rebuild, in the folder that
+holds it (a DER file needs `-inform der`):
 
 ```bash
 openssl x509 -noout -issuer -subject -in company.crt
 ```
-
-A **DER encoded binary X.509** export works too, as the image converts it; the command to convert it yourself is
-the one in the workspace-folder route above.
-
-Then rebuild the container. In it, `curl -I https://www.segger.com` must print a status line instead of the
-`curl: (60)` error.
 
 ## Layout
 

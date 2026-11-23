@@ -11,13 +11,14 @@
 #
 # Each *.crt, *.pem or *.cer file of the source folder (not its subfolders) is installed as
 # <name>.crt in the target folder, /usr/local/share/ca-certificates/crux-org by default:
-#   - a PEM file (a BEGIN CERTIFICATE line) as it is, with Windows line ends removed, after openssl
-#     has parsed it;
+#   - a PEM file (a BEGIN CERTIFICATE line) split into one file per certificate (<name>-<n>.crt for
+#     more than one), with Windows line ends removed, after openssl has parsed every certificate;
 #   - else a DER file, converted to PEM with openssl;
 #   - without openssl, a file that is not PEM is skipped with the command that converts it.
-# A file that holds a private key, a file that is neither PEM nor DER and a PEM file that does not
-# parse stop the build with an error that names the file, and then nothing is installed. A file with
-# another ending is skipped with a message; README.md and .gitkeep are not reported. Then
+# A file that holds a private key (whatever its ending), a file that is neither PEM nor DER, a PEM
+# file with a block other than CERTIFICATE and a certificate that does not parse stop the build with
+# an error that names the file, and then nothing is installed. A file with another ending is skipped
+# with a message; README.md and .gitkeep are not reported. Then
 # update-ca-certificates builds the system bundle (/etc/ssl/certs/ca-certificates.crt). A base image
 # without it leaves that to the package step of the Dockerfile, which installs ca-certificates and
 # runs it. Only file names are printed, never the contents.
@@ -68,6 +69,11 @@ for file in "$source_dir"/* "$source_dir"/.[!.]*; do
     case "$name" in
         README.md | .gitkeep) continue ;;
     esac
+    # A key never belongs here, whatever the file is called.
+    if grep -q -- 'PRIVATE KEY-----' "$file"; then
+        refuse "$name" "holds a private key. Put only the CA certificate here, never a key."
+        continue
+    fi
     stem=${name%.*}
     ending=$(printf '%s' "${name##*.}" | tr 'A-Z' 'a-z')
     case "$name" in
@@ -81,13 +87,61 @@ for file in "$source_dir"/* "$source_dir"/.[!.]*; do
             continue
             ;;
     esac
-    if grep -q -- 'PRIVATE KEY-----' "$file"; then
-        refuse "$name" "holds a private key. Put only the CA certificate here, never a key."
+    base=$(safe_name "$stem")
+
+    if grep -q -- '-----BEGIN CERTIFICATE-----' "$file"; then
+        if tr -d '\r' <"$file" | grep -- '^-----BEGIN ' | grep -v -q -x -- '-----BEGIN CERTIFICATE-----'; then
+            refuse "$name" "holds a PEM block that is not a certificate."
+            continue
+        fi
+        # One file per certificate, Windows line ends removed.
+        rm -rf "$stage/split"
+        mkdir "$stage/split"
+        tr -d '\r' <"$file" | awk -v out="$stage/split/part" '
+            /^-----BEGIN CERTIFICATE-----$/ { n++; f = sprintf("%s-%04d.pem", out, n); inside = 1 }
+            inside { print > f }
+            /^-----END CERTIFICATE-----$/ { if (inside) close(f); inside = 0 }'
+        set -- "$stage/split/"part-*.pem
+        count=$#
+        number=0
+        bad=0
+        for part do
+            number=$((number + 1))
+            if [ "$have_openssl" -eq 1 ] && ! "$openssl" x509 -noout -in "$part" >/dev/null 2>&1; then
+                if [ "$count" -eq 1 ]; then
+                    refuse "$name" "is not a valid certificate."
+                else
+                    refuse "$name" "certificate $number of $count is not a valid certificate."
+                fi
+                bad=1
+            fi
+        done
+        [ "$bad" -eq 0 ] || continue
+        # <base>.crt (or <base>-<n>.crt for a bundle), else with the ending in the name, else with a
+        # number: no file of this run or of the target folder is ever overwritten.
+        if [ "$count" -eq 1 ]; then first="$base.crt"; else first="$base-1.crt"; fi
+        if taken "$first"; then
+            base="$base-$ending"
+            suffix=2
+            if [ "$count" -eq 1 ]; then first="$base.crt"; else first="$base-1.crt"; fi
+            while taken "$first"; do
+                if [ "$count" -eq 1 ]; then first="$base-$suffix.crt"; else first="$base-$suffix-1.crt"; fi
+                suffix=$((suffix + 1))
+            done
+            base=${first%.crt}
+            [ "$count" -eq 1 ] || base=${base%-1}
+        fi
+        number=0
+        for part do
+            number=$((number + 1))
+            if [ "$count" -eq 1 ]; then target="$base.crt"; else target="$base-$number.crt"; fi
+            mv "$part" "$stage/$target"
+            say "installing $name as $target"
+            staged=$((staged + 1))
+        done
         continue
     fi
 
-    # <stem>.crt, else <stem>-<ending>.crt, else with a number: no file is ever overwritten.
-    base=$(safe_name "$stem")
     target="$base.crt"
     if taken "$target"; then
         target="$base-$ending.crt"
@@ -97,26 +151,16 @@ for file in "$source_dir"/* "$source_dir"/.[!.]*; do
             number=$((number + 1))
         done
     fi
-    if grep -q -- '-----BEGIN CERTIFICATE-----' "$file"; then
-        # awk prints every line with a line end, so the last line gets one too.
-        awk '{ sub(/\r$/, ""); print }' "$file" >"$stage/$target"
-        if [ "$have_openssl" -eq 1 ] && ! "$openssl" x509 -noout -in "$stage/$target" >/dev/null 2>&1; then
-            rm -f "$stage/$target"
-            refuse "$name" "is not a valid certificate."
-            continue
-        fi
-        say "installing $name as $target"
-    elif [ "$have_openssl" -eq 0 ]; then
+    if [ "$have_openssl" -eq 0 ]; then
         skip "$name: not a PEM certificate, and openssl is not there to convert DER. $convert_hint"
         continue
     elif "$openssl" x509 -inform der -in "$file" -out "$stage/$target" 2>/dev/null; then
         say "converted $name from DER to PEM, installing it as $target"
+        staged=$((staged + 1))
     else
         rm -f "$stage/$target"
         refuse "$name" "is neither a PEM nor a DER certificate."
-        continue
     fi
-    staged=$((staged + 1))
 done
 
 if [ "$failed" -ne 0 ]; then
