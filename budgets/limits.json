@@ -1,7 +1,7 @@
 {
   "_comment": "Placeholder limits, declared before the first measurement. The minimum free margin of 25 percent is a placeholder until the owner confirms the numbers. A change here is a reviewed change.",
   "min_free_percent": {
-    "S0": {
+    "base": {
       "FLASH": 25,
       "RAM": 25,
       "ITCM": 25,
@@ -10,7 +10,7 @@
       "OCRAM2": 25,
       "IDT_LIST": 25
     },
-    "S1": {
+    "workload": {
       "FLASH": 25,
       "RAM": 25,
       "ITCM": 25,
@@ -19,7 +19,7 @@
       "OCRAM2": 25,
       "IDT_LIST": 25
     },
-    "S2": {
+    "net": {
       "FLASH": 25,
       "RAM": 25,
       "ITCM": 25,
@@ -28,7 +28,7 @@
       "OCRAM2": 25,
       "IDT_LIST": 25
     },
-    "S3": {
+    "file": {
       "FLASH": 25,
       "RAM": 25,
       "ITCM": 25,
@@ -37,7 +37,7 @@
       "OCRAM2": 25,
       "IDT_LIST": 25
     },
-    "S4": {
+    "system": {
       "FLASH": 25,
       "RAM": 25,
       "ITCM": 25,
@@ -46,7 +46,7 @@
       "OCRAM2": 25,
       "IDT_LIST": 25
     },
-    "S5": {
+    "sntp": {
       "FLASH": 25,
       "RAM": 25,
       "ITCM": 25,
@@ -55,7 +55,7 @@
       "OCRAM2": 25,
       "IDT_LIST": 25
     },
-    "S6": {
+    "management": {
       "FLASH": 25,
       "RAM": 25,
       "ITCM": 25,

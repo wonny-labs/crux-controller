@@ -40,8 +40,8 @@ class Collect(unittest.TestCase):
         self.build = make_build_dir(pathlib.Path(self.directory.name) / "build")
 
     def test_collect_reads_regions(self):
-        measurement = collect.collect(self.build, "S0")
-        self.assertEqual("S0", measurement["step"])
+        measurement = collect.collect(self.build, "base")
+        self.assertEqual("base", measurement["config"])
         self.assertEqual(
             {"used": 32432, "size": 8 * 1024 * 1024}, measurement["regions"]["FLASH"]
         )
@@ -53,12 +53,12 @@ class Collect(unittest.TestCase):
         )
 
     def test_rom_and_ram_reports_kept_separate(self):
-        measurement = collect.collect(self.build, "S0")
+        measurement = collect.collect(self.build, "base")
         self.assertEqual(32080, measurement["rom_report"])
         self.assertEqual(4256, measurement["ram_report"])
 
     def test_image_size_and_hash(self):
-        measurement = collect.collect(self.build, "S0")
+        measurement = collect.collect(self.build, "base")
         self.assertEqual(len(IMAGE), measurement["zephyr_bin_size"])
         self.assertEqual(hashlib.sha256(IMAGE).hexdigest(), measurement["zephyr_bin_sha256"])
 
@@ -75,10 +75,10 @@ class Collect(unittest.TestCase):
         expected = hashlib.sha256(
             json.dumps(identity, sort_keys=True, separators=(",", ":")).encode()
         ).hexdigest()
-        self.assertEqual(expected, collect.collect(self.build, "S0")["firmware_identity"])
+        self.assertEqual(expected, collect.collect(self.build, "base")["firmware_identity"])
 
     def test_configured_values_are_recorded(self):
-        measurement = collect.collect(self.build, "S0")
+        measurement = collect.collect(self.build, "base")
         self.assertEqual("4096", measurement["configured"]["CONFIG_MAIN_STACK_SIZE"])
         self.assertNotIn("CONFIG_SHELL", measurement["configured"])
 
@@ -104,11 +104,11 @@ class Collect(unittest.TestCase):
     def test_a_missing_log_is_an_error(self):
         (self.build / "budget" / "ram_report.log").unlink()
         with self.assertRaises(FileNotFoundError):
-            collect.collect(self.build, "S0")
+            collect.collect(self.build, "base")
 
 
-def measurement(regions, step="S2"):
-    return {"step": step, "regions": regions}
+def measurement(regions, step="net"):
+    return {"config": step, "regions": regions}
 
 
 def limits(per_step):
@@ -118,26 +118,26 @@ def limits(per_step):
 class Check(unittest.TestCase):
     def test_check_passes_under_limit(self):
         m = measurement({"FLASH": {"used": 700, "size": 1000}})
-        self.assertEqual([], check.check(m, limits({"S2": {"FLASH": 25}})))
+        self.assertEqual([], check.check(m, limits({"net": {"FLASH": 25}})))
 
     def test_check_passes_exactly_at_the_limit(self):
         m = measurement({"FLASH": {"used": 750, "size": 1000}})
-        self.assertEqual([], check.check(m, limits({"S2": {"FLASH": 25}})))
+        self.assertEqual([], check.check(m, limits({"net": {"FLASH": 25}})))
 
     def test_check_fails_over_limit(self):
         m = measurement({"FLASH": {"used": 751, "size": 1000}})
-        messages = check.check(m, limits({"S2": {"FLASH": 25}}))
+        messages = check.check(m, limits({"net": {"FLASH": 25}}))
         self.assertEqual(1, len(messages))
         self.assertIn("FLASH", messages[0])
         self.assertIn("25", messages[0])
 
     def test_check_fails_when_a_region_is_full_or_overfull(self):
         m = measurement({"FLASH": {"used": 1200, "size": 1000}})
-        self.assertEqual(1, len(check.check(m, limits({"S2": {"FLASH": 0}}))))
+        self.assertEqual(1, len(check.check(m, limits({"net": {"FLASH": 0}}))))
 
     def test_check_fails_when_a_limited_region_is_not_measured(self):
         m = measurement({"FLASH": {"used": 1, "size": 1000}})
-        messages = check.check(m, limits({"S2": {"FLASH": 25, "OCRAM": 25}}))
+        messages = check.check(m, limits({"net": {"FLASH": 25, "OCRAM": 25}}))
         self.assertEqual(1, len(messages))
         self.assertIn("OCRAM", messages[0])
         self.assertIn("not measured", messages[0])
@@ -146,14 +146,14 @@ class Check(unittest.TestCase):
         m = measurement(
             {"FLASH": {"used": 1, "size": 1000}, "OCRAM": {"used": 1, "size": 1000}}
         )
-        messages = check.check(m, limits({"S2": {"FLASH": 25}}))
+        messages = check.check(m, limits({"net": {"FLASH": 25}}))
         self.assertEqual(1, len(messages))
         self.assertIn("OCRAM", messages[0])
         self.assertIn("no limit", messages[0])
 
     def test_check_fails_on_unknown_step(self):
         m = measurement({"FLASH": {"used": 1, "size": 1000}}, step="S9")
-        messages = check.check(m, limits({"S2": {"FLASH": 25}}))
+        messages = check.check(m, limits({"net": {"FLASH": 25}}))
         self.assertEqual(1, len(messages))
         self.assertIn("S9", messages[0])
 
@@ -161,11 +161,11 @@ class Check(unittest.TestCase):
         m = measurement(
             {"FLASH": {"used": 900, "size": 1000}, "RAM": {"used": 900, "size": 1000}}
         )
-        self.assertEqual(2, len(check.check(m, limits({"S2": {"FLASH": 25, "RAM": 25}}))))
+        self.assertEqual(2, len(check.check(m, limits({"net": {"FLASH": 25, "RAM": 25}}))))
 
     def test_a_region_of_size_zero_fails(self):
         m = measurement({"FLASH": {"used": 0, "size": 0}})
-        self.assertEqual(1, len(check.check(m, limits({"S2": {"FLASH": 25}}))))
+        self.assertEqual(1, len(check.check(m, limits({"net": {"FLASH": 25}}))))
 
     def test_table_lists_every_region_with_its_free_percentage(self):
         m = measurement({"FLASH": {"used": 250, "size": 1000}})
@@ -175,21 +175,21 @@ class Check(unittest.TestCase):
 
 
 class DeclaredLimits(unittest.TestCase):
-    def test_limits_file_declares_s0_to_s2_with_placeholder_margins(self):
+    def test_limits_file_declares_base_to_net_with_placeholder_margins(self):
         data = json.loads((ROOT / "budgets" / "limits.json").read_text())
-        for step in ("S0", "S1", "S2"):
+        for step in ("base", "workload", "net"):
             self.assertEqual(
                 {"FLASH", "RAM", "ITCM", "DTCM", "OCRAM", "OCRAM2", "IDT_LIST"},
                 set(data["min_free_percent"][step]),
             )
             self.assertTrue(all(v == 25 for v in data["min_free_percent"][step].values()))
 
-    def test_the_s0_fixture_passes_the_declared_limits(self):
+    def test_the_base_fixture_passes_the_declared_limits(self):
         data = json.loads((ROOT / "budgets" / "limits.json").read_text())
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         build = make_build_dir(pathlib.Path(directory.name) / "build")
-        self.assertEqual([], check.check(collect.collect(build, "S0"), data))
+        self.assertEqual([], check.check(collect.collect(build, "base"), data))
 
 
 class BudgetWorkflow(unittest.TestCase):
@@ -213,7 +213,7 @@ class BudgetWorkflow(unittest.TestCase):
 
     def test_the_job_covers_the_declared_steps_and_uploads_nothing(self):
         job = self.load()["jobs"]["budget"]
-        steps = {entry["step"] for entry in job["strategy"]["matrix"]["include"]}
+        steps = {entry["config"] for entry in job["strategy"]["matrix"]["include"]}
         data = json.loads((ROOT / "budgets" / "limits.json").read_text())
         self.assertTrue(steps <= set(data["min_free_percent"]))
         for step in job["steps"]:
@@ -225,10 +225,10 @@ class CommandLine(unittest.TestCase):
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         build = make_build_dir(pathlib.Path(directory.name) / "build")
-        out = pathlib.Path(directory.name) / "s0.json"
+        out = pathlib.Path(directory.name) / "base.json"
         collected = subprocess.run(
             [sys.executable, str(ROOT / "budgets" / "collect.py"), "--build-dir", str(build),
-             "--step", "S0", "--out", str(out)],
+             "--config", "base", "--out", str(out)],
             capture_output=True, text=True,
         )
         self.assertEqual(0, collected.returncode, collected.stderr)
@@ -247,7 +247,7 @@ class CommandLine(unittest.TestCase):
         measurement_path.write_text(
             json.dumps(measurement({"FLASH": {"used": 999, "size": 1000}}))
         )
-        limits_path.write_text(json.dumps(limits({"S2": {"FLASH": 25}})))
+        limits_path.write_text(json.dumps(limits({"net": {"FLASH": 25}})))
         result = subprocess.run(
             [sys.executable, str(ROOT / "budgets" / "check.py"), "--measurement",
              str(measurement_path), "--limits", str(limits_path)],

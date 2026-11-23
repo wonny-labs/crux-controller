@@ -5,7 +5,7 @@ name: devcontainer
 # container can build and test what the CI jobs of ci.yml build and test, so a teammate on Windows
 # with WSL2 and Docker Engine gets the same result: the tooling tests, the format check, the static
 # analysis, the host tests, both boundary checks, the native_sim scenarios and the RT1060-EVKB
-# cross-build of step S1 with the Zephyr SDK that setup.sh installs. It does not replace those jobs, and
+# cross-build of the workload capability with the Zephyr SDK that setup.sh installs. It does not replace those jobs, and
 # it is not a run in VS Code or in WSL2: only the Dev Containers extension runs devcontainer.json.
 # west.yml is a trigger because a move of the pin changes the Zephyr requirement files that
 # setup.sh installs, and main is a trigger so that such a change cannot break the container unseen.
@@ -38,7 +38,7 @@ concurrency:
 
 jobs:
   devcontainer:
-    name: Dev container (tooling tests, boundary check, S1 native_sim and RT1060-EVKB)
+    name: Dev container (tooling tests, boundary check, workload native_sim and RT1060-EVKB)
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     env:
@@ -90,24 +90,24 @@ jobs:
             cd /workspaces/ws/crux-controller
             python3 /workspaces/ws/crux-pilot/templates/product/check_domain_includes.py --product .
           '
-      - name: Run the S1 scenario on native_sim
+      - name: Run the workload scenario on native_sim
         run: |
           crux-controller/scripts/dev-shell.sh bash -c '
             cd /workspaces/ws
             west twister -p native_sim/native/64 -T crux-controller/tests/native_sim \
               --inline-logs --clobber-output -O twister-out
           '
-      # The next three steps are the steps of the same names of the S1 job in ci.yml, run in the
+      # The next three steps are the steps of the same names of the workload job in ci.yml, run in the
       # container with the Zephyr SDK and the arm-zephyr-eabi toolchain that setup.sh installed.
       # The commands are the same, with the board name of that job written out. A test compares them.
-      - name: Cross-build S1 with the baseline gate required
+      - name: Cross-build workload with the baseline gate required
         run: |
           crux-controller/scripts/dev-shell.sh bash -s <<'SH'
           set -euo pipefail
           cd /workspaces/ws
-          west build -p always -b 'mimxrt1060_evk@B//qspi' -d crux-controller/build/s1 \
+          west build -p always -b 'mimxrt1060_evk@B//qspi' -d crux-controller/build/workload \
             crux-controller/app -- -DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON \
-            -DEXTRA_CONF_FILE=conf/s1.conf
+            -DEXTRA_CONF_FILE=conf/workload.conf
           SH
       - name: Check the outputs exist
         run: |
@@ -115,26 +115,26 @@ jobs:
           set -euo pipefail
           cd /workspaces/ws
           for output in zephyr.bin zephyr.meta; do
-            test -f "crux-controller/build/s1/zephyr/$output" || {
+            test -f "crux-controller/build/workload/zephyr/$output" || {
               echo "missing $output" >&2
               exit 1
             }
           done
           SH
-      - name: Check the resolved S1 configuration
+      - name: Check the resolved workload configuration
         run: |
           crux-controller/scripts/dev-shell.sh bash -s <<'SH'
           set -euo pipefail
           cd /workspaces/ws
-          build=crux-controller/build/s1/zephyr
-          for option in CONFIG_CRUX_CONTROLLER_S1=y CONFIG_CRUX_LOGGING=y \
+          build=crux-controller/build/workload/zephyr
+          for option in CONFIG_CRUX_CONTROLLER_WORKLOAD=y CONFIG_CRUX_LOGGING=y \
               CONFIG_CRUX_CONTROLLER_WORKER_STACK=4096; do
             grep -qx "$option" "$build/.config" || { echo "missing $option" >&2; exit 1; }
           done
-          # The product does not call the Crux Thread provider, so no step selects it.
+          # The product does not call the Crux Thread provider, so no configuration selects it.
           for option in CONFIG_CRUX_THREAD=y; do
             ! grep -qx "$option" "$build/.config" || { echo "unexpected $option" >&2; exit 1; }
           done
           grep -q 'zephyr,log-uart' "$build/zephyr.dts" || { echo "no log UART selection" >&2; exit 1; }
-          ! grep -qx 'CONFIG_CRUX_CONTROLLER_S2=y' "$build/.config"
+          ! grep -qx 'CONFIG_CRUX_CONTROLLER_NET=y' "$build/.config"
           SH

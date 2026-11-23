@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
-# Step S6: the entropy rules of the board image. This file is included by app/CMakeLists.txt, inside
-# the step's block, after find_package(Zephyr) and project(). The native_sim scenario does not
+# The management capability: the entropy rules of the board image. This file is included by app/CMakeLists.txt, inside
+# the management block, after find_package(Zephyr) and project(). The native_sim scenario does not
 # include it, because the simulator has a test entropy source and no other one.
 #
 # The image generates a TLS key and password salts at its first start. A key or a salt that came from
@@ -12,10 +12,10 @@
 # configuration when it differs, which is how a Zephyr update shows up here.
 
 if(CONFIG_TEST_RANDOM_GENERATOR OR CONFIG_FAKE_ENTROPY_NATIVE_SIM)
-    message(FATAL_ERROR "Step S6 generates a TLS key at its first start: no test entropy source")
+    message(FATAL_ERROR "The management capability generates a TLS key at its first start: no test entropy source")
 endif()
 if(NOT CONFIG_ENTROPY_MCUX_TRNG OR NOT CONFIG_MBEDTLS_PSA_DRIVER_GET_ENTROPY)
-    message(FATAL_ERROR "Step S6 needs the i.MX RT random source through its driver "
+    message(FATAL_ERROR "The management capability needs the i.MX RT random source through its driver "
                         "(CONFIG_ENTROPY_MCUX_TRNG) as the PSA entropy source "
                         "(CONFIG_MBEDTLS_PSA_DRIVER_GET_ENTROPY)")
 endif()

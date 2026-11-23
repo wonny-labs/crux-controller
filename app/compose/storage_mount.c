@@ -1,9 +1,9 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
 /*
- * The composition zone of step S3: the one place that mounts a file system and binds it to Crux
- * File. It implements the port that app/src declares, with the composition interface that Crux
- * publishes for this (<crux/file_zephyr.h>) and the Zephyr headers on the zone's allow-list in
+ * The composition zone of the file capability: the one place that mounts a file system and binds it
+ * to Crux File. It implements the port that app/src declares, with the composition interface that
+ * Crux publishes for this (<crux/file_zephyr.h>) and the Zephyr headers on the zone's allow-list in
  * docs/composition-zone.md. The volume is the devicetree entry labelled controller_storage, a
  * "zephyr,fstab,fatfs" node, so Zephyr itself declares the file system object and this file needs
  * no vendor or file system library header.
@@ -101,12 +101,12 @@ storage_port_status_t storage_port_bind(void)
 
 #ifdef CONFIG_CRUX_WEB_MANAGEMENT
 /*
- * Step S6 only: the two directories of the credential store. This part is compiled only when the
- * web management symbol of Crux is on, which the S6 fragment sets, so the object of every other
- * step, S3 included, is the one it was before.
+ * The management capability only: the two directories of the credential store. This part is
+ * compiled only when the web management symbol of Crux is on, which the management fragment sets,
+ * so the object of every other configuration, file included, is the one it was before.
  */
 
-/* The two directories of the credential store of step S6, one for each of its slots. */
+/* The two directories of the credential store of management, one for each of its slots. */
 #define STORE_DIRECTORY_A "secure-a"
 #define STORE_DIRECTORY_B "secure-b"
 

@@ -42,7 +42,7 @@ The Recorded rows were read from the GitHub job logs of the `ci` run (4370853238
 for the push of the merge commit `29a2d8f` to `main` on 15 November 2026, which is a revision of the public
 repository. All jobs of both runs ended in success. The `Budget S5` job printed the `FLASH` and `RAM` rows of the
 Zephyr memory region table; the other regions printed 0 bytes. Later commits moved the `FLASH` figure of S5 (see the
-table in [docs/roadmap.md](../roadmap.md#static-size-per-step)).
+table in [docs/roadmap.md](../roadmap.md#static-size-per-configuration)).
 
 ## The policy
 

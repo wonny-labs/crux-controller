@@ -215,7 +215,7 @@ class CheckBundle(unittest.TestCase):
                 + "remote: git://example.org/var/lib/x.git\n"
                 + "remote: ssh://git@example.org/opt/x.git\n"
                 + "path: modules/hal/nxp\n"
-                + "path: crux-controller/build/s2\n"
+                + "path: crux-controller/build/net\n"
                 + "path: a/home/b\n"
             )
             put_item(bundle, "pins-report.txt", text.encode())

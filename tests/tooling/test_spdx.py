@@ -239,7 +239,7 @@ class WorkflowStep(unittest.TestCase):
         spdx_at = next(i for i, c in enumerate(commands) if "west spdx -d" in c)
         parse_at = next(i for i, c in enumerate(commands) if "parse_spdx.py" in c)
         self.assertGreater(parse_at, spdx_at)
-        self.assertIn("build/s2/spdx", commands[parse_at])
+        self.assertIn("build/net/spdx", commands[parse_at])
         for step in steps:
             self.assertNotIn("upload-artifact", step.get("uses", ""))
         tests_step = "\n".join(commands)

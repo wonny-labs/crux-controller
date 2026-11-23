@@ -111,7 +111,7 @@ git fetch upstream
 ```
 
 A change of the pin, of `.github/workflows/`, of `scripts/` or of the boundary lists is one of the
-[files that need a reviewed change](../adding-a-step.md#files-that-need-a-reviewed-change). Review it as such in your
+[files that need a reviewed change](../adding-a-capability.md#files-that-need-a-reviewed-change). Review it as such in your
 copy.
 
 ## 7. The Crux pin

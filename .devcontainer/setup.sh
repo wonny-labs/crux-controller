@@ -9,10 +9,10 @@
 # zephyr/ and modules/. The workspace folder is bind-mounted at /workspaces/ws. The virtual
 # environment and the Zephyr SDK are in /opt/crux-cache, a named volume of this workspace folder.
 #
-# The steps are those of the S1 job of .github/workflows/ci.yml with local values: west init -l
+# The steps are those of the workload job of .github/workflows/ci.yml with local values: west init -l
 # crux-controller, west update, the Python requirements of Zephyr and west sdk install. West is not
 # updated again once the workspace exists: after the pin in west.yml moves, run `west update` by
-# hand. The optional Mbed TLS group of step S6 is not switched on here (see
+# hand. The optional Mbed TLS group of the management capability is not switched on here (see
 # docs/native-setup.md).
 #
 # Completion markers: a finished SDK install writes $ZEPHYR_SDK_INSTALL_DIR/.crux-installed, and the
@@ -187,7 +187,7 @@ else
     say "the workspace is initialised; run \`west update\` yourself after the pin in west.yml moves."
 fi
 
-# 3. The Python requirements of Zephyr, as the S1 job installs them.
+# 3. The Python requirements of Zephyr, as the workload job installs them.
 step "the Python requirements of Zephyr"
 requirements=(
     "$workspace/zephyr/scripts/requirements-base.txt"
@@ -202,7 +202,7 @@ if [[ "$(cat "$stamp.zephyr" 2>/dev/null || true)" != "$zephyr_hash" ]]; then
     printf '%s\n' "$zephyr_hash" >"$stamp.zephyr"
 fi
 
-# 4. The Zephyr SDK with the arm-zephyr-eabi toolchain, as the S1 job installs it. GH_TOKEN is
+# 4. The Zephyr SDK with the arm-zephyr-eabi toolchain, as the workload job installs it. GH_TOKEN is
 # optional: it only avoids GitHub's rate limit for anonymous requests. The install is complete when
 # the marker exists, and the marker is written only after west sdk install returned. The compiler is
 # looked for by name (a file or a symbolic link, at most five levels down) only to warn: a layout that

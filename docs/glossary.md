@@ -3,7 +3,7 @@
 Each entry says how this repository uses the word, with the file where the use can be checked. Where
 the repository is not consistent, the entry says so. Start with the [README](../README.md) and the
 [architecture](architecture.md) if the terms are new. The sections are: product, platform and
-composition; steps and stages; boundary and zones; build, pin and evidence; time; people and board
+composition; capabilities and build configurations; boundary and zones; build, pin and evidence; time; people and board
 procedures; terms from outside this repository; and wording that differs between files.
 
 ## Product, platform and composition
@@ -31,44 +31,46 @@ this firmware.
    product code that does that for File and for HTTPS management.
 3. A [composition interface](#boundary-and-zones), a Crux header such as `<crux/file_zephyr.h>` that only
    composition code may include.
-4. `app/src/composition.c`, with `composition_start()`. It starts the steps that a build selected. It is not
+4. `app/src/composition.c`, with `composition_start()`. It starts the capabilities that a build selected. It is not
    the composition zone and it includes no composition interface.
 
-## Steps and stages
+## Capabilities and build configurations
 
-**Step.** A numbered increment of what the firmware does, written S0 to S6 on `main`. Each step after S0
-has a Kconfig option (`CRUX_CONTROLLER_S1` to `CRUX_CONTROLLER_S6` in `app/Kconfig`), a configuration
-fragment (`app/conf/s1.conf` to `s6.conf`), a CI build job (the S1 job is named `S1 (native_sim and RT1060-EVKB)`), its own row in the `Budget` matrix and
-in `budgets/limits.json`, and a row in the README table.
+**Capability.** One thing that the firmware shows a product how to do with Crux, such as a TCP exchange over the
+Sockets profile or a watchdog through Crux System. Each capability has one *build configuration*.
 
-| Step | What it adds |
+**Build configuration.** A named set of Kconfig fragments and devicetree overlays that builds one image, `base` to
+`management`. Each configuration after `base` has a Kconfig option (`CRUX_CONTROLLER_WORKLOAD` to
+`CRUX_CONTROLLER_MANAGEMENT` in `app/Kconfig`), a fragment (`app/conf/<name>.conf`), a CI build job named after it
+(for example `system build (RT1060-EVKB, System)`), its own row in the `Budget` matrix and in
+`budgets/limits.json`, and a row in the README table.
+
+| Build configuration | What it adds |
 |---|---|
-| S0 | The clock of Crux Time answers. No option and no fragment: it is the base build. |
-| S1 | The synthetic workload on two Zephyr threads and a message queue (the adapter zone), with Crux Time and Logging. |
-| S2 | Each workload message is also sent to a TCP peer over the Crux Sockets profile. |
-| S3 | The workload's configuration record is kept in a file through Crux File, on a microSD volume mounted by the composition zone. |
-| S4 | The reset cause is logged at boot and a watchdog is fed once for each pass of the workload that has cycles due, through Crux System. |
-| S5 | The Crux Time realtime clock is set from an SNTP server on the S2 network, with a product policy for what an answer may do. |
-| S6 | Management over HTTPS on the S2 network: Crux Access, the web server on the Mbed TLS profile, the status and configuration services and a packaged page, on a RAM disk, with no account until the first-account console exists. |
+| `base` | The clock of Crux Time answers. No option and no fragment: it is `app/prj.conf` alone. |
+| `workload` | The synthetic workload on two Zephyr threads and a message queue (the adapter zone), with Crux Time and Logging. |
+| `net` | Each workload message is also sent to a TCP peer over the Crux Sockets profile. |
+| `file` | The workload's configuration record is kept in a file through Crux File, on a microSD volume mounted by the composition zone. |
+| `system` | The reset cause is logged at boot and a watchdog is fed once for each pass of the workload that has cycles due, through Crux System. |
+| `sntp` | The Crux Time realtime clock is set from an SNTP server on the `net` network, with a product policy for what an answer may do. |
+| `management` | Management over HTTPS on the `net` network: Crux Access, the web server on the Mbed TLS profile, the status and configuration services and a packaged page, on a RAM disk, with no account until the first-account console exists. |
 
-S2, S3 and S4 each depend on S1 in Kconfig and are built on top of `conf/s1.conf`. S5 depends on S2
-(and so on S1) and is built on `conf/s1.conf;conf/s2.conf;conf/s5.conf`. S6 depends on S2 too, excludes S3 and S4 in Kconfig, and is
-built on `conf/s1.conf;conf/s2.conf;conf/s6.conf`. "Build on" in the
-repository therefore means "depends on" a lower step. CI builds each step as its own image and never
-combines S2, S3 and S4; the S5 and S6 images are built on S2 (and so on S1). What each step has and has not run is in [roadmap.md](roadmap.md), and the procedure for
-adding one is in [adding-a-step.md](adding-a-step.md).
+`net`, `file` and `system` each depend on `workload` in Kconfig and are built on top of `conf/workload.conf`. `sntp`
+depends on `net` (and so on `workload`) and is built on `conf/workload.conf;conf/net.conf;conf/sntp.conf`.
+`management` depends on `net` too, excludes `file` and `system` in Kconfig, and is built on
+`conf/workload.conf;conf/net.conf;conf/management.conf`. "Built on" therefore means "depends on" another
+configuration. CI builds each configuration as its own image and never combines `net`, `file` and `system`. What
+each one has and has not run is in [roadmap.md](roadmap.md), and the procedure for adding one is in
+[adding-a-capability.md](adding-a-capability.md).
 
-"Step" has two other meanings that share the word. In a CI workflow a step is one entry of
-a job (`ci.yml`, `budget.yml`). In `RELEASE.md` the table "Step, Tool, What fails the run" lists the
-actions of the release dry run. The context says which one is meant.
+**Step.** In a CI workflow, one entry of a job (`ci.yml`, `budget.yml`). In `RELEASE.md` the table "Step, Tool,
+What fails the run" lists the actions of the release dry run. The notes in `docs/findings/` and `docs/history/`
+also use step ids, S0 to S6, for the build configurations; the [findings index](findings/README.md) maps each id
+to its name.
 
-**Stage.** A planning label of the repository's own work, larger than a step. It is not a property of the code,
-and no document defines it. `docs/findings/management-has-no-public-composition.md` calls S3 a Stage 1 step, S4 was
-tracked as a Stage 2 step, and nothing places S5 or S6 in a stage. The header comment of `west.yml` ("No optional
-group is enabled in Stage 1") uses the word in its earliest sense, and
-`docs/findings/file-binding-has-no-public-header.md`, a note from before S3 was built, says S3 "is not built in
-Stage 1". `docs/findings/s2-first-board-run.md` says "an earlier platform stage", which means a phase of Crux, not
-of this repository. How the stages were tracked is in [history](history/board-runs-and-tracking.md).
+**Stage.** A planning label that the notes in `docs/findings/` and `docs/history/` use for phases of the repository's own work. It is not a property of the code, and no current
+document defines it. `docs/findings/s2-first-board-run.md` says "an earlier platform stage", which means a phase
+of Crux. How the stages were tracked is in [history](history/board-runs-and-tracking.md).
 
 ## Boundary and zones
 
@@ -83,19 +85,19 @@ the wrapper `check-includes.sh` of `crux-pilot`, which calls the same script. Th
 belongs to this repository. See [composition-zone.md](composition-zone.md#running-the-check).
 
 **Adapter zone.** The directory `app/os`. The one place that creates threads, queues messages and
-sleeps, using Zephyr kernel calls directly, and queries an SNTP server for S5. It implements the port headers
+sleeps, using Zephyr kernel calls directly, and queries an SNTP server for `sntp`. It implements the port headers
 `app/src/workload_os.h` and `app/src/time_sync_port.h`. It may
 include exactly two Zephyr headers, `zephyr/kernel.h` and `zephyr/net/sntp.h` (`OS_ADAPTER_ZEPHYR_HEADERS`
 in `scripts/check_boundary.py`), and no Sockets profile, POSIX or composition header. Of its two sources,
-`app/os/time_sync_zephyr.c` (S5) includes the SNTP header. See [composition-zone.md](composition-zone.md).
+`app/os/time_sync_zephyr.c` (`sntp`) includes the SNTP header. See [composition-zone.md](composition-zone.md).
 
 **Composition zone.** The directory `app/compose`. The one place that mounts a file system and binds it
 to Crux File with the composition interface `<crux/file_zephyr.h>`, and the place that starts HTTPS management with
-the Web composition interface `<crux/web_zephyr.h>` (S6). It may include three Zephyr headers,
-`zephyr/fs/fs.h`, `zephyr/devicetree.h` and `zephyr/net/tls_credentials.h`. It implements the port headers `app/src/storage_port.h` and `app/src/management_port.h` (S6).
+the Web composition interface `<crux/web_zephyr.h>` (`management`). It may include three Zephyr headers,
+`zephyr/fs/fs.h`, `zephyr/devicetree.h` and `zephyr/net/tls_credentials.h`. It implements the port headers `app/src/storage_port.h` and `app/src/management_port.h` (`management`).
 "Composition" has [four meanings](#product-platform-and-composition). Here the composition zone holds the
 product code that does what Crux calls composition (meaning 1) for File and for HTTPS management. Do not confuse
-`app/src/composition.c`, which starts the steps, with the zone.
+`app/src/composition.c`, which starts the capabilities, with the zone.
 
 **Composition interface.** A Crux header that names a provider and is meant for composition code only,
 for example `<crux/file_zephyr.h>` with the CMake target `crux::file_zephyr`, or `<crux/web_zephyr.h>`
@@ -104,7 +106,7 @@ under `components/*/ports/*/include/crux/`, apart from the public headers. `app/
 not include one.
 
 **Port header.** A header in `app/src` that the application declares and a zone implements:
-`workload_os.h` and `time_sync_port.h` (both implemented in `app/os`), and `storage_port.h` and `management_port.h` (S6) (both implemented in `app/compose`). It includes
+`workload_os.h` and `time_sync_port.h` (both implemented in `app/os`), and `storage_port.h` and `management_port.h` (`management`) (both implemented in `app/compose`). It includes
 ISO C only, so it stays inside the rules of `app/src`. The application calls it; the linker joins the
 two sides.
 
@@ -119,7 +121,7 @@ publish.
 
 **Sockets profile.** The set of standard POSIX socket headers that Crux's networking contract lists
 (`SOCKET_PROFILE` in `scripts/check_boundary.py`: `sys/socket.h`, `netinet/in.h`, `arpa/inet.h`,
-`poll.h`, `fcntl.h`, `unistd.h`, `errno.h`, `time.h`). `app/src` may include them, and S2's
+`poll.h`, `fcntl.h`, `unistd.h`, `errno.h`, `time.h`). `app/src` may include them, and `net`'s
 `net_client.c` does. The Crux targets are `crux::sockets` and `crux::netif`. `app/os`, `app/compose`
 and `workload/` fail on the ones that are not ISO C headers. `errno.h` and `time.h` are also ISO C headers,
 so they are allowed in every tree (`app/os/workload_os_zephyr.c` includes `<errno.h>`).
@@ -158,27 +160,27 @@ checks it in CI. A pin moves in its own pull request. See the pin section of
 GitHub. The facts that matter are stated in the text next to them, and the documents do not depend on the content
 of an issue.
 
-**Finding.** A note under `docs/findings/` that records what building a step or asking a question taught
+**Finding.** A note under `docs/findings/` that records what building a capability or asking a question taught
 about the product's use of Crux. Each statement in a finding carries a label, and the label set differs by note: Measured, Inferred and Open
-(the S3 note, where "Measured" means that a CI job produced the result), Measured, Inferred, Recorded and Open
-(the S4 and S5 notes, where "Measured" means that it was run locally while the step was written), Verified,
-Inferred and Not verified (the S6 groundwork note), Verified, Inferred, Recorded and Open (the S6 step note), and
-Measured and Not shown (the S2 board-run note). "Recorded" is a CI result read from the job logs at a named revision. A finding is kept as written: when the pin or the facts
+(the `file` note, where "Measured" means that a CI job produced the result), Measured, Inferred, Recorded and Open
+(the `system` and `sntp` notes, where "Measured" means that it was run locally while the note was written), Verified,
+Inferred and Not verified (the `management` groundwork note), Verified, Inferred, Recorded and Open (the `management` composition note), and
+Measured and Not shown (the `net` board-run note). "Recorded" is a CI result read from the job logs at a named revision. A finding is kept as written: when the pin or the facts
 move, a later result is added as a dated update or a banner and the recorded reading is not rewritten, so each
 note names the revision it was read at.
 
 **Budget.** The static resource check. The `Budget` job in `.github/workflows/budget.yml` builds each
-step, reads the memory region table and the ROM and RAM reports, and `budgets/check.py` compares them
+configuration, reads the memory region table and the ROM and RAM reports, and `budgets/check.py` compares them
 with `budgets/limits.json`, which declares a minimum percentage of free space per region for each
-step (placeholder values, 25 percent). It measures size only, not stack use, heap use or timing. A new
-step needs a row in the limits file first, because the checker fails a step that has none.
+configuration (placeholder values, 25 percent). It measures size only, not stack use, heap use or timing. A new
+configuration needs a row in the limits file first, because the checker fails one that has none.
 
 **`native_sim`.** Zephyr's simulated board, run on the build host as an ordinary program with emulated devices
 instead of hardware: no Ethernet PHY, no microSD card, no watchdog peripheral and no RT1060 is involved. CI runs
-the scenarios in `tests/native_sim` (one directory per step from S1 to S5) and `tests/native_sim_mbed` (S6, which
+the scenarios in `tests/native_sim` (one directory per configuration from `workload` to `sntp`) and `tests/native_sim_mbed` (`management`, which
 needs the Mbed TLS modules of the Crux manifest and has its own CI job) with Twister for `native_sim/native/64`. Each scenario is a Zephyr ztest application
 that compiles chosen sources of `app/` and `workload/`; none boots the board image. A `native_sim`
-pass is not evidence about the board: for example S4's scenario does not enable the simulated watchdog of the pinned
+pass is not evidence about the board: for example `system`'s scenario does not enable the simulated watchdog of the pinned
 Crux, so no feed cycle is shown there.
 
 **EVKB.** Short for the board the repository targets, written "NXP RT1060-EVKB Rev B" in prose and
@@ -186,9 +188,9 @@ Crux, so no feed cycle is shown there.
 `mimxrt1060_evk`, its revision `B` (`@B`) and the variant `qspi`, with the default SoC left out between the two
 slashes. An "EVKB build" in this repository means a cross-compile in CI. It never means a run.
 
-**Scenario.** One Zephyr test application under `tests/native_sim/sN` (S6: `tests/native_sim_mbed/s6`, which needs the Mbed TLS modules), with a `testcase.yaml` for
-Twister. S3, S4 and S5 select one case per image through a build variable (`S3_CASE`, `S4_CASE`,
-`S5_CASE`), because File can be bound and the watchdog started once per boot, and because the S5 test's
+**Scenario.** One Zephyr test application under `tests/native_sim/<name>` (`management`: `tests/native_sim_mbed/management`, which needs the Mbed TLS modules), with a `testcase.yaml` for
+Twister. `file`, `system` and `sntp` select one case per image through a build variable (`FILE_CASE`, `SYSTEM_CASE`,
+`SNTP_CASE`), because File can be bound and the watchdog started once per boot, and because the `sntp` test's
 CMake file notes that Crux Time keeps its state for the whole run.
 
 ## Time
@@ -198,7 +200,7 @@ CMake file notes that Crux Time keeps its state for the whole run.
 coordinates native clock changes with any external time manager and owns source selection and stale
 synchronisation callbacks, and that the authority header is not a runtime permission mechanism. That is why
 Crux provides no SNTP client: the product chooses the time source ([composition-zone.md](composition-zone.md)).
-In code, `app/src/time_sync.c` (S5) is the one file that calls the Crux Time authority
+In code, `app/src/time_sync.c` (`sntp`) is the one file that calls the Crux Time authority
 (`<crux/time_authority.h>`, with `crux_realtime_set()`).
 
 ## People and board procedures
@@ -211,7 +213,7 @@ Crux revision to the owner; in practice the owner has approved each one (`west.y
 `tests/tooling/test_manifest.py` record the approval of the current pin). "The project owner" and "the
 repository owner" (the wording of `RELEASE.md` and `SECURITY.md`) mean the same role.
 
-**Maintainer.** Not a separate role. The S2 board-run note says "the repository maintainer" and means the owner.
+**Maintainer.** Not a separate role. The `net` board-run note says "the repository maintainer" and means the owner.
 No document gives rights to a "maintainer", and `CODEOWNERS` lists one account for every file.
 
 **Reviewer.** Someone who did not write the change and who reads the actual files and the check results, as
@@ -231,23 +233,23 @@ merging a pull request needs the owner's approval. A review finding is not the s
 
 **Files that need a reviewed change.** This repository's term for the files whose change a reviewer must look at
 with care, because they hold the checks, the boundary lists, the pin, the limits or the rules. The list is in
-[adding-a-step.md](adding-a-step.md#files-that-need-a-reviewed-change). `CONTRIBUTING.md` is the authority for
+[adding-a-capability.md](adding-a-capability.md#files-that-need-a-reviewed-change). `CONTRIBUTING.md` is the authority for
 that list, and it states a rule for some of the files and none for the others. Other projects call such files
 "protected"; this repository does not use that word.
 
 **Operator.** The person who runs a board procedure on a bench, under the owner's approval for that task. The
-S2 board-run note uses the word for the person who ran the reviewed driver.
+`net` board-run note uses the word for the person who ran the reviewed driver.
 
 **Bench.** The physical setup of a board run: the board, its probe and UART adapter, the Ethernet cable and the
 host peer. "Two runs on one bench" means the same board and the same setup both times.
 
-**Gated procedure.** The fixed sequence of the S2 board runs: identify the board, program it, run the host checks,
+**Gated procedure.** The fixed sequence of the `net` board runs: identify the board, program it, run the host checks,
 restore. Its approvals and guard checks are recorded in `docs/findings/s2-first-board-run.md`, "Method". The
 procedure and its driver are
 not in this repository: the driver is the `crux-pilot` target test driver, and the run records are kept privately.
 
 **Accepted normal image.** The firmware that was on the board before a run and that the procedure puts back and
-verifies afterwards. It is not part of this repository. The S2 note records its SHA-256 and size.
+verifies afterwards. It is not part of this repository. The `net` note records its SHA-256 and size.
 
 ## Terms from outside this repository
 
@@ -268,41 +270,36 @@ headers above. The Mbed TLS profile selects Mbed TLS for HTTPS; Crux's other TLS
 this repository does not fetch.
 
 **SNTP.** The Simple Network Time Protocol: a client asks a server for the time over UDP (port 123). A
-kiss-o'-death answer is one in which the server tells the client to stop or slow down; S5 never sets the clock from one.
+kiss-o'-death answer is one in which the server tells the client to stop or slow down; `sntp` never sets the clock from one.
 
-**WDOG1.** The watchdog peripheral of the RT1060 that step S4 uses. The overlay `app/boards/s4.overlay` names it
+**WDOG1.** The watchdog peripheral of the RT1060 that the `system` capability uses. The overlay `app/boards/system.overlay` names it
 with the alias `crux-watchdog0`.
 
 **HWINFO.** Zephyr's hardware information API. Crux System reads the reset cause through it.
 
-**RAM disk.** A Zephyr disk that keeps its data in RAM, so nothing survives a reset. The S3 scenario and the S6
+**RAM disk.** A Zephyr disk that keeps its data in RAM, so nothing survives a reset. The `file` scenario and the `management`
 image use it as their medium.
 
-**FatFs.** The FAT file system library (ChaN) that the board build of S3 uses on a microSD card.
+**FatFs.** The FAT file system library (ChaN) that the board build of `file` uses on a microSD card.
 
 **SBOM and SPDX.** A software bill of materials lists the components of a build; SPDX is a file format for it. The
 release dry run produces SPDX files from `west spdx` and parses them (`RELEASE.md`).
 
 **PHY and MDIO.** The PHY is the Ethernet physical-layer chip on the board. MDIO is the management interface
 through which the Ethernet controller configures it. The Crux reference composition applies an "MDIO completion
-correction" that the S2 image does not (`app/conf/s2.conf`); the S2 board runs show the link coming up without it.
+correction" that the `net` image does not (`app/conf/net.conf`); the `net` board runs show the link coming up without it.
 
 **Friction.** A heading used in findings for a point where using the public Crux interface took extra work, was
 unclear or was blocked.
 
-**Mutation run.** A check of a test: change the code on purpose and see whether the test fails. The S5 note records
+**Mutation run.** A check of a test: change the code on purpose and see whether the test fails. The `sntp` note records
 five such runs of the time policy.
 
 ## Wording that differs between files
 
 These are differences that a reader may trip over. Each is explained here and the files are kept as they are.
 
-- Step and stage, as above: no document defines the stages, S5 is in none, and
-  `docs/findings/file-binding-has-no-public-header.md` says S3 "is not built in Stage 1", a note
-  kept as written from before S3 was built, while the management finding calls S3 a
-  Stage 1 step. The header comment of `west.yml` says that no group is enabled "in Stage 1"; it is historical,
-  and the pin serves all seven steps.
-- The comments at the top of `app/conf/s3.conf` and `app/conf/s4.conf` say that S3 and S4 are built on S1 without the
-  other steps. That agrees with `app/Kconfig`, which says that S2, S3 and S4 build on S1 and S5 on S2.
-- The CI job named `S1 (native_sim and RT1060-EVKB)` in `ci.yml` also runs the `native_sim`
-  scenarios of S2, S3, S4 and S5, because it runs every scenario under `tests/native_sim`.
+- The comments at the top of `app/conf/file.conf` and `app/conf/system.conf` say that `file` and `system` are built on `workload` without the
+  other configurations. That agrees with `app/Kconfig`, which says that `net`, `file` and `system` build on `workload` and `sntp` on `net`.
+- The CI job named `workload (native_sim and RT1060-EVKB)` in `ci.yml` also runs the `native_sim`
+  scenarios of `net`, `file`, `system` and `sntp`, because it runs every scenario under `tests/native_sim`.
