@@ -14,7 +14,7 @@ continues from here. The words west, workspace, Twister, `native_sim`, pin and D
   [Behind a proxy or with a company certificate](dev-container.md#behind-a-proxy-or-with-a-company-certificate).
 
 CI is the reference: a local result does not replace the CI result that a pull request cites
-([why](architecture.md#why-the-evidence-comes-from-ci)). The local runs behind this page are in the
+([why](architecture.md#why-the-evidence-comes-from-ci)). See the
 [setup checks record](history/setup-checks.md).
 
 ## Dev Container
@@ -85,8 +85,8 @@ route, the folder layout and what to do after a pin or SDK change are in the
 
 ## Without the Dev Container
 
-On Ubuntu 24.04 on x86_64 you can install the tools of the CI image on the host instead, with no Docker: Zephyr 4.4
-needs Python 3.12, which Ubuntu 22.04 does not have. [Set up without the Dev Container](native-setup.md) gives every
+An alternative to the Dev Container, on Ubuntu 24.04 on x86_64: install the tools of the CI image on the host, with no
+Docker. Zephyr 4.4 needs Python 3.12, which Ubuntu 22.04 does not have. [Set up without the Dev Container](native-setup.md) gives every
 command, and the commands of the tests on that route. It is done when `west --version` answers in the virtual
 environment, as in the Dev Container:
 
@@ -101,8 +101,7 @@ Linux or the Dev Container.
 ## If you use a board
 
 Nothing here needs a board. For the probe, the J-Link software, flash and debug on the RT1060-EVKB, follow
-[Board bring-up](board-bring-up.md), which links the Crux board page and adds only this repository's own image
-and expected log.
+[Board bring-up](board-bring-up.md).
 
 ## If something fails
 

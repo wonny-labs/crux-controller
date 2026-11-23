@@ -167,7 +167,7 @@ class CiEvidenceRationale(unittest.TestCase):
         for phrase in ("describes no local Zephyr build", "predates this page", "separate reviewed change"):
             self.assertNotIn(phrase, section)
 
-    def test_the_section_agrees_with_the_dev_container_about_wsl2(self):
+    def test_the_section_agrees_with_getting_started_about_the_supported_route(self):
         self.assertIn("nobody has run the Dev Container on WSL2", self.section())
         # Getting started names one supported route and does not describe a route that was not run.
         self.assertIn("x86_64 Linux machine with Docker Engine. This is the supported route",

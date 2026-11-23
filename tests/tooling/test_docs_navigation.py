@@ -463,7 +463,7 @@ class StaticAnalysisLimits(unittest.TestCase):
         import test_contributing_standard as standard
         return sorted(standard.host_built_sources())
 
-    def test_the_section_is_linked_from_the_readme_index_and_the_guide(self):
+    def test_the_section_exists_and_the_map_keeps_no_copy_of_the_limits(self):
         self.assertRegex(read("CONTRIBUTING.md"), rf"(?m)^## {self.HEADING}$")
         self.assertNotIn("Known limits, not scheduled", read("docs/README.md"))
 
@@ -486,6 +486,26 @@ class StaticAnalysisLimits(unittest.TestCase):
         for tool in ("shellcheck", "yamllint", "ruff", "flake8", "pylint", "cmake-lint"):
             self.assertNotIn(tool, workflows)
         self.assertIn("no linting of Python, shell, YAML and CMake", part)
+
+    def test_the_untested_glue_statement_does_not_claim_all_glue(self):
+        # system compiles health.c and sntp compiles the product's own glue, so only parts are untested.
+        part = self.part()
+        self.assertIn("Parts of the Zephyr-side glue are not run by any test", part)
+        self.assertNotIn("**Zephyr-side glue is not run", read("CONTRIBUTING.md"))
+        self.assertIn("health.c", read("tests/native_sim/system/CMakeLists.txt"))
+
+    def test_the_untested_glue_statements_are_true(self):
+        part = self.part()
+        scenarios = " ".join(p.read_text() for pattern in ("tests/native_sim/**/CMakeLists.txt",
+                             "tests/native_sim_mbed/**/CMakeLists.txt")
+                             for p in ROOT.glob(pattern))
+        self.assertNotIn("composition.c", scenarios)
+        self.assertIn("composition.c", part)
+        self.assertIn("watchdog feed path", part)
+        self.assertIn("web page script", part)
+        system = read("tests/native_sim/system/src/test_system.c")
+        self.assertIn("a feed cycle and a missed feed cannot be shown here", " ".join(system.split()))
+        self.assertEqual([], [p for p in (ROOT / "tests").rglob("*.js")])
 
     def test_the_board_status_has_one_home_the_roadmap(self):
         self.assertIn("Only the `net` image has run on a board: twice, on one RT1060-EVKB Rev B on one bench",
