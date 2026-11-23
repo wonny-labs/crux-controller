@@ -146,7 +146,8 @@ of the code the tests run.
 The product's own Kconfig symbols use the prefix `CRUX_CONTROLLER_`; they are the product's names, not
 Crux platform symbols.
 
-Crux's former controller sample used the same prefix. Crux System still refuses a configuration that enables
+Crux's former controller sample used the same prefix, and a Crux test image
+(`tests/board_images/integration_probe/Kconfig`) still defines `CONFIG_CRUX_CONTROLLER_M3`. Crux System still refuses a configuration that enables
 `CONFIG_CRUX_CONTROLLER_M3`, as a further owner of the native watchdog next to `WDT_SHELL`,
 `HWINFO_SHELL` and `TASK_WDT_HW_FALLBACK`, not because of the prefix. The note
 `docs/findings/s4-system-composition.md` records this as read at `crux-pilot` `37c92b18`, and the same
