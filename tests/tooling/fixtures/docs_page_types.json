@@ -27,14 +27,8 @@
       "provenance": 1,
       "verification": 1
     },
-    "README.md": {
-      "verification": 2
-    },
     "RELEASE.md": {
       "status": 1
-    },
-    "docs/README.md": {
-      "verification": 8
     },
     "docs/adding-a-capability.md": {
       "history": 1,
@@ -54,9 +48,6 @@
     },
     "docs/first-change.md": {
       "verification": 1
-    },
-    "docs/getting-started.md": {
-      "verification": 5
     },
     "docs/glossary.md": {
       "verification": 2

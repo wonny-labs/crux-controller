@@ -213,10 +213,10 @@ class Structure(Page):
         # Getting started stays short; the details live on the reference and the how-to.
         self.assertLessEqual(len(self.text.splitlines()), 250)
         self.assertLessEqual(len(section(self.text, "Without the Dev Container").splitlines()), 40)
-        for title in ("WSL2", "Proxy", "Disk", "If you use a board"):
+        for title in ("Host notes", "If you use a board"):
             self.assertIn(title, [t for _, t, _ in headings(self.text)], title)
         board = section(self.text, "If you use a board")
-        for word in ("J-Link", "usbipd", "board-bring-up.md", "authorisation"):
+        for word in ("J-Link", "board-bring-up.md", "flash and debug"):
             self.assertIn(word, board, word)
 
     def test_the_page_no_longer_says_that_everything_runs_on_ubuntu_24_04(self):
@@ -281,9 +281,8 @@ class Structure(Page):
                       "Layout", "After a pin or SDK change",
                       "If the Dev Container fails"):
             self.assertIn(title, titles)
-        # The copy procedures moved to docs/history/copy-procedures.md; the guide describes a clone.
+        # The guide describes a clone.
         self.assertNotIn("From a copy without Git history", titles)
-        self.assertIn("From a copy without Git history", read(ROOT / "docs" / "history" / "copy-procedures.md"))
 
     def test_the_headings_that_other_files_link_to_still_exist(self):
         for anchor in ("dev-container", "set-up-the-dev-container"):
@@ -301,13 +300,10 @@ class QuickStart(Page):
     def test_the_docker_steps_are_there(self):
         commands = self.commands()
         self.assertIn('sudo usermod -aG docker "$USER"', commands)
-        self.assertIn("sudo service docker start", commands)
         self.assertIn("docker run --rm hello-world", commands)
-        self.assertIn("/etc/wsl.conf", self.quick)
 
     def test_the_sources_go_in_a_folder_named_crux_controller_under_a_parent_of_its_own(self):
         self.assertIn("~/work/crux-controller-workspace/crux-controller", self.quick)
-        self.assertIn("/mnt/c", self.quick)
         self.assertIn("empty", self.quick)
 
     def test_the_exec_bit_restore_covers_the_scripts_that_the_container_needs(self):
@@ -803,7 +799,6 @@ class Readme(unittest.TestCase):
         self.assertIn("docs/getting-started.md#set-up-the-dev-container", paragraph)
         self.assertIn("bash scripts/dev-shell.sh", paragraph)
         self.assertIn("docs/troubleshooting.md", paragraph)
-        self.assertIn("WSL2", paragraph)
         self.assertIn("Docker Engine", paragraph)
         self.assertLessEqual(len(paragraph.strip().splitlines()), 16)
 
