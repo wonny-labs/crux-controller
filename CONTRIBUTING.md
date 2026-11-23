@@ -141,7 +141,7 @@ have changed since, they are the source of truth.
   requires the licence identifier line in first-party C, CMake, Kconfig, Python and shell files, and
   keeps a list of two older scripts that lack it. `scripts/check-patch.sh` (the `Patch style` job) runs
   Zephyr's checkpatch with the rule BRACES on the changed C lines of a change.
-- **Not done.** There is no coverage measurement, and no linting of Python, shell, YAML and CMake.
+- **Not done.** There is no coverage measurement and no linting of Python, shell, YAML and CMake. Parts of the Zephyr-side glue are not run by any test: the start order in `composition.c`, the `system` watchdog feed path and the `management` web page script.
 
 These are the configured automated checks of this repository, not a claim of MISRA C, CERT C, security
 or functional-safety compliance. The Crux platform states its own position in its

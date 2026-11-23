@@ -12,7 +12,8 @@ You do not need a board. Set up with [Getting started](docs/getting-started.md),
 [Tutorial](docs/tutorial.md): it takes you from a clone to the host tests, one run of the `native_sim` scenarios with
 Twister (Zephyr's test runner) and one EVKB build.
 
-Supported: x86_64 Linux with Docker Engine, through the Dev Container. Each command runs in it through
+Supported: x86_64 Linux with Docker Engine, through the Dev Container; [Set up without the Dev Container](docs/native-setup.md)
+is the alternative on Ubuntu 24.04. Each command runs in it through
 `bash scripts/dev-shell.sh`; [Getting started](docs/getting-started.md#set-up-the-dev-container) covers the set-up.
 Look a failure up by its message in [troubleshooting](docs/troubleshooting.md).
 
