@@ -9,6 +9,7 @@
     "docs/adding-a-capability.md": "how-to",
     "docs/architecture.md": "explanation",
     "docs/board-bring-up.md": "how-to",
+    "docs/capabilities.md": "reference",
     "docs/composition-zone.md": "reference",
     "docs/dependencies.md": "reference",
     "docs/dev-container.md": "reference",

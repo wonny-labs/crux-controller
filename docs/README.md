@@ -27,9 +27,13 @@ worked example and [architecture.md](architecture.md) for the zones and port hea
 [reviewing.md](reviewing.md), the three verdicts in [CONTRIBUTING.md](../CONTRIBUTING.md#review), and the
 [files that need a reviewed change](adding-a-capability.md#files-that-need-a-reviewed-change).
 
+### I want to look up how a capability behaves
+
+[capabilities.md](capabilities.md) is the reference for `sntp`, `system` and `management`.
+
 ### I want to know why
 
-The [findings](findings/README.md), the [roadmap](roadmap.md), [why a zone](composition-zone.md#why-a-zone) and the
+The [capabilities](capabilities.md), the [findings](findings/README.md), the [roadmap](roadmap.md), [why a zone](composition-zone.md#why-a-zone) and the
 [history](history/README.md).
 
 ## Where decisions are recorded
@@ -52,6 +56,7 @@ The [findings](findings/README.md), the [roadmap](roadmap.md), [why a zone](comp
 | Document | Type | What it is |
 |---|---|---|
 | [architecture.md](architecture.md) | Explanation | How the repository is built: the source trees, how Crux is consumed, the threads, and why the evidence comes from CI. |
+| [capabilities.md](capabilities.md) | Reference | How `sntp`, `system` and `management` behave: policy, settings and limits. |
 | [roadmap.md](roadmap.md) | Reference | What is built on `main`, the static size per build configuration and what has run on a board. |
 | [tutorial.md](tutorial.md) | Tutorial | The first build and run: the host tests, the `native_sim` scenarios and the board image. |
 | [getting-started.md](getting-started.md) | Entry | Prerequisites, the Dev Container set-up and a first command. |
