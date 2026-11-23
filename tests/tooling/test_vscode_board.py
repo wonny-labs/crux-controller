@@ -104,9 +104,10 @@ class Extension(unittest.TestCase):
         self.assertIn("marus25.cortex-debug", data["customizations"]["vscode"]["extensions"])
 
     def test_cortex_debug_dependencies_come_before_it(self):
-        # Cortex-Debug's extensionDependencies: when they are installed first, the first creation of the
-        # container does not stop with "Cannot activate the 'Cortex-Debug' extension".
-        extensions = json.loads((DEVCONTAINER / "devcontainer.json").read_text())["customizations"]["vscode"]["extensions"]
+        # Cortex-Debug's extensionDependencies are listed before it, to avoid "Cannot activate the
+        # 'Cortex-Debug' extension" on the first creation of the container (not yet observed either way).
+        data = json.loads((DEVCONTAINER / "devcontainer.json").read_text())
+        extensions = data["customizations"]["vscode"]["extensions"]
         position = extensions.index("marus25.cortex-debug")
         for dependency in ("mcu-debug.debug-tracker-vscode", "mcu-debug.memory-view", "mcu-debug.rtos-views",
                            "mcu-debug.peripheral-viewer"):
