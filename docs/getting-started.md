@@ -101,7 +101,8 @@ Linux or the Dev Container.
 ## If you use a board
 
 Nothing here needs a board. For the probe, the J-Link software, flash and debug on the RT1060-EVKB, follow
-[Board bring-up](board-bring-up.md).
+[Board bring-up](board-bring-up.md), which links the Crux board page and adds only this repository's own image and
+expected log.
 
 ## If something fails
 

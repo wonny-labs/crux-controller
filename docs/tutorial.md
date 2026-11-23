@@ -134,12 +134,10 @@ SH
 
 The image is `build/workload/zephyr/zephyr.bin` in the clone, next to `zephyr.meta`. A build is not a run on a board.
 
-### 5. Program the board and read its log
+### 5. Flash and debug the board
 
-Follow the [board route](board-bring-up.md) from its step 2: attach the probe, open the Dev Container with the probe, compare
-the flash read-only first, then `west flash`, observe the log and the network, restore the accepted normal
-image and write the run record. Its stop conditions apply at every step. The route is untested on hardware, and nothing may touch a board without the project owner's explicit
-authorisation for the task.
+[Board bring-up](board-bring-up.md) links the Crux board page for the probe, flash and debug, and adds this
+repository's image and the log to expect.
 
 ## Next steps
 

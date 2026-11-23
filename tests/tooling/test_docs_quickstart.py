@@ -216,7 +216,7 @@ class Structure(Page):
         for title in ("Host notes", "If you use a board"):
             self.assertIn(title, [t for _, t, _ in headings(self.text)], title)
         board = section(self.text, "If you use a board")
-        for word in ("J-Link", "board-bring-up.md", "flash and debug"):
+        for word in ("J-Link", "board-bring-up.md", "Crux board page"):
             self.assertIn(word, board, word)
 
     def test_the_page_no_longer_says_that_everything_runs_on_ubuntu_24_04(self):

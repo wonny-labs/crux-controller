@@ -278,6 +278,10 @@ class BoardPage(Common, unittest.TestCase):
                      "scripts/bootstrap.sh", ".vscode/launch.json"):
             self.assertIn(name, targets, name)
 
+    def test_the_page_names_the_one_host_step(self):
+        # The probe attach and the udev rule are on the Crux pages; the Linux-side script is named here.
+        self.assertIn("scripts/bootstrap.sh board-host", norm(read(BOARD_PAGE)))
+
     def test_the_page_names_the_two_vs_code_profiles(self):
         # Approved change: the probe speed and its fallback are on the Crux board page.
         body = norm(read(BOARD_PAGE))

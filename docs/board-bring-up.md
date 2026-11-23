@@ -116,7 +116,7 @@ listening, `net: exchange failed cycle=<n> result=-2` is the expected line, one 
   responder on UDP port 123.
 - **management** serves HTTPS on `192.168.77.2` port 443 with a certificate that the board makes for itself. The
   image has no account, and nothing persists across a reset because the medium is a RAM disk.
-- **system** needs a person present. It arms a hardware watchdog before the workload starts and feeds it from the
+- **system** needs a person present and a time limit decided before the board is programmed. It arms a hardware watchdog before the workload starts and feeds it from the
   producer thread, so a failed start leaves nothing feeding it and the board resets in a loop
   ([`docs/findings/s4-system-composition.md`](findings/s4-system-composition.md), friction 7). A debug session that
   halts the core also stops the feed.
