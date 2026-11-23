@@ -81,7 +81,7 @@ more hosts. A firewall or proxy must allow them.
 | PyPI (`pypi.org` and its file host) | `pip install` of `.devcontainer/requirements-tools.txt` and of the Zephyr requirement files | the first setup, and when a requirements file changes |
 | `github.com` | `west update`: this repository's manifest projects from `github.com/wonny-labs` and `github.com/zephyrproject-rtos` | the first setup, and `west update` after a pin change |
 | `api.github.com` and the GitHub release downloads | `west sdk install`, the Zephyr SDK | the first setup, and after an SDK version change |
-| `www.segger.com` | the J-Link version pinned in the Dockerfile, downloaded by `.devcontainer/jlink/install-jlink.sh` unless a placed package or `CRUX_JLINK_URL` overrides it, or `CRUX_JLINK=0` skips it, as the `devcontainer` CI job does ([board route](board-bring-up.md#3-open-the-dev-container-with-the-probe)) | the image build |
+| `www.segger.com` | the J-Link version pinned in the Dockerfile, downloaded by `.devcontainer/jlink/install-jlink.sh` unless a placed package or `CRUX_JLINK_URL` overrides it, or `CRUX_JLINK=0` skips it; CI and any other automated image build (such as a Jenkins job) set `CRUX_JLINK=0`, as the `devcontainer` CI job does, so they never download from SEGGER ([board route](board-bring-up.md#3-open-the-dev-container-with-the-probe)) | the image build |
 | Docker Hub | the `hello-world` check of [Set up the Dev Container](getting-started.md#set-up-the-dev-container) and the `curlimages/curl` test of the proxy section | once each |
 
 The SDK install uses GitHub release downloads, and an anonymous request limit of the GitHub API can apply (not
