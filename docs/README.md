@@ -77,8 +77,8 @@ These are known limits of what the checks and tests cover. They are facts about 
 - **The Dev Container and WSL2 were not tried by anyone.** The Dev Container was not started on a developer machine, so
   WSL2, Docker Engine in WSL2 and the proxy settings of `devcontainer.json` have not run there. The Dev Container job
   of CI covers an x86_64 runner only ([setup checks record](history/setup-checks.md)).
-- **The board container and the board route are untested.** Nobody has built the optional board container in
-  `.devcontainer/board/`, CI does not build it, and no step of the [board route](board-bring-up.md) has run on a board.
+- **The board route is untested.** Nobody has built the Dev Container with the J-Link software, CI builds it
+  without a J-Link package, and no step of the [board route](board-bring-up.md) has run on a board.
 
 ## All documents
 
@@ -99,7 +99,7 @@ These are known limits of what the checks and tests cover. They are facts about 
 | [composition-zone.md](composition-zone.md) | Reference | The include rules in detail: the composition zone and the adapter zone, each allowed Zephyr header and why, the frozen Crux headers, and how to run the check. | 11 min |
 | [glossary.md](glossary.md) | Reference | The words that this repository uses in a particular sense (step, stage, product, owner, composition, zones, pin, finding and more), with the file where each use can be checked. | 13 min |
 | [dependencies.md](dependencies.md) | Reference | What `west.yml` fetches, why, and under which licence each project states it is distributed, and how the Crux import is narrowed. | 5 min |
-| [board-bring-up.md](board-bring-up.md) | How-to guide | The board route for the RT1060-EVKB Rev B, untested on hardware: the probe on WSL2, the optional board container, a read-only compare of the flash, `west flash` and `west debug` with J-Link, a run record template, the stop conditions and the authorisation that it needs. | 13 min |
+| [board-bring-up.md](board-bring-up.md) | How-to guide | The board route for the RT1060-EVKB Rev B, untested on hardware: the probe on WSL2, the Dev Container with the J-Link software, a read-only compare of the flash, `west flash` and `west debug` with J-Link, a run record template, the stop conditions and the authorisation that it needs. | 13 min |
 
 ### In `docs/findings/`
 

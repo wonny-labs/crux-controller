@@ -19,8 +19,7 @@ Finish [Getting started](getting-started.md#set-up-the-dev-container) first: the
 - **Command line.** Run each command through `bash scripts/dev-shell.sh`, as written below. The script runs it in
   the Dev Container with the repository as the working directory.
 - **VS Code** with the Dev Containers extension. Open the clone folder and run
-  **Dev Containers: Reopen in Container**. If VS Code asks which configuration to use, pick "Crux Controller
-  (Ubuntu 24.04 amd64)"; the other one is the optional [board container](board-bring-up.md). In its terminal, run
+  **Dev Containers: Reopen in Container**. There is one configuration, "Crux Controller (Ubuntu 24.04 amd64)", with and without a board. In its terminal, run
   the commands without the `bash scripts/dev-shell.sh` prefix.
 
 `/workspaces/ws` in the container is the parent folder of your clone, the workspace.
@@ -137,7 +136,7 @@ The image is `build/s1/zephyr/zephyr.bin` in the clone, next to `zephyr.meta`. A
 
 ### 5. Program the board and read its log
 
-Follow the [board route](board-bring-up.md) from its step 2: attach the probe, open the board container, compare
+Follow the [board route](board-bring-up.md) from its step 2: attach the probe, open the Dev Container with the probe, compare
 the flash read-only first, then `west flash`, observe the log and the network, restore the accepted normal
 image and write the run record. Its stop conditions apply at every step. The route is untested on hardware, and nothing may touch a board without the project owner's explicit
 authorisation for the task.

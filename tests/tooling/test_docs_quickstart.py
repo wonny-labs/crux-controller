@@ -441,7 +441,7 @@ class Proxy(RefPage):
         self.assertNotIn("CRUX_EXTRA_CA_FILE", self.shell, message)
         self.assertNotIn("check-host", self.shell, message)
         self.assertIn("-e GH_TOKEN", self.shell)
-        self.assertRegex(self.proxy, r"`scripts/dev-shell\.sh` passes only `GH_TOKEN`")
+        self.assertRegex(self.proxy, r"`scripts/dev-shell\.sh` passes `GH_TOKEN`, your user and group ids and any `CRUX_JLINK\*`")
         for phrase in ("passes it into the image build", "Give `scripts/dev-shell.sh` the certificate",
                        "mounted read-only", "a message of `scripts/dev-shell.sh` that the daemon",
                        "dev-shell.sh` passes it", "dev-shell.sh` runs the host check"):

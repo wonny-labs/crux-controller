@@ -6,6 +6,20 @@ twice on a board (see `docs/findings/s2-first-board-run.md`); nothing else has r
 
 ## Unreleased
 
+### Dev Container and onboarding
+
+- One Dev Container instead of two: it mounts the USB bus of the host with a device cgroup rule, installs the
+  SEGGER J-Link software from `.devcontainer/jlink/packages/` or from a hosted copy (`CRUX_JLINK_URL` with
+  `CRUX_JLINK_DEB_SHA256`), and builds without it, with a warning, when neither is given. The optional board
+  container (`.devcontainer/board/`) and `scripts/board-shell.sh` are removed; `scripts/dev-shell.sh` passes the USB
+  bus itself.
+- `scripts/bootstrap.sh` is the one entry that prepares a clone (`CRUX_BOOTSTRAP=host|zephyr|all`, `status`,
+  `board-host`, `--keep-going`); the Dev Container runs it after it is created, as Crux's Dev Container does.
+  `.devcontainer/setup.sh` and `.devcontainer/check-host.sh` keep their logic.
+- `.vscode/` has the two Cortex-Debug profiles for the board, "Board: Flash and run to main" and "Board: Attach (no
+  reset)", with the J-Link speed `auto`, and the tasks "Build firmware" and "Board: Build and flash". None has run
+  on hardware.
+
 ### Build and manifest
 
 - The west manifest imports `crux-pilot` at a pinned commit (`1c4cf284`, which contains the File

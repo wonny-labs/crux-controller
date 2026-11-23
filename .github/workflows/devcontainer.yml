@@ -14,6 +14,8 @@ on:
     paths:
       - ".devcontainer/**"
       - "scripts/dev-shell.sh"
+      - "scripts/bootstrap.sh"
+      - ".vscode/**"
       - "west.yml"
       - ".github/workflows/devcontainer.yml"
   push:
@@ -21,6 +23,8 @@ on:
     paths:
       - ".devcontainer/**"
       - "scripts/dev-shell.sh"
+      - "scripts/bootstrap.sh"
+      - ".vscode/**"
       - "west.yml"
       - ".github/workflows/devcontainer.yml"
   workflow_dispatch:

@@ -1,21 +1,16 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Checks of the tutorial page, the board route and the optional board container.
+"""Checks of the tutorial page and the board route.
 
 The tests are structural: the pages have the sections that a reader needs, their links resolve, every
 repository file that a command names exists, the build and run commands are those of the CI jobs, and the
-board container keeps the safety properties of the route (no privileged container, the J-Link package only
-from a local file, a read-only compare before any write). They do not pin sentences. Nothing here starts
-Docker, touches USB or uses the network: the board shell script runs against a stand-in for docker.
+Dev Container keeps the safety properties of the route (no privileged container, the J-Link package only from
+a file you download or a copy you host, a read-only compare before any write). They do not pin sentences. The
+Dev Container files are tested in test_one_container.py. Nothing here starts Docker, touches USB or uses the
+network.
 """
 
-import json
-import os
 import pathlib
 import re
-import shutil
-import stat
-import subprocess
-import tempfile
 import unittest
 
 import yaml
@@ -23,9 +18,6 @@ import yaml
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 TUTORIAL = "docs/tutorial.md"
 BOARD_PAGE = "docs/board-bring-up.md"
-BOARD_DIR = ROOT / ".devcontainer" / "board"
-BOARD_SHELL = ROOT / "scripts" / "board-shell.sh"
-BUILD_BASE = BOARD_DIR / "build-base.sh"
 CI = ROOT / ".github" / "workflows" / "ci.yml"
 S2_NOTE = "docs/findings/s2-first-board-run.md"
 
@@ -227,7 +219,7 @@ class BoardPage(Common, unittest.TestCase):
         self.assertIn("stop before touching the board", top)
 
     def test_the_route_sections_are_there_in_order(self):
-        wanted = (r"what is needed", r"build", r"attach.*probe|probe.*wsl", r"board container",
+        wanted = (r"what is needed", r"build", r"attach.*probe|probe.*wsl", r"dev container with the probe",
                   r"compare", r"flash", r"debug", r"restore", r"record", r"stop conditions")
         found = [h.lower() for h in headings(BOARD_PAGE)]
         position = -1
@@ -264,15 +256,13 @@ class BoardPage(Common, unittest.TestCase):
         self.assertIn("--device-cgroup-rule", body)
         self.assertIn("/dev/bus/usb", body)
         self.assertIn("usbipd", body)
-        self.assertIn('MODE="0660"', body)
-        self.assertIn('GROUP="plugdev"', body)
         self.assertNotIn('MODE="0666"', body)
         for line in body.splitlines():
             if "--privileged" in line:
                 self.assertRegex(line, r"(?i)\bno\b|\bnot\b|never|without", line)
 
     def test_the_jlink_package_comes_from_a_file_you_download(self):
-        self.assertIn(".devcontainer/board/jlink/", read(BOARD_PAGE))
+        self.assertIn(".devcontainer/jlink/packages/", read(BOARD_PAGE))
         self.assertNotRegex("\n".join(code_blocks(read(BOARD_PAGE))), r"(?i)(curl|wget)[^\n]*segger")
 
     def test_the_s2_hashes_and_network_values_are_those_of_the_s2_note(self):
@@ -295,196 +285,28 @@ class BoardPage(Common, unittest.TestCase):
         self.assertIn("0x60000000", body)
         self.assertIn("board.cmake", body)
 
-    def test_the_page_links_the_board_container_files(self):
+    def test_the_page_links_the_dev_container_files_of_the_board_route(self):
         targets = {path for path, _, _ in links(BOARD_PAGE)}
-        for name in (".devcontainer/board/devcontainer.json", ".devcontainer/board/Dockerfile",
-                     "scripts/board-shell.sh"):
+        for name in (".devcontainer/devcontainer.json", ".devcontainer/jlink/install-jlink.sh",
+                     "scripts/bootstrap.sh", ".vscode/launch.json"):
             self.assertIn(name, targets, name)
 
+    def test_the_page_names_the_one_host_step_and_the_auto_attach(self):
+        body = read(BOARD_PAGE)
+        self.assertIn("usbipd attach --wsl --busid <busid> --auto-attach", body)
+        self.assertIn("scripts/bootstrap.sh board-host", body)
 
-class BoardContainerFiles(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.json_text = (BOARD_DIR / "devcontainer.json").read_text()
-        cls.data = json.loads(cls.json_text)
-        cls.default = json.loads((ROOT / ".devcontainer" / "devcontainer.json").read_text())
-        cls.dockerfile = (BOARD_DIR / "Dockerfile").read_text()
+    def test_the_page_says_auto_speed_with_the_fallback_and_names_the_two_profiles(self):
+        body = norm(read(BOARD_PAGE))
+        self.assertIn("auto", body)
+        self.assertRegex(body, r"4000.{0,40}400.{0,40}100")
+        self.assertIn("Board: Flash and run to main", body)
+        self.assertIn("Board: Attach (no reset)", body)
 
-    def test_it_is_a_layer_on_the_default_image(self):
-        self.assertRegex(self.dockerfile, r"(?m)^ARG BASE_IMAGE=crux-controller-dev$")
-        self.assertRegex(self.dockerfile, r"(?m)^FROM \$\{BASE_IMAGE\}$")
-        self.assertEqual("crux-controller-dev", self.data["build"]["args"]["BASE_IMAGE"])
-        self.assertIn("--platform=linux/amd64", self.data["build"]["options"])
-
-    def test_the_jlink_package_is_only_copied_from_the_local_folder_and_never_fetched(self):
-        self.assertRegex(self.dockerfile, r"(?m)^COPY jlink/ ")
-        self.assertNotRegex(self.dockerfile, r"(?i)\b(curl|wget|ADD)\b[^\n]*(http|segger)")
-        self.assertNotRegex(self.dockerfile, r"(?m)^ADD ")
-        self.assertIn("JLink_Linux_*_x86_64.deb", self.dockerfile)
-
-    def test_no_jlink_package_is_tracked_and_the_folder_ignores_them(self):
-        ignore = (BOARD_DIR / "jlink" / ".gitignore").read_text().split()
-        self.assertIn("*", ignore)
-        listing = subprocess.run(["git", "-C", str(ROOT), "ls-files", ".devcontainer/board"],
-                                 capture_output=True, text=True, check=False).stdout.split()
-        self.assertEqual([], [n for n in listing if n.endswith(".deb")])
-
-    def test_no_privilege_and_only_the_usb_bus_with_a_device_cgroup_rule(self):
-        for word in ("--privileged", "docker.sock", "host.docker.internal", "--network", "/mnt/c", "--device="):
-            self.assertNotIn(word, self.json_text)
-        self.assertNotIn("features", self.data)
-        self.assertIn("--device-cgroup-rule=c 189:* rmw", self.data["runArgs"])
-        # The udev rule of the board page gives the probe to the group plugdev, mode 0660.
-        self.assertIn("--group-add=plugdev", self.data["runArgs"])
-        self.assertIn("source=/dev/bus/usb,target=/dev/bus/usb,type=bind", self.data["mounts"])
-
-    def test_the_workspace_user_volume_and_setup_are_those_of_the_default_container(self):
-        for key in ("workspaceMount", "workspaceFolder", "remoteUser", "updateRemoteUserUID", "postCreateCommand",
-                    "containerEnv", "remoteEnv"):
-            self.assertEqual(self.default[key], self.data[key], key)
-        self.assertIn(self.default["mounts"][0], self.data["mounts"])
-
-    def test_the_base_image_is_built_on_the_host_first(self):
-        self.assertEqual("bash .devcontainer/board/build-base.sh", self.data["initializeCommand"])
-        text = BUILD_BASE.read_text()
-        self.assertIn("bash .devcontainer/check-host.sh", text.replace('"$repo/', "").replace("$repo/", ""))
-        self.assertIn("--platform linux/amd64", text)
-        self.assertIn('"$repo/.devcontainer"', text)
-
-    def test_the_proxy_settings_of_the_host_reach_the_board_build_as_in_the_default_container(self):
-        proxies = {k: v for k, v in self.default["build"]["args"].items() if "proxy" in k.lower()}
-        self.assertEqual(6, len(proxies))
-        for name, value in proxies.items():
-            self.assertEqual(value, self.data["build"]["args"].get(name), name)
-
-    def test_the_board_dockerfile_declares_no_proxy_argument_like_the_default_one(self):
-        # Docker predefines the proxy build arguments; a declared ARG would put a value into the image history.
-        self.assertNotRegex(self.dockerfile, r"(?mi)^ARG\s+\w*proxy")
-
-    def test_the_name_says_it_is_untested(self):
-        self.assertIn("Crux Controller", self.data["name"])
-        self.assertIn("untested", self.data["name"].lower())
-
-    def test_the_default_container_does_not_reach_usb(self):
-        text = (ROOT / ".devcontainer" / "devcontainer.json").read_text()
-        for word in ("/dev/bus/usb", "device-cgroup-rule", "jlink"):
-            self.assertNotIn(word, text)
-
-    def test_the_scripts_are_executable_bash_with_the_spdx_line_second(self):
-        for path in (BOARD_SHELL, BUILD_BASE):
-            text = path.read_text()
-            self.assertTrue(os.access(path, os.X_OK), path.name)
-            self.assertEqual(["#!/usr/bin/env bash", "# SPDX-License-Identifier: Apache-2.0"], text.splitlines()[:2])
-            self.assertIn("set -euo pipefail", text)
-
-
-class BoardShellRuns(unittest.TestCase):
-    """scripts/board-shell.sh against a stand-in for docker, in a throwaway workspace."""
-
-    def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        base = pathlib.Path(self.tmp.name).resolve()
-        self.repo = base / "ws" / "crux-controller"
-        (self.repo / "scripts").mkdir(parents=True)
-        (self.repo / ".devcontainer" / "board" / "jlink").mkdir(parents=True)
-        for path in (BOARD_SHELL, BUILD_BASE, ROOT / ".devcontainer" / "check-host.sh"):
-            target = self.repo / path.relative_to(ROOT)
-            shutil.copy(path, target)
-            target.chmod(target.stat().st_mode | stat.S_IXUSR)
-        (self.repo / ".devcontainer" / "Dockerfile").write_text("FROM scratch\n")
-        (self.repo / ".devcontainer" / "board" / "Dockerfile").write_text("FROM scratch\n")
-        self.usb = base / "usb"
-        self.usb.mkdir()
-        self.bin = base / "bin"
-        self.bin.mkdir()
-        self.log = base / "docker.log"
-        docker = self.bin / "docker"
-        docker.write_text(f'#!/usr/bin/env bash\nprintf "%s\\n" "$*" >> "{self.log}"\n')
-        docker.chmod(0o755)
-
-    def tearDown(self):
-        self.tmp.cleanup()
-
-    def run_script(self, *args, extra_env=None):
-        env = {"PATH": f"{self.bin}:/usr/bin:/bin", "HOME": str(self.usb.parent / "home"),
-               "CRUX_BOARD_USB_DIR": str(self.usb), **(extra_env or {})}
-        return subprocess.run(["bash", str(self.repo / "scripts" / "board-shell.sh"), *args],
-                              capture_output=True, text=True, env=env, stdin=subprocess.DEVNULL, check=False)
-
-    def calls(self):
-        return self.log.read_text().splitlines() if self.log.exists() else []
-
-    def test_without_the_jlink_package_it_stops_before_docker(self):
-        result = self.run_script("true")
-        self.assertEqual(2, result.returncode, result.stderr)
-        self.assertIn(".devcontainer/board/jlink/", result.stderr)
-        self.assertEqual([], self.calls())
-
-    def test_with_two_packages_it_stops(self):
-        for version in ("V800", "V810"):
-            (self.repo / ".devcontainer" / "board" / "jlink" / f"JLink_Linux_{version}_x86_64.deb").write_bytes(b"x")
-        result = self.run_script("true")
-        self.assertEqual(2, result.returncode, result.stderr)
-        self.assertEqual([], self.calls())
-
-    def test_without_the_usb_folder_it_stops(self):
-        (self.repo / ".devcontainer" / "board" / "jlink" / "JLink_Linux_V800_x86_64.deb").write_bytes(b"x")
-        self.usb.rmdir()
-        result = self.run_script("true")
-        self.assertEqual(2, result.returncode, result.stderr)
-        self.assertIn("usbipd", result.stderr)
-        self.assertEqual([], self.calls())
-
-    def test_it_builds_both_images_and_runs_with_narrow_usb_access(self):
-        (self.repo / ".devcontainer" / "board" / "jlink" / "JLink_Linux_V800_x86_64.deb").write_bytes(b"x")
-        result = self.run_script("west", "--version")
-        self.assertEqual(0, result.returncode, result.stderr)
-        calls = self.calls()
-        builds = [c for c in calls if c.startswith("build ")]
-        runs = [c for c in calls if c.startswith("run ")]
-        self.assertEqual(2, len(builds), calls)
-        self.assertTrue(builds[0].endswith("/.devcontainer"), builds[0])
-        self.assertIn("BASE_IMAGE=crux-controller-dev", builds[1])
-        self.assertTrue(builds[1].endswith("/.devcontainer/board"), builds[1])
-        self.assertEqual(1, len(runs), calls)
-        run = runs[0]
-        self.assertIn("--device-cgroup-rule c 189:* rmw", run)
-        self.assertIn("--group-add plugdev", run)
-        self.assertIn(f"-v {self.usb}:/dev/bus/usb", run)
-        self.assertIn(f"-v {self.repo.parent}:/workspaces/ws", run)
-        self.assertRegex(run, r"-v crux-controller-dev-cache-\d+:/opt/crux-cache")
-        self.assertIn("bash .devcontainer/setup.sh", run)
-        self.assertTrue(run.endswith("west --version"), run)
-        for word in ("--privileged", "docker.sock", "--network", "--device "):
-            self.assertNotIn(word, run)
-
-    def test_a_proxy_of_the_host_reaches_both_builds_by_name_only(self):
-        (self.repo / ".devcontainer" / "board" / "jlink" / "JLink_Linux_V800_x86_64.deb").write_bytes(b"x")
-        secret = "http://user:secret@proxy.invalid:3128"
-        result = self.run_script("true", extra_env={"HTTP_PROXY": secret, "no_proxy": "localhost"})
-        self.assertEqual(0, result.returncode, result.stderr)
-        builds = [c for c in self.calls() if c.startswith("build ")]
-        self.assertEqual(2, len(builds), builds)
-        for build in builds:
-            self.assertIn("--build-arg HTTP_PROXY ", build)
-            self.assertIn("--build-arg no_proxy ", build)
-            self.assertNotIn("--build-arg https_proxy", build)
-        self.assertNotIn(secret, self.log.read_text())
-
-    def test_without_a_proxy_no_proxy_argument_is_passed(self):
-        (self.repo / ".devcontainer" / "board" / "jlink" / "JLink_Linux_V800_x86_64.deb").write_bytes(b"x")
-        result = self.run_script("true")
-        self.assertEqual(0, result.returncode, result.stderr)
-        self.assertNotRegex(self.log.read_text(), r"(?i)--build-arg \w*proxy")
-
-    def test_it_uses_the_cache_volume_of_dev_shell(self):
-        # The same name for the same workspace folder, so the SDK is not fetched a second time.
-        dev_shell = (ROOT / "scripts" / "dev-shell.sh").read_text()
-        text = BOARD_SHELL.read_text()
-        for line in ('volume_prefix="crux-controller-dev-cache"',
-                     'volume="$volume_prefix-$(printf \'%s\' "$workspace" | cksum | cut -d\' \' -f1)"'):
-            self.assertIn(line, dev_shell)
-            self.assertIn(line, text)
+    def test_the_page_no_longer_mentions_a_second_container_or_the_board_shell(self):
+        body = read(BOARD_PAGE)
+        for word in ("board-shell", "build-base", ".devcontainer/board", "optional board container"):
+            self.assertNotIn(word, body, word)
 
 
 if __name__ == "__main__":

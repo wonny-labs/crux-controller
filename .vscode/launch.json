@@ -1,0 +1,31 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Board: Flash and run to main",
+      "type": "cortex-debug",
+      "request": "launch",
+      "servertype": "jlink",
+      "cwd": "${workspaceFolder}",
+      "executable": "${workspaceFolder}/build/s2/zephyr/zephyr.elf",
+      "device": "MIMXRT1062xxx6A",
+      "interface": "swd",
+      "serverArgs": ["-speed", "auto"],
+      "gdbPath": "${env:ZEPHYR_SDK_INSTALL_DIR}/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gdb",
+      "preLaunchTask": "Build firmware",
+      "runToEntryPoint": "main"
+    },
+    {
+      "name": "Board: Attach (no reset)",
+      "type": "cortex-debug",
+      "request": "attach",
+      "servertype": "jlink",
+      "cwd": "${workspaceFolder}",
+      "executable": "${workspaceFolder}/build/s2/zephyr/zephyr.elf",
+      "device": "MIMXRT1062xxx6A",
+      "interface": "swd",
+      "serverArgs": ["-speed", "auto"],
+      "gdbPath": "${env:ZEPHYR_SDK_INSTALL_DIR}/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gdb"
+    }
+  ]
+}

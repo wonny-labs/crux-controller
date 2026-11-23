@@ -23,8 +23,9 @@ Zephyr requirement files are not pinned, as in CI.
 
 The files are `.devcontainer/devcontainer.json` (for VS Code), `.devcontainer/Dockerfile` (the image, with the base
 image pinned by digest), `.devcontainer/requirements-tools.txt` (the pinned Python tools),
-`.devcontainer/setup.sh` (the workspace and SDK setup), `.devcontainer/check-host.sh` (the check of the folder on
-the host) and `scripts/dev-shell.sh` (the same without VS Code). The versions follow `ci.yml`, and a tooling test
+`scripts/bootstrap.sh` (the one entry that VS Code runs after the container is created; `CRUX_BOOTSTRAP=host`, `zephyr` or
+`all`, the default), `.devcontainer/setup.sh` (the workspace and SDK setup it calls), `.devcontainer/check-host.sh`
+(the check of the folder on the host) and `scripts/dev-shell.sh` (the same without VS Code). The versions follow `ci.yml`, and a tooling test
 compares them. `.gitattributes` pins LF line ends, so that a clone checks the scripts out with LF on every platform.
 
 `.devcontainer/check-host.sh` checks the folder layout on the host before the container is created. VS Code runs it
@@ -110,7 +111,8 @@ Which route passes what, as the files are written (none of it was run behind a p
   (general knowledge), so export them in a WSL shell and start `code .` from that shell. A VS Code server that
   already runs in WSL keeps its old environment: close all VS Code windows of that distribution, or run
   `wsl --shutdown`, first.
-- `scripts/dev-shell.sh` passes only `GH_TOKEN` and your user and group ids. A proxy variable that you export in
+- `scripts/dev-shell.sh` passes `GH_TOKEN`, your user and group ids and any `CRUX_JLINK*` variable that is set (as
+  build arguments, by name), and no proxy variable. A proxy variable that you export in
   your shell does not reach its container. For this route use Docker's own client configuration: the `proxies`
   section of `~/.docker/config.json` makes the Docker command line add the variables to the build and to the
   container (general knowledge, not tested).
@@ -252,9 +254,12 @@ bash scripts/dev-shell.sh            # a shell in the container, in the reposito
 bash scripts/dev-shell.sh <command>  # one command, with the repository as working directory
 ```
 
-The script builds the image, runs `.devcontainer/setup.sh` and then your command, as the same numeric user as
+The script builds the image, runs `scripts/bootstrap.sh zephyr` (which runs `.devcontainer/setup.sh`) and then your
+command, as the same numeric user as
 yours, so that the files it writes into the workspace belong to you. It passes `GH_TOKEN` (set it to avoid GitHub's
-rate limit for the SDK download) and nothing else of your environment; for a proxy or a company certificate see
+rate limit for the SDK download) and the `CRUX_JLINK*` build arguments that are set (a hosted J-Link package, see
+[the board route](board-bring-up.md#3-open-the-dev-container-with-the-probe)), mounts the USB bus of the host
+when `/dev/bus/usb` exists (`CRUX_BOARD_USB_DIR` names another folder), and nothing else of your environment; for a proxy or a company certificate see
 [Behind a proxy or with a company certificate](#behind-a-proxy-or-with-a-company-certificate). It does not run
 `.devcontainer/check-host.sh`. It stops with a message if Docker is missing, if you run it as root, or if the clone
 is not in a folder named `crux-controller`; with the daemon down, you get Docker's own error.
@@ -299,9 +304,13 @@ west build -p always -b 'mimxrt1060_evk@B//qspi' -d crux-controller/build/s1 \
 
 `CLANG_TIDY` is set in the image, as the static analysis job needs it. The optional S6 steps, the stronger boundary
 check and the product include check of [Set up without the Dev Container](native-setup.md) work unchanged from `/workspaces/ws` (the pinned
-`crux-pilot` contains the product include check); the container does not switch the Mbed TLS group on by itself. The container does not reach a board: there is no USB or probe
-passthrough, and a `native_sim` run is not a board run. An optional board container in `.devcontainer/board/`, with
-USB access for a J-Link probe, is described in [board-bring-up.md](board-bring-up.md); it is untested on hardware.
+`crux-pilot` contains the product include check); the container does not switch the Mbed TLS group on by itself. The container mounts the USB bus of the host and can have the J-Link software
+(`.devcontainer/jlink/`), so a probe can be reached from it after the host steps of
+[board-bring-up.md](board-bring-up.md); that route is untested on hardware, and a `native_sim` run is not a board run.
+
+A J-Link package that you place in `.devcontainer/jlink/packages/` is installed into the image you build on your own
+machine, and so the licensed SEGGER software stays in that local image layer: do not push or share the image. Git
+ignores the package file itself.
 
 ## After a pin or SDK change
 
