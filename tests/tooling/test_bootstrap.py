@@ -105,6 +105,21 @@ class BootstrapDispatch(unittest.TestCase):
         self.assertEqual(2, self.run_script_args("--nope").returncode)
         self.assertEqual([], self.calls())
 
+    def test_the_environment_variable_takes_only_the_three_run_modes(self):
+        for value in ("status", "board-host"):
+            result = self.run_script(value)
+            self.assertEqual(2, result.returncode, value)
+            self.assertIn("CRUX_BOOTSTRAP must be host, zephyr or all", result.stderr)
+        self.assertEqual([], self.calls())
+
+    def test_the_jlink_status_line_has_the_bootstrap_prefix(self):
+        tool = self.repo.parent / "bin"
+        tool.mkdir()
+        (tool / "JLinkExe").write_text("#!/bin/sh\n")
+        (tool / "JLinkExe").chmod(0o755)
+        result = self.run_script_args("status", PATH=f"{tool}:/usr/bin:/bin", CRUX_DOCKERENV="/nonexistent")
+        self.assertIn("bootstrap: J-Link software  installed", result.stderr)
+
     def test_status_installs_nothing_and_says_what_is_missing(self):
         result = self.run_script_args("status", CRUX_DOCKERENV="/nonexistent", PATH="/usr/bin:/bin")
         self.assertEqual(0, result.returncode, result.stderr)

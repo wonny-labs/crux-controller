@@ -106,7 +106,7 @@ This runs the step of the Crux checkout in the workspace folder (`crux-pilot/scr
 so the Dev Container must have been created once, which fetches Crux; the script says so when it is not there.
 It never talks to the probe or the board, and it refuses to run inside the container. A probe that
 re-enumerates gets a new device node, so run it again after a reattach. The rule
-([99-crux-jlink.rules](../.devcontainer/jlink/99-crux-jlink.rules)) gives the SEGGER vendor id to the group
+([99-crux-jlink.rules](https://github.com/wonny-labs/crux-pilot/blob/1c4cf2848c3dca1997bf3be0193e4b38374e7759/.devcontainer/jlink/99-crux-jlink.rules), in the Crux checkout; this repository keeps no copy) gives the SEGGER vendor id to the group
 `plugdev` with mode `0660`, not `0666`. [Crux's board guide](https://github.com/wonny-labs/crux-pilot/blob/1c4cf2848c3dca1997bf3be0193e4b38374e7759/docs/board-jlink-usbipd.md) lists what each result of the script means
 and how the node permissions look on WSL2.
 
@@ -133,14 +133,16 @@ How the container reaches the probe:
 
 Put the J-Link package into `.devcontainer/jlink/packages/` (exactly one `JLink_Linux_<version>_x86_64.deb`; Git
 ignores it) and run **Dev Containers: Rebuild and Reopen in Container**. Without VS Code, `bash scripts/dev-shell.sh`
-builds the same image and passes the USB bus too when `/dev/bus/usb` exists:
+builds the same image and passes the USB bus too when `/dev/bus/usb` exists (it passes no proxy settings to the
+image build, so behind a proxy that must be reached by the build, use VS Code, which does; see
+[the Dev Container reference](dev-container.md)):
 
 ```bash
 bash scripts/dev-shell.sh lsusb
 ```
 
 Should show: `lsusb` lists the probe with ID `1366:<product>`, and `bash scripts/bootstrap.sh status` says
-`J-Link software: installed`. Nothing has touched the board yet. If the probe is missing, stop: see
+`bootstrap: J-Link software  installed`. Nothing has touched the board yet. If the probe is missing, stop: see
 [Stop conditions](#stop-conditions).
 
 ## 4. Compare the flash first, read-only
@@ -167,12 +169,13 @@ Save it as `/workspaces/ws/board-run/compare.jlink`, put the accepted normal ima
 `accepted-normal.bin`, and run, inside the Dev Container:
 
 ```bash
-JLinkExe -device MIMXRT1062xxx6A -if SWD -speed 4000 -autoconnect 1 -NoGui 1 \
+JLinkExe -device MIMXRT1062xxx6A -if SWD -speed auto -autoconnect 1 -NoGui 1 \
   -CommanderScript /workspaces/ws/board-run/compare.jlink
 sha256sum /workspaces/ws/board-run/flash-before.bin /workspaces/ws/board-run/accepted-normal.bin
 ```
 
-Should show: the two hashes are equal. If they differ, stop. Connecting the probe may halt the core; whether
+The speed is `auto`, as in [step 7](#7-debug-if-needed); if the connection fails, use 4000, then 400, then 100 as
+there. Should show: the two hashes are equal. If they differ, stop. Connecting the probe may halt the core; whether
 this read leaves the board's image running has not been checked, and the read is an operation on the board that
 needs the authorisation like any other. The `board-run` folder is in the workspace folder, outside the clone.
 

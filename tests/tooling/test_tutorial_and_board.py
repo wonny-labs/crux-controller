@@ -9,14 +9,8 @@ Dev Container files are tested in test_one_container.py. Nothing here starts Doc
 network.
 """
 
-import json
-import os
 import pathlib
 import re
-import shutil
-import stat
-import subprocess
-import tempfile
 import unittest
 
 import yaml

@@ -10,6 +10,7 @@ against a stand-in for docker.
 import json
 import os
 import pathlib
+import re
 import shutil
 import subprocess
 import tempfile
@@ -75,12 +76,29 @@ class JlinkFolder(unittest.TestCase):
                                  capture_output=True, text=True, check=False).stdout.split()
         self.assertEqual([], [n for n in listing if n.endswith(".deb")])
 
-    def test_the_udev_rule_gives_the_probe_to_plugdev_without_opening_it_to_everyone(self):
-        rule = (JLINK / "99-crux-jlink.rules").read_text()
-        self.assertIn('ATTR{idVendor}=="1366"', rule)
-        self.assertIn('GROUP="plugdev"', rule)
-        self.assertIn('MODE="0660"', rule)
-        self.assertNotIn('MODE="0666"', rule)
+    def test_the_udev_rule_has_one_home_in_the_pinned_crux_checkout(self):
+        # board-host installs the rule of the Crux checkout; a second copy here would drift from it.
+        self.assertFalse((JLINK / "99-crux-jlink.rules").exists())
+        pin = re.search(r"revision: ([0-9a-f]{40})", (ROOT / "west.yml").read_text()).group(1)
+        page = (ROOT / "docs" / "board-bring-up.md").read_text()
+        self.assertIn(f"crux-pilot/blob/{pin}/.devcontainer/jlink/99-crux-jlink.rules", page)
+        for name in ("install-jlink.sh",):
+            self.assertNotIn("from 99-crux-jlink.rules on the Linux host", (JLINK / name).read_text())
+
+    def test_every_relative_link_of_the_markdown_files_under_devcontainer_resolves(self):
+        found = sorted(DEVCONTAINER.rglob("*.md"))
+        self.assertTrue(found)
+        for path in found:
+            for target in re.findall(r"\[[^\]]*\]\(([^)\s]+)\)", path.read_text()):
+                if re.match(r"[a-z]+:", target):
+                    continue
+                file_part, _, anchor = target.partition("#")
+                resolved = (path.parent / file_part).resolve()
+                self.assertTrue(resolved.exists(), f"{path.relative_to(ROOT)}: {target}")
+                if anchor and resolved.suffix == ".md":
+                    heads = [re.sub(r"[^\w\- ]", "", h.lower().replace("`", "")).replace(" ", "-")
+                             for h in re.findall(r"(?m)^#{1,6} (.*)$", resolved.read_text())]
+                    self.assertIn(anchor, heads, f"{path.relative_to(ROOT)}: {target}")
 
     def test_the_install_script_is_posix_sh_with_the_spdx_line_second(self):
         path = JLINK / "install-jlink.sh"

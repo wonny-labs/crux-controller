@@ -9,7 +9,7 @@
 #
 #   host        the check of the folder layout (.devcontainer/check-host.sh)
 #   zephyr      the workspace, the Python tools and the Zephyr SDK (.devcontainer/setup.sh)
-#   all         both, in that order (the default; CRUX_BOOTSTRAP=host|zephyr|all sets another default)
+#   all         both, in that order (the default; the variable CRUX_BOOTSTRAP=host|zephyr|all sets another one)
 #   status      say whether the workspace and the SDK are there and whether the J-Link software is installed;
 #               it installs nothing
 #   board-host  only for a board: prepare the Linux system that the J-Link probe is attached to (the WSL2
@@ -48,14 +48,16 @@ for argument in "$@"; do
         *) usage ;;
     esac
 done
-mode="${mode:-${CRUX_BOOTSTRAP:-all}}"
-case "$mode" in
-    host | zephyr | all | status | board-host) ;;
-    *)
-        printf 'bootstrap: CRUX_BOOTSTRAP must be host, zephyr or all, and it is "%s".\n' "$mode"
-        exit 2
-        ;;
-esac
+if [[ -z "$mode" ]]; then
+    # The environment sets only a run mode; status and board-host are asked for as arguments.
+    case "${CRUX_BOOTSTRAP:-all}" in
+        host | zephyr | all) mode="${CRUX_BOOTSTRAP:-all}" ;;
+        *)
+            printf 'bootstrap: CRUX_BOOTSTRAP must be host, zephyr or all, and it is "%s".\n' "$CRUX_BOOTSTRAP"
+            exit 2
+            ;;
+    esac
+fi
 
 in_container() {
     [[ -f "${CRUX_DOCKERENV:-/.dockerenv}" ]]
@@ -87,7 +89,7 @@ if [[ "$mode" == status ]]; then
         printf 'bootstrap: Zephyr SDK  not installed   rerun: CRUX_BOOTSTRAP=zephyr bash scripts/bootstrap.sh\n'
     fi
     if command -v JLinkExe >/dev/null 2>&1; then
-        printf 'J-Link software: installed (%s)\n' "$(command -v JLinkExe)"
+        printf 'bootstrap: J-Link software  installed (%s)\n' "$(command -v JLinkExe)"
     elif in_container; then
         cat <<'NOTE'
 J-Link software is not installed in this container. Host and native_sim work without it; flashing and

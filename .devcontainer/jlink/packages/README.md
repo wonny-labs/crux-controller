@@ -4,4 +4,4 @@ Put the SEGGER J-Link software package for Linux, the 64-bit x86 Debian file (`J
 
 Instead of a file here, an organisation that hosts a copy after accepting the SEGGER licence itself can set the build arguments `CRUX_JLINK_URL` and `CRUX_JLINK_DEB_SHA256`. A file here wins over the URL.
 
-The [board route guide](../../../docs/board-jlink-usbipd.md#steps) explains the rest.
+The [board route](../../../docs/board-bring-up.md#3-open-the-dev-container-with-the-probe) explains the rest.

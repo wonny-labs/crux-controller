@@ -100,7 +100,7 @@ fi
 # The J-Link package's postinst runs `udevadm control --reload-rules` and
 # `udevadm trigger` and fails the install when udevadm is missing, as it is in
 # this image. The container needs no udev: the probe's device node gets its
-# permissions from 99-crux-jlink.rules on the Linux host. So a no-op udevadm is
+# permissions from the udev rule of the Crux checkout (crux-pilot/.devcontainer/jlink/99-crux-jlink.rules), which `scripts/bootstrap.sh board-host` installs on the Linux host. So a no-op udevadm is
 # put where dpkg's maintainer scripts look for it, /usr/sbin (a stub in
 # /usr/local/bin was not found in the first run), for the install only. It is
 # removed right after the install and, through the trap, when the install fails.
@@ -127,7 +127,7 @@ remove_stub
 # The Dockerfile removes the apt lists and the package folder after this script.
 
 # The probe's device node belongs to group plugdev on a native Linux host (see
-# 99-crux-jlink.rules). Debian and Ubuntu give plugdev the same fixed ID (46).
+# the rule named above). Debian and Ubuntu give plugdev the same fixed ID (46).
 usermod -aG plugdev vscode
 
 for tool in JLinkExe JLinkGDBServer; do

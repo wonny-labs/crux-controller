@@ -304,6 +304,10 @@ check and the product include check of [Set up without the Dev Container](native
 (`.devcontainer/jlink/`), so a probe can be reached from it after the host steps of
 [board-bring-up.md](board-bring-up.md); that route is untested on hardware, and a `native_sim` run is not a board run.
 
+A J-Link package that you place in `.devcontainer/jlink/packages/` is installed into the image you build on your own
+machine, and so the licensed SEGGER software stays in that local image layer: do not push or share the image. Git
+ignores the package file itself.
+
 ## After a pin or SDK change
 
 A pin change is a new revision of `crux-pilot` in `west.yml`; it arrives with a `git pull`. The

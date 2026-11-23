@@ -1098,7 +1098,7 @@ class DevcontainerWorkflow(unittest.TestCase):
         self.assertEqual(self.on["pull_request"]["paths"], self.on["push"]["paths"])
         paths = self.on["pull_request"]["paths"]
         # west.yml moves the pin, and with it the Zephyr requirement files that setup.sh installs.
-        for path in (".devcontainer/**", "scripts/dev-shell.sh", "scripts/bootstrap.sh", "west.yml",
+        for path in (".devcontainer/**", "scripts/dev-shell.sh", "scripts/bootstrap.sh", ".vscode/**", "west.yml",
                      ".github/workflows/devcontainer.yml"):
             self.assertIn(path, paths)
 
