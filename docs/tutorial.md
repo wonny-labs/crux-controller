@@ -1,14 +1,8 @@
 # Tutorial: your first build and run
 
 This tutorial takes you from a working Dev Container to the host tests, the `native_sim` scenarios and a board
-image, on Linux or on Windows with WSL2. Each step gives the command and what you should see. Part A runs the host
-tests and the checks in minutes, Part B runs the `native_sim` scenarios of the product, and Part C builds the image
-for a board and points at the board route.
-
-**What is untested.** Nobody has run the Dev Container on WSL2 yet, and nobody has timed these steps on a
-developer machine. The commands are the ones that the `devcontainer` workflow of CI runs through
-`scripts/dev-shell.sh` on an x86_64 Ubuntu runner, and the times below come from that job. A local result
-does not replace the CI result of a pull request ([why](architecture.md#why-the-evidence-comes-from-ci)).
+image. Each step gives the command and what you should see. Part A runs the host tests and the checks, Part B runs
+the `native_sim` scenarios of the product, and Part C builds the image for a board and points at the board route.
 
 ## Prerequisites and the Dev Container
 
@@ -19,23 +13,10 @@ Finish [Getting started](getting-started.md#set-up-the-dev-container) first: the
 - **Command line.** Run each command through `bash scripts/dev-shell.sh`, as written below. The script runs it in
   the Dev Container with the repository as the working directory.
 - **VS Code** with the Dev Containers extension. Open the clone folder and run
-  **Dev Containers: Reopen in Container**. There is one configuration, "Crux Controller (Ubuntu 24.04 amd64)", with and without a board. In its terminal, run
-  the commands without the `bash scripts/dev-shell.sh` prefix.
+  **Dev Containers: Reopen in Container**. In its terminal, run the commands without the
+  `bash scripts/dev-shell.sh` prefix.
 
-`/workspaces/ws` in the container is the parent folder of your clone, the workspace.
-
-## How long it takes
-
-The times are those of the `devcontainer` job of CI for `main` at revision `890ee75`, on a fresh GitHub runner
-with a fast network. The first setup of the Dev Container, about 3 min in CI, is part of Getting started; on your
-machine it depends on your connection and has not been timed outside CI.
-
-| Step | In CI |
-|---|---|
-| 1. Host tests, sanitizers off and on | under 1 min |
-| 2. Tooling tests and the boundary check | under 1 min |
-| 3. One `native_sim` run: all scenarios of `workload` to `sntp` | about 3 min |
-| 4. One build: `workload` for the RT1060-EVKB | under 1 min |
+Every command runs from the repository root.
 
 ## Part A. Host tests
 
@@ -62,7 +43,7 @@ checks the include rules of the source trees against the headers of the pinned `
 
 ```bash
 bash scripts/dev-shell.sh python -m unittest discover -s tests/tooling
-bash scripts/dev-shell.sh bash -c 'cd /workspaces/ws && python crux-controller/scripts/check_boundary.py --repo crux-controller --crux-root crux-pilot'
+bash scripts/dev-shell.sh python scripts/check_boundary.py --crux-root ../crux-pilot
 ```
 
 The tests end with `Ran <n> tests in <t>s` and `OK` (or `OK (skipped=<m>)`), and the check prints
@@ -78,10 +59,10 @@ example `bash scripts/dev-shell.sh bash scripts/check-format.sh`;
 runner, builds and runs every scenario of `workload` to `sntp`, as the `workload` job does:
 
 ```bash
-bash scripts/dev-shell.sh bash -c 'cd /workspaces/ws && west twister -p native_sim/native/64 -T crux-controller/tests/native_sim --inline-logs --clobber-output -O twister-out'
+bash scripts/dev-shell.sh west twister -p native_sim/native/64 -T tests/native_sim --inline-logs --clobber-output -O twister-out
 ```
 
-It ends like this (quoted from a CI log, with the end of each line cut):
+It ends like this (the end of each line cut):
 
 ```text
 INFO    - 17 of 17 executed test configurations passed (100.00%), 0 built (not run), 0 ...
@@ -91,27 +72,16 @@ INFO    - 31 of 31 executed test cases passed (100.00%) on 1 out of total ... pl
 All 17 Twister ids of the [scenario table](native-setup.md#run-the-workload-to-sntp-scenarios) must be there and
 passed. A lower count means that a scenario did not run.
 
-To run one scenario, here `workload`, point `-T` at its directory (this form is ordinary Twister usage and was not
-run for this page):
-
-```bash
-bash scripts/dev-shell.sh bash -c 'cd /workspaces/ws && west twister -p native_sim/native/64 -T crux-controller/tests/native_sim/workload --inline-logs --clobber-output -O twister-out-workload'
-```
-
-The Twister folders (`twister-out`, `twister-out-workload`) are in the workspace folder, next to the clone
-(`~/work/crux-controller-workspace`), because the commands ran there; each scenario has its own build folder in
-them, and `--inline-logs` prints the output of a failed scenario. Builds of the repository itself (for example
-`build/host` of the host tests) are under `build/` in the clone, which `.gitignore` excludes. The `management` scenario
-needs the Mbed TLS modules: [Run the `workload` to `sntp` scenarios](native-setup.md#run-the-workload-to-sntp-scenarios) shows
-how.
-
-No board? Parts A and B run every sample and test.
+Twister writes its output to `twister-out` in the clone, with a build folder for each scenario, and
+`--inline-logs` prints the output of a failed scenario. The host tests build under `build/`. `.gitignore` excludes
+both. The `management` scenario needs the Mbed TLS modules:
+[Run the `workload` to `sntp` scenarios](native-setup.md#run-the-workload-to-sntp-scenarios) shows how.
 
 ## Part C. Run on your board
 
-Part C builds the image for a board and hands over to the board route. Building needs no board; programming one
-does, together with the project owner's explicit authorisation for the task. The [roadmap](roadmap.md#what-has-run-on-a-board) records the
-board runs.
+Part C builds the image for a board and hands over to the board route. Building needs no board. Running one needs
+the owner's authorisation ([glossary](glossary.md#people-and-board-procedures)). The
+[roadmap](roadmap.md#what-has-run-on-a-board) records the board runs.
 
 | Board | `-b` target | Probe | Board guide |
 |---|---|---|---|
@@ -119,33 +89,21 @@ board runs.
 
 ### 4. Build the image for the RT1060-EVKB
 
-This is the cross-build of `workload` that the `workload` job of CI runs, from the workspace folder (`/workspaces/ws` in
-the container is your `~/work/crux-controller-workspace`):
+This is the cross-build of `workload` that the `workload` job of CI runs:
 
 ```bash
-bash scripts/dev-shell.sh bash -s <<'SH'
-set -euo pipefail
-cd /workspaces/ws
-west build -p always -b 'mimxrt1060_evk@B//qspi' -d crux-controller/build/workload \
-  crux-controller/app -- -DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON \
-  -DEXTRA_CONF_FILE=conf/workload.conf
-SH
+bash scripts/dev-shell.sh west build -p always -b 'mimxrt1060_evk@B//qspi' -d build/workload app -- -DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON -DEXTRA_CONF_FILE=conf/workload.conf
 ```
 
-The image is `build/workload/zephyr/zephyr.bin` in the clone, next to `zephyr.meta`. A build is not a run on a board.
+The image is `build/workload/zephyr/zephyr.bin` in the clone, next to `zephyr.meta`.
 
-### 5. Program the board and read its log
+### 5. Flash and debug the board
 
-Follow the [board route](board-bring-up.md) from its step 2: attach the probe, open the Dev Container with the probe, compare
-the flash read-only first, then `west flash`, observe the log and the network, restore the accepted normal
-image and write the run record. Its stop conditions apply at every step. The route is untested on hardware, and nothing may touch a board without the project owner's explicit
-authorisation for the task.
+[Board bring-up](board-bring-up.md) links the Crux board page for the probe, flash and debug, and adds this
+repository's image and the log to expect.
 
 ## Next steps
 
 - Make a first change, from a branch to a pull request: [first-change.md](first-change.md).
-- Pick the next page from the [README](../README.md#where-to-read-next), starting with the
-  [roadmap](roadmap.md) and the [architecture](architecture.md).
 - Look up a failure by its message: [troubleshooting.md](troubleshooting.md).
-- The setup without the Dev Container and the `management` scenario: [Set up without the Dev Container](native-setup.md).
-- The rules for a change: [CONTRIBUTING.md](../CONTRIBUTING.md).
+- Pick the next page from the [README](../README.md#where-to-read-next).

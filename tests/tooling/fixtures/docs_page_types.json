@@ -52,9 +52,6 @@
     "docs/dev-container.md": {
       "verification": 9
     },
-    "docs/first-change.md": {
-      "verification": 1
-    },
     "docs/getting-started.md": {
       "verification": 5
     },
@@ -72,9 +69,6 @@
     },
     "docs/troubleshooting.md": {
       "verification": 8
-    },
-    "docs/tutorial.md": {
-      "verification": 2
     }
   }
 }
