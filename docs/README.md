@@ -77,8 +77,9 @@ These are known limits of what the checks and tests cover. They are facts about 
 - **The Dev Container and WSL2 were not tried by anyone.** The Dev Container was not started on a developer machine, so
   WSL2, Docker Engine in WSL2 and the proxy settings of `devcontainer.json` have not run there. The Dev Container job
   of CI covers an x86_64 runner only ([setup checks record](history/setup-checks.md)).
-- **The board route is untested.** Nobody has built the Dev Container with the J-Link software, CI builds it
-  without a J-Link package, and no step of the [board route](board-bring-up.md) has run on a board.
+- **The board route is untested.** No check shows that the J-Link software ends up in the Dev Container image
+  (CI's image build tries the pinned download, and a failed download only warns), and no step of the
+  [board route](board-bring-up.md) has run on a board.
 
 ## All documents
 
@@ -133,7 +134,7 @@ These pages keep text that left the main documents. They are history, not instru
 | Document | Type | What it is | Reading time |
 |---|---|---|---|
 | [README.md](../README.md) | Entry | What the repository is and for whom, the Crux usage step by step, the quick start, where to read next, the status and limits, contributing, the licence and ownership. | 4 min |
-| [CHANGELOG.md](../CHANGELOG.md) | Record | What each change added. Everything is unreleased. | 8 min |
+| [CHANGELOG.md](../CHANGELOG.md) | Record | What each change added. Everything is unreleased. | 9 min |
 | [CONTRIBUTING.md](../CONTRIBUTING.md) | Reference (rules) | The boundary, build and test, the CI jobs, the pin, how to change behaviour, commits and pull requests, review, and the rules of a public repository. | 9 min |
 | [RELEASE.md](../RELEASE.md) | Reference | The release dry run, what the bundle holds (hashes only) and what a tag needs. | 2 min |
 | [SECURITY.md](../SECURITY.md) | Reference (policy) | How to report a vulnerability, and what the repository promises about support. | 1 min |

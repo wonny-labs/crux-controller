@@ -3,22 +3,30 @@
 # Install the SEGGER J-Link Debian package in the Dev Container image. Run by the
 # Dockerfile unless CRUX_JLINK=0.
 #
-# The package comes from one of two places, in this order:
+# The package comes from the first of these places that is given:
 #   1. a JLink_Linux_<version>_x86_64.deb that the developer downloaded from
 #      SEGGER, accepting its licence, and placed in .devcontainer/jlink/packages/;
 #   2. CRUX_JLINK_URL: a copy that an organisation hosts after accepting the
 #      SEGGER licence itself. It is empty in this repository, needs
-#      CRUX_JLINK_DEB_SHA256 and must be an https:// URL.
-# The script never downloads from SEGGER and never accepts a licence for anyone.
+#      CRUX_JLINK_DEB_SHA256 and must be an https:// URL;
+#   3. SEGGER's download endpoint: the Linux x86_64 package of
+#      CRUX_JLINK_SEGGER_VERSION, checked against CRUX_JLINK_SEGGER_SHA256. The
+#      Dockerfile pins both. The download accepts SEGGER's terms of use, as the
+#      download page does when a person clicks it.
+# If the download fails or its SHA-256 does not match, auto prints a warning and
+# installs nothing, so the image still builds without the J-Link software.
 #
 # Environment:
-#   CRUX_JLINK             auto (default): install the package from 1. or 2.; with
-#                          neither, print a warning and install nothing, so the
-#                          image still builds. 1: fail without a package.
+#   CRUX_JLINK             auto (default): install the package from 1., 2. or 3.;
+#                          with none of them, or when 3. fails, print a warning and
+#                          install nothing, so the image still builds. 1: fail
+#                          without a package.
 #   CRUX_JLINK_DEB         file name of the package in the folder (optional when
 #                          the folder holds exactly one JLink_Linux_*_x86_64.deb)
 #   CRUX_JLINK_DEB_SHA256  expected SHA-256 of the package (required with a URL)
 #   CRUX_JLINK_URL         HTTPS URL of a hosted copy of the package (optional)
+#   CRUX_JLINK_SEGGER_VERSION  SEGGER version to download, such as V996a (empty: no download)
+#   CRUX_JLINK_SEGGER_SHA256   SHA-256 of that version's Linux x86_64 package
 #   CRUX_JLINK_UDEVADM     path of the temporary udevadm stub; only tests change it
 set -eu
 
@@ -34,6 +42,24 @@ esac
 deb=${CRUX_JLINK_DEB:-}
 url=${CRUX_JLINK_URL:-}
 expected=$(printf '%s' "${CRUX_JLINK_DEB_SHA256:-}" | tr 'A-F' 'a-f')
+segger_version=${CRUX_JLINK_SEGGER_VERSION:-}
+segger_sha256=$(printf '%s' "${CRUX_JLINK_SEGGER_SHA256:-}" | tr 'A-F' 'a-f')
+
+overrides="To add it, place JLink_Linux_<version>_x86_64.deb from SEGGER in .devcontainer/jlink/packages/
+or set the build arguments CRUX_JLINK_URL and CRUX_JLINK_DEB_SHA256 to a copy that your
+organisation hosts, then run Dev Containers: Rebuild Container."
+
+# The SEGGER route could not give a package: auto builds the image without
+# J-Link, 1 stops the build.
+no_segger_package() {
+    if [ "$mode" = auto ]; then
+        echo "warning: $1. The image is built without the J-Link software; Host and" \
+             "native_sim work without it, flashing and debugging a board need it. $overrides" >&2
+        exit 0
+    fi
+    echo "error: $1. $overrides" >&2
+    exit 1
+}
 
 cd "$dir"
 if [ -z "$deb" ]; then
@@ -62,6 +88,26 @@ if [ -z "$deb" ]; then
         command -v curl >/dev/null 2>&1 || { echo "error: CRUX_JLINK_URL needs curl in the image" >&2; exit 1; }
         echo "Downloading the J-Link package from CRUX_JLINK_URL"
         curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' --output "$deb" "$url"
+    elif [ -n "$segger_version" ]; then
+        printf '%s' "$segger_version" | grep -Eqx 'V[0-9]+[a-z]?' \
+            || no_segger_package "CRUX_JLINK_SEGGER_VERSION must look like V996a, not $segger_version"
+        printf '%s' "$segger_sha256" | grep -Eqx '[0-9a-f]{64}' \
+            || no_segger_package "CRUX_JLINK_SEGGER_SHA256 must be the 64-digit SHA-256 of the J-Link package"
+        command -v curl >/dev/null 2>&1 || no_segger_package "the J-Link download from SEGGER needs curl in the image"
+        deb=JLink_Linux_${segger_version}_x86_64.deb
+        segger_url="https://www.segger.com/downloads/jlink/$deb"
+        # The download accepts SEGGER's terms of use: it posts the licence form field
+        # that the download page sends when a person accepts them.
+        echo "Downloading J-Link $segger_version from SEGGER; the download accepts SEGGER's terms of use"
+        if curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' --retry 3 --data 'accept_license_agreement=accepted' --output "$deb" "$segger_url"; then
+            actual=$(sha256sum "$deb" | cut -d ' ' -f 1)
+            if [ "$actual" != "$segger_sha256" ]; then
+                no_segger_package "the SHA-256 of $deb from SEGGER is $actual, expected $segger_sha256; nothing was installed"
+            fi
+            expected=$segger_sha256
+        else
+            no_segger_package "the J-Link download from SEGGER failed ($segger_url)"
+        fi
     elif [ "$mode" = auto ]; then
         echo "warning: no SEGGER J-Link package; the image is built without the J-Link software." \
              "Host and native_sim work without it; flashing and debugging a board need it. To add it," \

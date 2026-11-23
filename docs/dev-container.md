@@ -68,8 +68,9 @@ Nothing in the files uses `host.docker.internal`, the Docker socket or a mount o
 
 ## Network and prerequisites
 
-The setup contacts these hosts. Only `mcr.microsoft.com` (the `FROM` line of `.devcontainer/Dockerfile`) and the
-`github.com` remotes of `west.yml` are read from the files. The other names are the usual ones and were not looked
+The setup contacts these hosts. Only `mcr.microsoft.com` (the `FROM` line of `.devcontainer/Dockerfile`),
+`www.segger.com` (`.devcontainer/jlink/install-jlink.sh`) and the `github.com` remotes of `west.yml` are read from
+the files. The other names are the usual ones and were not looked
 up, and Zephyr's own manifest, which the pinned `crux-pilot` imports, was not read for this page: it may name
 more hosts. A firewall or proxy must allow them.
 
@@ -80,6 +81,7 @@ more hosts. A firewall or proxy must allow them.
 | PyPI (`pypi.org` and its file host) | `pip install` of `.devcontainer/requirements-tools.txt` and of the Zephyr requirement files | the first setup, and when a requirements file changes |
 | `github.com` | `west update`: this repository's manifest projects from `github.com/wonny-labs` and `github.com/zephyrproject-rtos` | the first setup, and `west update` after a pin change |
 | `api.github.com` and the GitHub release downloads | `west sdk install`, the Zephyr SDK | the first setup, and after an SDK version change |
+| `www.segger.com` | the J-Link version pinned in the Dockerfile, downloaded by `.devcontainer/jlink/install-jlink.sh` unless a placed package or `CRUX_JLINK_URL` overrides it, or `CRUX_JLINK=0` skips it ([board route](board-bring-up.md#3-open-the-dev-container-with-the-probe)) | the image build |
 | Docker Hub | the `hello-world` check of [Set up the Dev Container](getting-started.md#set-up-the-dev-container) and the `curlimages/curl` test of the proxy section | once each |
 
 The SDK install uses GitHub release downloads, and an anonymous request limit of the GitHub API can apply (not
@@ -308,9 +310,9 @@ check and the product include check of [Set up without the Dev Container](native
 (`.devcontainer/jlink/`), so a probe can be reached from it after the host steps of
 [board-bring-up.md](board-bring-up.md); that route is untested on hardware, and a `native_sim` run is not a board run.
 
-A J-Link package that you place in `.devcontainer/jlink/packages/` is installed into the image you build on your own
-machine, and so the licensed SEGGER software stays in that local image layer: do not push or share the image. Git
-ignores the package file itself.
+The J-Link software that the build installs, downloaded or placed in `.devcontainer/jlink/packages/`, goes into the
+image you build on your own machine, and so the licensed SEGGER software stays in that local image layer: do not
+push or share the image. Git ignores a placed package file.
 
 ## After a pin or SDK change
 

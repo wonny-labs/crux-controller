@@ -1,5 +1,5 @@
-# The SEGGER J-Link package is downloaded by each developer, who accepts its
-# licence. It is never committed.
+# Optional override: a SEGGER J-Link package that a developer downloaded and
+# placed here, accepting its licence. It is never committed.
 *
 !.gitignore
 !README.md

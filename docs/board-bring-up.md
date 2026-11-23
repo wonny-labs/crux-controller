@@ -43,7 +43,7 @@ The [stop conditions](#stop-conditions) apply to every step.
 | Ethernet link | A cable from the board to the host peer. The S2 image has a static address and no DHCP client. |
 | A host peer | A host with the address `192.168.77.1` on a `/24` network, able to listen on TCP port `42420` and echo what it receives. The board's address is `192.168.77.2` (`app/conf/s2.conf`, `app/Kconfig`, `docs/findings/s2-first-board-run.md`). |
 | On Windows | WSL2 with the Dev Container working ([Getting started](getting-started.md#set-up-the-dev-container)), and usbipd-win on the Windows side to pass the probe to WSL2. |
-| The J-Link software | The "J-Link Software and Documentation Pack" for Linux, 64-bit DEB installer, that you download from SEGGER yourself and whose licence terms you accept yourself and put in `.devcontainer/jlink/packages/`, or a copy that your organisation hosts (`CRUX_JLINK_URL` with `CRUX_JLINK_DEB_SHA256`). This repository never fetches it from SEGGER and never commits it. Without it the Dev Container still builds, without the J-Link software. |
+| The J-Link software | Nothing to download by hand: the Dev Container build downloads the pinned version of the "J-Link Software and Documentation Pack" for Linux, 64-bit DEB installer, from SEGGER itself. A package you place or a copy that your organisation hosts overrides it ([step 3](#3-open-the-dev-container-with-the-probe)). The repository never commits it. |
 | The accepted normal image | The image that was on the board before and that is put back afterwards. The S2 note records its SHA-256 (`ad729684749181f0c26853828550187a2c3e60dbb28cf3ee2194a7984141e02f`) and size (107,872 bytes). Proposed: have it available before you start. |
 | A written run record | See [Write the run record](#9-write-the-run-record). The S2 runs kept host command output, probe logs, the raw capture and the peer record, privately, as the S2 note says. |
 
@@ -113,13 +113,18 @@ and how the node permissions look on WSL2.
 ## 3. Open the Dev Container with the probe
 
 There is one Dev Container, with and without a board. It mounts the USB bus of the host and sets a device
-cgroup rule for it, and it installs the J-Link software when a package is given. Its files:
+cgroup rule for it, and its image build installs the J-Link software. Its files:
 
 - [.devcontainer/devcontainer.json](../.devcontainer/devcontainer.json): the VS Code configuration, with the
   `CRUX_JLINK*` build arguments and `scripts/bootstrap.sh` as the post-create step.
-- [.devcontainer/jlink/install-jlink.sh](../.devcontainer/jlink/install-jlink.sh): installs the package from
-  `.devcontainer/jlink/packages/`, or from `CRUX_JLINK_URL` after checking `CRUX_JLINK_DEB_SHA256`; without either
-  it prints a warning and the image is built without the J-Link software.
+- [.devcontainer/Dockerfile](../.devcontainer/Dockerfile): pins the J-Link version that the build downloads
+  (`CRUX_JLINK_SEGGER_VERSION`) and its SHA-256 (`CRUX_JLINK_SEGGER_SHA256`). To move to another J-Link version,
+  change the two values together.
+- [.devcontainer/jlink/install-jlink.sh](../.devcontainer/jlink/install-jlink.sh): installs the package from the
+  first of `.devcontainer/jlink/packages/`, `CRUX_JLINK_URL` (checked against `CRUX_JLINK_DEB_SHA256`) and the
+  pinned SEGGER download (checked against the pinned SHA-256, before anything is installed). When none gives a
+  package that passes its check, it prints a warning and the image is built without the J-Link software;
+  `CRUX_JLINK=1` makes that an error and `CRUX_JLINK=0` skips the step, including the download.
 - [scripts/bootstrap.sh](../scripts/bootstrap.sh): `status` says whether the workspace, the SDK and the J-Link
   software are there.
 - [.vscode/launch.json](../.vscode/launch.json): the two Cortex-Debug profiles of the debug step.
@@ -131,8 +136,18 @@ How the container reaches the probe:
   appears again without a restart;
 - `--device-cgroup-rule` `c 189:* rmw`, which allows the USB device nodes (character major 189) and nothing else.
 
-Put the J-Link package into `.devcontainer/jlink/packages/` (exactly one `JLink_Linux_<version>_x86_64.deb`; Git
-ignores it) and run **Dev Containers: Rebuild and Reopen in Container**. Without VS Code, `bash scripts/dev-shell.sh`
+By default you provide nothing for the J-Link software: the image build downloads the pinned version from SEGGER's
+download endpoint and installs it only if its SHA-256 matches. **The download accepts SEGGER's terms of use for
+you, as clicking the download on SEGGER's page does; if you do not accept them, use one of the overrides below.**
+If the download fails or the SHA-256 does not match, the build prints a warning, installs nothing and finishes
+without the J-Link software; a plain rebuild can reuse that cached step, so use **Dev Containers: Rebuild Container
+Without Cache** to try the download again. Two overrides, in this order, win over the download:
+
+- exactly one `JLink_Linux_<version>_x86_64.deb` in `.devcontainer/jlink/packages/` (Git ignores it);
+- a copy that your organisation hosts after accepting the SEGGER licence itself: the build arguments
+  `CRUX_JLINK_URL` (an `https://` URL) and `CRUX_JLINK_DEB_SHA256`.
+
+Run **Dev Containers: Rebuild and Reopen in Container**. Without VS Code, `bash scripts/dev-shell.sh`
 builds the same image and passes the USB bus too when `/dev/bus/usb` exists (it passes no proxy settings to the
 image build, so behind a proxy that must be reached by the build, use VS Code, which does; see
 [the Dev Container reference](dev-container.md)):
@@ -339,4 +354,7 @@ doubtful one.
 - A cold power cycle. The S2 note lists it as not shown: its runs restarted the image by programming and
   reset.
 - Other probes and runners (LinkServer, pyOCD), which `board.cmake` also configures.
-- A build of the Dev Container with the J-Link software in CI. The `devcontainer` workflow builds and checks the image without a J-Link package.
+- A check that the J-Link software is in the image. The `devcontainer` workflow builds the image with the default
+  build arguments, so its build tries the pinned SEGGER download, but a failed download only warns: a green job does
+  not show that the J-Link software was installed. The tooling tests run `install-jlink.sh` with a stand-in for
+  `curl` and no network.

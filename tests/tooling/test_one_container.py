@@ -2,11 +2,12 @@
 """Checks of the one Dev Container: it is board-ready, builds without the J-Link package, and the host-side steps.
 
 The Dev Container is one configuration. It always has the USB bus of the host and a device cgroup rule, and it
-installs the SEGGER J-Link software when a package or a hosted copy is given. Nothing here starts Docker, a
-probe or the network: the install script is run only up to its first decision, and scripts/dev-shell.sh runs
-against a stand-in for docker.
+installs the SEGGER J-Link software from a placed package, a hosted copy or the version pinned in the Dockerfile,
+downloaded from SEGGER. Nothing here starts Docker, a probe or the network: the install script runs with
+stand-ins for curl, apt-get and usermod, and scripts/dev-shell.sh runs against a stand-in for docker.
 """
 
+import hashlib
 import json
 import os
 import pathlib
@@ -19,6 +20,12 @@ import unittest
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 DEVCONTAINER = ROOT / ".devcontainer"
 JLINK = DEVCONTAINER / "jlink"
+SEGGER_ENDPOINT = "https://www.segger.com/downloads/jlink/"
+
+
+def dockerfile_arg(text, name):
+    match = re.search(rf"^ARG {name}=(\S*)$", text, re.MULTILINE)
+    return match.group(1) if match else None
 
 
 class OneConfiguration(unittest.TestCase):
@@ -47,13 +54,26 @@ class OneConfiguration(unittest.TestCase):
         for name in ("CRUX_JLINK_DEB", "CRUX_JLINK_DEB_SHA256", "CRUX_JLINK_URL"):
             self.assertEqual("", args[name], name)
 
-    def test_the_dockerfile_installs_jlink_unless_it_is_switched_off_and_never_from_segger(self):
+    def test_the_dockerfile_installs_jlink_unless_it_is_switched_off_and_leaves_downloads_to_the_script(self):
         self.assertRegex(self.dockerfile, r"(?m)^COPY jlink/ ")
         self.assertIn('"$CRUX_JLINK" != 0', self.dockerfile)
         self.assertIn("install-jlink.sh", self.dockerfile)
         self.assertNotRegex(self.dockerfile, r"(?i)\b(curl|wget)\b[^\n]*(http|segger)")
         self.assertNotRegex(self.dockerfile, r"(?m)^ADD ")
         self.assertNotRegex(self.dockerfile, r"(?mi)^ARG\s+\w*proxy")
+
+    def test_the_segger_version_and_checksum_are_pinned_once_in_the_dockerfile(self):
+        # A bump changes these two values and nothing else.
+        version = dockerfile_arg(self.dockerfile, "CRUX_JLINK_SEGGER_VERSION")
+        digest = dockerfile_arg(self.dockerfile, "CRUX_JLINK_SEGGER_SHA256")
+        self.assertRegex(version or "", r"^V[0-9]+[a-z]?$")
+        self.assertRegex(digest or "", r"^[0-9a-f]{64}$")
+        holders = subprocess.run(["git", "-C", str(ROOT), "grep", "-l", "-F", digest],
+                                 capture_output=True, text=True, check=False).stdout.split()
+        self.assertEqual([".devcontainer/Dockerfile"], holders)
+        args = self.data["build"]["args"]
+        self.assertNotIn("CRUX_JLINK_SEGGER_VERSION", args)
+        self.assertNotIn("CRUX_JLINK_SEGGER_SHA256", args)
 
     def test_bootstrap_runs_after_creation_and_prints_its_status_on_attach(self):
         self.assertEqual("bash scripts/bootstrap.sh --keep-going", self.data["postCreateCommand"])
@@ -99,6 +119,25 @@ class JlinkFolder(unittest.TestCase):
                     heads = [re.sub(r"[^\w\- ]", "", h.lower().replace("`", "")).replace(" ", "-")
                              for h in re.findall(r"(?m)^#{1,6} (.*)$", resolved.read_text())]
                     self.assertIn(anchor, heads, f"{path.relative_to(ROOT)}: {target}")
+
+    def test_the_install_script_downloads_only_over_https(self):
+        install = (JLINK / "install-jlink.sh").read_text()
+        lowered = install.lower()
+        for forbidden in ("wget", "--no-check-certificate", "insecure", "curl -k"):
+            self.assertNotIn(forbidden, lowered)
+        curl_lines = [line.strip() for line in install.splitlines()
+                      if re.match(r"(if\s+)?curl\s", line.strip())]
+        self.assertEqual(2, len(curl_lines), curl_lines)
+        for line in curl_lines:
+            for flag in ("--fail", "--proto '=https'", "--proto-redir '=https'"):
+                self.assertIn(flag, line)
+        self.assertIn('"$url"', curl_lines[0])
+        self.assertIn('"$segger_url"', curl_lines[1])
+        self.assertIn("--data 'accept_license_agreement=accepted'", curl_lines[1])
+        self.assertIn(f'segger_url="{SEGGER_ENDPOINT}', install)
+
+    def test_the_install_script_notes_that_the_download_accepts_the_terms(self):
+        self.assertIn("accepts SEGGER's terms of use", (JLINK / "install-jlink.sh").read_text())
 
     def test_the_install_script_is_posix_sh_with_the_spdx_line_second(self):
         path = JLINK / "install-jlink.sh"
@@ -154,6 +193,158 @@ class InstallScriptDecisions(unittest.TestCase):
 
     def test_an_unknown_mode_is_refused(self):
         self.assertEqual(1, self.run_script(CRUX_JLINK="yes").returncode)
+
+
+class InstallScriptDownloads(unittest.TestCase):
+    """The whole of install-jlink.sh with stand-ins for curl, apt-get and usermod. No network is used."""
+
+    SEGGER_VERSION = "V996a"
+    SEGGER_FILE = "JLink_Linux_V996a_x86_64.deb"
+    HOSTED_URL = "https://artifacts.example.invalid/jlink/JLink_Linux_V990_x86_64.deb"
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        base = pathlib.Path(self._tmp.name)
+        self.folder = base / "packages"
+        self.server = base / "server"
+        self.bin = base / "bin"
+        for path in (self.folder, self.server, self.bin):
+            path.mkdir()
+        self.log = base / "calls.log"
+        self.udevadm = base / "udevadm"
+        # apt-get records whether the udevadm stand-in exists while the package installs.
+        self.stub("apt-get", f'''echo "apt-get $*" >> "{self.log}"
+case "$1" in install) [ -x "{self.udevadm}" ] && echo "udevadm present" >> "{self.log}" ;; esac''')
+        self.stub("usermod", f'echo "usermod $*" >> "{self.log}"')
+        # A fake curl: copies server/<last path segment of the URL> to --output, logs the URL and any
+        # posted form data, and fails with FAKE_CURL_STATUS.
+        self.stub("curl", f'''out=; url=; data=
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+    --output) out=$2; shift ;;
+    --data) data="$data $2"; shift ;;
+    https://*|http://*) url=$1 ;;
+    esac
+    shift
+done
+echo "curl $url$data" >> "{self.log}"
+if [ "${{FAKE_CURL_STATUS:-0}}" != 0 ]; then
+    echo "curl: (22) The requested URL returned error: 503" >&2
+    exit "$FAKE_CURL_STATUS"
+fi
+cp "{self.server}/${{url##*/}}" "$out"''')
+        for tool in ("JLinkExe", "JLinkGDBServer", "JLinkGDBServerCLExe"):
+            self.stub(tool, "")
+
+    def stub(self, name, body):
+        path = self.bin / name
+        path.write_text(f"#!/bin/sh\n{body}\n")
+        path.chmod(0o755)
+
+    def serve(self, name, content):
+        (self.server / name).write_bytes(content)
+        return hashlib.sha256(content).hexdigest()
+
+    def segger(self, content=b"package from the vendor endpoint", digest=None):
+        served = self.serve(self.SEGGER_FILE, content)
+        return {"CRUX_JLINK_SEGGER_VERSION": self.SEGGER_VERSION,
+                "CRUX_JLINK_SEGGER_SHA256": digest if digest is not None else served}
+
+    def run_install(self, **env):
+        # /usr/sbin and /sbin for sha256sum on hosts that keep it there.
+        full = {"PATH": f"{self.bin}:/usr/bin:/bin:/usr/sbin:/sbin", "CRUX_JLINK_UDEVADM": str(self.udevadm)}
+        full.update(env)
+        return subprocess.run(["sh", str(JLINK / "install-jlink.sh"), str(self.folder)],
+                              capture_output=True, text=True, env=full)
+
+    def calls(self):
+        return self.log.read_text() if self.log.exists() else ""
+
+    def test_downloads_the_pinned_version_from_segger_when_nothing_else_is_given(self):
+        result = self.run_install(**self.segger())
+        self.assertEqual(0, result.returncode, result.stderr)
+        calls = self.calls()
+        self.assertIn(f"curl {SEGGER_ENDPOINT}{self.SEGGER_FILE} accept_license_agreement=accepted", calls)
+        self.assertIn(f"install -y --no-install-recommends usbutils ./{self.SEGGER_FILE}", calls)
+        self.assertIn("udevadm present", calls)
+        self.assertIn("usermod -aG plugdev vscode", calls)
+        self.assertIn("terms of use", result.stdout + result.stderr)
+        self.assertFalse(self.udevadm.exists())
+
+    def test_order_a_placed_package_wins_over_the_url_and_segger(self):
+        (self.folder / "JLink_Linux_V810_x86_64.deb").write_bytes(b"placed package")
+        self.serve("JLink_Linux_V990_x86_64.deb", b"hosted copy")
+        result = self.run_install(CRUX_JLINK_URL=self.HOSTED_URL, **self.segger())
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertNotIn("curl", self.calls())
+        self.assertIn("./JLink_Linux_V810_x86_64.deb", self.calls())
+
+    def test_order_the_url_wins_over_segger(self):
+        hosted = self.serve("JLink_Linux_V990_x86_64.deb", b"hosted copy")
+        result = self.run_install(CRUX_JLINK_URL=self.HOSTED_URL, CRUX_JLINK_DEB_SHA256=hosted, **self.segger())
+        self.assertEqual(0, result.returncode, result.stderr)
+        calls = self.calls()
+        self.assertIn(f"curl {self.HOSTED_URL}", calls)
+        self.assertNotIn("segger.com", calls)
+        self.assertIn("usbutils ./JLink_Linux_download_x86_64.deb", calls)
+
+    def test_without_a_pin_nothing_is_downloaded(self):
+        result = self.run_install()
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("warning: no SEGGER J-Link package", result.stderr)
+        self.assertEqual("", self.calls())
+
+    def test_a_failed_segger_download_warns_and_builds_without_jlink(self):
+        result = self.run_install(FAKE_CURL_STATUS="22", **self.segger())
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("warning: the J-Link download from SEGGER failed", result.stderr)
+        self.assertIn("built without the J-Link software", result.stderr)
+        self.assertIn(".devcontainer/jlink/packages/", result.stderr)
+        calls = self.calls()
+        self.assertIn("curl ", calls)
+        self.assertNotIn("apt-get", calls)
+        self.assertNotIn("usermod", calls)
+        self.assertFalse(self.udevadm.exists())
+
+    def test_a_segger_download_with_a_wrong_checksum_warns_and_installs_nothing(self):
+        result = self.run_install(**self.segger(content=b"changed upstream", digest="0" * 64))
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("SHA-256", result.stderr)
+        self.assertIn("0" * 64, result.stderr)
+        self.assertIn("built without the J-Link software", result.stderr)
+        self.assertNotIn("apt-get", self.calls())
+        self.assertNotIn("usermod", self.calls())
+        self.assertFalse(self.udevadm.exists())
+
+    def test_required_mode_fails_when_the_segger_download_fails(self):
+        result = self.run_install(CRUX_JLINK="1", FAKE_CURL_STATUS="22", **self.segger())
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("error: the J-Link download from SEGGER failed", result.stderr)
+        self.assertNotIn("apt-get", self.calls())
+
+    def test_required_mode_fails_on_a_segger_checksum_mismatch(self):
+        result = self.run_install(CRUX_JLINK="1", **self.segger(digest="0" * 64))
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("SHA-256", result.stderr)
+        self.assertNotIn("apt-get", self.calls())
+
+    def test_an_upper_case_pin_is_accepted(self):
+        environment = self.segger()
+        environment["CRUX_JLINK_SEGGER_SHA256"] = environment["CRUX_JLINK_SEGGER_SHA256"].upper()
+        result = self.run_install(**environment)
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn(f"./{self.SEGGER_FILE}", self.calls())
+
+    def test_a_malformed_segger_pin_is_not_downloaded(self):
+        for environment in ({"CRUX_JLINK_SEGGER_VERSION": "V996a/../x", "CRUX_JLINK_SEGGER_SHA256": "a" * 64},
+                            {"CRUX_JLINK_SEGGER_VERSION": "V996a", "CRUX_JLINK_SEGGER_SHA256": "abc"},
+                            {"CRUX_JLINK_SEGGER_VERSION": "V996a"}):
+            with self.subTest(environment=environment):
+                result = self.run_install(**environment)
+                self.assertEqual(0, result.returncode, result.stderr)
+                self.assertIn("warning:", result.stderr)
+                self.assertNotIn("curl", self.calls())
 
 
 class DevShellRuns(unittest.TestCase):
@@ -218,6 +409,13 @@ class DevShellRuns(unittest.TestCase):
         self.assertIn("--build-arg CRUX_JLINK_URL", build)
         self.assertIn("--build-arg CRUX_JLINK_DEB_SHA256", build)
         self.assertNotIn(url, self.log.read_text())
+
+    def test_a_segger_pin_override_reaches_the_build_by_name_only(self):
+        self.run_script("true", CRUX_JLINK_SEGGER_VERSION="V996a", CRUX_JLINK_SEGGER_SHA256="b" * 64)
+        build = [c for c in self.calls() if c.startswith("build ")][0]
+        self.assertIn("--build-arg CRUX_JLINK_SEGGER_VERSION ", build)
+        self.assertIn("--build-arg CRUX_JLINK_SEGGER_SHA256 ", build)
+        self.assertNotIn("b" * 64, build)
 
     def test_it_runs_the_bootstrap_entry_for_the_workspace_before_the_command(self):
         self.run_script("west", "--version")
