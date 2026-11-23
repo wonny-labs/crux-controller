@@ -85,13 +85,13 @@ class ScheduledBuild(unittest.TestCase):
         self.assertIn("github.event_name != 'schedule'", self.job["if"])
         self.assertIn("github.repository == 'wonny-labs/crux-controller'", self.job["if"])
 
-    def test_fetches_reports_pins_and_builds_s2_with_the_gate_required(self):
+    def test_fetches_reports_pins_and_builds_net_with_the_gate_required(self):
         commands = self.commands
         self.assertLess(commands.index("west update"), commands.index("west crux-pins"))
         self.assertLess(commands.index("west crux-pins"), commands.index("west build"))
         self.assertIn("-DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON", commands)
-        self.assertIn("conf/s2.conf", commands)
-        self.assertIn("boards/s2.overlay", commands)
+        self.assertIn("conf/net.conf", commands)
+        self.assertIn("boards/net.overlay", commands)
 
     def pins_step(self):
         steps = [s for s in self.job["steps"] if "west crux-pins" in s.get("run", "")]
@@ -145,14 +145,14 @@ class ScheduledBuild(unittest.TestCase):
         self.assertIn("GITHUB_STEP_SUMMARY", summary_steps[0]["run"])
         self.assertIs(self.job["steps"][-1], summary_steps[0])
 
-    def test_the_resolved_s2_configuration_is_checked_as_in_ci(self):
-        ci = load(WORKFLOWS / "ci.yml")["jobs"]["s2"]
-        wanted = next(s for s in ci["steps"] if s.get("name", "").startswith("Check the resolved S2"))
+    def test_the_resolved_net_configuration_is_checked_as_in_ci(self):
+        ci = load(WORKFLOWS / "ci.yml")["jobs"]["net"]
+        wanted = next(s for s in ci["steps"] if s.get("name", "").startswith("Check the resolved net"))
         own = [s for s in self.job["steps"] if s.get("name") == wanted["name"]]
         self.assertEqual([wanted["run"]], [s["run"] for s in own])
 
     def test_tool_versions_and_sdk_cache_key_match_ci(self):
-        ci = load(WORKFLOWS / "ci.yml")["jobs"]["s2"]
+        ci = load(WORKFLOWS / "ci.yml")["jobs"]["net"]
         for key in ("SDK_VERSION", "BOARD"):
             self.assertEqual(ci["env"][key], self.job["env"][key])
         self.assertIn("cmake==3.28.4 ninja==1.11.1 west==1.4.0", self.commands)

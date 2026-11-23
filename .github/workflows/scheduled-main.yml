@@ -22,7 +22,7 @@ concurrency:
 
 jobs:
   build:
-    name: S2 build against crux-pilot main
+    name: net build against crux-pilot main
     if: github.event_name != 'schedule' || github.repository == 'wonny-labs/crux-controller'
     runs-on: ubuntu-24.04
     timeout-minutes: 60
@@ -114,40 +114,40 @@ jobs:
         run: |
           west sdk install --version "$SDK_VERSION" --install-base "$GITHUB_WORKSPACE/sdk" \
             --gnu-toolchains arm-zephyr-eabi --personal-access-token "$GH_TOKEN"
-      - name: Cross-build S2 with the baseline gate required
+      - name: Cross-build net with the baseline gate required
         env:
           ZEPHYR_BASE: ${{ github.workspace }}/zephyr
         run: |
-          west build -p always -b '${{ env.BOARD }}' -d crux-controller/build/s2 \
+          west build -p always -b '${{ env.BOARD }}' -d crux-controller/build/net \
             crux-controller/app -- -DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON \
-            "-DEXTRA_CONF_FILE=conf/s1.conf;conf/s2.conf" \
-            "-DEXTRA_DTC_OVERLAY_FILE=boards/s2.overlay"
+            "-DEXTRA_CONF_FILE=conf/workload.conf;conf/net.conf" \
+            "-DEXTRA_DTC_OVERLAY_FILE=boards/net.overlay"
       - name: Check the outputs exist
         run: |
           for output in zephyr.bin zephyr.meta; do
-            test -f "crux-controller/build/s2/zephyr/$output" || {
+            test -f "crux-controller/build/net/zephyr/$output" || {
               echo "missing $output" >&2
               exit 1
             }
           done
-          echo "Built S2 for $BOARD. No flash, reset or hardware command was run."
-      - name: Check the resolved S2 configuration and devicetree
+          echo "Built net for $BOARD. No flash, reset or hardware command was run."
+      - name: Check the resolved net configuration and devicetree
         run: |
-          build=crux-controller/build/s2/zephyr
+          build=crux-controller/build/net/zephyr
           # A fragment or overlay that is silently not applied would still build, so check
           # what the build resolved, not what the command line asked for.
-          for option in CONFIG_CRUX_CONTROLLER_S2=y CONFIG_CRUX_SOCKETS=y CONFIG_CRUX_NETIF=y \
+          for option in CONFIG_CRUX_CONTROLLER_NET=y CONFIG_CRUX_SOCKETS=y CONFIG_CRUX_NETIF=y \
               'CONFIG_NET_CONFIG_MY_IPV4_ADDR="192.168.77.2"' CONFIG_NET_CONFIG_SETTINGS=y; do
             grep -qxF "$option" "$build/.config" || { echo "missing $option" >&2; exit 1; }
           done
           grep -Eq 'local-mac-address = \[ *02 *43 *52 *55 *58 *20 *\]' "$build/zephyr.dts" || {
-            echo "the S2 overlay did not set the MAC address" >&2
+            echo "the net overlay did not set the MAC address" >&2
             grep -n 'mac' "$build/zephyr.dts" | head -20 >&2 || true
-            grep -rn 's2.overlay' crux-controller/build/s2/CMakeCache.txt | head -5 >&2 || true
+            grep -rn 'net.overlay' crux-controller/build/net/CMakeCache.txt | head -5 >&2 || true
             exit 1
           }
           ! grep -q 'green_led' "$build/zephyr.dts" || {
-            echo "the S2 overlay did not delete green_led" >&2
+            echo "the net overlay did not delete green_led" >&2
             exit 1
           }
       - name: Write the result summary
@@ -157,7 +157,7 @@ jobs:
             echo "### Result"
             echo
             if [ "${{ job.status }}" = "success" ]; then
-              echo "The S2 build against crux-pilot main passed with the gate required."
+              echo "The net build against crux-pilot main passed with the gate required."
             elif [ "${{ job.status }}" = "cancelled" ]; then
               echo "The job was cancelled before it finished. It says nothing about crux-pilot main."
             else

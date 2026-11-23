@@ -1,6 +1,6 @@
 name: budget
 
-# Builds each step with the Zephyr baseline gate required and checks its static resource
+# Builds each configuration with the Zephyr baseline gate required and checks its static resource
 # use against budgets/limits.json. It publishes the numbers as a job summary only. No
 # image, ELF or map file is uploaded, because the repository publishes hashes only.
 
@@ -18,50 +18,50 @@ concurrency:
 
 jobs:
   budget:
-    name: Budget ${{ matrix.step }}
+    name: Budget ${{ matrix.config }}
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
         include:
-          - step: S0
+          - config: base
             conf: ""
             overlay: ""
             require: ""
-          - step: S1
-            conf: "conf/s1.conf"
+          - config: workload
+            conf: "conf/workload.conf"
             overlay: ""
             require: ""
-          - step: S2
-            conf: "conf/s1.conf;conf/s2.conf"
-            overlay: "boards/s2.overlay"
+          - config: net
+            conf: "conf/workload.conf;conf/net.conf"
+            overlay: "boards/net.overlay"
             require: ""
-          # S3 is built on S1, without the network of S2. Its fragment and overlay would build
+          # file is built on workload, without the network of net. Its fragment and overlay would build
           # silently without File if a Kconfig dependency were unmet, so the build is checked.
-          - step: S3
-            conf: "conf/s1.conf;conf/s3.conf"
-            overlay: "boards/s3.overlay"
-            require: "CONFIG_CRUX_CONTROLLER_S3=y CONFIG_CRUX_FILE_FATFS_RT1060=y"
-          # S4 is built on S1, without the network of S2 or the file of S3. Its fragment would
-          # build silently without System if a Kconfig dependency were unmet, so the build is checked.
-          - step: S4
-            conf: "conf/s1.conf;conf/s4.conf"
-            overlay: "boards/s4.overlay"
-            require: "CONFIG_CRUX_CONTROLLER_S4=y CONFIG_CRUX_SYSTEM=y"
-          # S5 is built on the network of S2, with the SNTP library. Its fragment would build
-          # silently without the step if a Kconfig dependency were unmet, so the build is checked.
-          - step: S5
-            conf: "conf/s1.conf;conf/s2.conf;conf/s5.conf"
-            overlay: "boards/s2.overlay"
-            require: "CONFIG_CRUX_CONTROLLER_S5=y CONFIG_CRUX_CONTROLLER_S2=y CONFIG_SNTP=y"
-          # S6 is built on the network of S2, with the Mbed TLS profile of Crux Access, the web
-          # server and the RAM disk. Its fragment would build silently without the step if a Kconfig
+          - config: file
+            conf: "conf/workload.conf;conf/file.conf"
+            overlay: "boards/file.overlay"
+            require: "CONFIG_CRUX_CONTROLLER_FILE=y CONFIG_CRUX_FILE_FATFS_RT1060=y"
+          # system is built on workload, without the network of net or the File storage of file. Its fragment
+          # would build silently without System if a Kconfig dependency were unmet, so the build is checked.
+          - config: system
+            conf: "conf/workload.conf;conf/system.conf"
+            overlay: "boards/system.overlay"
+            require: "CONFIG_CRUX_CONTROLLER_SYSTEM=y CONFIG_CRUX_SYSTEM=y"
+          # sntp is built on the network of net, with the SNTP library. Its fragment would build
+          # silently without SNTP if a Kconfig dependency were unmet, so the build is checked.
+          - config: sntp
+            conf: "conf/workload.conf;conf/net.conf;conf/sntp.conf"
+            overlay: "boards/net.overlay"
+            require: "CONFIG_CRUX_CONTROLLER_SNTP=y CONFIG_CRUX_CONTROLLER_NET=y CONFIG_SNTP=y"
+          # management is built on the network of net, with the Mbed TLS profile of Crux Access, the web
+          # server and the RAM disk. Its fragment would build silently without management if a Kconfig
           # dependency were unmet, so the build is checked. It is the only row that needs the Mbed
           # TLS group, which the step below switches on in this runner.
-          - step: S6
-            conf: "conf/s1.conf;conf/s2.conf;conf/s6.conf"
-            overlay: "boards/s2.overlay;boards/s6.overlay"
-            require: "CONFIG_CRUX_CONTROLLER_S6=y CONFIG_CRUX_ACCESS=y CONFIG_CRUX_PSA_THREADING=y CONFIG_CRUX_WEB_MANAGEMENT=y"
+          - config: management
+            conf: "conf/workload.conf;conf/net.conf;conf/management.conf"
+            overlay: "boards/net.overlay;boards/management.overlay"
+            require: "CONFIG_CRUX_CONTROLLER_MANAGEMENT=y CONFIG_CRUX_ACCESS=y CONFIG_CRUX_PSA_THREADING=y CONFIG_CRUX_WEB_MANAGEMENT=y"
             group: "mbed"
     env:
       BOARD: mimxrt1060_evk@B//qspi
@@ -113,14 +113,14 @@ jobs:
         run: |
           west sdk install --version "$SDK_VERSION" --install-base "$GITHUB_WORKSPACE/sdk" \
             --gnu-toolchains arm-zephyr-eabi --personal-access-token "$GH_TOKEN"
-      - name: Build the step with the baseline gate required
+      - name: Build the configuration with the baseline gate required
         env:
           ZEPHYR_BASE: ${{ github.workspace }}/zephyr
           CONF: ${{ matrix.conf }}
           OVERLAY: ${{ matrix.overlay }}
         run: |
           set -o pipefail
-          build="crux-controller/build/${{ matrix.step }}"
+          build="crux-controller/build/${{ matrix.config }}"
           mkdir -p "$build/budget"
           args=(-DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON)
           if [ -n "$CONF" ]; then args+=("-DEXTRA_CONF_FILE=$CONF"); fi
@@ -129,24 +129,24 @@ jobs:
             "${args[@]}" 2>&1 | tee "$build/budget/build.log"
           west build -d "$build" -t rom_report > "$build/budget/rom_report.log" 2>&1
           west build -d "$build" -t ram_report > "$build/budget/ram_report.log" 2>&1
-      - name: Check that the step is what was built
+      - name: Check that the configuration is what was built
         env:
           REQUIRE: ${{ matrix.require }}
         run: |
-          # An unmet Kconfig dependency only warns, so an image could build without the step.
+          # An unmet Kconfig dependency only warns, so an image could build without the capability.
           for option in $REQUIRE; do
-            grep -qxF "$option" "crux-controller/build/${{ matrix.step }}/zephyr/.config" || {
-              echo "missing $option: the step was not built" >&2
+            grep -qxF "$option" "crux-controller/build/${{ matrix.config }}/zephyr/.config" || {
+              echo "missing $option: the capability was not built" >&2
               exit 1
             }
           done
       - name: Collect, check and summarise
         run: |
-          build="crux-controller/build/${{ matrix.step }}"
+          build="crux-controller/build/${{ matrix.config }}"
           python crux-controller/budgets/collect.py --build-dir "$build" \
-            --step "${{ matrix.step }}" --out measurement.json
+            --config "${{ matrix.config }}" --out measurement.json
           {
-            echo "### ${{ matrix.step }}"
+            echo "### ${{ matrix.config }}"
             python - <<'PY'
           import json, sys
           sys.path.insert(0, "crux-controller/budgets")

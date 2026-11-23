@@ -3,11 +3,11 @@
 #define TIME_SYNC_PORT_H
 
 /*
- * The product-owned port to the operating system for step S5. The application declares it and the
- * adapter zone (app/os/time_sync_zephyr.c) implements it with Zephyr kernel calls and the Zephyr
- * SNTP library, so app/src includes no Zephyr, socket or SNTP header: the link joins the two, no
- * include does. This header includes only ISO C and the policy header, which owns the types of an
- * instant and of a query result.
+ * The product-owned port to the operating system for the sntp capability. The application declares
+ * it and the adapter zone (app/os/time_sync_zephyr.c) implements it with Zephyr kernel calls and
+ * the Zephyr SNTP library, so app/src includes no Zephyr, socket or SNTP header: the link joins the
+ * two, no include does. This header includes only ISO C and the policy header, which owns the types
+ * of an instant and of a query result.
  *
  * The port has one thread, one query at a time and no handle. Calls are made from thread context.
  */
@@ -37,7 +37,7 @@ time_sync_sample_result_t time_sync_port_query(const char *server, uint32_t time
 void time_sync_port_sleep_ms(uint32_t ms);
 
 /*
- * Create the one low-priority thread of the step, which runs entry once and ends when it returns.
+ * Create the one low-priority thread of sntp, which runs entry once and ends when it returns.
  * TIME_SYNC_PORT_ERROR, with no thread started, when entry is NULL or a thread was started before.
  */
 time_sync_port_status_t time_sync_port_start(void (*entry)(void));

@@ -1,6 +1,6 @@
 name: rebuild
 
-# Builds the S2 image twice, in two fresh workspaces at different paths, and
+# Builds the net image twice, in two fresh workspaces at different paths, and
 # compares zephyr.bin and firmware_identity. A difference fails the job. It
 # publishes nothing and uploads no artefact. When a release record exists,
 # the second build can be compared with that record instead (see
@@ -72,10 +72,10 @@ jobs:
       - name: Build in the first workspace
         run: |
           cd "$FIRST"
-          ZEPHYR_BASE="$PWD/zephyr" west build -p always -b "$BOARD" -d crux-controller/build/s2 \
+          ZEPHYR_BASE="$PWD/zephyr" west build -p always -b "$BOARD" -d crux-controller/build/net \
             crux-controller/app -- -DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON \
-            "-DEXTRA_CONF_FILE=conf/s1.conf;conf/s2.conf" \
-            "-DEXTRA_DTC_OVERLAY_FILE=boards/s2.overlay"
+            "-DEXTRA_CONF_FILE=conf/workload.conf;conf/net.conf" \
+            "-DEXTRA_DTC_OVERLAY_FILE=boards/net.overlay"
       - name: Build in a second workspace at another path
         run: |
           mkdir -p "$SECOND"
@@ -83,16 +83,16 @@ jobs:
                     cd "$SECOND"
           west init -l crux-controller
           west update
-          ZEPHYR_BASE="$PWD/zephyr" west build -p always -b "$BOARD" -d crux-controller/build/s2 \
+          ZEPHYR_BASE="$PWD/zephyr" west build -p always -b "$BOARD" -d crux-controller/build/net \
             crux-controller/app -- -DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON \
-            "-DEXTRA_CONF_FILE=conf/s1.conf;conf/s2.conf" \
-            "-DEXTRA_DTC_OVERLAY_FILE=boards/s2.overlay"
+            "-DEXTRA_CONF_FILE=conf/workload.conf;conf/net.conf" \
+            "-DEXTRA_DTC_OVERLAY_FILE=boards/net.overlay"
       - name: Record the first build and compare the second with it
         run: |
           printf 'manifest:\n  projects: []\n' > lock-placeholder.yml
           printf 'rebuild comparison\n' > pins-placeholder.txt
           python source/release/assemble_bundle.py \
-            --build-dir "$FIRST/crux-controller/build/s2" \
+            --build-dir "$FIRST/crux-controller/build/net" \
             --lock lock-placeholder.yml --pins-report pins-placeholder.txt \
             --out-dir record-bundle \
             --product-version 0.1.0+1 --security-counter 0 --release-tag v0.1.0 \
@@ -100,6 +100,6 @@ jobs:
           cat record-bundle/release-manifest.json
           python source/release/rebuild_compare.py \
             --record record-bundle/release-manifest.json \
-            --build-dir "$SECOND/crux-controller/build/s2" --target "$BOARD"
+            --build-dir "$SECOND/crux-controller/build/net" --target "$BOARD"
       - name: What this run did not do
         run: echo "No tag, no GitHub Release, no uploaded artefact, no flash or hardware command."

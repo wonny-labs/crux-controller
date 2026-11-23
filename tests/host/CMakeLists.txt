@@ -45,14 +45,14 @@ add_test(NAME net_client_concurrent
          COMMAND sh -c "\"$0\" & first=$!; \"$0\"; second=$?; wait $first || second=1; exit $second"
                  $<TARGET_FILE:test_net_client>)
 
-# The reset-cause and watchdog policy of step S4: ISO C only, so it builds here without Crux or
+# The reset-cause and watchdog policy of the system capability: ISO C only, so it builds here without Crux or
 # Zephyr headers. The glue that calls Crux System is not built on the host.
 add_executable(test_health_policy test_health_policy.c ../../app/src/health_policy.c)
 target_include_directories(test_health_policy PRIVATE ../../app/src)
 target_compile_options(test_health_policy PRIVATE -Wall -Wextra -Wpedantic -Werror)
 add_test(NAME health_policy COMMAND test_health_policy)
 
-# The time synchronisation policy of step S5: ISO C only, so it builds here without Crux or Zephyr
+# The time synchronisation policy of the sntp capability: ISO C only, so it builds here without Crux or Zephyr
 # headers. The glue that calls the Crux Time authority and the adapter that calls Zephyr's SNTP
 # library are not built on the host.
 add_executable(test_time_sync_policy test_time_sync_policy.c ../../app/src/time_sync_policy.c)
@@ -60,7 +60,7 @@ target_include_directories(test_time_sync_policy PRIVATE ../../app/src)
 target_compile_options(test_time_sync_policy PRIVATE -Wall -Wextra -Wpedantic -Werror)
 add_test(NAME time_sync_policy COMMAND test_time_sync_policy)
 
-# The address text and the role policy of the S6 management groundwork: ISO C only, so it builds
+# The address text and the role policy of the management management groundwork: ISO C only, so it builds
 # here without Crux or Zephyr headers. No firmware image compiles it yet.
 add_executable(test_management_policy test_management_policy.c ../../app/src/management_policy.c)
 target_include_directories(test_management_policy PRIVATE ../../app/src)

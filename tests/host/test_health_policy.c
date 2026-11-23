@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
-/* The reset-cause and watchdog policy of step S4: plain C, no Crux or Zephyr include. */
+/* The reset-cause and watchdog policy of the system capability: plain C, no Crux or Zephyr include.
+ */
 
 #include <stdint.h>
 #include <stdio.h>

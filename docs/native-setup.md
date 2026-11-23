@@ -14,15 +14,15 @@ could reach the clone, because CRLF line ends break the shell scripts (see
 [troubleshooting.md](troubleshooting.md)). CI runs on x86_64 only.
 
 - A west workspace. The repository is the west manifest repository: it imports `crux-pilot` at a pinned
-  commit, which brings Zephyr and the Zephyr modules, and adds the test-only project `picolibc` for the S2
-  scenario (the S5 scenario's `prj.conf` also selects it). `docs/dependencies.md` explains the manifest and
+  commit, which brings Zephyr and the Zephyr modules, and adds the test-only project `picolibc` for the `net`
+  scenario (the `sntp` scenario's `prj.conf` also selects it). `docs/dependencies.md` explains the manifest and
   the pin, and the pin section of [CONTRIBUTING.md](../CONTRIBUTING.md) explains how it moves.
 - The Python packages of Zephyr's base, build-test and run-test requirements, `west` 1.4.0, CMake 3.28.4 and
-  Ninja 1.11.1 (the versions that the `S1` job installs), in one virtual environment for the workspace.
-- A host toolchain and the host packages that the `S1` job installs, plus `python3-venv`, which the job does
+  Ninja 1.11.1 (the versions that the `workload` job installs), in one virtual environment for the workspace.
+- A host toolchain and the host packages that the `workload` job installs, plus `python3-venv`, which the job does
   not need because `actions/setup-python` provides Python. Ubuntu 24.04 refuses `pip install` into the system
   Python (PEP 668), so do not skip the virtual environment.
-- The Zephyr SDK 1.0.1 with the `arm-zephyr-eabi` toolchain, which the `S1` job installs before it runs
+- The Zephyr SDK 1.0.1 with the `arm-zephyr-eabi` toolchain, which the `workload` job installs before it runs
   Twister. It is needed for the board build. Whether a `native_sim` run alone needs it was not tested;
   install it anyway, as CI does.
 - Free disk space for Zephyr, its modules and the SDK. Nothing in the repository states a size.
@@ -74,7 +74,7 @@ The two `export` lines mirror the `env` of the CI steps. Every later command on 
 variables set, unless a section says to use the repository root. Paths such as
 `crux-controller/tests/native_sim` are relative to `~/crux-ws`.
 
-## Run the S1 to S5 scenarios
+## Run the `workload` to `sntp` scenarios
 
 One command runs every scenario, because it points Twister at the whole `tests/native_sim` directory. The
 job sets `ZEPHYR_BASE` to `<workspace>/zephyr` for it, as the `export` above does:
@@ -85,11 +85,11 @@ west twister -p native_sim/native/64 -T crux-controller/tests/native_sim \
 ```
 
 To run one scenario, point `-T` at its directory. This is ordinary Twister usage and was not run for this
-page (each directory holds one `testcase.yaml`; S3, S4 and S5 build one image per case):
+page (each directory holds one `testcase.yaml`; `file`, `system` and `sntp` build one image per case):
 
 ```bash
-west twister -p native_sim/native/64 -T crux-controller/tests/native_sim/s1 \
-  --inline-logs --clobber-output -O twister-out-s1
+west twister -p native_sim/native/64 -T crux-controller/tests/native_sim/workload \
+  --inline-logs --clobber-output -O twister-out-workload
 ```
 
 A pass ends with lines like these. They are quoted from the CI log of the `ci` run for `main` at revision `fa11293` of the public
@@ -104,11 +104,11 @@ Counts change when a scenario is added, so read them as an example. The tail of 
 compare, together with the Twister ids in the table below: all 17 must be present and passed, and a count
 lower than the table lists means that a scenario did not run.
 
-The S6 scenario is in a sibling directory, `tests/native_sim_mbed`, so that this command never selects it in a
+The `management` scenario is in a sibling directory, `tests/native_sim_mbed`, so that this command never selects it in a
 workspace that has no Mbed TLS modules. The default workspace above does not have them: the group
-`crux-secure-management` is off in `west.yml`, and the S6 build fails without the modules. The `S6 build` job
+`crux-secure-management` is off in `west.yml`, and the `management` build fails without the modules. The `management build` job
 switches the group on in its own runner, after `scripts/check_mbed_only.py` has checked that only the Mbed TLS
-modules would be fetched. To run S6 locally, repeat those steps (from `ci.yml`) in your workspace, with the
+modules would be fetched. To run `management` locally, repeat those steps (from `ci.yml`) in your workspace, with the
 virtual environment active:
 
 ```bash
@@ -121,7 +121,7 @@ west update
 for name in wolfssl wolfssh wolfpsa; do test ! -e "modules/crypto/$name" || echo "unexpected $name"; done
 for name in mbedtls tf-psa-crypto; do test -d "modules/crypto/$name" || echo "missing $name"; done
 west twister -p native_sim/native/64 -T crux-controller/tests/native_sim_mbed \
-  --inline-logs --clobber-output -O twister-out-s6
+  --inline-logs --clobber-output -O twister-out-management
 west config --local -d manifest.group-filter
 ```
 
@@ -146,25 +146,25 @@ wire"), and this case does not replace it.
 
 The scenarios that this command finds, by their ids in the `testcase.yaml` files:
 
-| Step | Twister ids |
+| Build configuration | Twister ids |
 |---|---|
-| S1 | `controller.s1.native_sim` |
-| S2 | `controller.s2.native_sim` |
-| S3 | `controller.s3.native_sim.not_ready`, `.mounted_not_bound`, `.mount_failure`, `.roundtrip`, `.bind_failure` |
-| S4 | `controller.s4.native_sim.reset_cause`, `.watchdog_unsupported`, `.period_out_of_range` |
-| S5 | `controller.s5.native_sim.first_sync`, `.kiss_of_death`, `.late_answer`, `.out_of_range`, `.step_refused_then_resync`, `.correction_and_threshold`, `.stale_after_silence` |
+| `workload` | `controller.workload.native_sim` |
+| `net` | `controller.net.native_sim` |
+| `file` | `controller.file.native_sim.not_ready`, `.mounted_not_bound`, `.mount_failure`, `.roundtrip`, `.bind_failure` |
+| `system` | `controller.system.native_sim.reset_cause`, `.watchdog_unsupported`, `.period_out_of_range` |
+| `sntp` | `controller.sntp.native_sim.first_sync`, `.kiss_of_death`, `.late_answer`, `.out_of_range`, `.step_refused_then_resync`, `.correction_and_threshold`, `.stale_after_silence` |
 
-S3, S4 and S5 build one image per case (a build variable such as `S5_CASE`), so one `west twister` run builds
+`file`, `system` and `sntp` build one image per case (a build variable such as `SNTP_CASE`), so one `west twister` run builds
 one image per Twister id in the table. What a scenario can and cannot show is stated in its findings note and in the
-header of its test source; for example, S4's scenario does not enable the simulated watchdog of the pinned Crux, so it shows no feed
+header of its test source; for example, `system`'s scenario does not enable the simulated watchdog of the pinned Crux, so it shows no feed
 cycle.
 
-The `S1` job runs the command above as one step and its next steps build for the board. Read the checks of
+The `workload` job runs the command above as one step and its next steps build for the board. Read the checks of
 a commit on GitHub for the real outcome.
 
 ## Run the host tests
 
-These are plain C tests of the portable core, the S2 exchange and the policy code, built with CMake on the build host.
+These are plain C tests of the portable core, the `net` exchange and the policy code, built with CMake on the build host.
 They need no Zephyr. The `Host tests` job runs them twice, once with the sanitizers off and once on. The
 commands, copied from `ci.yml` with the matrix value filled in (`OFF`, then `ON`):
 
@@ -228,5 +228,5 @@ failure that appears only on your machine may be a difference in the host, the t
 [troubleshooting.md](troubleshooting.md) lists the failures that have a known cause, by their message, and says
 how to read the CI logs; it does not cover every difference. Any change to the boundary lists, the
 workflows or the other files that CONTRIBUTING.md treats as reviewed (a reading aid is in
-[adding-a-step.md](adding-a-step.md#files-that-need-a-reviewed-change)) is a reviewed change under
+[adding-a-capability.md](adding-a-capability.md#files-that-need-a-reviewed-change)) is a reviewed change under
 [CONTRIBUTING.md](../CONTRIBUTING.md), not a fix for a local failure.

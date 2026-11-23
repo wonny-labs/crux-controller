@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
-config CRUX_CONTROLLER_S1
-	bool "Step S1: the workload on Zephyr threads and a message queue"
+config CRUX_CONTROLLER_WORKLOAD
+	bool "workload: run the workload on Zephyr threads and a message queue"
 	depends on MULTITHREADING
 	# The adapter zone builds absolute deadlines (K_TIMEOUT_ABS_TICKS), which need 64-bit kernel
 	# timeouts. Zephyr turns them on by default, and the Crux Thread and Queue providers selected
@@ -10,34 +10,34 @@ config CRUX_CONTROLLER_S1
 	help
 	  Run the workload: a producer and a consumer thread joined by one message queue, created by
 	  the adapter zone app/os with Zephyr kernel calls, reading Crux Time and reporting through
-	  Crux Logging. Steps S2, S3 and S4 build on this one, and S5 and S6 build on S2. The workload
+	  Crux Logging. The net, file and system configurations build on this one, and sntp and management build on net. The workload
 	  uses no Crux Thread, Sync or Queue provider. Product code includes none of their headers and
-	  names none of their symbols, in any step. The Crux services of step S6 need Thread and Sync
+	  names none of their symbols, in any configuration. The Crux services of management need Thread and Sync
 	  and select them for themselves, so they are on in that image only.
 
-config CRUX_CONTROLLER_S2
-	bool "Step S2: send each workload message to a TCP peer"
-	depends on CRUX_CONTROLLER_S1 && CRUX_SOCKETS && CRUX_NETIF
+config CRUX_CONTROLLER_NET
+	bool "net: send each workload message to a TCP peer"
+	depends on CRUX_CONTROLLER_WORKLOAD && CRUX_SOCKETS && CRUX_NETIF
 	help
 	  After a message is logged, open a TCP connection to the peer, send the message
 	  and expect the same eight bytes back. The Sockets profile of Crux defines the
-	  calls that are used. The native_sim scenario of the step runs in CI over loopback, and the
+	  calls that are used. The native_sim scenario of net runs in CI over loopback, and the
 	  image ran twice on a board (docs/findings/s2-first-board-run.md).
 
 config CRUX_CONTROLLER_PEER_ADDRESS
 	string "IPv4 address of the TCP peer"
 	default "192.168.77.1"
-	depends on CRUX_CONTROLLER_S2
+	depends on CRUX_CONTROLLER_NET
 
 config CRUX_CONTROLLER_PEER_PORT
 	int "TCP port of the peer"
 	default 42420
 	range 1 65535
-	depends on CRUX_CONTROLLER_S2
+	depends on CRUX_CONTROLLER_NET
 
-config CRUX_CONTROLLER_S3
-	bool "Step S3: keep the workload configuration record in a file"
-	depends on CRUX_CONTROLLER_S1 && CRUX_FILE_FATFS_RT1060
+config CRUX_CONTROLLER_FILE
+	bool "file: keep the workload configuration record in a file"
+	depends on CRUX_CONTROLLER_WORKLOAD && CRUX_FILE_FATFS_RT1060
 	help
 	  At start, mount the microSD volume that the devicetree entry controller_storage
 	  describes, bind its files directory to Crux File, load the configuration record from
@@ -47,22 +47,22 @@ config CRUX_CONTROLLER_S3
 	  does a volume that does not mount. The image is built for the board and never run on one;
 	  the native_sim scenario uses a RAM disk, and no card was used.
 
-config CRUX_CONTROLLER_S4
-	bool "Step S4: report the reset cause and feed a watchdog from the workload cycle"
-	depends on CRUX_CONTROLLER_S1 && CRUX_SYSTEM && WATCHDOG && HWINFO && REBOOT
+config CRUX_CONTROLLER_SYSTEM
+	bool "system: report the reset cause and feed a watchdog from the workload cycle"
+	depends on CRUX_CONTROLLER_WORKLOAD && CRUX_SYSTEM && WATCHDOG && HWINFO && REBOOT
 	help
 	  At start, write one line for the reset cause through Crux Logging and clear the flags, then
 	  start the one watchdog of the boot with an interval of about ten workload cycles and feed it
 	  once for each pass that has cycles due, from the workload's producer thread and nowhere else. The
 	  application uses <crux/system.h> only. The native watchdog, HWINFO and reboot facilities,
-	  and the devicetree alias crux-watchdog0 (boards/s4.overlay), are what Crux System requires of
+	  and the devicetree alias crux-watchdog0 (boards/system.overlay), are what Crux System requires of
 	  the image; the product selects no Crux symbol. A platform without a watchdog, such as the
 	  native_sim simulator, reports it as not supported and the workload runs without one. A missed
 	  feed ends in the watchdog's own reset; the product adds none. Built and never run on a board.
 
-config CRUX_CONTROLLER_S5
-	bool "Step S5: set the Crux Time realtime clock from an SNTP server"
-	depends on CRUX_CONTROLLER_S2 && CRUX_TIME && SNTP && NET_UDP && NET_IPV4
+config CRUX_CONTROLLER_SNTP
+	bool "sntp: set the Crux Time realtime clock from an SNTP server"
+	depends on CRUX_CONTROLLER_NET && CRUX_TIME && SNTP && NET_UDP && NET_IPV4
 	help
 	  Query one SNTP server at a fixed interval, from a low-priority thread, and use the answer to
 	  set the Crux Time realtime clock (source EXTERNAL, synchronised) through the Crux Time
@@ -75,12 +75,12 @@ config CRUX_CONTROLLER_S5
 	  here is unauthenticated: a server, or anything on the path, that answers with a time in range
 	  can move the clock. The time is not persisted: there is no RTC, and after a reset it is not
 	  valid until the first answer. The server is an IPv4 address because the image has no DNS
-	  resolver. Built on the S2 network. Built and never run on a board.
+	  resolver. Built on the net network. Built and never run on a board.
 
 config CRUX_CONTROLLER_TIME_SERVER
 	string "IPv4 address of the SNTP server"
 	default "192.168.77.1"
-	depends on CRUX_CONTROLLER_S5
+	depends on CRUX_CONTROLLER_SNTP
 	help
 	  An IPv4 address in dotted form, optionally followed by a colon and a port (123 otherwise).
 	  The image has no DNS resolver, so a host name does not resolve.
@@ -89,7 +89,7 @@ config CRUX_CONTROLLER_TIME_INTERVAL_S
 	int "Seconds between two queries"
 	default 600
 	range 16 86400
-	depends on CRUX_CONTROLLER_S5
+	depends on CRUX_CONTROLLER_SNTP
 	help
 	  The thread queries once, shortly after start, and then waits this long after each query. The
 	  lower bound keeps clear of RFC 4330, which asks for no more than one query in 15 seconds.
@@ -98,7 +98,7 @@ config CRUX_CONTROLLER_TIME_TIMEOUT_MS
 	int "Milliseconds to wait for the answer to one query"
 	default 3000
 	range 100 30000
-	depends on CRUX_CONTROLLER_S5
+	depends on CRUX_CONTROLLER_SNTP
 	help
 	  The Zephyr library resends the request with a growing wait (100, 200, 400, 800, then
 	  1600 ms) and checks this time only between two rounds, so a query can run past it: by up
@@ -114,7 +114,7 @@ config CRUX_CONTROLLER_TIME_STALE_AGE_S
 	int "Seconds after which an unconfirmed synchronised clock is marked not synchronised"
 	default 1800
 	range 60 604800
-	depends on CRUX_CONTROLLER_S5
+	depends on CRUX_CONTROLLER_SNTP
 	help
 	  Counted from the last answer that set the clock or agreed with it, strictly: an age equal
 	  to this value is not stale yet. It must be longer than the interval.
@@ -123,7 +123,7 @@ config CRUX_CONTROLLER_TIME_THRESHOLD_MS
 	int "Milliseconds below which a difference from a synchronised clock is left alone"
 	default 100
 	range 1 10000
-	depends on CRUX_CONTROLLER_S5
+	depends on CRUX_CONTROLLER_SNTP
 	help
 	  A difference of exactly this size is corrected. It must not exceed the maximum step.
 
@@ -131,7 +131,7 @@ config CRUX_CONTROLLER_TIME_MAX_STEP_MS
 	int "Milliseconds above which a difference from a synchronised clock is refused"
 	default 1000
 	range 1 3600000
-	depends on CRUX_CONTROLLER_S5
+	depends on CRUX_CONTROLLER_SNTP
 	help
 	  A difference of exactly this size is still corrected. A larger one is refused once and marks
 	  synchronisation lost, so that the next in-range answer sets the clock whatever it says. The
@@ -141,21 +141,21 @@ config CRUX_CONTROLLER_TIME_STACK
 	int "Stack bytes of the time synchronisation thread"
 	default 8192
 	range 2048 65536
-	depends on CRUX_CONTROLLER_S5
+	depends on CRUX_CONTROLLER_SNTP
 	help
-	  A starting value, not measured: it is the 8192 bytes that the S2 consumer thread uses for the
+	  A starting value, not measured: it is the 8192 bytes that the net consumer thread uses for the
 	  same reach into the network stack. Stack use of this thread has not been measured.
 
-config CRUX_CONTROLLER_S6
-	bool "Step S6: manage the device over HTTPS"
-	depends on CRUX_CONTROLLER_S2 && !CRUX_CONTROLLER_S3 && !CRUX_CONTROLLER_S4 && CRUX_ACCESS && CRUX_WEB_MANAGEMENT && CRUX_TLS_CERTIFICATE && CRUX_SYSTEM
+config CRUX_CONTROLLER_MANAGEMENT
+	bool "management: manage the device over HTTPS"
+	depends on CRUX_CONTROLLER_NET && !CRUX_CONTROLLER_FILE && !CRUX_CONTROLLER_SYSTEM && CRUX_ACCESS && CRUX_WEB_MANAGEMENT && CRUX_TLS_CERTIFICATE && CRUX_SYSTEM
 	help
-	  Start the Crux management services behind the Zephyr HTTP server, on the network of S2: login
+	  Start the Crux management services behind the Zephyr HTTP server, on the network of net: login
 	  and sessions of Crux Access, the status service, the configuration service and a packaged
 	  page, served as HTTPS on 192.168.77.2 port 443 and nowhere else. The server offers TLS 1.3
 	  only, with one cipher suite. The certificate is self-signed and made on the device at its
 	  first start, from the hardware random source, and a client has to trust it by its
-	  fingerprint, which the image logs. The fragment conf/s6.conf selects the Crux services, the
+	  fingerprint, which the image logs. The fragment conf/management.conf selects the Crux services, the
 	  Mbed TLS profile and the locks of its core; no Crux Thread, Sync or Queue symbol is named,
 	  because the services select those themselves.
 	  The medium is a RAM disk, so nothing persists across a reset: the key, the certificate, the
@@ -164,8 +164,8 @@ config CRUX_CONTROLLER_S6
 	  the pages and routes that need a session answer as refused until then. The save route of the
 	  configuration service exists and always ends as not supported, because the image has no
 	  Settings File backend. The image offers no reboot, network or file route, no SSH and no
-	  command line. It does not combine with S3, which owns another file provider, or with S4,
-	  which clears the reset cause that this step reads once. S5 may be on, and that combination
+	  command line. It does not combine with file, which owns another file provider, or with system,
+	  which clears the reset cause that management reads once. sntp may be on, and that combination
 	  is not built in CI. The stack sizes, the heap of the TLS stack and the network buffers are
 	  starting values that were not measured, and the handshake time is not known. Built and
 	  never run on a board.
@@ -174,10 +174,10 @@ config CRUX_CONTROLLER_WORKER_STACK
 	int "Stack bytes of each workload thread"
 	default 4096
 	range 1024 65536
-	depends on CRUX_CONTROLLER_S1
+	depends on CRUX_CONTROLLER_WORKLOAD
 	help
 	  Each of the two workload threads has a stack of this size. The default is what the Crux
-	  Thread provider gave the workload before it called Zephyr directly, and the S2 image sets
+	  Thread provider gave the workload before it called Zephyr directly, and the net image sets
 	  8192 because its exchange reaches into the network stack.
 
 source "Kconfig.zephyr"

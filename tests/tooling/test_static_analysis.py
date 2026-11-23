@@ -177,7 +177,7 @@ class FormatScript(unittest.TestCase):
             "workload/include/a.h": "int a;\n",
             "app/src/b.c": "int b;\n",
             "app/os/c.c": "int c;\n",
-            "tests/native_sim/s1/src/d.c": "int d;\n",
+            "tests/native_sim/workload/src/d.c": "int d;\n",
             "docs/notes.md": "not code\n",
         }
         fixture = self.fixture(files)
@@ -298,13 +298,13 @@ class NotAnalysed(unittest.TestCase):
     def test_every_tracked_source_outside_the_database_is_listed(self):
         fixture = tree(
             self,
-            ["app/src/a.c", "app/os/z.c", "tests/native_sim/s1/src/t.c", "app/src/a.h", "README.md"],
+            ["app/src/a.c", "app/os/z.c", "tests/native_sim/workload/src/t.c", "app/src/a.h", "README.md"],
             ["../../app/src/a.c"],
         )
         tracked = analyze_host.tracked_sources(fixture.root)
         analysed = analyze_host.database_sources(fixture.database, fixture.root)
         self.assertEqual(
-            ["app/os/z.c", "tests/native_sim/s1/src/t.c"],
+            ["app/os/z.c", "tests/native_sim/workload/src/t.c"],
             [p.relative_to(fixture.root).as_posix()
              for p in analyze_host.not_analysed(tracked, analysed)],
         )
@@ -350,7 +350,7 @@ class AnalyzeScript(unittest.TestCase):
         self.assertEqual(str(fixture.build), arguments[arguments.index("-p") + 1])
 
     def test_the_not_analysed_list_is_printed_last_and_names_every_missing_source(self):
-        fixture = tree(self, ["app/src/a.c", "app/os/z.c", "tests/native_sim/s1/src/t.c"],
+        fixture = tree(self, ["app/src/a.c", "app/os/z.c", "tests/native_sim/workload/src/t.c"],
                        ["../../app/src/a.c"])
         result = fixture.run()
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
@@ -359,7 +359,7 @@ class AnalyzeScript(unittest.TestCase):
         tail = output[output.index("Not analysed"):]
         self.assertIn("2 ", tail.splitlines()[0])
         self.assertIn("app/os/z.c", tail)
-        self.assertIn("tests/native_sim/s1/src/t.c", tail)
+        self.assertIn("tests/native_sim/workload/src/t.c", tail)
         self.assertNotIn("app/src/a.c", tail)
 
     def test_a_finding_fails_the_script_and_the_list_is_still_printed(self):

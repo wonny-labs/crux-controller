@@ -1,10 +1,27 @@
 # Changelog
 
 This file follows the idea of [Keep a Changelog](https://keepachangelog.com/). There is no release
-yet and no tag, so everything below is unreleased: it is what the `main` branch contains. Step S2 ran
-twice on a board (see `docs/findings/s2-first-board-run.md`); nothing else has run on a board.
+yet and no tag, so everything below is unreleased: it is what the `main` branch contains. Only the `net`
+image ran on a board, twice (see `docs/findings/s2-first-board-run.md`). Entries below the first section name the
+build configurations by their earlier step ids, S0 to S6.
 
 ## Unreleased
+
+### Capability names
+
+- The step ids S0 to S6 are replaced by capability names: S0 `base`, S1 `workload`, S2 `net`, S3 `file`,
+  S4 `system`, S5 `sntp` and S6 `management`. The fragments and overlays (`app/conf/<name>.conf`,
+  `app/boards/<name>.overlay`), the product's Kconfig options (`CRUX_CONTROLLER_WORKLOAD` to
+  `CRUX_CONTROLLER_MANAGEMENT`), the CI jobs (`net build` and so on), the `Budget` rows and jobs, the build
+  directories, the `native_sim` scenario directories and Twister names (`controller.<name>.native_sim...`), the
+  case variables (`FILE_CASE`, `SYSTEM_CASE`, `SNTP_CASE`), the tooling tests (`test_<name>.py`), the budget tool
+  option (`--config`) and `docs/adding-a-capability.md` carry the new names. `docs/findings/README.md` maps each
+  old id to its name, and the notes in `docs/findings/` and `docs/history/` keep the ids they were written with.
+  No source behaviour, limit or assertion changes; the firmware identity of each image changes with its Kconfig
+  names.
+- The documents are reworked by page type: the README is an entry page (capabilities, quick start, where to read
+  next, one status line), and the board-run status, sizes and evidence links are on the roadmap and in the
+  findings index.
 
 ### Dev Container and onboarding
 

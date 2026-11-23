@@ -90,15 +90,15 @@ class Dockerfile(unittest.TestCase):
         self.assertEqual(1, len(re.findall(r"^FROM ", self.text, re.MULTILINE)))
 
     def test_the_zephyr_sdk_version_is_the_one_of_the_ci_jobs(self):
-        sdk = ci_job("s1")["env"]["SDK_VERSION"]
+        sdk = ci_job("workload")["env"]["SDK_VERSION"]
         self.assertRegex(self.text, rf"(?m)^ENV ZEPHYR_SDK_VERSION={re.escape(sdk)}\b")
 
     def test_every_ci_job_that_uses_the_sdk_uses_the_same_version_as_the_image(self):
-        versions = {ci_job(name)["env"]["SDK_VERSION"] for name in ("s1", "s2", "s3", "s4", "s5", "s6")}
+        versions = {ci_job(name)["env"]["SDK_VERSION"] for name in ("workload", "net", "file", "system", "sntp", "management")}
         self.assertEqual(1, len(versions), versions)
 
-    def test_the_host_packages_of_the_s1_job_are_installed(self):
-        run = ci_step("s1", "Install host packages")["run"]
+    def test_the_host_packages_of_the_workload_job_are_installed(self):
+        run = ci_step("workload", "Install host packages")["run"]
         wanted = set(run.split("--no-install-recommends", 1)[1].replace("\\", " ").split())
         self.assertTrue({"build-essential", "gcc-multilib", "device-tree-compiler", "gperf",
                          "libmagic1", "libsdl2-dev", "python3-dev", "xz-utils"} <= wanted, wanted)
@@ -196,8 +196,8 @@ class RepositoryFiles(unittest.TestCase):
             (root / ".DS_Store").write_bytes(b"\0")
             (root / "build").mkdir()
             (root / "build" / "out.bin").write_bytes(b"\0")
-            (root / "twister-out-s1").mkdir()
-            (root / "twister-out-s1" / "x.bin").write_bytes(b"\0")
+            (root / "twister-out-workload").mkdir()
+            (root / "twister-out-workload" / "x.bin").write_bytes(b"\0")
             (root / "data.bin").write_bytes(b"\0")
             (root / "fine.txt").write_text("text\n")
             self.assertEqual(["data.bin"], files_with_nul_bytes(root))
@@ -261,7 +261,7 @@ class CheckHostScript(unittest.TestCase):
 
     def test_it_accepts_the_layout_of_the_documentation_without_a_word(self):
         for name in ("crux-controller", ".west", "zephyr", "modules", "bootloader", "tools", "crux-pilot",
-                     "twister-out", "twister-out-s1"):
+                     "twister-out", "twister-out-workload"):
             (self.fixture.workspace / name).mkdir(exist_ok=True)
         result = self.fixture.check_host()
         self.assertEqual(0, result.returncode, result.stderr)
@@ -330,14 +330,14 @@ class CheckHostScript(unittest.TestCase):
         (self.fixture.workspace / "zephyr").mkdir()
         (self.fixture.workspace / "holiday-photos").mkdir()
         (self.fixture.workspace / ".hidden-notes").write_text("x\n")
-        (self.fixture.workspace / "twister-out-s2").mkdir()
+        (self.fixture.workspace / "twister-out-net").mkdir()
         result = self.fixture.check_host()
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertIn("warning", result.stderr)
         self.assertIn("holiday-photos", result.stderr)
         self.assertIn(".hidden-notes", result.stderr)
         self.assertNotIn("zephyr", result.stderr)
-        self.assertNotIn("twister-out-s2", result.stderr)
+        self.assertNotIn("twister-out-net", result.stderr)
 
     def test_the_messages_go_to_the_standard_error_stream(self):
         (self.fixture.workspace / "other").mkdir()
@@ -371,7 +371,7 @@ class Requirements(unittest.TestCase):
     def test_the_tool_pins_are_those_of_the_ci_jobs(self):
         pins = requirement_pins(read(DEVCONTAINER / "requirements-tools.txt"))
         ci_tools = requirement_pins("\n".join(
-            re.findall(r"(?:cmake|ninja|west)==\S+", ci_step("s1", "Install pinned build tools")["run"])
+            re.findall(r"(?:cmake|ninja|west)==\S+", ci_step("workload", "Install pinned build tools")["run"])
         ).replace(" ", "\n"))
         self.assertEqual({"cmake", "ninja", "west"}, set(ci_tools))
         for name, version in ci_tools.items():
@@ -486,15 +486,15 @@ class SetupScript(unittest.TestCase):
     def test_the_setup_does_not_read_the_standard_input_of_the_caller(self):
         self.assertIn("</dev/null", read(ROOT / "scripts" / "dev-shell.sh"))
 
-    def test_it_runs_the_sdk_install_of_the_s1_job_with_the_same_toolchain(self):
-        run = ci_step("s1", "Install the Zephyr SDK")["run"]
+    def test_it_runs_the_sdk_install_of_the_workload_job_with_the_same_toolchain(self):
+        run = ci_step("workload", "Install the Zephyr SDK")["run"]
         self.assertIn("--gnu-toolchains arm-zephyr-eabi", run)
         self.assertIn("--gnu-toolchains arm-zephyr-eabi", self.text)
         self.assertIn('sdk_version="${ZEPHYR_SDK_VERSION:?', self.text)
         self.assertIn('west sdk install --version "$sdk_version"', self.text)
 
-    def test_it_installs_the_three_zephyr_requirement_files_of_the_s1_job(self):
-        run = ci_step("s1", "Fetch the workspace")["run"]
+    def test_it_installs_the_three_zephyr_requirement_files_of_the_workload_job(self):
+        run = ci_step("workload", "Fetch the workspace")["run"]
         for name in ("requirements-base.txt", "requirements-build-test.txt", "requirements-run-test.txt"):
             self.assertIn(name, run)
             self.assertIn(name, self.text)
@@ -696,7 +696,7 @@ class SetupRuns(unittest.TestCase):
         self.assertEqual("", result.stdout, "setup.sh must keep the standard output clean")
         return result
 
-    def test_a_fresh_workspace_is_set_up_in_the_order_of_the_s1_job(self):
+    def test_a_fresh_workspace_is_set_up_in_the_order_of_the_workload_job(self):
         self.ok()
         calls = self.fixture.calls()
         steps = ["west init -l crux-controller", "west update", "west sdk install"]
@@ -1127,8 +1127,8 @@ class DevcontainerWorkflow(unittest.TestCase):
         self.assertIn("west twister -p native_sim/native/64 -T crux-controller/tests/native_sim", self.commands)
         self.assertIn("--inline-logs --clobber-output", self.commands)
 
-    def test_the_twister_step_matches_the_one_of_the_s1_job(self):
-        run = " ".join(ci_step("s1", "Run the S1 scenario on native_sim")["run"].replace("\\", " ").split())
+    def test_the_twister_step_matches_the_one_of_the_workload_job(self):
+        run = " ".join(ci_step("workload", "Run the workload scenario on native_sim")["run"].replace("\\", " ").split())
         self.assertIn(run, " ".join(self.commands.replace("\\", " ").split()))
 
     def test_the_product_include_check_runs_the_script_of_the_pin_after_checking_its_hash(self):
@@ -1145,12 +1145,12 @@ class DevcontainerWorkflow(unittest.TestCase):
         self.assertIn("crux-pilot/templates/product/check_domain_includes.py", run)
         self.assertIn("--product", run)
 
-    def test_the_s1_steps_after_twister_are_those_of_the_s1_job(self):
-        board = ci_job("s1")["env"]["BOARD"]
+    def test_the_workload_steps_after_twister_are_those_of_the_workload_job(self):
+        board = ci_job("workload")["env"]["BOARD"]
         commands = norm(self.commands)
-        for fragment in ("Cross-build S1 with the baseline gate required", "Check the outputs exist",
-                         "Check the resolved S1 configuration"):
-            run = ci_step("s1", fragment)["run"].replace("${{ env.BOARD }}", board)
+        for fragment in ("Cross-build workload with the baseline gate required", "Check the outputs exist",
+                         "Check the resolved workload configuration"):
+            run = ci_step("workload", fragment)["run"].replace("${{ env.BOARD }}", board)
             self.assertIn(norm(run), commands, fragment)
         self.assertIn("-DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON", self.commands)
 

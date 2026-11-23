@@ -1,5 +1,21 @@
 # Findings
 
+The notes name each build configuration by the step id it had when the note was written. The current names:
+
+| Step id in a note | Build configuration |
+|---|---|
+| S0 | `base` |
+| S1 | `workload` |
+| S2 | `net` |
+| S3 | `file` |
+| S4 | `system` |
+| S5 | `sntp` |
+| S6 | `management` |
+
+A file, job or option that a note names with a step id has the new name in the same place: `app/conf/s4.conf` is
+`app/conf/system.conf`, the CI job `S4 build` is `system build`, `CRUX_CONTROLLER_S4` is
+`CRUX_CONTROLLER_SYSTEM`, and `tests/tooling/test_s4.py` is `tests/tooling/test_system.py`.
+
 A finding records what building a step or asking a question taught about using Crux through its public
 interfaces. Findings are kept as written. A later result is added as a dated update or a banner, and the
 reading of the earlier revision is not rewritten, so each note names the revision of `crux-pilot` (the Crux
@@ -10,6 +26,9 @@ history of the public repositories on GitHub; see the [glossary](../glossary.md#
 A path in a finding that does not exist in this repository (for example under `components/`, `samples/`,
 `tests/native/` or `cmake/`, or a `docs/` page that this repository does not have) is a path in
 `crux-pilot` at the revision that the note names. A header such as `<zephyr/net/sntp.h>` belongs to Zephyr.
+
+Each capability whose building taught something has a note: `net` the board runs, `file`, `system`, `sntp` and
+`management` their composition notes below.
 
 | Note | What it records | Crux revision read |
 |---|---|---|

@@ -1,12 +1,12 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
 /*
- * The composition zone of step S6: the one place that starts Crux's HTTPS management. It implements
- * the port that app/src declares (management_port.h) in the order that the port documents, with the
- * public headers of the Crux services, the two composition interfaces the zone may name
- * (<crux/file_zephyr.h> through the storage port, and <crux/web_zephyr.h>) and one Zephyr header on
- * the zone's allow-list, <zephyr/net/tls_credentials.h>, because Crux takes no part in registering
- * the TLS material: Zephyr's own credential store carries it to the listener.
+ * The composition zone of management: the one place that starts Crux's HTTPS management. It
+ * implements the port that app/src declares (management_port.h) in the order that the port
+ * documents, with the public headers of the Crux services, the two composition interfaces the zone
+ * may name (<crux/file_zephyr.h> through the storage port, and <crux/web_zephyr.h>) and one Zephyr
+ * header on the zone's allow-list, <zephyr/net/tls_credentials.h>, because Crux takes no part in
+ * registering the TLS material: Zephyr's own credential store carries it to the listener.
  *
  * The roles, the session limits and the three permission names are the product's policy
  * (management_policy.h, plain C). This file copies the policy into the Crux type member by member
@@ -56,7 +56,7 @@
 /* A text that is no address would make Zephyr's server listen on every address, so the build asks
  * for one, and the start checks that it is a dotted IPv4 text. */
 _Static_assert(sizeof(CONFIG_CRUX_WEB_BIND_ADDRESS) > 1u,
-               "step S6 listens on one address: set CONFIG_CRUX_WEB_BIND_ADDRESS");
+               "management listens on one address: set CONFIG_CRUX_WEB_BIND_ADDRESS");
 
 #define LOG_TAG "mgmt"
 /* The roles that the copy into the Crux type holds. The product has two. */
@@ -223,7 +223,7 @@ management_port_status_t management_port_start(const management_port_config_t *c
     }
 
     /* 3. The configuration service with no parameter of its own, the status service with the reset
-     * cause that this step captures once and never clears, and the event thread. The cause is read
+     * cause that management captures once and never clears, and the event thread. The cause is read
      * before the initialiser that holds it, because the members of an initialiser are not
      * evaluated in a fixed order. */
     if (crux_config_service_start(NULL, 0u) != CRUX_CONFIG_SERVICE_OK) {

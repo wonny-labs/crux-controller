@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
-/* The address text of the S6 management groundwork: plain C, no Crux or Zephyr include. */
+/* The address text of the management management groundwork: plain C, no Crux or Zephyr include. */
 
 #include <stdbool.h>
 #include <stddef.h>
