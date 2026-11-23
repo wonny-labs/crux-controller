@@ -247,7 +247,9 @@ SWD (device `MIMXRT1062xxx6A`, the ELF `build/s2/zephyr/zephyr.elf`): **Board: F
 the task **Build firmware**, loads the image (a write, with the same yes) and runs to `main`, and **Board: Attach
 (no reset)** connects to the running image without a reset or a download. Neither has been run. The **Board:
 Build and flash** task of [.vscode/tasks.json](../.vscode/tasks.json) builds and then runs the `west flash`
-command of step 5; nothing starts it unless you choose it.
+command of step 5; nothing starts it unless you choose it. The Dev Container installs Cortex-Debug's dependency
+extensions before it; if the first creation still shows "Cannot activate the 'Cortex-Debug' extension", run
+**Developer: Reload Window** once.
 
 The probe speed is `auto`: the profiles pass `-speed auto` and `west flash` is given no `--speed`, so the J-Link
 runner uses its default. If a connection fails, try 4000, then 400, then 100 kHz (with `west flash --speed <kHz>`
