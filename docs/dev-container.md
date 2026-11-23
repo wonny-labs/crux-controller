@@ -146,9 +146,9 @@ again. Git ignores every file there except `README.md` and `.gitkeep`, so the ce
 The first RUN step of the Dockerfile, `.devcontainer/install-org-certs.sh`, runs before `apt-get`, the J-Link download
 and every later download. It installs each such file as a `.crt` system certificate: a PEM file (one with a
 `BEGIN CERTIFICATE` line) as it is, without Windows line ends, and a DER file converted to PEM with
-`openssl x509 -inform der`. A file that holds a private key, a file that is neither PEM nor DER, and a file with
-another ending are skipped with a `certs: skipping` line that names the file; a skipped file does not stop the
-build, so read the build log. An empty folder installs nothing. The step reads the folder through a BuildKit bind
+`openssl x509 -inform der`. A file that holds a private key, a file that is neither PEM nor DER and a PEM file that
+does not parse stop the build with an `error:` line that names the file, and then no certificate is installed; a
+file with another ending is skipped with a `certs: skipping` line. An empty folder installs nothing. The step reads the folder through a BuildKit bind
 mount, so the image keeps the installed certificates and no other file of the folder; VS Code and Docker Engine 23
 and later build with BuildKit by default, and a builder without BuildKit stops at that step. The image also sets
 `REQUESTS_CA_BUNDLE`,

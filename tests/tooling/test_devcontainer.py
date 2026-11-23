@@ -1300,7 +1300,24 @@ class OrganisationCertificateFolder(unittest.TestCase):
 
 
 class InstallOrgCertsScript(unittest.TestCase):
-    """The real install-org-certs.sh in temporary folders, with a stand-in for update-ca-certificates."""
+    """The real install-org-certs.sh in temporary folders, with a stand-in for update-ca-certificates.
+
+    The certificates are made by openssl at run time in a temporary folder; no certificate is committed.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.pem = None
+        openssl = shutil.which("openssl")
+        if openssl:
+            work = pathlib.Path(tempfile.mkdtemp())
+            try:
+                subprocess.run([openssl, "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1",
+                                "-subj", "/CN=Test Root", "-keyout", str(work / "key.pem"),
+                                "-out", str(work / "c.pem")], capture_output=True, check=True)
+                cls.pem = (work / "c.pem").read_text()
+            finally:
+                shutil.rmtree(work)
 
     def setUp(self):
         self.base = pathlib.Path(tempfile.mkdtemp())
@@ -1316,6 +1333,18 @@ class InstallOrgCertsScript(unittest.TestCase):
         stub = self.stubs / "update-ca-certificates"
         stub.write_text(f"#!/bin/sh\necho update-ca-certificates >> '{self.log}'\n")
         stub.chmod(0o755)
+        if self.pem is None:
+            self.skipTest("no openssl on this host")
+        self.PEM = self.pem
+
+    def assert_stopped(self, result, *messages):
+        # The build stops, names the file, and installs nothing at all.
+        self.assertNotEqual(0, result.returncode)
+        for message in messages:
+            self.assertIn(message, result.stderr)
+        self.assertIn("no organisation CA was installed", result.stderr)
+        self.assertEqual([], self.installed())
+        self.assertEqual([], self.updates())
 
     def run_script(self, with_update=True, openssl=None):
         env = {"PATH": (f"{self.stubs}:" if with_update else "") + "/usr/bin:/bin"}
@@ -1358,45 +1387,45 @@ class InstallOrgCertsScript(unittest.TestCase):
         self.assertEqual([], self.updates())
 
     def test_a_pem_certificate_is_installed_and_the_bundle_is_built_once(self):
-        (self.source / "org-root.crt").write_text(PEM)
-        (self.source / "org-issuing.crt").write_text(PEM)
+        (self.source / "org-root.crt").write_text(self.PEM)
+        (self.source / "org-issuing.crt").write_text(self.PEM)
         result = self.run_script()
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual(["org-issuing.crt", "org-root.crt"], self.installed())
-        self.assertEqual(PEM, (self.target / "org-root.crt").read_text())
+        self.assertEqual(self.PEM, (self.target / "org-root.crt").read_text())
         self.assertEqual(["update-ca-certificates"], self.updates())
         self.assertIn("org-root.crt", result.stdout)
-        self.assertNotIn("MIIB", result.stdout + result.stderr)  # the contents are not printed
+        body = self.PEM.splitlines()[1]
+        self.assertNotIn(body, result.stdout + result.stderr)  # the contents are not printed
 
     def test_pem_files_ending_in_pem_or_cer_are_installed_as_crt(self):
-        (self.source / "org-a.pem").write_text(PEM)
-        (self.source / "org-b.cer").write_text(PEM)
-        (self.source / "ORG-C.PEM").write_text(PEM)
+        (self.source / "org-a.pem").write_text(self.PEM)
+        (self.source / "org-b.cer").write_text(self.PEM)
+        (self.source / "ORG-C.PEM").write_text(self.PEM)
         result = self.run_script()
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual(["ORG-C.crt", "org-a.crt", "org-b.crt"], self.installed())
 
     def test_two_files_with_the_same_stem_are_both_installed(self):
-        (self.source / "org.crt").write_text(PEM)
-        (self.source / "org.pem").write_text(PEM)
+        (self.source / "org.crt").write_text(self.PEM)
+        (self.source / "org.pem").write_text(self.PEM)
         result = self.run_script()
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual(["org-pem.crt", "org.crt"], self.installed())
 
     def test_names_that_collide_never_overwrite_an_installed_file(self):
         for name in ("a.crt", "a.pem", "a-pem.crt", "a b.crt", "a_b.crt"):
-            (self.source / name).write_text(PEM)
-        (self.source / "a.cer").write_text("not a certificate\n")
+            (self.source / name).write_text(self.PEM)
         result = self.run_script()
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual(5, len(self.installed()), self.installed())
-        self.assertIn("installed 5 certificate(s), skipped 1 file(s)", result.stdout)
+        self.assertIn("installed 5 certificate(s)", result.stdout)
 
     def test_windows_line_ends_are_removed_and_a_last_line_end_is_added(self):
-        (self.source / "org-root.crt").write_bytes(PEM.rstrip("\n").replace("\n", "\r\n").encode())
+        (self.source / "org-root.crt").write_bytes(self.PEM.rstrip("\n").replace("\n", "\r\n").encode())
         result = self.run_script()
         self.assertEqual(0, result.returncode, result.stderr)
-        self.assertEqual(PEM, (self.target / "org-root.crt").read_text())
+        self.assertEqual(self.PEM, (self.target / "org-root.crt").read_text())
 
     def test_a_der_certificate_is_converted_to_pem(self):
         (self.source / "org-root.cer").write_bytes(self.der_certificate())
@@ -1416,19 +1445,18 @@ class InstallOrgCertsScript(unittest.TestCase):
         self.assertIn("skipping org-root.cer", result.stderr)
         self.assertIn("openssl x509 -inform der", result.stderr)
 
-    def test_a_file_that_is_neither_pem_nor_der_is_skipped(self):
-        if not shutil.which("openssl"):
-            self.skipTest("no openssl on this host")
+    def test_a_file_that_is_neither_pem_nor_der_stops_the_build(self):
         (self.source / "org-root.crt").write_bytes(b"\x30\x82\x01\x0a\x02\x82")
         result = self.run_script()
-        self.assertEqual(0, result.returncode, result.stderr)
-        self.assertEqual([], self.installed())
-        self.assertEqual([], self.updates())
-        self.assertIn("skipping org-root.crt: not a PEM or DER certificate", result.stderr)
-        self.assertIn("openssl x509 -inform der", result.stderr)
+        self.assert_stopped(result, "error: .devcontainer/certs/org-root.crt: is neither a PEM nor a DER certificate.")
+
+    def test_a_pem_block_that_does_not_parse_stops_the_build(self):
+        (self.source / "org-root.crt").write_text("-----BEGIN CERTIFICATE-----\nMIIBbroken\n-----END CERTIFICATE-----\n")
+        result = self.run_script()
+        self.assert_stopped(result, "error: .devcontainer/certs/org-root.crt: is not a valid certificate.")
 
     def test_a_file_with_another_ending_is_skipped_with_a_hint(self):
-        (self.source / "org-root.der").write_text(PEM)
+        (self.source / "org-root.der").write_text(self.PEM)
         (self.source / "notes.txt").write_text("text\n")
         result = self.run_script()
         self.assertEqual(0, result.returncode, result.stderr)
@@ -1436,31 +1464,37 @@ class InstallOrgCertsScript(unittest.TestCase):
         self.assertIn("skipping org-root.der: only .crt, .pem and .cer files are installed", result.stderr)
         self.assertIn("skipping notes.txt", result.stderr)
 
-    def test_a_file_that_holds_a_private_key_is_never_installed(self):
-        (self.source / "bundle.pem").write_text(PEM + "-----BEGIN PRIVATE KEY-----\nMIIE\n-----END PRIVATE KEY-----\n")
+    def test_a_file_that_holds_a_private_key_stops_the_build(self):
+        (self.source / "bundle.pem").write_text(self.PEM + "-----BEGIN PRIVATE KEY-----\nMIIE\n-----END PRIVATE KEY-----\n")
         result = self.run_script()
-        self.assertEqual(0, result.returncode, result.stderr)
-        self.assertEqual([], self.installed())
-        self.assertIn("skipping bundle.pem: it holds a private key", result.stderr)
+        self.assert_stopped(result, "error: .devcontainer/certs/bundle.pem: holds a private key. "
+                                    "Put only the CA certificate here, never a key.")
+        self.assertNotIn("MIIE", result.stdout + result.stderr)
 
-    def test_a_skipped_file_does_not_stop_the_good_ones(self):
-        (self.source / "bad.crt").write_text("not a certificate\n")
-        (self.source / "good.crt").write_text(PEM)
+    def test_a_bad_file_installs_nothing_even_next_to_a_good_one(self):
+        (self.source / "a-good.crt").write_text(self.PEM)
+        (self.source / "b-bad.crt").write_text("not a certificate\n")
+        result = self.run_script()
+        self.assert_stopped(result, "b-bad.crt")
+        self.assertIn("Fix or remove the files named above, then rebuild the container.", result.stderr)
+
+    def test_a_file_with_another_ending_does_not_stop_the_good_ones(self):
+        (self.source / "notes.txt").write_text("text\n")
+        (self.source / "good.crt").write_text(self.PEM)
         result = self.run_script()
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual(["good.crt"], self.installed())
         self.assertEqual(["update-ca-certificates"], self.updates())
-        self.assertIn("installed 1 certificate(s), skipped 1 file(s)", result.stdout)
 
     def test_a_name_with_spaces_is_installed_under_a_safe_name(self):
-        (self.source / "Org Root CA (2026).crt").write_text(PEM)
+        (self.source / "Org Root CA (2026).crt").write_text(self.PEM)
         result = self.run_script()
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual(["Org_Root_CA__2026_.crt"], self.installed())
 
     def test_folders_and_the_readme_and_keep_file_are_not_reported(self):
         (self.source / "sub").mkdir()
-        (self.source / "sub" / "x.crt").write_text(PEM)
+        (self.source / "sub" / "x.crt").write_text(self.PEM)
         result = self.run_script()
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual([], self.installed())
@@ -1468,7 +1502,7 @@ class InstallOrgCertsScript(unittest.TestCase):
             self.assertNotIn(name, result.stderr)
 
     def test_without_update_ca_certificates_the_files_wait_for_the_package_step(self):
-        (self.source / "org-root.crt").write_text(PEM)
+        (self.source / "org-root.crt").write_text(self.PEM)
         result = self.run_script(with_update=False)
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual(["org-root.crt"], self.installed())
