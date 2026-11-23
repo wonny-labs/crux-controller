@@ -43,12 +43,25 @@ class ManifestIsOptionA(unittest.TestCase):
 
     def test_crux_pilot_is_pinned_to_the_approved_commit(self):
         # Moving the pin is a reviewed change of this test and of west.yml together.
-        # This commit of crux-pilot main (22 November 2026, after crux-pilot#536) follows the one the project owner
+        # This commit of crux-pilot main (22 November 2026, after crux-pilot#565) follows the one the project owner
         # approved on 16 November 2026 and still contains the move of the crypto modules to
-        # the Zephyr v4.4-branch revisions (wonny-labs/crux-pilot#416). The move needs the
-        # owner's approval before it merges.
+        # the Zephyr v4.4-branch revisions (wonny-labs/crux-pilot#416).
         revision = load_manifest()["projects"][0]["revision"]
-        self.assertEqual(revision, "2c017f685e0215e0e269d4bc77272889d06a07d8")
+        self.assertEqual(revision, "1c4cf2848c3dca1997bf3be0193e4b38374e7759")
+
+    def test_every_pinned_crux_link_of_the_readme_uses_the_manifest_revision(self):
+        revision = load_manifest()["projects"][0]["revision"]
+        text = (ROOT / "README.md").read_text()
+        links = re.findall(r"github\.com/wonny-labs/crux-pilot/blob/([0-9a-f]{40})/", text)
+        self.assertTrue(links, "README.md has no pinned Crux link")
+        self.assertEqual({revision}, set(links))
+
+    def test_the_findings_index_names_the_manifest_revision_as_the_current_pin(self):
+        revision = load_manifest()["projects"][0]["revision"]
+        text = (ROOT / "docs" / "findings" / "README.md").read_text()
+        match = re.search(r"The current pin is `([0-9a-f]{40})`", text)
+        self.assertIsNotNone(match)
+        self.assertEqual(revision, match.group(1))
 
     def test_the_pin_comment_does_not_say_the_crypto_move_is_missing(self):
         text = (ROOT / "west.yml").read_text()

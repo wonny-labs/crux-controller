@@ -1,7 +1,8 @@
 /* Step S2: the Ethernet composition of this board.
  *
- * Taken as a product-owned copy of the reference controller's network overlay in crux-pilot
- * (m3-network.overlay at the pinned revision), with another locally administered MAC address.
+ * Taken as a product-owned copy of the network overlay of crux-pilot
+ * (samples/boards/nxp/mimxrt1060_evk/common/network.overlay at the pinned revision; it was the reference
+ * controller's m3-network.overlay before it moved), with another locally administered MAC address.
  * Used only by the S2 image, through EXTRA_DTC_OVERLAY_FILE. It is configuration, not code.
  */
 / {
