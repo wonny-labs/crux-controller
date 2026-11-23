@@ -112,6 +112,11 @@ changes, and say so in the pull request. Extend a check rather than loosen it.
 Keep one logical change in a pull request. Reuse what Zephyr and Crux provide rather than adding a layer
 of your own.
 
+## Documentation
+
+Every Markdown page follows [docs/documentation-guidelines.md](docs/documentation-guidelines.md): one type per
+page, one home per fact, current state only. `tests/tooling/test_docs_page_types.py` guards it.
+
 ## Static analysis and coding standard
 
 Measured on `main` at merge `e11e971`, on 18 November 2026. If the scripts and workflows named here
