@@ -11,7 +11,8 @@ twice on a board (see `docs/findings/s2-first-board-run.md`); nothing else has r
 - With `CRUX_JLINK=auto`, the image build downloads the J-Link version pinned in `.devcontainer/Dockerfile`
   (`CRUX_JLINK_SEGGER_VERSION`, `CRUX_JLINK_SEGGER_SHA256`) from SEGGER when no package is placed and no
   `CRUX_JLINK_URL` is set, as Crux's Dev Container does. A failed download or a SHA-256 mismatch installs nothing
-  and builds without it, with a warning; `CRUX_JLINK=1` makes either an error.
+  and builds without it, with a warning; `CRUX_JLINK=1` makes either an error. The `devcontainer` CI job sets
+  `CRUX_JLINK=0`, so CI does not download the software or accept SEGGER's terms of use.
 - One Dev Container instead of two: it mounts the USB bus of the host with a device cgroup rule, installs the
   SEGGER J-Link software from `.devcontainer/jlink/packages/` or from a hosted copy (`CRUX_JLINK_URL` with
   `CRUX_JLINK_DEB_SHA256`), and builds without it, with a warning, when neither is given. The optional board

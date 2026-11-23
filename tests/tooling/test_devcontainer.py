@@ -1106,6 +1106,11 @@ class DevcontainerWorkflow(unittest.TestCase):
         self.assertEqual({"contents": "read"}, self.data["permissions"])
         self.assertNotIn("permissions", self.job)
 
+    def test_the_image_build_skips_the_j_link_software(self):
+        # The SEGGER download accepts SEGGER's terms of use, so CI does not run it: the job sets
+        # CRUX_JLINK=0, which scripts/dev-shell.sh passes to the build by name.
+        self.assertEqual("0", str(self.job["env"]["CRUX_JLINK"]))
+
     def test_it_uploads_nothing_and_starts_no_hardware_command(self):
         for word in ("upload-artifact", "west flash", "west debug", "JLink", "pyocd", "openocd"):
             self.assertNotIn(word, self.text)
