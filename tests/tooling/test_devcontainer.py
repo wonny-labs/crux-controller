@@ -116,8 +116,11 @@ class Dockerfile(unittest.TestCase):
     def test_the_image_does_not_bake_in_secrets_or_the_workspace(self):
         for word in ("ADD ", "docker.sock", "host.docker.internal"):
             self.assertNotIn(word, self.text)
-        # The one COPY is the J-Link folder of the build context (.devcontainer/jlink/), never the workspace.
-        self.assertEqual(["COPY jlink/ /tmp/crux-jlink/"], re.findall(r"(?m)^COPY .*$", self.text))
+        # The COPY lines take the certificate folder, its install script and the J-Link folder of the build
+        # context (.devcontainer/), never the workspace.
+        self.assertEqual(["COPY certs/ /tmp/crux-certs/",
+                          "COPY install-org-certs.sh /tmp/install-org-certs.sh",
+                          "COPY jlink/ /tmp/crux-jlink/"], re.findall(r"(?m)^COPY .*$", self.text))
 
     PROXY_NAMES = ("HTTP_PROXY", "http_proxy", "HTTPS_PROXY", "https_proxy", "NO_PROXY", "no_proxy")
 
@@ -1163,6 +1166,303 @@ class DevcontainerWorkflow(unittest.TestCase):
     def test_the_job_has_a_time_limit_and_the_ubuntu_runner_of_ci(self):
         self.assertEqual("ubuntu-24.04", self.job["runs-on"])
         self.assertIn("timeout-minutes", self.job)
+
+
+CERTS = DEVCONTAINER / "certs"
+INSTALL_CERTS = DEVCONTAINER / "install-org-certs.sh"
+SYSTEM_BUNDLE = "/etc/ssl/certs/ca-certificates.crt"
+PEM = "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\n"
+
+
+def run_instructions(text):
+    """The RUN instructions of a Dockerfile, in order, each joined over its continuation lines."""
+    joined = re.sub(r"\\\n", " ", text)
+    return [line for line in joined.splitlines() if line.startswith("RUN ")]
+
+
+def env_values(text):
+    """NAME=value pairs of every ENV instruction, joined over continuation lines."""
+    joined = re.sub(r"\\\n", " ", text)
+    values = {}
+    for line in joined.splitlines():
+        if line.startswith("ENV "):
+            values.update(dict(re.findall(r"(\w+)=(\S+)", line)))
+    return values
+
+
+class OrganisationCertificatesInTheImage(unittest.TestCase):
+    """The root certificates of an organisation whose proxy inspects TLS, placed in .devcontainer/certs/."""
+
+    BUNDLE_VARIABLES = ("REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE", "SSL_CERT_FILE", "GIT_SSL_CAINFO", "PIP_CERT",
+                        "NODE_EXTRA_CA_CERTS")
+
+    @classmethod
+    def setUpClass(cls):
+        cls.text = read(DEVCONTAINER / "Dockerfile")
+        cls.runs = run_instructions(cls.text)
+
+    def test_the_certificates_are_installed_by_the_first_run_step_before_any_download(self):
+        # apt-get, the J-Link download and every later step must already trust the certificates.
+        self.assertIn("install-org-certs.sh /tmp/crux-certs", self.runs[0])
+        downloads = [i for i, run in enumerate(self.runs)
+                     if re.search(r"apt-get|curl|wget|pip|install-jlink\.sh|git ", run)]
+        self.assertTrue(downloads)
+        self.assertNotIn(0, downloads)
+
+    def test_the_certificate_files_are_copied_before_the_step_that_installs_them(self):
+        copy = self.text.index("COPY certs/ /tmp/crux-certs/")
+        script = self.text.index("COPY install-org-certs.sh /tmp/install-org-certs.sh")
+        run = self.text.index("RUN sh /tmp/install-org-certs.sh")
+        self.assertLess(copy, run)
+        self.assertLess(script, run)
+        self.assertLess(run, self.text.index("RUN apt-get"))
+
+    def test_the_package_step_refreshes_the_bundle_after_it_installs_ca_certificates(self):
+        # When the base image has no ca-certificates yet, the first step cannot build the bundle: the
+        # package step does it once the package is there.
+        apt = next(run for run in self.runs if "apt-get install" in run)
+        self.assertLess(apt.index("ca-certificates"), apt.index("update-ca-certificates"))
+
+    def test_every_tool_uses_the_system_bundle_and_the_variables_are_set_before_any_download(self):
+        values = env_values(self.text)
+        for name in self.BUNDLE_VARIABLES:
+            self.assertEqual(SYSTEM_BUNDLE, values.get(name), name)
+        block = self.text.index("ENV REQUESTS_CA_BUNDLE=")
+        self.assertLess(block, self.text.index("RUN apt-get"))
+        self.assertLess(block, self.text.index("COPY jlink/"))
+
+    def test_the_bundle_path_is_the_one_that_setup_sh_selects(self):
+        self.assertIn(f"system_ca_bundle={SYSTEM_BUNDLE}", read(DEVCONTAINER / "setup.sh"))
+
+    def test_the_temporary_files_are_removed_in_the_same_step(self):
+        self.assertIn("rm -rf /tmp/crux-certs /tmp/install-org-certs.sh", self.runs[0])
+
+
+class OrganisationCertificateFolder(unittest.TestCase):
+    def test_the_folder_has_a_readme_and_a_keep_file_and_no_ignore_file_of_its_own(self):
+        self.assertTrue((CERTS / "README.md").is_file())
+        self.assertTrue((CERTS / ".gitkeep").is_file())
+        self.assertFalse((CERTS / ".gitignore").exists())
+
+    def test_the_root_ignore_file_keeps_everything_but_the_keep_file_and_the_readme_out_of_git(self):
+        rules = read(ROOT / ".gitignore").splitlines()
+        start = rules.index(".devcontainer/certs/*")
+        self.assertEqual([".devcontainer/certs/*", "!.devcontainer/certs/.gitkeep", "!.devcontainer/certs/README.md"],
+                         rules[start:start + 3])
+
+    def test_git_ignores_a_certificate_placed_in_the_folder(self):
+        if not (ROOT / ".git").exists():
+            self.skipTest("not a Git checkout")
+        for name in ("org-root.crt", "org-root.cer", "org-root.pem", "nested/org.crt"):
+            result = subprocess.run(["git", "-C", str(ROOT), "check-ignore", "-q", "--no-index",
+                                     f".devcontainer/certs/{name}"], check=False)
+            self.assertEqual(0, result.returncode, name)
+        for name in ("README.md", ".gitkeep"):
+            result = subprocess.run(["git", "-C", str(ROOT), "check-ignore", "-q", "--no-index",
+                                     f".devcontainer/certs/{name}"], check=False)
+            self.assertEqual(1, result.returncode, name)
+
+    def tracked(self, *paths):
+        if not (ROOT / ".git").exists():
+            self.skipTest("not a Git checkout")
+        listing = subprocess.run(["git", "-C", str(ROOT), "ls-files", "--", *paths],
+                                 capture_output=True, text=True, check=True).stdout
+        return sorted(listing.split())
+
+    def test_the_folder_tracks_only_its_keep_file_and_readme(self):
+        self.assertEqual([".devcontainer/certs/.gitkeep", ".devcontainer/certs/README.md"],
+                         self.tracked(".devcontainer/certs"))
+
+    def test_no_certificate_file_is_tracked_anywhere(self):
+        # Every developer places their own file locally; none goes into the repository or a copy of it.
+        self.assertEqual([], self.tracked(":(glob,icase)**/*.crt", ":(glob,icase)**/*.pem",
+                                          ":(glob,icase)**/*.cer", ":(glob,icase)**/*.der"))
+
+    def test_no_page_suggests_committing_a_certificate(self):
+        pages = [CERTS / "README.md", ROOT / "docs" / "dev-container.md", ROOT / "docs" / "troubleshooting.md"]
+        for page in pages:
+            text = " ".join(read(page).split()).lower()
+            for phrase in ("commit the certificate", "commit your certificate", "commit the ca",
+                           "git add .devcontainer/certs", "add the certificate to the repository"):
+                self.assertNotIn(phrase, text, page.name)
+
+    def test_the_readme_says_what_goes_there_and_points_at_the_one_home(self):
+        text = " ".join(read(CERTS / "README.md").split())
+        for fragment in (".crt", ".pem", ".cer", "Rebuild Container", "never committed",
+                         "../../docs/dev-container.md#behind-a-proxy-or-with-a-company-certificate"):
+            self.assertIn(fragment, text)
+
+
+class InstallOrgCertsScript(unittest.TestCase):
+    """The real install-org-certs.sh in temporary folders, with a stand-in for update-ca-certificates."""
+
+    def setUp(self):
+        self.base = pathlib.Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.base)
+        self.source = self.base / "certs"
+        self.source.mkdir()
+        (self.source / "README.md").write_text("# readme\n")
+        (self.source / ".gitkeep").write_text("")
+        self.target = self.base / "target"
+        self.stubs = self.base / "bin"
+        self.stubs.mkdir()
+        self.log = self.base / "calls.log"
+        stub = self.stubs / "update-ca-certificates"
+        stub.write_text(f"#!/bin/sh\necho update-ca-certificates >> '{self.log}'\n")
+        stub.chmod(0o755)
+
+    def run_script(self, with_update=True, openssl=None):
+        env = {"PATH": (f"{self.stubs}:" if with_update else "") + "/usr/bin:/bin"}
+        if openssl is not None:
+            env["CRUX_OPENSSL"] = openssl
+        return subprocess.run(["/bin/sh", str(INSTALL_CERTS), str(self.source), str(self.target)],
+                              capture_output=True, text=True, env=env, check=False)
+
+    def updates(self):
+        return self.log.read_text().splitlines() if self.log.exists() else []
+
+    def installed(self):
+        return sorted(p.name for p in self.target.iterdir()) if self.target.exists() else []
+
+    def der_certificate(self):
+        """A real DER certificate made by openssl, or a skip when the test host has no openssl."""
+        openssl = shutil.which("openssl")
+        if not openssl:
+            self.skipTest("no openssl on this host")
+        work = self.base / "make"
+        work.mkdir()
+        subprocess.run([openssl, "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1",
+                        "-subj", "/CN=Test Root", "-keyout", str(work / "key.pem"), "-out", str(work / "c.pem")],
+                       capture_output=True, check=True)
+        subprocess.run([openssl, "x509", "-in", str(work / "c.pem"), "-outform", "der",
+                        "-out", str(work / "c.der")], capture_output=True, check=True)
+        return (work / "c.der").read_bytes()
+
+    def test_an_empty_folder_installs_nothing_and_succeeds(self):
+        result = self.run_script()
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual([], self.installed())
+        self.assertEqual([], self.updates())
+        self.assertIn("no certificate", result.stdout + result.stderr)
+
+    def test_a_missing_folder_is_the_same_as_an_empty_one(self):
+        shutil.rmtree(self.source)
+        result = self.run_script()
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual([], self.updates())
+
+    def test_a_pem_certificate_is_installed_and_the_bundle_is_built_once(self):
+        (self.source / "org-root.crt").write_text(PEM)
+        (self.source / "org-issuing.crt").write_text(PEM)
+        result = self.run_script()
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(["org-issuing.crt", "org-root.crt"], self.installed())
+        self.assertEqual(PEM, (self.target / "org-root.crt").read_text())
+        self.assertEqual(["update-ca-certificates"], self.updates())
+        self.assertIn("org-root.crt", result.stdout)
+        self.assertNotIn("MIIB", result.stdout + result.stderr)  # the contents are not printed
+
+    def test_pem_files_ending_in_pem_or_cer_are_installed_as_crt(self):
+        (self.source / "org-a.pem").write_text(PEM)
+        (self.source / "org-b.cer").write_text(PEM)
+        (self.source / "ORG-C.PEM").write_text(PEM)
+        result = self.run_script()
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(["ORG-C.crt", "org-a.crt", "org-b.crt"], self.installed())
+
+    def test_two_files_with_the_same_stem_are_both_installed(self):
+        (self.source / "org.crt").write_text(PEM)
+        (self.source / "org.pem").write_text(PEM)
+        result = self.run_script()
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(["org-pem.crt", "org.crt"], self.installed())
+
+    def test_windows_line_ends_are_removed_and_a_last_line_end_is_added(self):
+        (self.source / "org-root.crt").write_bytes(PEM.rstrip("\n").replace("\n", "\r\n").encode())
+        result = self.run_script()
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(PEM, (self.target / "org-root.crt").read_text())
+
+    def test_a_der_certificate_is_converted_to_pem(self):
+        (self.source / "org-root.cer").write_bytes(self.der_certificate())
+        result = self.run_script()
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(["org-root.crt"], self.installed())
+        self.assertTrue((self.target / "org-root.crt").read_text().startswith("-----BEGIN CERTIFICATE-----"))
+        self.assertIn("converted org-root.cer from DER", result.stdout)
+        self.assertEqual(["update-ca-certificates"], self.updates())
+
+    def test_without_openssl_a_der_certificate_is_skipped_with_the_conversion_command(self):
+        (self.source / "org-root.cer").write_bytes(b"\x30\x82\x01\x0a\x02\x82")
+        result = self.run_script(openssl=str(self.base / "no-openssl"))
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual([], self.installed())
+        self.assertEqual([], self.updates())
+        self.assertIn("skipping org-root.cer", result.stderr)
+        self.assertIn("openssl x509 -inform der", result.stderr)
+
+    def test_a_file_that_is_neither_pem_nor_der_is_skipped(self):
+        (self.source / "org-root.crt").write_bytes(b"\x30\x82\x01\x0a\x02\x82")
+        result = self.run_script()
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual([], self.installed())
+        self.assertEqual([], self.updates())
+        self.assertIn("skipping org-root.crt: not a PEM or DER certificate", result.stderr)
+        self.assertIn("openssl x509 -inform der", result.stderr)
+
+    def test_a_file_with_another_ending_is_skipped_with_a_hint(self):
+        (self.source / "org-root.der").write_text(PEM)
+        (self.source / "notes.txt").write_text("text\n")
+        result = self.run_script()
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual([], self.installed())
+        self.assertIn("skipping org-root.der: only .crt, .pem and .cer files are installed", result.stderr)
+        self.assertIn("skipping notes.txt", result.stderr)
+
+    def test_a_file_that_holds_a_private_key_is_never_installed(self):
+        (self.source / "bundle.pem").write_text(PEM + "-----BEGIN PRIVATE KEY-----\nMIIE\n-----END PRIVATE KEY-----\n")
+        result = self.run_script()
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual([], self.installed())
+        self.assertIn("skipping bundle.pem: it holds a private key", result.stderr)
+
+    def test_a_skipped_file_does_not_stop_the_good_ones(self):
+        (self.source / "bad.crt").write_text("not a certificate\n")
+        (self.source / "good.crt").write_text(PEM)
+        result = self.run_script()
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(["good.crt"], self.installed())
+        self.assertEqual(["update-ca-certificates"], self.updates())
+        self.assertIn("installed 1 certificate(s), skipped 1 file(s)", result.stdout)
+
+    def test_a_name_with_spaces_is_installed_under_a_safe_name(self):
+        (self.source / "Org Root CA (2026).crt").write_text(PEM)
+        result = self.run_script()
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(["Org_Root_CA__2026_.crt"], self.installed())
+
+    def test_folders_and_the_readme_and_keep_file_are_not_reported(self):
+        (self.source / "sub").mkdir()
+        (self.source / "sub" / "x.crt").write_text(PEM)
+        result = self.run_script()
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual([], self.installed())
+        for name in ("README.md", ".gitkeep"):
+            self.assertNotIn(name, result.stderr)
+
+    def test_without_update_ca_certificates_the_files_wait_for_the_package_step(self):
+        (self.source / "org-root.crt").write_text(PEM)
+        result = self.run_script(with_update=False)
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(["org-root.crt"], self.installed())
+        self.assertIn("update-ca-certificates is not in the base image", result.stdout)
+
+    def test_it_is_a_posix_shell_script_that_downloads_nothing(self):
+        text = read(INSTALL_CERTS)
+        self.assertTrue(text.startswith("#!/bin/sh\n"))
+        body = text.split("set -eu", 1)[1]
+        for tool in ("bash", "python", "curl", "wget"):
+            self.assertNotIn(tool, body)
 
 
 class Documentation(unittest.TestCase):
