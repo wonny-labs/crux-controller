@@ -37,9 +37,6 @@
     "docs/architecture.md": {
       "verification": 4
     },
-    "docs/board-bring-up.md": {
-      "verification": 12
-    },
     "docs/composition-zone.md": {
       "status": 1
     },
