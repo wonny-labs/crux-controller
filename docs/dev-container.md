@@ -136,7 +136,7 @@ whoever can run Docker as you.
 
 If the proxy decrypts HTTPS and re-signs it with a certificate of your organisation, tools fail with certificate
 errors, for example `curl: (60) SSL certificate problem: unable to get local issuer certificate` from the J-Link
-download of the image build, or `certificate verify failed` from pip or git (general knowledge). The image build
+download of the image build, or `certificate verify failed` from pip or git. The image build
 and the setup then need the root certificate authority (CA) certificate of your organisation. There are two places
 for it; each developer places their own file in one of them, and neither is in the repository.
 

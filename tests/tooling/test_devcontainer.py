@@ -1477,6 +1477,21 @@ class InstallOrgCertsScript(unittest.TestCase):
         self.assertEqual(["chain-1.crt", "chain-2.crt"], self.installed())
         self.assertEqual(self.PEM, (self.target / "chain-2.crt").read_text())
 
+    def test_a_bundle_never_overwrites_a_file_staged_earlier(self):
+        # chain-2.crt (one certificate) is staged first; chain.crt (two) must not land on chain-2.crt.
+        (self.source / "chain-2.crt").write_text(self.PEM)
+        (self.source / "chain.crt").write_text(self.PEM + self.PEM)
+        result = self.run_script()
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(3, len(self.installed()), self.installed())
+        self.assertIn("installed 3 certificate(s)", result.stdout)
+
+    def test_a_pem_marker_that_is_not_on_a_line_of_its_own_stops_the_build_without_openssl(self):
+        (self.source / "odd.crt").write_text("  -----BEGIN CERTIFICATE-----\nMIIB\n  -----END CERTIFICATE-----\n")
+        result = self.run_script(openssl=str(self.base / "no-openssl"))
+        self.assert_stopped(result, "error: .devcontainer/certs/odd.crt: holds no certificate block that can be read.")
+        self.assertNotIn("mv:", result.stderr)
+
     def test_a_broken_block_after_a_good_one_stops_the_build(self):
         broken = "-----BEGIN CERTIFICATE-----\nMIIBbroken\n-----END CERTIFICATE-----\n"
         (self.source / "chain.crt").write_text(self.PEM + broken)

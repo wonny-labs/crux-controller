@@ -62,6 +62,22 @@ safe_name() {
 taken() {
     [ -e "$stage/$1" ] || [ -e "$target_dir/$1" ]
 }
+# Whether any of the names that <base> gives <count> certificates is taken: <base>.crt for one,
+# <base>-1.crt to <base>-<count>.crt for a bundle.
+names_taken() {
+    if [ "$2" -eq 1 ]; then
+        taken "$1.crt"
+        return
+    fi
+    n=1
+    while [ "$n" -le "$2" ]; do
+        if taken "$1-$n.crt"; then
+            return 0
+        fi
+        n=$((n + 1))
+    done
+    return 1
+}
 
 for file in "$source_dir"/* "$source_dir"/.[!.]*; do
     [ -f "$file" ] || continue
@@ -102,6 +118,10 @@ for file in "$source_dir"/* "$source_dir"/.[!.]*; do
             inside { print > f }
             /^-----END CERTIFICATE-----$/ { if (inside) close(f); inside = 0 }'
         set -- "$stage/split/"part-*.pem
+        if [ ! -f "$1" ]; then
+            refuse "$name" "holds no certificate block that can be read."
+            continue
+        fi
         count=$#
         number=0
         bad=0
@@ -117,24 +137,26 @@ for file in "$source_dir"/* "$source_dir"/.[!.]*; do
             fi
         done
         [ "$bad" -eq 0 ] || continue
-        # <base>.crt (or <base>-<n>.crt for a bundle), else with the ending in the name, else with a
-        # number: no file of this run or of the target folder is ever overwritten.
-        if [ "$count" -eq 1 ]; then first="$base.crt"; else first="$base-1.crt"; fi
-        if taken "$first"; then
-            base="$base-$ending"
+        # <base>.crt (or <base>-1.crt to <base>-<count>.crt for a bundle), else <base>-<ending>, else
+        # <base>-<ending>-<n>, until every name is free: no file of this run or of the target folder is
+        # ever overwritten.
+        if names_taken "$base" "$count"; then
+            stem_base="$base-$ending"
+            base=$stem_base
             suffix=2
-            if [ "$count" -eq 1 ]; then first="$base.crt"; else first="$base-1.crt"; fi
-            while taken "$first"; do
-                if [ "$count" -eq 1 ]; then first="$base-$suffix.crt"; else first="$base-$suffix-1.crt"; fi
+            while names_taken "$base" "$count"; do
+                base="$stem_base-$suffix"
                 suffix=$((suffix + 1))
             done
-            base=${first%.crt}
-            [ "$count" -eq 1 ] || base=${base%-1}
         fi
         number=0
         for part do
             number=$((number + 1))
             if [ "$count" -eq 1 ]; then target="$base.crt"; else target="$base-$number.crt"; fi
+            if taken "$target"; then
+                refuse "$name" "would overwrite $target."
+                break
+            fi
             mv "$part" "$stage/$target"
             say "installing $name as $target"
             staged=$((staged + 1))
