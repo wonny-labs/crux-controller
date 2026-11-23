@@ -8,7 +8,7 @@ twice on a board (see `docs/findings/s2-first-board-run.md`); nothing else has r
 
 ### Build and manifest
 
-- The west manifest imports `crux-pilot` at a pinned commit (`2c017f68`, which publishes the File
+- The west manifest imports `crux-pilot` at a pinned commit (`1c4cf284`, which publishes the File
   composition interface `<crux/file_zephyr.h>`) and adds `picolibc` as a test-only project. A CI job
   checks the pins with `west crux-pins` and has a negative control that must fail.
 - The `crux-pilot` pin moved from `37c92b18` to `dfd3ad7d`, which adds the public management headers
@@ -61,6 +61,12 @@ twice on a board (see `docs/findings/s2-first-board-run.md`); nothing else has r
   `crux-pilot`. The range also renames the Crux CMake project (#533) and adds Zephyr-style samples, host
   samples in CTest and a first-hour guide (#536). The S2 firmware hash and the budget tables are in the
   pull request, because they come from CI.
+- The `crux-pilot` pin moved from `2c017f68` to `1c4cf284`, the head of Crux `main` after its onboarding
+  change (one board-ready Dev Container with `scripts/bootstrap.sh`, samples sorted by purpose, the controller
+  sample removed from Crux, the Settings File selection that does not depend on Reliance Edge, the pin bot). The
+  Crux manifest, the public headers and the module name are as before. No controller code changes; two comments in
+  `app/conf/` name the moved Crux sample folders. The S2 firmware hash and the budget tables
+  are in the pull request, because they come from CI.
 - The `crux-pilot` import blocks wolfSSL, wolfSSH and wolfPSA by name, so enabling the Mbed TLS group
   would activate Mbed TLS and TF-PSA-Crypto and no GPL stack (checked on the project list; no job
   enables the group or fetches with it on, and it stays off in every job).
