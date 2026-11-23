@@ -458,7 +458,7 @@ class Proxy(RefPage):
         convert = "openssl x509 -inform der -in company.cer -out company.crt"
         self.assertIn(convert, self.setup)
         self.assertIn(convert, self.proxy)
-        for word in ("PEM", "pip.conf", "both routes"):
+        for word in ("PEM", "both routes"):
             self.assertIn(word, self.proxy)
         self.assertIn(".crux-extra-ca.crt", read(DEVCONTAINER / "check-host.sh"))
 
@@ -721,6 +721,12 @@ class Troubleshooting(unittest.TestCase):
                                        "failed during", "which is not a readable file",
                                        "is not a PEM certificate", "is incomplete",
                                        "no install marker"),
+            ".devcontainer/install-org-certs.sh": ("holds a private key",
+                                                   "is neither a PEM nor a DER certificate",
+                                                   "is not a valid certificate",
+                                                   "no organisation CA was installed",
+                                                   "only .crt, .pem and .cer files are installed",
+                                                   "update-ca-certificates is not in the base image"),
             ".devcontainer/check-host.sh": ("the clone is in a folder named", "is your home directory",
                                             "looks like a home directory",
                                             "the clone is directly in the root directory",

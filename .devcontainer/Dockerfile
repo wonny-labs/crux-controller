@@ -27,9 +27,28 @@ ARG USER_GID=1000
 # ENV either: the proxy of the company that builds the image must not become part of the environment
 # of every container.
 
+# Root certificates of an organisation whose proxy inspects TLS, for every download below. The files
+# that a developer placed in .devcontainer/certs/ (Git ignores them; an empty folder installs nothing)
+# are installed by .devcontainer/install-org-certs.sh, before apt-get, the J-Link download and the
+# setup. The folder and the script are bind-mounted into that one RUN step (BuildKit), so the image
+# stores the installed certificates and no other file of the folder. The variables point the tools of
+# the image and of every container at the system bundle, which ca-certificates builds; they change
+# nothing when the folder is empty. See docs/dev-container.md, "Behind a proxy or with a company
+# certificate".
+ENV REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt \
+    CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt \
+    SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
+    GIT_SSL_CAINFO=/etc/ssl/certs/ca-certificates.crt \
+    PIP_CERT=/etc/ssl/certs/ca-certificates.crt \
+    NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
+RUN --mount=type=bind,source=certs,target=/tmp/crux-certs \
+    --mount=type=bind,source=install-org-certs.sh,target=/tmp/install-org-certs.sh \
+    sh /tmp/install-org-certs.sh /tmp/crux-certs
+
 # The packages of the "Install host packages" step of the workload job, plus python3-venv (CI gets its
 # Python from actions/setup-python), curl and sudo for the setup script, and clang-tidy-18 at the
-# version of the "Static analysis" job.
+# version of the "Static analysis" job. update-ca-certificates adds the certificates of the first step
+# to the bundle when the base image had no ca-certificates before this step.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         build-essential \
@@ -49,6 +68,7 @@ RUN apt-get update \
         sudo \
         wget \
         xz-utils \
+    && update-ca-certificates \
     && apt-get clean \
     && find /var/lib/apt/lists -type f -delete
 

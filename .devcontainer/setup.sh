@@ -37,9 +37,9 @@
 #      VS Code and for the command line alike.
 #   3. else no certificate is installed and the script behaves as before.
 # The name of the source is printed, never the contents of the certificate.
-# The variables are set for this script only: a terminal that you open later in the container does not
-# have them, so pip there needs them again (or a cert entry in a pip.conf). The system bundle itself
-# holds the certificate for curl, git and apt.
+# The script sets these variables for its own steps; a terminal that you open later in the container gets
+# them from the image (.devcontainer/Dockerfile). The system bundle itself holds the certificate for curl,
+# git and apt.
 #
 # Everything it prints goes to the standard error stream, also what pip, west and git print, so a
 # command that scripts/dev-shell.sh runs after it keeps a clean standard output. When a step fails it
