@@ -100,7 +100,8 @@ fi
 # The J-Link package's postinst runs `udevadm control --reload-rules` and
 # `udevadm trigger` and fails the install when udevadm is missing, as it is in
 # this image. The container needs no udev: the probe's device node gets its
-# permissions from the udev rule of the Crux checkout (crux-pilot/.devcontainer/jlink/99-crux-jlink.rules), which `scripts/bootstrap.sh board-host` installs on the Linux host. So a no-op udevadm is
+# permissions from the udev rule of the Crux checkout (crux-pilot/.devcontainer/jlink/
+# 99-crux-jlink.rules), which `scripts/bootstrap.sh board-host` installs on the Linux host. So a no-op udevadm is
 # put where dpkg's maintainer scripts look for it, /usr/sbin (a stub in
 # /usr/local/bin was not found in the first run), for the install only. It is
 # removed right after the install and, through the trap, when the install fails.
