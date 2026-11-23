@@ -70,9 +70,16 @@ for file in "$source_dir"/* "$source_dir"/.[!.]*; do
     fi
 
     mkdir -p "$target_dir"
+    # A name that is free: <stem>.crt, else <stem>-<ending>.crt, else with a number, so a file of
+    # this run is never overwritten (or removed when a later file is skipped).
     target="$target_dir/$(safe_name "$stem").crt"
     if [ -e "$target" ]; then
         target="$target_dir/$(safe_name "$stem")-$ending.crt"
+        number=2
+        while [ -e "$target" ]; do
+            target="$target_dir/$(safe_name "$stem")-$ending-$number.crt"
+            number=$((number + 1))
+        done
     fi
     if grep -q -- '-----BEGIN CERTIFICATE-----' "$file"; then
         # awk prints every line with a line end, so the last line gets one too.

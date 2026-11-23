@@ -1377,6 +1377,15 @@ class InstallOrgCertsScript(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual(["org-pem.crt", "org.crt"], self.installed())
 
+    def test_names_that_collide_never_overwrite_an_installed_file(self):
+        for name in ("a.crt", "a.pem", "a-pem.crt", "a b.crt", "a_b.crt"):
+            (self.source / name).write_text(PEM)
+        (self.source / "a.cer").write_text("not a certificate\n")
+        result = self.run_script()
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(5, len(self.installed()), self.installed())
+        self.assertIn("installed 5 certificate(s), skipped 1 file(s)", result.stdout)
+
     def test_windows_line_ends_are_removed_and_a_last_line_end_is_added(self):
         (self.source / "org-root.crt").write_bytes(PEM.rstrip("\n").replace("\n", "\r\n").encode())
         result = self.run_script()
@@ -1402,6 +1411,8 @@ class InstallOrgCertsScript(unittest.TestCase):
         self.assertIn("openssl x509 -inform der", result.stderr)
 
     def test_a_file_that_is_neither_pem_nor_der_is_skipped(self):
+        if not shutil.which("openssl"):
+            self.skipTest("no openssl on this host")
         (self.source / "org-root.crt").write_bytes(b"\x30\x82\x01\x0a\x02\x82")
         result = self.run_script()
         self.assertEqual(0, result.returncode, result.stderr)

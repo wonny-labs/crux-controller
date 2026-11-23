@@ -143,7 +143,7 @@ for it; each developer places their own file in one of them, and neither is in t
 **In the image (preferred).** Place the file in `.devcontainer/certs/` of your clone as a `.crt`, `.pem` or `.cer`
 file, then run **Dev Containers: Rebuild Container**, or `bash scripts/dev-shell.sh` again, which builds the image
 again. Git ignores every file there except `README.md` and `.gitkeep`, so the certificate stays on your machine.
-The first step of the Dockerfile, `.devcontainer/install-org-certs.sh`, runs before `apt-get`, the J-Link download
+The first RUN step of the Dockerfile, `.devcontainer/install-org-certs.sh`, runs before `apt-get`, the J-Link download
 and every later download. It installs each such file as a `.crt` system certificate: a PEM file (one with a
 `BEGIN CERTIFICATE` line) as it is, without Windows line ends, and a DER file converted to PEM with
 `openssl x509 -inform der`. A file that holds a private key, a file that is neither PEM nor DER, and a file with
@@ -217,12 +217,24 @@ is general knowledge, not checked on a machine of this project):
    **Export...**, and choose **Base-64 encoded X.509 (.CER)**. That gives a PEM file.
 3. Rename the file to end in `.crt` (or keep `.cer`: both are installed) and place it in `.devcontainer/certs/`.
 
-To see which CA signs what the proxy presents, run this from WSL or the container; the last certificate that it
-prints is the one closest to the root, and its `issuer` names the CA to export:
+To see which CA signs what the proxy presents, run one of these from WSL or the container. With a proxy that you
+set in `http_proxy` and `https_proxy`, as above, pass it with `-proxy` (OpenSSL 1.1.0 and later; the address is the
+placeholder of the example above):
+
+```bash
+openssl s_client -proxy proxy.example.com:3128 -connect www.segger.com:443 -showcerts </dev/null
+```
+
+Without `-proxy` the command connects directly, so it shows the proxy's certificates only when the proxy
+intercepts the connection on its own (a transparent proxy):
 
 ```bash
 openssl s_client -connect www.segger.com:443 -showcerts </dev/null
 ```
+
+Under `Certificate chain`, each entry has an `s:` (subject) and an `i:` (issuer) line. The server usually sends the
+site's certificate first, so the `i:` line of the last entry usually names the root CA to export; when it names
+your organisation and not a public CA, the proxy re-signs the connection.
 
 To check a file before you rebuild, in the folder that holds it (a DER file needs `-inform der`):
 
@@ -230,11 +242,8 @@ To check a file before you rebuild, in the folder that holds it (a DER file need
 openssl x509 -noout -issuer -subject -in company.crt
 ```
 
-A **DER encoded binary X.509** export works too, as the image converts it; to convert it yourself:
-
-```bash
-openssl x509 -inform der -in company.cer -out company.crt
-```
+A **DER encoded binary X.509** export works too, as the image converts it; the command to convert it yourself is
+the one in the workspace-folder route above.
 
 Then rebuild the container. In it, `curl -I https://www.segger.com` must print a status line instead of the
 `curl: (60)` error.
