@@ -14,7 +14,7 @@ before touching the board.
 **What has been run**: the `net` image on the board, recorded in the
 [roadmap](roadmap.md#what-has-run-on-a-board).
 [Crux's J-Link and usbipd guide](https://github.com/wonny-labs/crux-pilot/blob/c5439c51741bceb8f3327c11882dc3b58bbe2640/docs/board-jlink-usbipd.md)
-records a usbipd attach on Windows with WSL2 with a Crux Dev Container, with `--auto-attach`.
+records one usbipd attach on Windows with WSL2, without `--auto-attach`, with a separate board Dev Container configuration.
 
 Not run: step 2 in the form of this page, with this repository's Dev Container, the J-Link software of this repository's image with a probe,
 the tasks **Board: Build**, **Board: Flash** and **Board: Clean**, and the profiles **Board: Debug**,

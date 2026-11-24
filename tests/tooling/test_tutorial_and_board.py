@@ -319,7 +319,8 @@ class BoardPage(Common, unittest.TestCase):
         self.assertNotIn("board-host", body)
 
     def test_no_current_page_attaches_with_auto_attach(self):
-        # The board page's run list may name the recorded Crux run; no step or command uses the option.
+        # The board page's run list says the recorded Crux run was attached without the option; no step or
+        # command of any page uses it.
         for name in (BOARD_PAGE, TUTORIAL, "docs/getting-started.md", "docs/troubleshooting.md",
                      "docs/dev-container.md", "README.md"):
             text = read(name)
@@ -332,9 +333,12 @@ class BoardPage(Common, unittest.TestCase):
         for profile in ("Board: Debug", "Board: Attach", "Board: Attach (external)"):
             self.assertIn(f"**{profile}**", body, profile)
 
-    def test_the_run_list_claims_only_the_recorded_auto_attach_run(self):
+    def test_the_run_list_records_the_crux_run_without_auto_attach(self):
+        # Crux's guide records one attach without --auto-attach, with a separate board Dev Container configuration.
         body = norm(read(BOARD_PAGE))
-        self.assertIn("with `--auto-attach`", body)
+        self.assertIn("one usbipd attach on Windows with WSL2, without `--auto-attach`", body)
+        self.assertIn("a separate board Dev Container configuration", body)
+        self.assertNotIn("with `--auto-attach`", body)
         self.assertIn("Not run: step 2 in the form of this page", body)
 
     def test_one_plain_list_of_what_has_been_run(self):
