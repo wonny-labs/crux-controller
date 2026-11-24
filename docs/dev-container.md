@@ -3,7 +3,8 @@
 This page describes the Dev Container in detail: what it is and what CI runs in it, what it needs from the host,
 the hosts it contacts, proxies and certificates, the folder layout, the VS Code and command-line routes, the
 commands that run in it, and what to do after a pin or SDK change. To set it up, follow
-[Getting started](getting-started.md#set-up-the-dev-container); what is untested is stated there.
+[Getting started](getting-started.md#set-up-the-dev-container); what has been run on the board route is listed on
+the [board page](board-bring-up.md#board-route-for-the-rt1060-evkb-rev-b).
 
 ## What the container is
 
@@ -49,8 +50,8 @@ folder holds other entries, because the container sees them (`.crux-extra-ca.crt
 and the markers of a home directory.
 
 `.devcontainer/setup.sh` prints to the standard error stream, also what pip, west and git print, so that a command
-which `scripts/dev-shell.sh` runs after it keeps a clean standard output. It names each step as it starts it, and
-when one fails it prints `setup: failed during <step>; rerun: bash .devcontainer/setup.sh`. It does again what an
+which `scripts/dev-shell.sh` runs after it keeps a clean standard output. It prints a `setup:` line for each piece of work
+that a step does, nothing for a step that is already done, and when a step fails it prints `setup: failed during <step>; rerun: bash .devcontainer/setup.sh`. It does again what an
 interrupt left half done: a virtual environment without pip, a `.west` folder from an interrupted `west init`, and
 an SDK folder without its install marker.
 
@@ -350,7 +351,7 @@ west build -p always -b 'mimxrt1060_evk@B//qspi' -d crux-controller/build/worklo
 check and the product include check of [Set up without the Dev Container](native-setup.md) work unchanged from `/workspaces/ws` (the pinned
 `crux-pilot` contains the product include check); the container does not switch the Mbed TLS group on by itself. The container mounts the USB bus of the host and can have the J-Link software
 (`.devcontainer/jlink/`), so a probe can be reached from it after the host steps of
-[board-bring-up.md](board-bring-up.md); that route is untested on hardware, and a `native_sim` run is not a board run.
+[board-bring-up.md](board-bring-up.md), whose run list says what has been run; a `native_sim` run is not a board run.
 
 The J-Link software that the build installs, downloaded or placed in `.devcontainer/jlink/packages/`, goes into the
 image you build on your own machine, and so the licensed SEGGER software stays in that local image layer: do not

@@ -65,6 +65,11 @@ esac
 name="$1"
 build="build/$name"
 
+if [[ -d "build/$link" && ! -L "build/$link" ]]; then
+    printf 'build-board: build/%s is a folder, not a link; move it away, then run this again\n' "$link" >&2
+    exit 1
+fi
+
 cmake_args=()
 if [[ ! -f "$build/build.ninja" ]]; then
     cmake_args=(-- -DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON)

@@ -14,9 +14,10 @@ You do not need a board. Supported: x86_64 Linux with Docker Engine, through the
 1. Clone the repository and open the Dev Container, as [Getting started](docs/getting-started.md#set-up-the-dev-container)
    says: **Dev Containers: Reopen in Container** in VS Code, or `bash scripts/dev-shell.sh` on the command line.
 2. Wait for the automatic set-up to finish; you do not run it. It checks the folder layout, fetches Zephyr and the
-   modules with west and installs the Zephyr SDK. It prints a `setup: <step>` line as each step starts and ends with
-   `setup: workspace <folder>, Zephyr SDK <version>, West version: <version>`, or prints
-   `setup: failed during <step>` and the command that reruns it.
+   modules with west and installs the Zephyr SDK, with a `setup:` line for each piece of work it does. It ends with
+   `setup: workspace <folder>, Zephyr SDK <version>, West version: <version>`, or with `setup: failed during <step>`
+   and the command that reruns it. In VS Code, each attach prints `bootstrap: workspace   ok` and
+   `bootstrap: Zephyr SDK  ok`.
 3. Follow the [Tutorial](docs/tutorial.md): the host tests, one run of the `native_sim` scenarios with Twister
    (Zephyr's test runner) and one EVKB build.
 

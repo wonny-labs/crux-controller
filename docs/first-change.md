@@ -30,8 +30,7 @@ git switch -c test/workload-zero-period
 python3 -m venv .venv && . .venv/bin/activate && python -m pip install pyyaml clang-format==18.1.8
 ```
 
-Name the branch `<type>/<short-description>`, with the types of a commit subject (`fix/...`, `docs/...`). Use one
-branch for one logical change.
+Name the branch as [CONTRIBUTING.md](../CONTRIBUTING.md#commits-and-pull-requests) says.
 
 ## 3. Write the test first
 

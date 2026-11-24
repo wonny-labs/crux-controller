@@ -12,12 +12,11 @@ safe setup; an earlier approval does not carry over to a new task. If the author
 before touching the board.
 
 **What has been run**: the `net` image on the board, recorded in the
-[roadmap](roadmap.md#what-has-run-on-a-board). The usbipd commands of step 2 were run on Windows with WSL2 with a
-Crux Dev Container, as
+[roadmap](roadmap.md#what-has-run-on-a-board).
 [Crux's J-Link and usbipd guide](https://github.com/wonny-labs/crux-pilot/blob/c5439c51741bceb8f3327c11882dc3b58bbe2640/docs/board-jlink-usbipd.md)
-records.
+records a usbipd attach on Windows with WSL2 with a Crux Dev Container, with `--auto-attach`.
 
-Not run: step 2 with this repository's Dev Container, the J-Link software of this repository's image with a probe,
+Not run: step 2 in the form of this page, with this repository's Dev Container, the J-Link software of this repository's image with a probe,
 the tasks **Board: Build**, **Board: Flash** and **Board: Clean**, and the profiles **Board: Debug**,
 **Board: Attach** and **Board: Attach (external)** of this repository.
 
@@ -129,7 +128,9 @@ The tasks are in [.vscode/tasks.json](../.vscode/tasks.json) (**Terminal > Run T
 [`scripts/build-board.sh`](../scripts/build-board.sh) for the build configuration you pick, `net` by default. It
 builds it in `build/<configuration>` with the CMake arguments of the `Budget` job, and after a successful build it
 points the link `build/mimxrt1060_evk_B_qspi--current` at that folder. A failed build leaves the link as it was.
-The other tasks and the profiles use the image behind the link, so one set serves every configuration.
+The other tasks and the profiles use the image behind the link, so one set serves every configuration. The
+`management` configuration needs the Mbed TLS group, which the Dev Container does not switch on
+([the `workload` to `sntp` scenarios](native-setup.md#run-the-workload-to-sntp-scenarios) show how).
 
 | Task or profile | What it does |
 |---|---|

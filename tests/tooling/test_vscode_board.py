@@ -46,6 +46,14 @@ def budget_rows():
     return {row["config"]: (row["conf"], row["overlay"]) for row in rows}
 
 
+def budget_build():
+    """The board and the fixed CMake arguments of the Budget job's build step."""
+    job = yaml.safe_load(BUDGET.read_text())["jobs"]["budget"]
+    step = next(s for s in job["steps"] if s.get("name", "").startswith("Build the configuration"))
+    fixed = step["run"].split("args=(", 1)[1].split(")", 1)[0].split()
+    return job["env"]["BOARD"], fixed
+
+
 def text_of(task):
     return " ".join([task["command"], *task.get("args", [])])
 
@@ -194,8 +202,8 @@ class BuildBoardScript(unittest.TestCase):
                 self.log.unlink(missing_ok=True)
                 result = self.run_script(name)
                 self.assertEqual(0, result.returncode, result.stderr)
-                expected = ["build", "--pristine=never", "-b", BOARD, "-d", f"build/{name}", "app",
-                            "--", "-DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON"]
+                board, fixed = budget_build()
+                expected = ["build", "--pristine=never", "-b", board, "-d", f"build/{name}", "app", "--", *fixed]
                 if conf:
                     expected.append(f"-DEXTRA_CONF_FILE={conf}")
                 if overlay:
@@ -236,6 +244,19 @@ class BuildBoardScript(unittest.TestCase):
                 self.assertEqual(2, result.returncode)
                 self.assertIn("Usage:", result.stderr)
                 self.assertIsNone(self.west_arguments())
+
+    def test_the_board_and_the_gate_are_those_of_the_budget_job(self):
+        board, fixed = budget_build()
+        self.assertEqual(BOARD, board)
+        self.assertEqual(["-DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON"], fixed)
+
+    def test_a_real_folder_in_place_of_the_link_is_refused_and_kept(self):
+        (self.root / LINK).mkdir(parents=True)
+        (self.root / LINK / "keep").write_text("x")
+        result = self.run_script("net")
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("is a folder, not a link", result.stderr)
+        self.assertTrue((self.root / LINK / "keep").is_file())
 
     def test_clean_removes_the_board_builds_and_the_link_only(self):
         for name in ("net", "workload"):
@@ -294,6 +315,8 @@ class Docs(unittest.TestCase):
         self.assertIn("scripts/build-board.sh", body)
         self.assertIn(LINK, body)
         self.assertRegex(body, r"\*\*Board: Debug\*\*[^.]*flashes")
+        # The management configuration needs the Mbed TLS group, which the Dev Container does not switch on.
+        self.assertRegex(body, r"`management`[^.]*Mbed TLS group")
 
     def test_no_current_file_names_an_old_task_profile_or_build_path(self):
         names = subprocess.check_output(["git", "-C", str(ROOT), "ls-files"], text=True).splitlines()

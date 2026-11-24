@@ -319,14 +319,23 @@ class BoardPage(Common, unittest.TestCase):
         self.assertNotIn("board-host", body)
 
     def test_no_current_page_attaches_with_auto_attach(self):
+        # The board page's run list may name the recorded Crux run; no step or command uses the option.
         for name in (BOARD_PAGE, TUTORIAL, "docs/getting-started.md", "docs/troubleshooting.md",
                      "docs/dev-container.md", "README.md"):
-            self.assertNotIn("--auto-attach", read(name), name)
+            text = read(name)
+            if name == BOARD_PAGE:
+                text = text[text.index("## The route"):]
+            self.assertNotIn("--auto-attach", text, name)
 
     def test_the_page_names_the_board_profiles(self):
         body = norm(read(BOARD_PAGE))
         for profile in ("Board: Debug", "Board: Attach", "Board: Attach (external)"):
             self.assertIn(f"**{profile}**", body, profile)
+
+    def test_the_run_list_claims_only_the_recorded_auto_attach_run(self):
+        body = norm(read(BOARD_PAGE))
+        self.assertIn("with `--auto-attach`", body)
+        self.assertIn("Not run: step 2 in the form of this page", body)
 
     def test_one_plain_list_of_what_has_been_run(self):
         # Approved change: what was run and what was not is in one list, not spread over the steps.
@@ -353,6 +362,29 @@ class ProbeAndCertificateHomes(unittest.TestCase):
         self.assertIn("https://github.com/dorssel/usbipd-win", part)
         for name in ("docs/getting-started.md", TUTORIAL, "docs/troubleshooting.md"):
             self.assertNotIn("`Attached`", read(name), name)
+
+    def test_getting_started_points_at_the_probe_step_without_wsl2_steps(self):
+        part = section("docs/getting-started.md", r"If you use a board")
+        self.assertIn("board-bring-up.md#2-connect-the-probe", part)
+        self.assertNotIn("usbipd", part)
+
+    def test_the_set_up_output_is_quoted_from_the_scripts(self):
+        # setup.sh prints a setup: line only when a step does work; step() only records the name.
+        setup = read(".devcontainer/setup.sh")
+        self.assertRegex(setup, r'step\(\) \{\n    current_step="\$1"\n\}')
+        quick = section("README.md", r"Quick start")
+        self.assertNotIn("as each step starts", quick)
+        self.assertNotIn("names each step as it starts", read("docs/dev-container.md"))
+        for line in ("setup: failed during", "bootstrap: workspace   ok", "bootstrap: Zephyr SDK  ok"):
+            self.assertIn(line, quick, line)
+        self.assertIn("printf 'bootstrap: workspace   ok\\n'", read("scripts/bootstrap.sh"))
+        self.assertIn("printf 'bootstrap: Zephyr SDK  ok\\n'", read("scripts/bootstrap.sh"))
+
+    def test_no_stale_untested_pointer_for_the_board_route(self):
+        for name in ("docs/dev-container.md", "docs/architecture.md"):
+            for line in read(name).splitlines():
+                if "board-bring-up.md" in line:
+                    self.assertNotIn("untested", line, name)
 
     def test_troubleshooting_has_a_row_for_a_probe_that_is_not_found(self):
         rows = [line for line in read("docs/troubleshooting.md").splitlines()

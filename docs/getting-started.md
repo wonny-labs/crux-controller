@@ -106,7 +106,8 @@ Linux or the Dev Container.
 
 Nothing here needs a board. For the probe, the J-Link software, flash and debug on the RT1060-EVKB, follow
 [Board bring-up](board-bring-up.md), which links the Crux board page and adds this repository's own image, tasks,
-debug profiles and expected log.
+debug profiles and expected log. Its [Connect the probe](board-bring-up.md#2-connect-the-probe) step comes before
+the first J-Link check.
 
 ## If something fails
 
