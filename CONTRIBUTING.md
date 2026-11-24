@@ -159,7 +159,7 @@ Crux's former controller sample used the same prefix, and a Crux test image
 `CONFIG_CRUX_CONTROLLER_M3`, as a further owner of the native watchdog next to `WDT_SHELL`,
 `HWINFO_SHELL` and `TASK_WDT_HW_FALLBACK`, not because of the prefix. The note
 `docs/findings/s4-system-composition.md` records this as read at `crux-pilot` `37c92b18`, and the same
-check was in the Crux source at `8e3737d2` and `1c4cf284` and is at `c5439c51`
+check was in the Crux source at `8e3737d2`, `1c4cf284` and `c5439c51` and is at `ea16f99f`
 (`components/system/ports/zephyr/CMakeLists.txt`). This repository never defines that symbol.
 
 ## Commits and pull requests

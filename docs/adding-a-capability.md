@@ -297,11 +297,11 @@ change of `scripts/check_boundary.py`, `tests/tooling/test_boundary.py` and `doc
 
 - In this repository: [composition-zone.md](composition-zone.md) ("Why a zone", "The adapter zone"),
   [architecture.md](architecture.md) ("Why zones exist") and the findings notes of `file`, `system` and `sntp`.
-- In the platform repository, read at the pinned commit `c5439c51741bceb8f3327c11882dc3b58bbe2640`:
-  [`docs/choosing-an-api.md`](https://github.com/wonny-labs/crux-pilot/blob/c5439c51741bceb8f3327c11882dc3b58bbe2640/docs/choosing-an-api.md)
+- In the platform repository, read at the pinned commit `ea16f99f1416085e52bacfa69a22d09e4d057b73`:
+  [`docs/choosing-an-api.md`](https://github.com/wonny-labs/crux-pilot/blob/ea16f99f1416085e52bacfa69a22d09e4d057b73/docs/choosing-an-api.md)
   asks three questions in order (an OS or hardware facility, a platform service that Crux provides, the product's own
   behaviour) and sends each kind of code to a place, and
-  [`docs/composition-interfaces.md`](https://github.com/wonny-labs/crux-pilot/blob/c5439c51741bceb8f3327c11882dc3b58bbe2640/docs/composition-interfaces.md)
+  [`docs/composition-interfaces.md`](https://github.com/wonny-labs/crux-pilot/blob/ea16f99f1416085e52bacfa69a22d09e4d057b73/docs/composition-interfaces.md)
   describes the two routes to Zephyr for a product. That guidance is general. The Zephyr headers that this
   repository allows are the lists of its own boundary check.
 

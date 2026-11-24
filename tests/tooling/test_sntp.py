@@ -857,7 +857,7 @@ class SntpFindings(unittest.TestCase):
 
     def test_the_manifest_pins_the_approved_commit(self):
         manifest = (ROOT / "west.yml").read_text()
-        self.assertIn("revision: c5439c51741bceb8f3327c11882dc3b58bbe2640", manifest)
+        self.assertIn("revision: ea16f99f1416085e52bacfa69a22d09e4d057b73", manifest)
 
 
 if __name__ == "__main__":

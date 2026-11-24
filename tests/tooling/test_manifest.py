@@ -47,7 +47,7 @@ class ManifestIsOptionA(unittest.TestCase):
         # approved on 16 November 2026 and still contains the move of the crypto modules to
         # the Zephyr v4.4-branch revisions (wonny-labs/crux-pilot#416).
         revision = load_manifest()["projects"][0]["revision"]
-        self.assertEqual(revision, "c5439c51741bceb8f3327c11882dc3b58bbe2640")
+        self.assertEqual(revision, "ea16f99f1416085e52bacfa69a22d09e4d057b73")
 
     def test_every_pinned_crux_link_of_the_readme_uses_the_manifest_revision(self):
         revision = load_manifest()["projects"][0]["revision"]

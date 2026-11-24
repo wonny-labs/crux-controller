@@ -334,10 +334,11 @@ class BoardPage(Common, unittest.TestCase):
             self.assertIn(f"**{profile}**", body, profile)
 
     def test_the_run_list_records_the_crux_run_without_auto_attach(self):
-        # Crux's guide records one attach without --auto-attach, with a separate board Dev Container configuration.
+        # Crux's guide at the pin records the attach without --auto-attach in its Dev Container and the earlier
+        # runs with a separate board Dev Container configuration.
         body = norm(read(BOARD_PAGE))
-        self.assertIn("one usbipd attach on Windows with WSL2, without `--auto-attach`", body)
-        self.assertIn("a separate board Dev Container configuration", body)
+        self.assertIn("a usbipd attach without `--auto-attach`", body)
+        self.assertIn("an earlier, separate board Dev Container configuration", body)
         self.assertNotIn("with `--auto-attach`", body)
         self.assertIn("Not run: step 2 in the form of this page", body)
 
