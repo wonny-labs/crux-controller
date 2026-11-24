@@ -393,7 +393,8 @@ class ProbeAndCertificateHomes(unittest.TestCase):
 
     def test_troubleshooting_has_a_row_for_a_probe_that_is_not_found(self):
         rows = [line for line in read("docs/troubleshooting.md").splitlines()
-                if line.startswith("|") and "probe" in line.lower() and "usbipd attach" in line]
+                if line.startswith("|") and "probe" in line.lower() and "usbipd attach" in line
+                and "twice" not in line]
         self.assertEqual(1, len(rows), rows)
         self.assertIn("board-bring-up.md#2-connect-the-probe", rows[0])
         self.assertIn("board-bring-up.md#vs-code-tasks-and-debug-profiles", rows[0])
@@ -401,11 +402,29 @@ class ProbeAndCertificateHomes(unittest.TestCase):
     def test_the_probe_row_names_the_jlink_failures_of_a_missing_attach(self):
         # The messages are those of Crux's tutorial at the pin; the board tasks here are not run (board page).
         rows = [line for line in read("docs/troubleshooting.md").splitlines()
-                if line.startswith("|") and "probe" in line.lower() and "usbipd attach" in line]
+                if line.startswith("|") and "probe" in line.lower() and "usbipd attach" in line
+                and "twice" not in line]
         self.assertEqual(1, len(rows), rows)
         for message in ("`command exited with status 1: ... JLinkExe`", "`jlink: GDB Server Quit Unexpectedly`",
                         "`lsusb -d 1366:`", "not run here"):
             self.assertIn(message, rows[0], message)
+
+    def test_troubleshooting_has_a_row_for_a_probe_that_is_listed_twice_after_a_reattach(self):
+        # Symptom first; the steps were reported from a Windows PC and were not run in this repository.
+        rows = [line for line in read("docs/troubleshooting.md").splitlines()
+                if line.startswith("|") and "twice" in line]
+        self.assertEqual(1, len(rows), rows)
+        row = rows[0]
+        self.assertTrue(row.startswith("| after the probe is detached and attached again, `lsusb -d 1366:`"), row)
+        steps = ["`usbipd detach --busid <BUSID>`", "`wsl --shutdown`", "`usbipd attach --wsl --busid <BUSID>`",
+                 "`scripts/bootstrap.sh board-host`"]
+        for word in steps + ["`Cannot connect to the probe/programmer`", "sudo", "not in the Dev Container",
+                             "not run in this repository"]:
+            self.assertIn(word, row, word)
+        self.assertEqual(sorted(row.index(s) for s in steps), [row.index(s) for s in steps])
+        board = read("docs/troubleshooting.md")
+        self.assertGreater(board.index(row), board.index("## The board and the probe"))
+        self.assertLess(board.index(row), board.index("## Checks that fail locally"))
 
     def test_troubleshooting_has_a_row_for_missing_jlink_software(self):
         rows = [line for line in read("docs/troubleshooting.md").splitlines()
