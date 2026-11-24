@@ -51,6 +51,7 @@
       "extensions": [
         "llvm-vs-code-extensions.vscode-clangd",
         "ms-vscode.cmake-tools",
+        "ms-vscode.cpptools",
         "ms-python.python",
         "mcu-debug.debug-tracker-vscode",
         "mcu-debug.memory-view",
@@ -61,6 +62,7 @@
       ],
       "settings": {
         "python.defaultInterpreterPath": "/opt/crux-cache/venv/bin/python",
+        "C_Cpp.intelliSenseEngine": "disabled",
         "clangd.arguments": [
           "--query-driver=${env:ZEPHYR_SDK_INSTALL_DIR}/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gcc"
         ],

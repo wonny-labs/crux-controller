@@ -49,8 +49,8 @@ RUN --mount=type=bind,source=certs,target=/tmp/crux-certs \
 # Python from actions/setup-python), curl and sudo for the setup script, and clang-tidy-18 at the
 # version of the "Static analysis" job. update-ca-certificates adds the certificates of the first step
 # to the bundle when the base image had no ca-certificates before this step. For the editor: clangd-18 at
-# the same version, named clangd for the VS Code clangd extension, and bash-completion for the west Tab
-# completion that setup.sh writes.
+# the same version, named clangd for the VS Code clangd extension, bash-completion for the west Tab
+# completion that setup.sh writes, and gdb for the debugger of the VS Code C/C++ extension.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         bash-completion \
@@ -62,6 +62,7 @@ RUN apt-get update \
         curl \
         device-tree-compiler \
         file \
+        gdb \
         gperf \
         git \
         libmagic1 \

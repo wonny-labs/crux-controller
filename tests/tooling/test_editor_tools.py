@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 """The editor tools of the Dev Container: clangd for C code navigation, and west Tab completion in bash.
 
-clangd (the binary in the image and the VS Code extension) replaces the C/C++ extension, as in Crux's Dev
-Container; it reads the compile database that the board build of the VS Code task writes. The west completion
+clangd (the binary in the image and the VS Code extension) is the language server, as in Crux's Dev Container; it
+reads the compile database of the last board build of the VS Code task. The C/C++ extension is installed for its
+debugger (CMake Tools debugs with it) with its IntelliSense off, and gdb is in the image. The west completion
 script comes from the west of the virtual environment, which lives in the cache volume and not in the image, so
 .devcontainer/setup.sh writes it on every run into bash-completion's user folder. Nothing here starts VS Code,
 clangd or a container.
@@ -39,11 +40,18 @@ class Clangd(unittest.TestCase):
         self.assertIn("ln -sf /usr/bin/clangd-18 /usr/local/bin/clangd", step)
         self.assertLess(step.index("apt-get install"), step.index("ln -sf /usr/bin/clangd-18"))
 
-    def test_the_clangd_extension_replaces_the_cpp_extension(self):
+    def test_clangd_stays_the_language_server_next_to_the_cpp_extension(self):
+        # The C/C++ extension is there for its debugger. Its IntelliSense is off, the setting that the clangd
+        # extension asks for when both are installed, so clangd stays the language server.
         extensions = self.vscode["extensions"]
         self.assertIn("llvm-vs-code-extensions.vscode-clangd", extensions)
-        self.assertNotIn("ms-vscode.cpptools", extensions)
-        self.assertFalse([key for key in self.vscode["settings"] if key.startswith("C_Cpp")])
+        self.assertIn("ms-vscode.cpptools", extensions)
+        self.assertEqual("disabled", self.vscode["settings"]["C_Cpp.intelliSenseEngine"])
+        self.assertEqual(["C_Cpp.intelliSenseEngine"],
+                         [key for key in self.vscode["settings"] if key.startswith("C_Cpp")])
+
+    def test_the_image_installs_gdb(self):
+        self.assertRegex(apt_step(self.dockerfile), r"\sgdb\s")
 
     def test_clangd_asks_the_sdk_compiler_for_its_system_headers(self):
         arguments = self.vscode["settings"]["clangd.arguments"]
@@ -55,13 +63,16 @@ class Clangd(unittest.TestCase):
                          self.vscode["settings"]["[c]"]["editor.defaultFormatter"])
         self.assertTrue((ROOT / ".clang-format").is_file())
 
-    def test_clangd_reads_the_compile_database_of_the_board_build_of_the_vscode_task(self):
+    def test_clangd_reads_the_compile_database_of_the_last_board_build(self):
+        # The folder is the link that scripts/build-board.sh points at its last build, the one the profiles use.
         config = (ROOT / ".clangd").read_text()
         match = re.search(r"(?m)^  CompilationDatabase: (\S+)$", config)
         self.assertIsNotNone(match, config)
         self.assertIn("CompileFlags:", config)
         tasks = {t["label"]: t for t in json.loads((ROOT / ".vscode" / "tasks.json").read_text())["tasks"]}
-        self.assertIn(f"-d crux-controller/{match.group(1)} ", tasks["Build firmware"]["command"])
+        flash = tasks["Board: Flash"]
+        self.assertEqual(match.group(1), flash["args"][flash["args"].index("-d") + 1])
+        self.assertIn(match.group(1).split("/")[-1], (ROOT / "scripts" / "build-board.sh").read_text())
 
 
 class BashCompletion(unittest.TestCase):
