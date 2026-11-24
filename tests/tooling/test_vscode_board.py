@@ -389,6 +389,18 @@ class Docs(unittest.TestCase):
         # The management configuration needs the Mbed TLS group, which the Dev Container does not switch on.
         self.assertRegex(body, r"`management`[^.]*Mbed TLS group")
 
+    def test_the_board_page_has_one_table_of_the_build_optimisation(self):
+        # Only the board route: this repository has no Host preset and no native_sim application.
+        text = (ROOT / "docs" / "board-bring-up.md").read_text()
+        section = text[text.index("### VS Code tasks and debug profiles"):text.index("## The `net` image")]
+        self.assertEqual(1, section.count("| Build | Optimisation |"))
+        self.assertIn("| **Board: Build**, flashed by **Board: Flash** | Size (`-Os`), Zephyr's default |", section)
+        self.assertIn("A debug optimisation level for the board builds is not decided", section)
+        for other in ("native_sim", "host-debug", "Linux Host"):
+            self.assertNotIn(other, section, other)
+        # The table stands apart from the text around it (documentation-guidelines.md).
+        self.assertIn("\n\n| Build | Optimisation |\n", section)
+
     def test_no_current_file_names_an_old_task_profile_or_build_path(self):
         names = subprocess.check_output(["git", "-C", str(ROOT), "ls-files"], text=True).splitlines()
         current = [n for n in names

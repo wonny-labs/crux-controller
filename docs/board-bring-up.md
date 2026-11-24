@@ -144,9 +144,18 @@ The other tasks and the profiles use the image behind the link, so one set serve
 | **Board: Attach (external)** | Like **Board: Attach**, without the probe check, through a GDB server that VS Code does not start, at `localhost:2331`, for example a `JLinkGDBServer` that you start in a terminal of the container |
 
 **Board: Flash** runs the probe check in its own command. **Board: Debug** and **Board: Attach** run it first as
-the hidden task **Board: Check probe**, because a failing `preLaunchTask` stops the session. When no J-Link (USB
+the hidden task **Board: Check probe** (for **Board: Debug**, before **Board: Build**), because a failing
+`preLaunchTask` stops the session. When no J-Link (USB
 vendor ID `1366`) is visible in the container, the check stops with `No J-Link probe found` and the
 `usbipd attach` command of [2. Connect the probe](#2-connect-the-probe).
+
+| Build | Optimisation |
+|---|---|
+| **Board: Build**, flashed by **Board: Flash** | Size (`-Os`), Zephyr's default |
+
+`scripts/build-board.sh` and the configuration files set no optimisation level, so Zephyr's default applies.
+A debug optimisation level for the board builds is not decided: **Board: Debug** and the attach profiles debug
+the `-Os` image of **Board: Build**.
 
 **Board: Debug** flashes the board, so it is a physical operation like **Board: Flash** and needs the
 authorisation at the top of this page. The attach profiles do not build: the image on the board must be the one
