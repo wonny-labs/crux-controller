@@ -23,6 +23,7 @@ DEVCONTAINER = ROOT / ".devcontainer"
 WORKFLOWS = ROOT / ".github" / "workflows"
 CI = WORKFLOWS / "ci.yml"
 WORKFLOW = WORKFLOWS / "devcontainer.yml"
+WEST_UPDATE = "west update --narrow -o=--progress"
 
 
 def read(path):
@@ -477,7 +478,7 @@ class SetupScript(unittest.TestCase):
     def test_west_init_and_update_run_only_when_the_workspace_is_not_initialised(self):
         guard = self.text.index('if [[ ! -d "$workspace/.west"')
         init = self.text.index("west init -l crux-controller", guard)
-        update = self.text.index("west update\n", init)
+        update = self.text.index(f"{WEST_UPDATE}\n", init)
         self.assertLess(guard, init)
         self.assertLess(init, update)
 
@@ -489,7 +490,7 @@ class SetupScript(unittest.TestCase):
         self.assertIn('-f "$pending"', condition)
         init = self.text.index("west init -l crux-controller", guard)
         touch = self.text.index('touch "$pending"', init)
-        update = self.text.index("west update\n", touch)
+        update = self.text.index(f"{WEST_UPDATE}\n", touch)
         remove = self.text.index('rm -f "$pending"', update)
         self.assertLess(init, touch)
         self.assertLess(update, remove)
@@ -719,6 +720,12 @@ class SetupRuns(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual("", result.stdout, "setup.sh must keep the standard output clean")
         return result
+
+    def test_the_first_update_fetches_narrowly_and_shows_git_progress(self):
+        # --narrow fetches only the pinned revisions; -o=--progress passes --progress to git fetch, so a
+        # long first fetch shows its progress instead of looking stuck (west 1.4.0 options).
+        self.ok()
+        self.assertEqual([WEST_UPDATE], self.fixture.calls("west update"))
 
     def test_a_fresh_workspace_is_set_up_in_the_order_of_the_workload_job(self):
         self.ok()

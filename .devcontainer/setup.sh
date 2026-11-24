@@ -180,7 +180,8 @@ if [[ ! -d "$workspace/.west" || ! -f "$workspace/.west/config" || ! -d "$worksp
         fi
         touch "$pending"
         say "west update (the first run fetches several GiB and takes a long time)"
-        west update
+        # --narrow fetches only the pinned revisions; -o=--progress makes git fetch show its progress.
+        west update --narrow -o=--progress
         rm -f "$pending"
     )
 else

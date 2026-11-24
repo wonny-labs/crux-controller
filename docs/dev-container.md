@@ -286,7 +286,8 @@ are exported if you need them: this route passes them on. The first start builds
 `.devcontainer/setup.sh`,
 which does `west init -l crux-controller` and `west update` only when the workspace does not exist yet, installs the
 Python requirements of Zephyr and runs `west sdk install` for the SDK version of the CI jobs. That takes a long time
-and downloads several GiB; watch the creation log. Later starts and rebuilds find all of it already there. If the
+and downloads several GiB; watch the creation log. The setup runs `west update --narrow -o=--progress`, which
+fetches only the pinned revisions and prints git's fetch progress, so a long fetch does not look stuck. Later starts and rebuilds find all of it already there. If the
 creation fails or is interrupted, run `bash .devcontainer/setup.sh` in a terminal of the container: it carries on,
 and it runs `west update` again if the first one did not finish. After a change of the pin in `west.yml`, run
 `west update` by hand: the setup script does not run it again (see

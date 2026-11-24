@@ -14,7 +14,7 @@ import pathlib
 import re
 import unittest
 
-from test_devcontainer import SetupFixture
+from test_devcontainer import WEST_UPDATE, SetupFixture
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 DEVCONTAINER = ROOT / ".devcontainer"
@@ -101,7 +101,7 @@ class BashCompletion(unittest.TestCase):
         result = self.run_setup()
         self.assertNotIn("warning", result.stderr)
         log = self.fixture.calls("west")
-        self.assertLess(log.index("west update"), log.index("west completion bash"))
+        self.assertLess(log.index(WEST_UPDATE), log.index("west completion bash"))
 
     def test_it_is_written_again_on_every_run_after_the_tools_are_installed(self):
         self.run_setup()
