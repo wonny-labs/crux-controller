@@ -574,6 +574,19 @@ init)
     if [ "${FAKE_INIT_FAIL:-}" = 1 ]; then exit 1; fi
     echo "[manifest]" >.west/config
     ;;
+completion)
+    # `completion` is a Zephyr extension command: west knows it only in a workspace after west update.
+    if [ ! -d zephyr/scripts ]; then
+        echo "west: unknown command \"completion\"" >&2
+        exit 1
+    fi
+    if [ "${FAKE_COMPLETION_FAIL:-}" = 1 ]; then
+        echo "# partial"
+        echo "west: completion failed" >&2
+        exit 1
+    fi
+    echo "# west completion script for $2"
+    ;;
 update)
     if [ "${FAKE_UPDATE_FAIL:-}" = 1 ]; then exit 1; fi
     mkdir -p zephyr/scripts modules
@@ -727,7 +740,8 @@ class SetupRuns(unittest.TestCase):
         before = self.fixture.calls()
         result = self.ok()
         new = self.fixture.calls()[len(before):]
-        self.assertEqual(["west --version"], new)
+        # Only the offline west completion script is written again (test_editor_tools.py).
+        self.assertEqual(["west completion bash", "west --version"], new)
         self.assertIn("the workspace is initialised", result.stderr)
 
     def test_the_sdk_directory_without_the_install_marker_is_removed_and_installed_again(self):

@@ -27,6 +27,9 @@ image pinned by digest), `.devcontainer/requirements-tools.txt` (the pinned Pyth
 `all`, the default), `.devcontainer/setup.sh` (the workspace and SDK setup it calls), `.devcontainer/check-host.sh`
 (the check of the folder on the host) and `scripts/dev-shell.sh` (the same without VS Code). The versions follow `ci.yml`, and a tooling test
 compares them. `.gitattributes` pins LF line ends, so that a clone checks the scripts out with LF on every platform.
+For C code, VS Code uses the clangd extension with the image's `clangd-18`, which reads the `compile_commands.json`
+of `build/net` that the task **Build firmware** writes (set in `.clangd`), and `setup.sh` writes the bash Tab
+completion of `west` on every run.
 
 `.devcontainer/check-host.sh` checks the folder layout on the host before the container is created. VS Code runs it
 as the `initializeCommand` of `devcontainer.json`, on the host side, so it needs bash there: open the folder from

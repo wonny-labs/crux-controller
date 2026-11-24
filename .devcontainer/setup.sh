@@ -202,6 +202,23 @@ if [[ "$(cat "$stamp.zephyr" 2>/dev/null || true)" != "$zephyr_hash" ]]; then
     printf '%s\n' "$zephyr_hash" >"$stamp.zephyr"
 fi
 
+# Tab completion for west in bash (`west completion bash`). `completion` is a Zephyr extension command,
+# so west knows it only in the workspace after west update; this step therefore comes after the workspace
+# and the Zephyr requirements. The west of the virtual environment is in the cache volume, not in the
+# image, so the script is written here on every run, into the user folder that bash-completion loads on
+# the first Tab after `west`. No shell start file is edited. The script is written to a temporary file and
+# moved into place, so a failure keeps the previous file; it is only a convenience, so a failure prints a
+# warning and the setup goes on.
+step "the west Tab completion"
+completions="${BASH_COMPLETION_USER_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/bash-completion}/completions"
+if mkdir -p "$completions" && west completion bash >"$completions/west.tmp" \
+    && mv -f "$completions/west.tmp" "$completions/west"; then
+    :
+else
+    rm -f "$completions/west.tmp"
+    say "warning: the west Tab completion could not be written to $completions/west; west works without it"
+fi
+
 # 4. The Zephyr SDK with the arm-zephyr-eabi toolchain, as the workload job installs it. GH_TOKEN is
 # optional: it only avoids GitHub's rate limit for anonymous requests. The install is complete when
 # the marker exists, and the marker is written only after west sdk install returned. The compiler is
