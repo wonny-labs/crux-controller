@@ -51,7 +51,7 @@ and the markers of a home directory.
 
 `.devcontainer/setup.sh` prints to the standard error stream, also what pip, west and git print, so that a command
 which `scripts/dev-shell.sh` runs after it keeps a clean standard output. It prints a `setup:` line for each piece of work
-that a step does, nothing for a step that is already done, and when a step fails it prints `setup: failed during <step>; rerun: bash .devcontainer/setup.sh`. It does again what an
+that a step does, almost nothing for a step that is already done (the west workspace step reminds you to run `west update` after the pin in `west.yml` moves), and when a step fails it prints `setup: failed during <step>; rerun: bash .devcontainer/setup.sh`. It does again what an
 interrupt left half done: a virtual environment without pip, a `.west` folder from an interrupted `west init`, and
 an SDK folder without its install marker.
 

@@ -1605,6 +1605,13 @@ class Documentation(unittest.TestCase):
         self.assertIn("x86_64", line)
         self.assertNotIn("any host", line)
 
+    def test_the_rerun_output_names_the_west_update_reminder(self):
+        # On a rerun setup.sh still prints the reminder to run west update after a pin move (SetupRuns).
+        text = " ".join(self.ref.split())
+        self.assertNotIn(", nothing for a step that is already done", text)
+        self.assertIn("almost nothing for a step that is already done", text)
+        self.assertIn("reminds you to run `west update` after the pin in `west.yml` moves", text)
+
     def test_the_certificate_route_names_the_buildkit_bind_mount(self):
         text = " ".join(self.ref.split())
         self.assertIn("BuildKit bind mount", text)
