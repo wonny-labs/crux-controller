@@ -45,7 +45,9 @@ configuration in the same `build/net` ([VS Code tasks and debug profiles](#vs-co
 
 The J-Link software runs in the Dev Container, so the probe must reach Linux first. On Windows with WSL2 it reaches
 WSL2 through usbipd-win (<https://github.com/dorssel/usbipd-win>), as Microsoft describes in
-[Connect USB devices](https://learn.microsoft.com/en-us/windows/wsl/connect-usb). In PowerShell, `usbipd list`
+[Connect USB devices](https://learn.microsoft.com/en-us/windows/wsl/connect-usb).
+First check with `wsl -l -v` in PowerShell that the distribution shows `VERSION` `2`, because WSL 1 has no USB passthrough ([Comparing WSL versions](https://learn.microsoft.com/en-us/windows/wsl/compare-versions)).
+In PowerShell, `usbipd list`
 shows each USB device with its `BUSID` and `STATE`; the J-Link has vendor ID `1366`. Run `bind` only when the STATE
 is `Not shared`, in an administrator PowerShell; the share persists across reboots. Skip it when the STATE is
 `Shared`, and with `Attached` there is nothing to do. `attach` needs no administrator:

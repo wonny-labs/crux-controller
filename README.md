@@ -45,7 +45,6 @@ it, and [Adding a capability](docs/adding-a-capability.md) shows how a configura
 
 | You want to | Read |
 |---|---|
-| Find any page by task | [Documentation map](docs/README.md) |
 | Understand the source trees, the zones, the threads and how Crux is consumed | [Architecture](docs/architecture.md), with the [glossary](docs/glossary.md) |
 | Know what is built and what has run on a board | [Roadmap](docs/roadmap.md) |
 | Make a first change, from a branch to a pull request | [First change](docs/first-change.md), then [CONTRIBUTING.md](CONTRIBUTING.md) |
@@ -53,6 +52,7 @@ it, and [Adding a capability](docs/adding-a-capability.md) shows how a configura
 | Review a change | [Reviewing](docs/reviewing.md) |
 | Run an image on a board | [Board bring-up](docs/board-bring-up.md) |
 | Build a product of your own on Crux | Crux's guides at the pinned revision: [Choosing an API](https://github.com/wonny-labs/crux-pilot/blob/ea16f99f1416085e52bacfa69a22d09e4d057b73/docs/choosing-an-api.md), [Composition interfaces](https://github.com/wonny-labs/crux-pilot/blob/ea16f99f1416085e52bacfa69a22d09e4d057b73/docs/composition-interfaces.md), the [Product Composition Guide](https://github.com/wonny-labs/crux-pilot/blob/ea16f99f1416085e52bacfa69a22d09e4d057b73/docs/product-composition.md) with its [product template](https://github.com/wonny-labs/crux-pilot/blob/ea16f99f1416085e52bacfa69a22d09e4d057b73/templates/product/README.md), and [Component readiness](https://github.com/wonny-labs/crux-pilot/blob/ea16f99f1416085e52bacfa69a22d09e4d057b73/docs/component-readiness.md) |
+| Find any other page by task | [Documentation map](docs/README.md) |
 
 ## Status
 

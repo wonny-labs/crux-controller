@@ -21,6 +21,20 @@ Never delete a fact that a reader needs and that has no other home: move it to a
 Write the current rule, not the change: "The handle is invalid after close", not a sentence about what a
 release dropped.
 
+## Paragraphs and line breaks
+
+A paragraph covers one idea and stays short, about five sentences at most.
+Three or more parallel items become a list, steps are numbered, and comparisons go in a table.
+
+New or edited text puts one sentence on each line ([semantic line breaks](https://sembr.org/)), so that a diff shows which sentence changed.
+Do not reflow text that a change does not otherwise touch.
+
+In [CommonMark](https://spec.commonmark.org/0.31.2/#paragraphs) a blank line ends a paragraph and consecutive lines join into one:
+
+- Put one blank line between paragraphs and around every heading, list, table and fenced code block.
+- Never put two blank lines in a row.
+- Do not use `<br>` or other HTML for spacing.
+
 ## Page types and homes
 
 | Type | Pages |

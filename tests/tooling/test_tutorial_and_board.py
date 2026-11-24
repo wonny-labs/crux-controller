@@ -398,6 +398,38 @@ class ProbeAndCertificateHomes(unittest.TestCase):
         self.assertIn("board-bring-up.md#2-connect-the-probe", rows[0])
         self.assertIn("board-bring-up.md#vs-code-tasks-and-debug-profiles", rows[0])
 
+    def test_the_probe_row_names_the_jlink_failures_of_a_missing_attach(self):
+        # The messages are those of Crux's tutorial at the pin; the board tasks here are not run (board page).
+        rows = [line for line in read("docs/troubleshooting.md").splitlines()
+                if line.startswith("|") and "probe" in line.lower() and "usbipd attach" in line]
+        self.assertEqual(1, len(rows), rows)
+        for message in ("`command exited with status 1: ... JLinkExe`", "`jlink: GDB Server Quit Unexpectedly`",
+                        "`lsusb -d 1366:`", "not run here"):
+            self.assertIn(message, rows[0], message)
+
+    def test_troubleshooting_has_a_row_for_missing_jlink_software(self):
+        rows = [line for line in read("docs/troubleshooting.md").splitlines()
+                if line.startswith("|") and "`required program JLinkExe not found`" in line]
+        self.assertEqual(1, len(rows), rows)
+        row = rows[0]
+        for word in ("`spawn JLinkGDBServer ENOENT`", "**Board: Flash**", "**Board: Debug**",
+                     "bash scripts/bootstrap.sh status", "Rebuild Container Without Cache",
+                     "board-bring-up.md#3-open-the-dev-container-with-the-probe", "not run here"):
+            self.assertIn(word, row, word)
+        self.assertNotIn("usbipd attach", row)
+        board = read("docs/troubleshooting.md")
+        section_start = board.index("## The board and the probe")
+        self.assertGreater(board.index(row), section_start)
+
+    def test_the_probe_step_checks_wsl2_before_usbipd(self):
+        body = read(BOARD_PAGE)
+        step = body[body.index("## 2. Connect the probe"):body.index("## 3.")]
+        prose = norm(without_code(step))
+        self.assertIn("`wsl -l -v`", prose)
+        self.assertIn("`VERSION` `2`", prose)
+        self.assertIn("https://learn.microsoft.com/en-us/windows/wsl/compare-versions", prose)
+        self.assertLess(step.index("wsl -l -v"), step.index("usbipd list"))
+
     def test_the_certificate_symptom_is_generic(self):
         # A certificate error breaks every download, not only the J-Link one.
         rows = [line for line in read("docs/troubleshooting.md").splitlines()
