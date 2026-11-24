@@ -70,8 +70,9 @@ class Clangd(unittest.TestCase):
         self.assertIsNotNone(match, config)
         self.assertIn("CompileFlags:", config)
         tasks = {t["label"]: t for t in json.loads((ROOT / ".vscode" / "tasks.json").read_text())["tasks"]}
-        flash = tasks["Board: Flash"]
-        self.assertEqual(match.group(1), flash["args"][flash["args"].index("-d") + 1])
+        # Board: Flash is one bash command that ends in `exec west flash -d <folder> ...`.
+        flash = tasks["Board: Flash"]["args"][-1].split("exec west flash", 1)[1].split()
+        self.assertEqual(match.group(1), flash[flash.index("-d") + 1])
         self.assertIn(match.group(1).split("/")[-1], (ROOT / "scripts" / "build-board.sh").read_text())
 
 

@@ -137,11 +137,16 @@ The other tasks and the profiles use the image behind the link, so one set serve
 | Task or profile | What it does |
 |---|---|
 | **Board: Build** | Builds the configuration you pick, incrementally after the first build |
-| **Board: Flash** | `west flash -d build/mimxrt1060_evk_B_qspi--current --runner jlink`: flashes the last board build |
+| **Board: Flash** | Checks for the probe, then runs `west flash -d build/mimxrt1060_evk_B_qspi--current --runner jlink` in the same process: flashes the last board build. Without a probe it stops before `west flash` |
 | **Board: Clean** | Deletes every `build/<configuration>` and the link; `build/host` and `twister-out` stay |
-| **Board: Debug** | Runs **Board: Build**, then flashes the image through the J-Link GDB Server in the container, resets the board and stops at `main` |
-| **Board: Attach** | Connects through the J-Link GDB Server in the container to the image that runs, without build, reset or download. Connecting may halt the target |
-| **Board: Attach (external)** | Like **Board: Attach**, through a GDB server that VS Code does not start, at `localhost:2331`, for example a `JLinkGDBServer` that you start in a terminal of the container |
+| **Board: Debug** | Checks for the probe and runs **Board: Build**, then flashes the image through the J-Link GDB Server in the container, resets the board and stops at `main` |
+| **Board: Attach** | Checks for the probe, then connects through the J-Link GDB Server in the container to the image that runs, without build, reset or download. Connecting may halt the target |
+| **Board: Attach (external)** | Like **Board: Attach**, without the probe check, through a GDB server that VS Code does not start, at `localhost:2331`, for example a `JLinkGDBServer` that you start in a terminal of the container |
+
+**Board: Flash** runs the probe check in its own command. **Board: Debug** and **Board: Attach** run it first as
+the hidden task **Board: Check probe**, because a failing `preLaunchTask` stops the session. When no J-Link (USB
+vendor ID `1366`) is visible in the container, the check stops with `No J-Link probe found` and the
+`usbipd attach` command of [2. Connect the probe](#2-connect-the-probe).
 
 **Board: Debug** flashes the board, so it is a physical operation like **Board: Flash** and needs the
 authorisation at the top of this page. The attach profiles do not build: the image on the board must be the one

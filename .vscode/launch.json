@@ -12,7 +12,7 @@
       "interface": "swd",
       "serverArgs": ["-speed", "auto"],
       "gdbPath": "${env:ZEPHYR_SDK_INSTALL_DIR}/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gdb",
-      "preLaunchTask": "Board: Build",
+      "preLaunchTask": "Board: Check probe and build",
       "runToEntryPoint": "main"
     },
     {
@@ -25,7 +25,8 @@
       "device": "MIMXRT1062xxx6A",
       "interface": "swd",
       "serverArgs": ["-speed", "auto"],
-      "gdbPath": "${env:ZEPHYR_SDK_INSTALL_DIR}/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gdb"
+      "gdbPath": "${env:ZEPHYR_SDK_INSTALL_DIR}/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gdb",
+      "preLaunchTask": "Board: Check probe"
     },
     {
       "name": "Board: Attach (external)",

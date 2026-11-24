@@ -4,7 +4,8 @@
 The tasks are named by the standard verbs with the target first (Board: Build, Board: Flash, Board: Clean). Board:
 Build runs scripts/build-board.sh for one build configuration of app/, which points the link
 build/mimxrt1060_evk_B_qspi--current at the folder it has just built, so the profiles and Board: Flash use the last
-board build. This repository has no native_sim application to build or run (its native_sim targets are the Twister
+board build. Board: Flash checks for the J-Link probe and runs west flash in one process, so a missing probe
+stops it; Board: Debug and Board: Attach run the same check as the hidden preLaunchTask. This repository has no native_sim application to build or run (its native_sim targets are the Twister
 scenarios of tests/native_sim), so there is no native_sim task or profile, and CMake Tools covers tests/host, so
 there is no Host task. Nothing here starts VS Code, west, a probe or a board: the script runs with a stub west in a
 temporary folder.
@@ -30,6 +31,10 @@ BOARD = "mimxrt1060_evk@B//qspi"
 LINK = "build/mimxrt1060_evk_B_qspi--current"
 ELF = f"${{workspaceFolder}}/{LINK}/zephyr/zephyr.elf"
 TASKS = ["Board: Build", "Board: Flash", "Board: Clean"]
+HIDDEN = ["Board: Check probe", "Board: Check probe and build"]
+PROBE_CHECK = ("grep -qsx 1366 /sys/bus/usb/devices/*/idVendor || { echo 'No J-Link probe found. Attach it to WSL2: "
+               "usbipd attach --wsl --busid <BUSID> (docs/board-bring-up.md, 2. Connect the probe).' >&2; exit 1; }")
+FLASH = f"exec west flash -d {LINK} --runner jlink"
 PROFILES = ["Board: Debug", "Board: Attach", "Board: Attach (external)"]
 OLD_NAMES = ["Build firmware", "Board: Build and flash", "Board: Flash and run to main", "Board: Attach (no reset)",
              "crux-controller/build/net"]
@@ -55,7 +60,7 @@ def budget_build():
 
 
 def text_of(task):
-    return " ".join([task["command"], *task.get("args", [])])
+    return " ".join([task.get("command", ""), *task.get("args", [])])
 
 
 class LaunchProfiles(unittest.TestCase):
@@ -84,18 +89,24 @@ class LaunchProfiles(unittest.TestCase):
             self.assertEqual("swd", profile["interface"])
             self.assertEqual(["-speed", "auto"], profile["serverArgs"])
 
-    def test_debug_builds_first_then_downloads_and_runs_to_main(self):
+    def test_debug_checks_the_probe_builds_then_downloads_and_runs_to_main(self):
         profile = self.by_name["Board: Debug"]
         self.assertEqual("launch", profile["request"])
-        self.assertEqual("Board: Build", profile["preLaunchTask"])
+        self.assertEqual("Board: Check probe and build", profile["preLaunchTask"])
         self.assertEqual("main", profile["runToEntryPoint"])
 
     def test_the_attach_profiles_neither_build_reset_nor_download(self):
         for name in ("Board: Attach", "Board: Attach (external)"):
             profile = self.by_name[name]
             self.assertEqual("attach", profile["request"])
-            for key in ("preLaunchTask", "runToEntryPoint", "overrideLaunchCommands", "overrideResetCommands"):
+            for key in ("runToEntryPoint", "overrideLaunchCommands", "overrideResetCommands"):
                 self.assertNotIn(key, profile, name)
+
+    def test_attach_checks_the_probe_first_and_attach_external_checks_nothing(self):
+        # A failing preLaunchTask stops the debug session before the GDB server starts.
+        self.assertEqual("Board: Check probe", self.by_name["Board: Attach"]["preLaunchTask"])
+        # The external GDB server may run where the probe is, so VS Code checks nothing.
+        self.assertNotIn("preLaunchTask", self.by_name["Board: Attach (external)"])
 
     def test_attach_external_uses_a_gdb_server_that_vs_code_does_not_start(self):
         profile = self.by_name["Board: Attach (external)"]
@@ -115,9 +126,12 @@ class Tasks(unittest.TestCase):
         cls.document = load(VSCODE / "tasks.json")
         cls.tasks = {t["label"]: t for t in cls.document["tasks"]}
 
-    def test_exactly_the_three_board_tasks(self):
-        self.assertEqual(TASKS, [t["label"] for t in self.document["tasks"]])
+    def test_exactly_the_three_board_tasks_and_the_two_hidden_checks(self):
+        self.assertEqual(TASKS, [t["label"] for t in self.document["tasks"] if not t.get("hide")])
+        self.assertEqual(HIDDEN, [t["label"] for t in self.document["tasks"] if t.get("hide")])
         for task in self.tasks.values():
+            if "command" not in task:
+                continue  # Board: Check probe and build only runs two tasks in turn.
             with self.subTest(task["label"]):
                 self.assertEqual("process", task["type"])
                 self.assertEqual("${workspaceFolder}", task["options"]["cwd"])
@@ -138,14 +152,29 @@ class Tasks(unittest.TestCase):
         self.assertEqual(list(budget_rows()), inputs[0]["options"])
         self.assertEqual("net", inputs[0]["default"])
 
-    def test_flash_flashes_the_last_board_build_with_the_jlink_runner(self):
+    def test_flash_checks_the_probe_then_flashes_the_last_board_build_in_one_process(self):
+        # One bash process: a dependsOn task that fails does not stop the task that depends on it.
         task = self.tasks["Board: Flash"]
-        self.assertEqual("west", task["command"])
-        self.assertEqual(["flash", "-d", LINK, "--runner", "jlink"], task["args"])
+        self.assertEqual("bash", task["command"])
+        self.assertEqual(["-c", f"{PROBE_CHECK}; {FLASH}"], task["args"])
         self.assertNotIn("dependsOn", task)
+        # No "Executing task" line above the output.
+        self.assertIs(False, task["presentation"]["echo"])
         # No fixed speed (the runner uses auto) and no mass erase.
         self.assertNotIn("--speed", text_of(task))
         self.assertNotIn("--erase", text_of(task))
+
+    def test_the_hidden_check_stops_without_a_probe(self):
+        task = self.tasks["Board: Check probe"]
+        self.assertEqual("bash", task["command"])
+        self.assertEqual(["-c", PROBE_CHECK], task["args"])
+        self.assertNotIn("west", PROBE_CHECK)
+
+    def test_the_hidden_check_and_build_runs_the_check_then_the_build(self):
+        task = self.tasks["Board: Check probe and build"]
+        self.assertEqual(["Board: Check probe", "Board: Build"], task["dependsOn"])
+        self.assertEqual("sequence", task["dependsOrder"])
+        self.assertNotIn("command", task)
 
     def test_clean_runs_the_clean_of_the_script(self):
         task = self.tasks["Board: Clean"]
@@ -161,6 +190,45 @@ class Tasks(unittest.TestCase):
     def test_no_host_or_native_sim_task(self):
         for label in self.tasks:
             self.assertTrue(label.startswith("Board: "), label)
+
+
+class FlashTask(unittest.TestCase):
+    """The command of Board: Flash, run by bash with a stub west and a stand-in for /sys/bus/usb/devices."""
+
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        base = pathlib.Path(self.temporary.name)
+        self.devices = base / "devices"
+        self.devices.mkdir()
+        self.stubs = base / "stubs"
+        self.stubs.mkdir()
+        self.log = base / "west.log"
+        west = self.stubs / "west"
+        west.write_text(f'#!/bin/sh\nprintf "%s\\n" "$@" > "{self.log}"\n')
+        west.chmod(0o755)
+
+    def run_flash(self):
+        tasks = {t["label"]: t for t in load(VSCODE / "tasks.json")["tasks"]}
+        script = tasks["Board: Flash"]["args"][1].replace("/sys/bus/usb/devices", str(self.devices))
+        env = dict(os.environ, PATH=f"{self.stubs}:{os.environ['PATH']}")
+        return subprocess.run(["bash", "-c", script], capture_output=True, text=True, env=env)
+
+    def test_without_a_probe_it_stops_before_west_flash(self):
+        (self.devices / "1-1").mkdir()
+        (self.devices / "1-1" / "idVendor").write_text("0bda\n")
+        result = self.run_flash()
+        self.assertEqual(1, result.returncode)
+        self.assertIn("No J-Link probe found", result.stderr)
+        self.assertIn("usbipd attach --wsl --busid <BUSID>", result.stderr)
+        self.assertFalse(self.log.exists())
+
+    def test_with_a_probe_it_runs_west_flash(self):
+        (self.devices / "1-2").mkdir()
+        (self.devices / "1-2" / "idVendor").write_text("1366\n")
+        result = self.run_flash()
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(["flash", "-d", LINK, "--runner", "jlink"], self.log.read_text().splitlines())
 
 
 class BuildBoardScript(unittest.TestCase):
@@ -315,6 +383,9 @@ class Docs(unittest.TestCase):
         self.assertIn("scripts/build-board.sh", body)
         self.assertIn(LINK, body)
         self.assertRegex(body, r"\*\*Board: Debug\*\*[^.]*flashes")
+        # Board: Flash and the two J-Link profiles stop without a probe, with the message of the check.
+        self.assertIn("No J-Link probe found", body)
+        self.assertIn("**Board: Check probe**", body)
         # The management configuration needs the Mbed TLS group, which the Dev Container does not switch on.
         self.assertRegex(body, r"`management`[^.]*Mbed TLS group")
 

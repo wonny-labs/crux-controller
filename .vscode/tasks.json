@@ -13,10 +13,14 @@
     {
       "label": "Board: Flash",
       "type": "process",
-      "command": "west",
-      "args": ["flash", "-d", "build/mimxrt1060_evk_B_qspi--current", "--runner", "jlink"],
+      "command": "bash",
+      "args": [
+        "-c",
+        "grep -qsx 1366 /sys/bus/usb/devices/*/idVendor || { echo 'No J-Link probe found. Attach it to WSL2: usbipd attach --wsl --busid <BUSID> (docs/board-bring-up.md, 2. Connect the probe).' >&2; exit 1; }; exec west flash -d build/mimxrt1060_evk_B_qspi--current --runner jlink"
+      ],
       "options": { "cwd": "${workspaceFolder}" },
-      "problemMatcher": []
+      "problemMatcher": [],
+      "presentation": { "echo": false }
     },
     {
       "label": "Board: Clean",
@@ -25,6 +29,25 @@
       "args": ["scripts/build-board.sh", "--clean"],
       "options": { "cwd": "${workspaceFolder}" },
       "group": "clean",
+      "problemMatcher": []
+    },
+    {
+      "label": "Board: Check probe",
+      "hide": true,
+      "type": "process",
+      "command": "bash",
+      "args": [
+        "-c",
+        "grep -qsx 1366 /sys/bus/usb/devices/*/idVendor || { echo 'No J-Link probe found. Attach it to WSL2: usbipd attach --wsl --busid <BUSID> (docs/board-bring-up.md, 2. Connect the probe).' >&2; exit 1; }"
+      ],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Board: Check probe and build",
+      "hide": true,
+      "dependsOn": ["Board: Check probe", "Board: Build"],
+      "dependsOrder": "sequence",
       "problemMatcher": []
     }
   ],
