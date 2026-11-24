@@ -1,114 +1,42 @@
 # Board route for the RT1060-EVKB Rev B
 
-**Untested on hardware.** This page describes a route from a build to a run of this firmware on the NXP
-RT1060-EVKB Rev B: the probe attached to WSL2 with usbipd, the Dev Container with the SEGGER J-Link software, a
-read-only compare of the flash first, then `west flash` and `west debug` with the J-Link runner. Nobody has
-followed this route with this repository's firmware on any board. The only board runs this repository records
-are the two `net` runs in [docs/findings/s2-first-board-run.md](findings/s2-first-board-run.md); they followed a
-gated procedure with another tool (a target test driver of `crux-pilot`), not this route. The probe, container
-and host steps are Crux's, and [Crux's board guide](https://github.com/wonny-labs/crux-pilot/blob/c5439c51741bceb8f3327c11882dc3b58bbe2640/docs/board-jlink-usbipd.md) says what has run there. Read the
-[roadmap](roadmap.md) for what has run here, and the [glossary](glossary.md) for the terms.
+This page is for running an image of this repository on the NXP RT1060-EVKB Rev B. The switches, probe, flash,
+debug and recovery are on the Crux board pages; this page holds only what is specific to this repository: its
+images, their build commands, the Dev Container with the J-Link software and the network and log of the `net`
+image. The [glossary](glossary.md) defines the terms.
 
 **Authorisation.** Physical programming, reset and any other operation on the board need the project
 owner's explicit authorisation for each task (for example one run of one image), a verified target, probe and flash configuration, and a
-safe setup. Nothing on this page grants that authorisation, and an earlier approval does not carry over to a
-new task. If the authorisation is missing or unclear, stop before touching the board.
+safe setup; an earlier approval does not carry over to a new task. If the authorisation is missing or unclear, stop
+before touching the board.
 
-Where this page states a fact, it names the file it comes from. Where it proposes something, it says
-"proposed". Every command that reaches the probe or the board is untested.
+## The route
 
-## The route at a glance
-
-1. [Build the image](#1-build-the-image) in the default Dev Container.
-2. [Attach the probe to WSL2](#2-attach-the-probe-to-wsl2) and prepare the Linux side (on a Linux machine, plug it in).
+1. [Build the image](#1-build-the-image) in the Dev Container.
+2. [Connect the probe](#2-connect-the-probe) as the Crux board pages describe.
 3. [Open the Dev Container with the probe](#3-open-the-dev-container-with-the-probe).
-4. [Compare the flash first, read-only](#4-compare-the-flash-first-read-only).
-5. [Flash the image](#5-flash-the-image) with `west flash` and the J-Link runner.
-6. [Observe the log and the network](#6-observe-the-log-and-the-network).
-7. [Debug, if needed](#7-debug-if-needed) with `west attach` or `west debug`.
-8. [Restore the accepted normal image](#8-restore-the-accepted-normal-image).
-9. [Write the run record](#9-write-the-run-record).
-
-The [stop conditions](#stop-conditions) apply to every step.
-
-## What is needed
-
-| Item | What the repository says |
-|---|---|
-| The board | NXP RT1060-EVKB Rev B. CI builds for `mimxrt1060_evk@B//qspi`. |
-| Power | Not recorded in this repository. |
-| Board settings (boot switches, jumpers) | Not recorded in this repository. Check the board documentation. Proposed: write the settings down in the run record before the first write. |
-| A J-Link probe | Proposed: a SEGGER J-Link on the board's debug port, either an external probe or the board's on-board debug probe if it runs J-Link firmware. The `net` runs programmed and reset the board through a probe; which probe and which tool is not recorded here. |
-| The UART log | The `workload` base image writes the log to LPUART1 at 115200 baud (`app/boards/mimxrt1060_evk_mimxrt1062_qspi.overlay`). Which cable and adapter carry that UART is not recorded here. |
-| Ethernet link | A cable from the board to the host peer. The `net` image has a static address and no DHCP client. |
-| A host peer | A host with the address `192.168.77.1` on a `/24` network, able to listen on TCP port `42420` and echo what it receives. The board's address is `192.168.77.2` (`app/conf/net.conf`, `app/Kconfig`, `docs/findings/s2-first-board-run.md`). |
-| On Windows | WSL2 with the Dev Container working ([Getting started](getting-started.md#set-up-the-dev-container)), and usbipd-win on the Windows side to pass the probe to WSL2. |
-| The J-Link software | Nothing to download by hand: the Dev Container build downloads the pinned version of the "J-Link Software and Documentation Pack" for Linux, 64-bit DEB installer, from SEGGER itself. A package you place or a copy that your organisation hosts overrides it ([step 3](#3-open-the-dev-container-with-the-probe)). The repository never commits it. |
-| The accepted normal image | The image that was on the board before and that is put back afterwards. The `net` note records its SHA-256 (`ad729684749181f0c26853828550187a2c3e60dbb28cf3ee2194a7984141e02f`) and size (107,872 bytes). Proposed: have it available before you start. |
-| A written run record | See [Write the run record](#9-write-the-run-record). The `net` runs kept host command output, probe logs, the raw capture and the peer record, privately, as the `net` note says. |
+4. [Flash, debug and restore](#4-flash-debug-and-restore) as the Crux board page describes.
 
 ## 1. Build the image
 
-Build in the default Dev Container ([the Tutorial](tutorial.md)), from the workspace folder. The `net` image is
-the one with recorded board runs. The `net build` job of `.github/workflows/ci.yml` builds it with the baseline
-gate required:
+The `net` image is the one with a board record. The `net build` job of `.github/workflows/ci.yml` builds it with the
+baseline gate required:
 
 ```bash
-bash scripts/dev-shell.sh bash -s <<'SH'
-set -euo pipefail
-cd /workspaces/ws
-west build -p always -b 'mimxrt1060_evk@B//qspi' -d crux-controller/build/net \
-  crux-controller/app -- -DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON \
-  "-DEXTRA_CONF_FILE=conf/workload.conf;conf/net.conf" \
-  "-DEXTRA_DTC_OVERLAY_FILE=boards/net.overlay"
-SH
+bash scripts/dev-shell.sh west build -p always -b 'mimxrt1060_evk@B//qspi' -d build/net app -- -DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON "-DEXTRA_CONF_FILE=conf/workload.conf;conf/net.conf" "-DEXTRA_DTC_OVERLAY_FILE=boards/net.overlay"
 ```
 
-The `workload` image, which has no network, is the build of [the Tutorial](tutorial.md#4-build-the-image-for-the-rt1060-evkb)
-(`crux-controller/build/workload`). CI uploads no image, and a tooling test fails if a workflow uploads an artifact, so
-the image is built where the board is. For the `net` runs, the image was approved by its SHA-256 hash
-(`e7c588c79c31d113ef3b0464731f17dfb4cc453874831b8bc20f9dd7da55b56c`, 103,180 bytes, at the source the `net` note
-names), a local rebuild gave that hash and two local builds were byte-identical. Proposed: do the same, and stop
-if the hash of the image to be programmed is not the approved one. From the workspace folder:
+The image is `build/net/zephyr/zephyr.bin`, with `zephyr.elf` and `zephyr.meta` next to it. The `workload` image,
+which has no network, is the build of [the Tutorial](tutorial.md#4-build-the-image-for-the-rt1060-evkb). CI uploads
+no image, so the image is built where the board is. The VS Code tasks **Build firmware** and **Board: Build and
+flash** in [.vscode/tasks.json](../.vscode/tasks.json) run from the workspace folder (`-d crux-controller/build/net`)
+and write the same `build/net`.
 
-```bash
-sha256sum crux-controller/build/net/zephyr/zephyr.bin
-```
+## 2. Connect the probe
 
-Should show: `zephyr.bin` and `zephyr.meta` exist in `crux-controller/build/net/zephyr` (the CI job checks both).
-
-## 2. Attach the probe to WSL2
-
-Untested here. WSL2 sees no USB device until usbipd-win passes it in. On a Linux machine without WSL2, skip the
-PowerShell part. In PowerShell on Windows, as administrator for `bind`:
-
-```powershell
-winget install --interactive --exact dorssel.usbipd-win
-usbipd list
-usbipd bind --busid <busid>
-usbipd attach --wsl --busid <busid> --auto-attach
-```
-
-`usbipd list` shows the probe with the SEGGER vendor id `1366`; `<busid>` is its first column. `bind` is needed
-once per device. Keep the window of `attach --auto-attach` open: it attaches the probe again when it
-re-enumerates, and run it again after every `wsl --shutdown`. `usbipd detach --busid <busid>` gives the probe back
-to Windows. Once a device is attached, `/dev/bus/usb` exists in WSL2.
-
-Then, in a shell of the WSL2 distribution or the Linux machine, in the clone, outside the container, one host
-script prepares the Linux side (it installs `usbutils` if `lsusb` is missing, checks that a J-Link is listed,
-installs the udev rule once and checks that the container user can open the probe):
-
-```bash
-scripts/bootstrap.sh board-host
-```
-
-This runs the step of the Crux checkout in the workspace folder (`crux-pilot/scripts/bootstrap.sh board-host`),
-so the Dev Container must have been created once, which fetches Crux; the script says so when it is not there.
-It never talks to the probe or the board, and it refuses to run inside the container. A probe that
-re-enumerates gets a new device node, so run it again after a reattach. The rule
-([99-crux-jlink.rules](https://github.com/wonny-labs/crux-pilot/blob/c5439c51741bceb8f3327c11882dc3b58bbe2640/.devcontainer/jlink/99-crux-jlink.rules), in the Crux checkout; this repository keeps no copy) gives the SEGGER vendor id to the group
-`plugdev` with mode `0660`, not `0666`. [Crux's board guide](https://github.com/wonny-labs/crux-pilot/blob/c5439c51741bceb8f3327c11882dc3b58bbe2640/docs/board-jlink-usbipd.md) lists what each result of the script means
-and how the node permissions look on WSL2.
+The board settings, the probe, usbipd-win on Windows with WSL2 and the Linux side (`scripts/bootstrap.sh
+board-host`) are on the [Crux board page](https://github.com/wonny-labs/crux-pilot/blob/c5439c51741bceb8f3327c11882dc3b58bbe2640/docs/boards/mimxrt1060_evkb.md) and in [Crux's J-Link and usbipd guide](https://github.com/wonny-labs/crux-pilot/blob/c5439c51741bceb8f3327c11882dc3b58bbe2640/docs/board-jlink-usbipd.md). The udev
+rule ([99-crux-jlink.rules](https://github.com/wonny-labs/crux-pilot/blob/c5439c51741bceb8f3327c11882dc3b58bbe2640/.devcontainer/jlink/99-crux-jlink.rules), in the Crux checkout) is not copied here.
 
 ## 3. Open the Dev Container with the probe
 
@@ -127,7 +55,7 @@ cgroup rule for it, and its image build installs the J-Link software. Its files:
   `CRUX_JLINK=1` makes that an error and `CRUX_JLINK=0` skips the step, including the download.
 - [scripts/bootstrap.sh](../scripts/bootstrap.sh): `status` says whether the workspace, the SDK and the J-Link
   software are there.
-- [.vscode/launch.json](../.vscode/launch.json): the two Cortex-Debug profiles of the debug step.
+- [.vscode/launch.json](../.vscode/launch.json): the two Cortex-Debug profiles of [step 4](#4-flash-debug-and-restore).
 
 How the container reaches the probe:
 
@@ -157,203 +85,38 @@ bash scripts/dev-shell.sh lsusb
 ```
 
 Should show: `lsusb` lists the probe with ID `1366:<product>`, and `bash scripts/bootstrap.sh status` says
-`bootstrap: J-Link software  installed`. Nothing has touched the board yet. If the probe is missing, stop: see
-[Stop conditions](#stop-conditions).
+`bootstrap: J-Link software  installed`. If the probe is missing, stop and do not work around it with a privileged container.
 
-## 4. Compare the flash first, read-only
+## 4. Flash, debug and restore
 
-Before anything is written, read the flash where the accepted normal image lies and compare it with that image.
-The `net` runs did the same with their own tool (status `IDENTIFIED`, matching the accepted normal image, and a
-read-back that said `Verify successful.`).
+Flashing with `west flash`, debugging, the read-only compare of the flash and the recovery of the board's previous
+image are on the [Crux board page](https://github.com/wonny-labs/crux-pilot/blob/c5439c51741bceb8f3327c11882dc3b58bbe2640/docs/boards/mimxrt1060_evkb.md). This repository adds its image (step 1), the network and log
+values below and the two VS Code profiles of [.vscode/launch.json](../.vscode/launch.json), **Board: Flash and run to
+main** and **Board: Attach (no reset)**, which use `build/net/zephyr/zephyr.elf`.
 
-The J-Link settings come from Zephyr's `boards/nxp/mimxrt1060_evk/board.cmake` (read at Zephyr v4.4.0; check it
-in your workspace): the J-Link device `MIMXRT1062xxx6A`, and for the QSPI flash of Rev B the loader
-`BankAddr=0x60000000&Loader=QSPI`. The loader is used for programming (`west flash`); the read-only compare below
-reads the memory-mapped flash with `JLinkExe` and does not use it. That the accepted normal image starts at the base of the flash, `0x60000000`,
-is an assumption, not recorded in this repository: check it before you rely on the result.
+## The `net` image on the bench
 
-Write a J-Link Commander script that only reads. The size is that of the accepted normal image in hexadecimal;
-`0x1A560` is the 107,872 bytes that the `net` note records:
-
-```jlink
-savebin /workspaces/ws/board-run/flash-before.bin, 0x60000000, 0x1A560
-exit
-```
-
-Save it as `/workspaces/ws/board-run/compare.jlink`, put the accepted normal image next to it as
-`accepted-normal.bin`, and run, inside the Dev Container:
-
-```bash
-JLinkExe -device MIMXRT1062xxx6A -if SWD -speed auto -autoconnect 1 -NoGui 1 \
-  -CommanderScript /workspaces/ws/board-run/compare.jlink
-sha256sum /workspaces/ws/board-run/flash-before.bin /workspaces/ws/board-run/accepted-normal.bin
-```
-
-The speed is `auto`, as in [step 7](#7-debug-if-needed); if the connection fails, use 4000, then 400, then 100 as
-there. Should show: the two hashes are equal. If they differ, stop. Connecting the probe may halt the core; whether
-this read leaves the board's image running has not been checked, and the read is an operation on the board that
-needs the authorisation like any other. The `board-run` folder is in the workspace folder, outside the clone.
-
-## 5. Flash the image
-
-Proposed: only with the project owner's explicit yes immediately before the board is overwritten, and with a
-check that the probe and board are the verified ones before each probe step (the `net` note records both for its
-runs). Zephyr's default runner for this board is LinkServer (the first runner that `board.cmake` includes), so
-name the J-Link runner:
-
-```bash
-cd /workspaces/ws
-west flash -d crux-controller/build/net --runner jlink
-```
-
-Then read the image back without writing, with a copy of the compare script of step 4 in which both values change:
-the output file (for example `flash-after.bin` instead of `flash-before.bin`) and the size, which becomes that of
-`zephyr.bin` (103,180 bytes is `0x1930C`). Compare the hash of the read-back with that of `zephyr.bin`. Should show: the hashes are equal (the `net`
-runs recorded status `M5_PROGRAMMED_VERIFIED_STARTED`: loaded, verified and started).
-
-## 6. Observe the log and the network
-
-1. **Log lines.** Capture the UART for a fixed window; the `net` runs used 180 seconds. Open the capture before the
-   load only if you accept that its first lines belong to the previous image (the `net` note, friction 2). Should
-   show, from the `net` note: lines of the `net` image with Zephyr's `[hh:mm:ss.mmm,uuu]` timestamps, `workload:` lines
-   `cycle=10` to `cycle=1750` in steps of 10 (the first at about 4.8 seconds of uptime in run 2, which says this
-   was as in run 1), and `net:` lines. With no peer listening, `net: exchange failed cycle=<n> result=-2` is the
-   expected line, one per message; the `net` image logs no link line.
-2. **Link and ping from the host.** Should show, from the `net` note: the host adapter's interface reports
-   `status: active` and `100baseTX <full-duplex>`, there is a host route to `192.168.77.2`, and ping is answered 5
-   of 5 times. The board answers ARP with the MAC from its devicetree (`02:43:52:55:58:20`).
-3. **One TCP exchange.** Start the host peer once, for one exchange, on `192.168.77.1:42420`. Should show: the peer
-   records a connection from `192.168.77.2` and echoes the 8 bytes, and the board logs `net: exchange ok cycle=<n>`.
-   The `net` note says this exchange was informational and not a pass criterion; proposed: keep it that way.
-
-## 7. Debug, if needed
-
-Optional and untested. Both commands start the J-Link GDB server of the J-Link package and the debugger of the
-Zephyr SDK, from the workspace folder in the Dev Container:
-
-```bash
-cd /workspaces/ws
-west attach -d crux-controller/build/net --runner jlink
-west debug -d crux-controller/build/net --runner jlink
-```
-
-`west attach` connects to the running image without writing it. `west debug` loads the image into the flash
-first, so it is a write: it needs the same explicit yes as [step 5](#5-flash-the-image), and the image it loads
-must be the approved one. A halted core stops the workload and the network; record any debug session in the run
-record.
-
-In VS Code, [.vscode/launch.json](../.vscode/launch.json) has two Cortex-Debug profiles for the J-Link probe over
-SWD (device `MIMXRT1062xxx6A`, the ELF `build/net/zephyr/zephyr.elf`): **Board: Flash and run to main** builds with
-the task **Build firmware**, loads the image (a write, with the same yes) and runs to `main`, and **Board: Attach
-(no reset)** connects to the running image without a reset or a download. Neither has been run. The **Board:
-Build and flash** task of [.vscode/tasks.json](../.vscode/tasks.json) builds and then runs the `west flash`
-command of step 5; nothing starts it unless you choose it.
-
-The probe speed is `auto`: the profiles pass `-speed auto` and `west flash` is given no `--speed`, so the J-Link
-runner uses its default. If a connection fails, try 4000, then 400, then 100 kHz (with `west flash --speed <kHz>`
-and the `-speed` entry of `serverArgs` in the profile). Which speed works with this board has not been checked here.
-
-## 8. Restore the accepted normal image
-
-Program it back, verify it with the read-only compare of step 4, start it, and capture its boot line for a short
-window (the `net` note used 15 seconds). Proposed, with the same runner:
-
-```bash
-cd /workspaces/ws
-west flash -d crux-controller/build/net --runner jlink --file /workspaces/ws/board-run/accepted-normal.bin
-```
-
-Untested: check with `west flash --runner jlink --help` in your workspace how the runner places a `.bin` file (its
-load address) before the run. Should show: the compare of step 4 gives equal hashes, and the capture shows the boot
-identity line of the accepted normal image. One accepted diagnostic is recorded: the probe tool printed
-`****** Error: Could not start CPU core. (ErrorCode: -1)` after a successful load and verify, and the run's rules
-accepted exactly that when the exit status was 0 and the read-back succeeded. Do not widen it to other errors.
-The board is not left in a bring-up state until this step succeeds.
-
-## 9. Write the run record
-
-Proposed: copy this table into the run record and fill every row before and during the run. Write "not run" for
-a step that did not run. Do not report anything that was not run as passing. Two boots on one bench are evidence
-collection and not qualification, as the `net` note says.
-
-| Row | Value |
+| Item | Value |
 |---|---|
-| Authorisation | Who approved which task, when, and its limits |
-| Revisions | This repository, `crux-pilot` (the pin in `west.yml`), Zephyr |
-| Image | Build configuration (`workload`, `net`, ...), path, SHA-256 and size; the approved hash |
-| Accepted normal image | SHA-256 and size |
-| Board and bench | Board revision, switch and jumper settings, power, cables, probe and its firmware |
-| Tools | J-Link package version, usbipd-win version, the revision of the Dev Container files |
-| Step 4, compare before | Hashes, the command output |
-| Step 5, flash | The command output, the read-back hashes |
-| Step 6, observation | Capture length and window, line counts, link, ping, exchange |
-| Step 7, debug | Whether a debug session ran, and what it wrote |
-| Step 8, restore | The command output, the compare hashes, the boot line |
-| Failures and stops | Every failure, every stop condition met, every skipped step |
+| UART log | LPUART1 at 115200 baud (`app/boards/mimxrt1060_evk_mimxrt1062_qspi.overlay`) |
+| Board address | `192.168.77.2`, static, no DHCP client (`app/conf/net.conf`, `app/Kconfig`) |
+| MAC address | `02:43:52:55:58:20`, from the devicetree |
+| Host peer | `192.168.77.1` on a `/24` network, listening on TCP port `42420` and echoing what it receives |
 
-## Other images
+The log shows `workload:` lines `cycle=10` to `cycle=1750` in steps of 10 and `net:` lines. With no peer
+listening, `net: exchange failed cycle=<n> result=-2` is the expected line, one per message; with a peer,
+`net: exchange ok cycle=<n>`. The record of the two runs is
+[docs/findings/s2-first-board-run.md](findings/s2-first-board-run.md).
 
-Only the `net` image has a recorded board run. This page does not describe a run of the others.
+## Known limits
 
-- **workload** has no network and writes its log to the UART. It was never run on a board.
-- **file** keeps a record in a file on a microSD card. It was never run on a board and no card was used. It
-  needs a card with a directory named `files` (`app/Kconfig`).
-- **sntp** sets the Crux Time clock from an SNTP server, by default `192.168.77.1` (the `net` peer). It was never
-  run on a board. A run would need a responder for SNTP (UDP port 123) on the host peer; this page does not
-  describe one.
-- **management** serves HTTPS management on `192.168.77.2` port 443 with a certificate that the board makes for itself. It was
-  never run on a board. The image has no account, so nobody could log in, and nothing persists across a reset because the
-  medium is a RAM disk. This page does not describe a run of it.
-- **system** is described below.
-
-### `system` needs supervision
-
-`system` has never run on a board (`docs/findings/s4-system-composition.md`). It starts a hardware watchdog and
-feeds it from the workload's producer thread. For the default 100 ms cycle the interval is 2000 ms. The
-finding's friction 7 records the risk: the watchdog is armed before the workload starts, so if the workload
-start fails, or the producer thread ends, nothing feeds it, the board resets, and because no reset cause
-stops the product from arming it again, it would keep resetting. The finding marks this **Open**, because no
-board has run it, and says: "Any future board run must be supervised and time-limited."
-
-So a `system` board run, if it is ever authorised, must be supervised by a person who is present, with a time
-limit and a way to stop it decided and written down before the board is programmed. Proposed: also write
-down, beforehand, what a reset loop looks like in the capture (the boot lines repeat and the uptime restarts)
-and what the operator does then. How to stop a reset loop on the bench is not recorded in this repository.
-A debug session that halts the core also stops the producer thread, and with it the watchdog feed.
-
-## Stop conditions
-
-Stop and do not continue to the next step if any of these happens. The first column says where the item
-comes from.
-
-| Source | Stop when |
-|---|---|
-| Proposed | There is no explicit authorisation for the current task, or it does not cover the step. |
-| Proposed | The target, probe or flash configuration is not what was verified, or you are unsure which board or probe is attached. |
-| Proposed | `lsusb` in the Dev Container does not list the probe, or the J-Link tools cannot open it. Do not work around it with a privileged container. |
-| Proposed | The hash of the image to be programmed is not the approved one. |
-| `net` note, identify step | The board's current image does not match the accepted normal image (step 4), or the read-back does not say `Verify successful.`. |
-| `net` note, restore | A probe tool error other than the one accepted diagnostic above, or a non-zero exit status. |
-| Proposed | The flash step does not report the image as loaded and verified, or the read-back hash differs from `zephyr.bin`. |
-| `system` note, friction 7 | The log shows boot lines repeating with the uptime restarting, or no log at all, after the image should have started. Treat it as a reset loop. |
-| Proposed | The capture has gaps or non-ASCII bytes that the `net` runs did not have (they had none), so that the evidence cannot be trusted. |
-| Proposed | The link does not come up, or ping is not answered, within the window. Record it as a finding; do not retry in a loop. |
-| Proposed | Anything on the bench behaves unexpectedly: heat, smell, a probe that disconnects, or a power supply that drops. |
-| `net` note, restore | The accepted normal image cannot be restored and verified. Leave the board as it is, record the state, and ask the project owner. |
-| Proposed | The time limit of the run is reached. |
-
-Stopping is not failing. A stopped run with an honest record is worth more than a completed run with a
-doubtful one.
-
-## What this page does not cover
-
-- The authorisation itself. The commands on this page are untested and grant nothing.
-- A qualification, a performance measurement, or the physical behaviour of the board beyond what the `net` note
-  records.
-- A run of any image other than `net`.
-- A cold power cycle. The `net` note lists it as not shown: its runs restarted the image by programming and
-  reset.
-- Other probes and runners (LinkServer, pyOCD), which `board.cmake` also configures.
-- A check that the J-Link software is in the image. The `devcontainer` workflow builds the image with
-  `CRUX_JLINK=0`, so CI neither downloads nor installs it, and a green job says nothing about the J-Link software.
-  The tooling tests run `install-jlink.sh` with a stand-in for `curl` and no network.
+- Only the `net` image has a board record ([roadmap](roadmap.md#what-has-run-on-a-board)).
+- **file** needs a microSD card with a directory named `files` (`app/Kconfig`).
+- **sntp** sets the Crux Time clock from an SNTP server, by default `192.168.77.1`, so the host peer needs a
+  responder on UDP port 123.
+- **management** serves HTTPS on `192.168.77.2` port 443 with a certificate that the board makes for itself. The
+  image has no account, and nothing persists across a reset because the medium is a RAM disk.
+- **system** needs a person present and a time limit decided before the board is programmed. It arms a hardware watchdog before the workload starts and feeds it from the
+  producer thread, so a failed start leaves nothing feeding it and the board resets in a loop
+  ([`docs/findings/s4-system-composition.md`](findings/s4-system-composition.md), friction 7). A debug session that
+  halts the core also stops the feed.

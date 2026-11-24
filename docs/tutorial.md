@@ -99,7 +99,8 @@ The image is `build/workload/zephyr/zephyr.bin` in the clone, next to `zephyr.me
 
 ### 5. Flash and debug the board
 
-Follow [Board bring-up](board-bring-up.md) for the probe, the J-Link software, flash and debug.
+[Board bring-up](board-bring-up.md) links the Crux board page for the probe, flash and debug, and adds this
+repository's image and the log to expect.
 
 ## Next steps
 

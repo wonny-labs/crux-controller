@@ -38,17 +38,8 @@
     "docs/architecture.md": {
       "verification": 4
     },
-    "docs/board-bring-up.md": {
-      "verification": 12
-    },
     "docs/dev-container.md": {
       "verification": 9
-    },
-    "docs/first-change.md": {
-      "verification": 1
-    },
-    "docs/getting-started.md": {
-      "verification": 5
     },
     "docs/glossary.md": {
       "verification": 2

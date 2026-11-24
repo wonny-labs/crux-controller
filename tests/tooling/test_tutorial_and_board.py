@@ -220,9 +220,9 @@ class Tutorial(Common, unittest.TestCase):
 class BoardPage(Common, unittest.TestCase):
     PAGE = BOARD_PAGE
 
-    def test_it_says_at_the_top_that_the_route_is_untested_on_hardware(self):
-        top = read(BOARD_PAGE).split("\n## ")[0]
-        self.assertRegex(top, r"(?i)untested on hardware")
+    def test_it_carries_no_untested_trail(self):
+        # Approved change: a verification trail has no place on a how-to page.
+        self.assertNotRegex(read(BOARD_PAGE), r"(?i)untested|nobody has followed|has never run")
 
     def test_the_authorisation_paragraph_stays_before_the_first_section(self):
         top = " ".join(read(BOARD_PAGE).split("\n## ")[0].split())
@@ -232,8 +232,8 @@ class BoardPage(Common, unittest.TestCase):
         self.assertIn("stop before touching the board", top)
 
     def test_the_route_sections_are_there_in_order(self):
-        wanted = (r"what is needed", r"build", r"attach.*probe|probe.*wsl", r"dev container with the probe",
-                  r"compare", r"flash", r"debug", r"restore", r"record", r"stop conditions")
+        wanted = (r"build", r"connect.*probe", r"dev container with the probe", r"flash.*debug.*restore",
+                  r"net.*bench", r"known limits")
         found = [h.lower() for h in headings(BOARD_PAGE)]
         position = -1
         for pattern in wanted:
@@ -241,28 +241,15 @@ class BoardPage(Common, unittest.TestCase):
             self.assertTrue(matches, f"no heading for {pattern!r} after position {position}: {found}")
             position = matches[0]
 
-    def test_flash_and_debug_use_the_jlink_runner(self):
+    def test_flash_and_debug_steps_are_the_crux_board_pages_and_not_copied(self):
+        # Approved change: the probe, flash, debug and recovery steps have one home, the Crux board pages at the pin.
         code = "\n".join(code_blocks(read(BOARD_PAGE)))
-        commands = re.findall(r"(?m)^\s*west (flash|debug|attach)\b(.*)$", code)
-        self.assertTrue({"flash", "debug"} <= {c for c, _ in commands}, commands)
-        for verb, rest in commands:
-            self.assertRegex(rest, r"(--runner|-r) jlink\b", f"west {verb}{rest}")
-
-    def test_the_read_only_compare_comes_before_any_write(self):
+        self.assertNotRegex(code, r"(?m)^\s*west (flash|debug|attach)\b")
+        self.assertNotIn("JLinkExe", code)
+        pin = re.search(r"revision: ([0-9a-f]{40})", read("west.yml")).group(1)
         body = read(BOARD_PAGE)
-        compare = re.search(r"(?m)^## .*[Cc]ompare.*$", body).start()
-        first_write = min(m.start() for m in re.finditer(r"(?m)^\s*west (flash|debug)\b", body))
-        self.assertLess(compare, first_write)
-
-    def test_the_jlink_commander_scripts_are_read_only(self):
-        scripts = code_blocks(read(BOARD_PAGE), "jlink")
-        self.assertTrue(scripts, "the compare step has no J-Link Commander script (a ```jlink block)")
-        allowed = {"savebin", "verifybin", "exit", "q", "qc", "sleep"}
-        for script in scripts:
-            for line in script.splitlines():
-                word = line.strip().split(" ")[0].lower() if line.strip() else ""
-                if word:
-                    self.assertIn(word, allowed, f"not a read-only J-Link Commander command: {line}")
+        for page in ("docs/boards/mimxrt1060_evkb.md", "docs/board-jlink-usbipd.md"):
+            self.assertIn(f"https://github.com/wonny-labs/crux-pilot/blob/{pin}/{page}", body, page)
 
     def test_no_privileged_container_and_the_usb_access_is_narrow(self):
         body = read(BOARD_PAGE)
@@ -283,25 +270,20 @@ class BoardPage(Common, unittest.TestCase):
         # The build downloads it; no command on the page fetches it by hand.
         self.assertNotRegex("\n".join(code_blocks(read(BOARD_PAGE))), r"(?i)(curl|wget)[^\n]*segger")
 
-    def test_the_net_hashes_and_network_values_are_those_of_the_net_note(self):
+    def test_the_network_values_are_those_of_the_net_image_and_the_net_note(self):
+        # Approved change: hashes and the capture window are measurements of one run and stay in the net note.
         page, note = read(BOARD_PAGE), read(NET_NOTE)
-        hashes = set(re.findall(r"\b[0-9a-f]{64}\b", page))
-        self.assertTrue(hashes)
-        for value in hashes:
-            self.assertIn(value, note, value)
-        for value in ("192.168.77.1", "192.168.77.2", "42420", "02:43:52:55:58:20", "180 seconds"):
+        self.assertNotRegex(page, r"\b[0-9a-f]{64}\b")
+        for value in ("192.168.77.1", "192.168.77.2", "42420", "02:43:52:55:58:20"):
             self.assertIn(value, page, value)
+            self.assertIn(value, note, value)
         self.assertIn('"192.168.77.2"', read("app/conf/net.conf"))
 
     def test_the_net_board_build_is_the_one_of_ci(self):
-        expected = norm(ci_step_run("net", "Cross-build net with the baseline gate required"))
+        # CI runs from the workspace folder; the page runs the same command from the repository root.
+        expected = norm(ci_step_run("net", "Cross-build net with the baseline gate required")).replace(
+            "crux-controller/", "")
         self.assertTrue(any(expected in norm(code) for code in code_blocks(read(BOARD_PAGE))), expected)
-
-    def test_the_jlink_device_and_flash_base_match_zephyrs_board_settings_as_the_page_cites_them(self):
-        body = read(BOARD_PAGE)
-        self.assertIn("MIMXRT1062xxx6A", body)
-        self.assertIn("0x60000000", body)
-        self.assertIn("board.cmake", body)
 
     def test_the_page_links_the_dev_container_files_of_the_board_route(self):
         targets = {path for path, _, _ in links(BOARD_PAGE)}
@@ -309,15 +291,13 @@ class BoardPage(Common, unittest.TestCase):
                      "scripts/bootstrap.sh", ".vscode/launch.json"):
             self.assertIn(name, targets, name)
 
-    def test_the_page_names_the_one_host_step_and_the_auto_attach(self):
-        body = read(BOARD_PAGE)
-        self.assertIn("usbipd attach --wsl --busid <busid> --auto-attach", body)
-        self.assertIn("scripts/bootstrap.sh board-host", body)
+    def test_the_page_names_the_one_host_step(self):
+        # The probe attach and the udev rule are on the Crux pages; the Linux-side script is named here.
+        self.assertIn("scripts/bootstrap.sh board-host", norm(read(BOARD_PAGE)))
 
-    def test_the_page_says_auto_speed_with_the_fallback_and_names_the_two_profiles(self):
+    def test_the_page_names_the_two_vs_code_profiles(self):
+        # Approved change: the probe speed and its fallback are on the Crux board page.
         body = norm(read(BOARD_PAGE))
-        self.assertIn("auto", body)
-        self.assertRegex(body, r"4000.{0,40}400.{0,40}100")
         self.assertIn("Board: Flash and run to main", body)
         self.assertIn("Board: Attach (no reset)", body)
 
