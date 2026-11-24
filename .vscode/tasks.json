@@ -2,20 +2,39 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "Build firmware",
-      "type": "shell",
-      "command": "west build -p auto -b 'mimxrt1060_evk@B//qspi' -d crux-controller/build/net crux-controller/app -- -DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON '-DEXTRA_CONF_FILE=conf/workload.conf;conf/net.conf' '-DEXTRA_DTC_OVERLAY_FILE=boards/net.overlay'",
-      "options": { "cwd": "/workspaces/ws" },
-      "group": { "kind": "build", "isDefault": true },
-      "problemMatcher": ["$gcc"]
+      "label": "Board: Build",
+      "type": "process",
+      "command": "bash",
+      "args": ["scripts/build-board.sh", "${input:configuration}"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": "build",
+      "problemMatcher": "$gcc"
     },
     {
-      "label": "Board: Build and flash",
-      "type": "shell",
-      "command": "west flash -d crux-controller/build/net --runner jlink",
-      "dependsOn": ["Build firmware"],
-      "options": { "cwd": "/workspaces/ws" },
+      "label": "Board: Flash",
+      "type": "process",
+      "command": "west",
+      "args": ["flash", "-d", "build/mimxrt1060_evk_B_qspi--current", "--runner", "jlink"],
+      "options": { "cwd": "${workspaceFolder}" },
       "problemMatcher": []
+    },
+    {
+      "label": "Board: Clean",
+      "type": "process",
+      "command": "bash",
+      "args": ["scripts/build-board.sh", "--clean"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": "clean",
+      "problemMatcher": []
+    }
+  ],
+  "inputs": [
+    {
+      "id": "configuration",
+      "type": "pickString",
+      "description": "Build configuration of app/ to build for the RT1060-EVKB",
+      "options": ["base", "workload", "net", "file", "system", "sntp", "management"],
+      "default": "net"
     }
   ]
 }

@@ -2,29 +2,40 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Board: Flash and run to main",
+      "name": "Board: Debug",
       "type": "cortex-debug",
       "request": "launch",
       "servertype": "jlink",
       "cwd": "${workspaceFolder}",
-      "executable": "${workspaceFolder}/build/net/zephyr/zephyr.elf",
+      "executable": "${workspaceFolder}/build/mimxrt1060_evk_B_qspi--current/zephyr/zephyr.elf",
       "device": "MIMXRT1062xxx6A",
       "interface": "swd",
       "serverArgs": ["-speed", "auto"],
       "gdbPath": "${env:ZEPHYR_SDK_INSTALL_DIR}/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gdb",
-      "preLaunchTask": "Build firmware",
+      "preLaunchTask": "Board: Build",
       "runToEntryPoint": "main"
     },
     {
-      "name": "Board: Attach (no reset)",
+      "name": "Board: Attach",
       "type": "cortex-debug",
       "request": "attach",
       "servertype": "jlink",
       "cwd": "${workspaceFolder}",
-      "executable": "${workspaceFolder}/build/net/zephyr/zephyr.elf",
+      "executable": "${workspaceFolder}/build/mimxrt1060_evk_B_qspi--current/zephyr/zephyr.elf",
       "device": "MIMXRT1062xxx6A",
       "interface": "swd",
       "serverArgs": ["-speed", "auto"],
+      "gdbPath": "${env:ZEPHYR_SDK_INSTALL_DIR}/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gdb"
+    },
+    {
+      "name": "Board: Attach (external)",
+      "type": "cortex-debug",
+      "request": "attach",
+      "servertype": "external",
+      "gdbTarget": "localhost:2331",
+      "cwd": "${workspaceFolder}",
+      "executable": "${workspaceFolder}/build/mimxrt1060_evk_B_qspi--current/zephyr/zephyr.elf",
+      "device": "MIMXRT1062xxx6A",
       "gdbPath": "${env:ZEPHYR_SDK_INSTALL_DIR}/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gdb"
     }
   ]
