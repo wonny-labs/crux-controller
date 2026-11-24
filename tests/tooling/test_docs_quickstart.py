@@ -35,6 +35,8 @@ ONE_SHOT_TWISTER = (
     "west twister -p native_sim/native/64 -T crux-controller/tests/native_sim "
     "--inline-logs --clobber-output -O twister-out"
 )
+# The same command as it reads from the repository root, where the tutorial runs it.
+ROOT_TWISTER = ONE_SHOT_TWISTER.replace("crux-controller/", "")
 
 
 def read(path):
@@ -322,11 +324,9 @@ class QuickStart(Page):
 
     def test_the_one_shot_twister_command_is_the_one_that_ci_and_the_container_job_run(self):
         commands = "\n".join(code_blocks(self.tutorial))
-        self.assertIn(
-            "bash scripts/dev-shell.sh bash -c 'cd /workspaces/ws && " + ONE_SHOT_TWISTER + "'", commands
-        )
-        # dev-shell.sh runs a command with the repository as working directory, so the command
-        # changes into the workspace folder first, as the container job does.
+        self.assertIn("bash scripts/dev-shell.sh " + ROOT_TWISTER, commands)
+        # dev-shell.sh runs a command with the repository as working directory, so the tutorial
+        # needs no change into the workspace folder, which the container job does.
         self.assertIn("-w /workspaces/ws/crux-controller", self.shell)
         container_job = norm(read(WORKFLOWS / "devcontainer.yml"))
         self.assertIn("cd /workspaces/ws " + ONE_SHOT_TWISTER, container_job)
@@ -341,7 +341,7 @@ class QuickStart(Page):
                       norm(read(WORKFLOWS / "devcontainer.yml")))
 
     def test_one_scenario_has_a_command_and_its_directory_exists(self):
-        self.assertIn("-T crux-controller/tests/native_sim/workload", self.tutorial)
+        self.assertIn("-T crux-controller/tests/native_sim/workload", self.native)
         self.assertTrue((ROOT / "tests" / "native_sim" / "workload" / "testcase.yaml").is_file())
 
     def test_the_quick_start_says_where_the_outputs_are(self):

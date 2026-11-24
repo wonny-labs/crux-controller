@@ -82,6 +82,11 @@ def section(name, heading_pattern):
     return body[match.start():end if end != -1 else len(body)]
 
 
+def from_root(command):
+    """A command of CI, which runs from the workspace folder, as it reads from the repository root."""
+    return norm(command).replace("crux-controller/", "")
+
+
 def ci_step_run(job, fragment):
     steps = [s for s in yaml.safe_load(CI.read_text())["jobs"][job]["steps"] if fragment in s.get("name", "")]
     assert len(steps) == 1, fragment
@@ -136,10 +141,10 @@ class Tutorial(Common, unittest.TestCase):
             self.assertTrue(matches, f"no heading for {pattern!r} after position {position}: {found}")
             position = matches[0]
 
-    def test_it_has_a_section_with_the_times_and_says_where_they_come_from(self):
-        part = section(TUTORIAL, r"how long")
-        self.assertRegex(part, r"\d+ min")
-        self.assertIn("CI", part)
+    def test_it_carries_no_ci_timings(self):
+        # Approved change: a measurement of a CI run has no place on a tutorial.
+        self.assertNotRegex(read(TUTORIAL), r"\d+ min\b")
+        self.assertFalse([h for h in headings(TUTORIAL) if "how long" in h.lower()])
 
     def test_both_container_routes_are_named(self):
         part = section(TUTORIAL, r"dev container")
@@ -147,11 +152,12 @@ class Tutorial(Common, unittest.TestCase):
         self.assertIn("Reopen in Container", part)
 
     def test_the_build_is_the_workload_cross_build_of_ci(self):
-        expected = norm(ci_step_run("workload", "Cross-build workload with the baseline gate required"))
+        # CI runs from the workspace folder; the tutorial runs the same command from the repository root.
+        expected = from_root(ci_step_run("workload", "Cross-build workload with the baseline gate required"))
         self.assertTrue(any(expected in norm(code) for code in code_blocks(read(TUTORIAL))), expected)
 
     def test_the_native_sim_run_is_the_twister_step_of_ci(self):
-        expected = norm(ci_step_run("workload", "Run the workload scenario on native_sim"))
+        expected = from_root(ci_step_run("workload", "Run the workload scenario on native_sim"))
         self.assertTrue(any(expected in norm(code) for code in code_blocks(read(TUTORIAL))), expected)
 
     def test_the_host_tool_and_boundary_commands_are_those_of_ci(self):
@@ -159,8 +165,14 @@ class Tutorial(Common, unittest.TestCase):
         for command in ("cmake -S tests/host -B build/host -G Ninja -DWORKLOAD_SANITIZE=OFF",
                         "ctest --test-dir build/host --output-on-failure",
                         "python -m unittest discover -s tests/tooling",
-                        "python crux-controller/scripts/check_boundary.py --repo crux-controller --crux-root crux-pilot"):
+                        "python scripts/check_boundary.py --crux-root ../crux-pilot"):
             self.assertIn(command, body, command)
+        # CI runs the boundary check from the workspace folder with workspace-relative paths.
+        ci = "python crux-controller/scripts/check_boundary.py --repo crux-controller --crux-root crux-pilot"
+        self.assertIn(ci, norm(CI.read_text()))
+        self.assertEqual("python scripts/check_boundary.py --crux-root ../crux-pilot",
+                         from_root(ci).replace(" --repo crux-controller", "").replace("--crux-root crux-pilot",
+                                                                                      "--crux-root ../crux-pilot"))
 
     def test_the_clone_address_is_generic(self):
         # The tutorial starts from a working Dev Container; the clone is step 3 of Getting started.
@@ -182,7 +194,7 @@ class Tutorial(Common, unittest.TestCase):
         body = read(TUTORIAL)
         parts = [h for h in headings(TUTORIAL) if h.startswith("Part ")]
         self.assertEqual(["Part A", "Part B", "Part C"], [p[:6] for p in parts])
-        self.assertLess(body.index("No board? Parts A and B run every sample and test."), body.index("## Part C"))
+        self.assertLess(body.index("## Part B"), body.index("## Part C"))
         part_c = section(TUTORIAL, r"Part C")
         self.assertIn("| Board | `-b` target | Probe | Board guide |", part_c)
         self.assertIn("`mimxrt1060_evk@B//qspi`", part_c)
@@ -195,8 +207,9 @@ class Tutorial(Common, unittest.TestCase):
         for word in ("Experimental", "Unstable", "frozen", "to be removed", "deprecated"):
             self.assertNotIn(word, read(TUTORIAL), word)
 
-    def test_it_says_what_is_untested(self):
-        self.assertRegex(read(TUTORIAL), r"(?i)nobody has run[^.]*WSL2|WSL2[^.]*not (been )?(run|tested)")
+    def test_it_carries_no_untested_trail(self):
+        # Approved change: a verification trail has no place on a tutorial.
+        self.assertNotRegex(read(TUTORIAL), r"(?i)untested|nobody has run|WSL2[^.]*not (been )?(run|tested)")
 
     def test_it_is_linked_at_the_top_of_the_readme_and_of_the_index(self):
         for name, before in (("README.md", "## What it provides"), ("docs/README.md", "## Paths by task")):
