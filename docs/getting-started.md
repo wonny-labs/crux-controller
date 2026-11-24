@@ -12,6 +12,10 @@ continues from here. The words west, workspace, Twister, `native_sim`, pin and D
 - Git, and several GiB of free disk (see [Host notes](#host-notes)).
 - Network access to the hosts that the setup contacts, or a proxy configured as in
   [Behind a proxy or with a company certificate](dev-container.md#behind-a-proxy-or-with-a-company-certificate).
+- If your network's proxy re-signs TLS, downloads in the image build or in the container fail with a certificate
+  error such as `curl: (60) SSL certificate problem: unable to get local issuer certificate`, or the same from pip,
+  Git or west. Put your organisation's root CA as a PEM `.crt` file in `.devcontainer/certs/` before the first
+  run, never in a commit; the [folder README](../.devcontainer/certs/README.md) gives the steps.
 
 CI is the reference: a local result does not replace the CI result that a pull request cites
 ([why](architecture.md#why-the-evidence-comes-from-ci)). See the
@@ -101,8 +105,8 @@ Linux or the Dev Container.
 ## If you use a board
 
 Nothing here needs a board. For the probe, the J-Link software, flash and debug on the RT1060-EVKB, follow
-[Board bring-up](board-bring-up.md), which links the Crux board page and adds only this repository's own image and
-expected log.
+[Board bring-up](board-bring-up.md), which links the Crux board page and adds this repository's own image, tasks,
+debug profiles and expected log.
 
 ## If something fails
 

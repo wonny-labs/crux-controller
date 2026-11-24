@@ -211,6 +211,16 @@ class Tutorial(Common, unittest.TestCase):
         # Approved change: a verification trail has no place on a tutorial.
         self.assertNotRegex(read(TUTORIAL), r"(?i)untested|nobody has run|WSL2[^.]*not (been )?(run|tested)")
 
+    def test_the_prerequisites_point_at_the_certificate_folder_before_reopen_in_container(self):
+        # Approved change: one conditional pointer; the steps are in the folder README and the symptom is in
+        # Getting started.
+        part = section(TUTORIAL, r"dev container")
+        self.assertIn("re-signs TLS", part)
+        self.assertIn("(../.devcontainer/certs/README.md)", part)
+        self.assertIn("getting-started.md#prerequisites", part)
+        self.assertIn("PEM `.crt`", part)
+        self.assertLess(part.index(".devcontainer/certs/"), part.index("Reopen in Container"))
+
     def test_it_is_linked_at_the_top_of_the_readme_and_of_the_index(self):
         for name, before in (("README.md", "## What it provides"), ("docs/README.md", "## Paths by task")):
             top = read(name).split(before)[0]
@@ -291,20 +301,88 @@ class BoardPage(Common, unittest.TestCase):
                      "scripts/bootstrap.sh", ".vscode/launch.json"):
             self.assertIn(name, targets, name)
 
-    def test_the_page_names_the_one_host_step(self):
-        # The probe attach and the udev rule are on the Crux pages; the Linux-side script is named here.
-        self.assertIn("scripts/bootstrap.sh board-host", norm(read(BOARD_PAGE)))
+    def test_the_probe_is_connected_before_the_first_jlink_check(self):
+        # Approved change: on Windows the probe is attached with usbipd-win before lsusb and the J-Link status;
+        # bind only when the device is not shared yet; no --auto-attach and no board-host step.
+        body = read(BOARD_PAGE)
+        step = body[body.index("## 2. Connect the probe"):body.index("## 3.")]
+        code = "\n".join(code_blocks(step))
+        for command in ("usbipd list", "usbipd bind --busid <BUSID>", "usbipd attach --wsl --busid <BUSID>"):
+            self.assertIn(command, code, command)
+        self.assertLess(code.index("usbipd list"), code.index("usbipd bind"))
+        self.assertLess(code.index("usbipd bind"), code.index("usbipd attach"))
+        prose = norm(without_code(step))
+        self.assertIn("`1366`", prose)
+        self.assertIn("`Not shared`", prose)
+        self.assertIn("`Shared`", prose)
+        self.assertLess(body.index("## 2. Connect the probe"), body.index("lsusb"))
+        self.assertNotIn("board-host", body)
 
-    def test_the_page_names_the_two_vs_code_profiles(self):
-        # Approved change: the probe speed and its fallback are on the Crux board page.
+    def test_no_current_page_attaches_with_auto_attach(self):
+        for name in (BOARD_PAGE, TUTORIAL, "docs/getting-started.md", "docs/troubleshooting.md",
+                     "docs/dev-container.md", "README.md"):
+            self.assertNotIn("--auto-attach", read(name), name)
+
+    def test_the_page_names_the_board_profiles(self):
         body = norm(read(BOARD_PAGE))
-        self.assertIn("Board: Flash and run to main", body)
-        self.assertIn("Board: Attach (no reset)", body)
+        for profile in ("Board: Debug", "Board: Attach", "Board: Attach (external)"):
+            self.assertIn(f"**{profile}**", body, profile)
+
+    def test_one_plain_list_of_what_has_been_run(self):
+        # Approved change: what was run and what was not is in one list, not spread over the steps.
+        body = read(BOARD_PAGE)
+        self.assertEqual(1, body.count("**What has been run**"))
+        self.assertEqual(1, len(re.findall(r"(?m)^Not run: ", body)))
 
     def test_the_page_no_longer_mentions_a_second_container_or_the_board_shell(self):
         body = read(BOARD_PAGE)
         for word in ("board-shell", "build-base", ".devcontainer/board", "optional board container"):
             self.assertNotIn(word, body, word)
+
+
+class ProbeAndCertificateHomes(unittest.TestCase):
+    """The usbipd explanation, the certificate symptom and the J-Link version each have one home."""
+
+    def test_the_board_page_is_the_one_home_of_the_usbipd_states(self):
+        # Getting started names no WSL2 route (test_docs.py), so the board step is the one home.
+        body = read(BOARD_PAGE)
+        part = body[body.index("## 2. Connect the probe"):body.index("## 3.")]
+        for word in ("`Not shared`", "`Shared`", "`Attached`", "`1366`", "usbipd list", "administrator"):
+            self.assertIn(word, part, word)
+        self.assertIn("https://learn.microsoft.com/en-us/windows/wsl/connect-usb", part)
+        self.assertIn("https://github.com/dorssel/usbipd-win", part)
+        for name in ("docs/getting-started.md", TUTORIAL, "docs/troubleshooting.md"):
+            self.assertNotIn("`Attached`", read(name), name)
+
+    def test_troubleshooting_has_a_row_for_a_probe_that_is_not_found(self):
+        rows = [line for line in read("docs/troubleshooting.md").splitlines()
+                if line.startswith("|") and "probe" in line.lower() and "usbipd attach" in line]
+        self.assertEqual(1, len(rows), rows)
+        self.assertIn("board-bring-up.md#2-connect-the-probe", rows[0])
+        self.assertIn("board-bring-up.md#vs-code-tasks-and-debug-profiles", rows[0])
+
+    def test_the_certificate_symptom_is_generic(self):
+        # A certificate error breaks every download, not only the J-Link one.
+        rows = [line for line in read("docs/troubleshooting.md").splitlines()
+                if line.startswith("|") and "SSL certificate problem" in line]
+        self.assertEqual(1, len(rows), rows)
+        for word in ("pip", "Git", "west", "`.devcontainer/certs/`", "certs/README.md"):
+            self.assertIn(word, rows[0], word)
+        for name in ("docs/troubleshooting.md", "docs/getting-started.md", "docs/dev-container.md",
+                     ".devcontainer/certs/README.md"):
+            for line in read(name).splitlines():
+                if re.search(r"SSL certificate problem|certificate error", line):
+                    self.assertNotIn("J-Link", line, name)
+        for name in ("docs/getting-started.md", ".devcontainer/certs/README.md"):
+            text = norm(read(name))
+            self.assertIn("`curl: (60) SSL certificate problem", text, name)
+            self.assertIn("pip, Git or west", text, name)
+
+    def test_the_jlink_version_has_one_home_the_dockerfile_pin(self):
+        self.assertRegex(read(".devcontainer/Dockerfile"), r"(?m)^ARG CRUX_JLINK_SEGGER_VERSION=V\d{3}[a-z]$")
+        names = [n for n in (ROOT / "docs").glob("*.md")] + [ROOT / "README.md"]
+        for path in names:
+            self.assertNotRegex(path.read_text(), r"\bV\d\.?\d{2}[a-z]\b", path.name)
 
 
 if __name__ == "__main__":

@@ -46,7 +46,8 @@ Each fact has one home; other pages link to it.
 ## Product repository
 
 This repository is a product built on Crux. It links the Crux board pages and keeps only its own board
-steps: its image, its build command and the log it expects.
+steps: its image, its build command, the connection of the probe to its Dev Container, its VS Code tasks and debug
+profiles, and the log it expects.
 
 ## Check
 

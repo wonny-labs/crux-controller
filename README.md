@@ -8,13 +8,18 @@ configuration, so that a product team can read how each Crux capability is compo
 
 ## Quick start
 
-You do not need a board. Set up with [Getting started](docs/getting-started.md), then follow the
-[Tutorial](docs/tutorial.md): it takes you from a clone to the host tests, one run of the `native_sim` scenarios with
-Twister (Zephyr's test runner) and one EVKB build.
+You do not need a board. Supported: x86_64 Linux with Docker Engine, through the Dev Container;
+[Set up without the Dev Container](docs/native-setup.md) is the alternative on Ubuntu 24.04.
 
-Supported: x86_64 Linux with Docker Engine, through the Dev Container; [Set up without the Dev Container](docs/native-setup.md)
-is the alternative on Ubuntu 24.04. Each command runs in it through
-`bash scripts/dev-shell.sh`; [Getting started](docs/getting-started.md#set-up-the-dev-container) covers the set-up.
+1. Clone the repository and open the Dev Container, as [Getting started](docs/getting-started.md#set-up-the-dev-container)
+   says: **Dev Containers: Reopen in Container** in VS Code, or `bash scripts/dev-shell.sh` on the command line.
+2. Wait for the automatic set-up to finish; you do not run it. It checks the folder layout, fetches Zephyr and the
+   modules with west and installs the Zephyr SDK. It prints a `setup: <step>` line as each step starts and ends with
+   `setup: workspace <folder>, Zephyr SDK <version>, West version: <version>`, or prints
+   `setup: failed during <step>` and the command that reruns it.
+3. Follow the [Tutorial](docs/tutorial.md): the host tests, one run of the `native_sim` scenarios with Twister
+   (Zephyr's test runner) and one EVKB build.
+
 Look a failure up by its message in [troubleshooting](docs/troubleshooting.md).
 
 ## Capabilities

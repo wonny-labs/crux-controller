@@ -1,19 +1,30 @@
 # Board route for the RT1060-EVKB Rev B
 
-This page is for running an image of this repository on the NXP RT1060-EVKB Rev B. The switches, probe, flash,
+This page is for running an image of this repository on the NXP RT1060-EVKB Rev B. The switches, probe settings, flash,
 debug and recovery are on the Crux board pages; this page holds only what is specific to this repository: its
-images, their build commands, the Dev Container with the J-Link software and the network and log of the `net`
-image. The [glossary](glossary.md) defines the terms.
+images and their build commands, the connection of the probe to its Dev Container, the Dev Container with the
+J-Link software, its VS Code tasks and debug profiles, and the network and log of the `net` image. The
+[glossary](glossary.md) defines the terms.
 
 **Authorisation.** Physical programming, reset and any other operation on the board need the project
 owner's explicit authorisation for each task (for example one run of one image), a verified target, probe and flash configuration, and a
 safe setup; an earlier approval does not carry over to a new task. If the authorisation is missing or unclear, stop
 before touching the board.
 
+**What has been run**: the `net` image on the board, recorded in the
+[roadmap](roadmap.md#what-has-run-on-a-board). The usbipd commands of step 2 were run on Windows with WSL2 with a
+Crux Dev Container, as
+[Crux's J-Link and usbipd guide](https://github.com/wonny-labs/crux-pilot/blob/c5439c51741bceb8f3327c11882dc3b58bbe2640/docs/board-jlink-usbipd.md)
+records.
+
+Not run: step 2 with this repository's Dev Container, the J-Link software of this repository's image with a probe,
+the tasks **Board: Build**, **Board: Flash** and **Board: Clean**, and the profiles **Board: Debug**,
+**Board: Attach** and **Board: Attach (external)** of this repository.
+
 ## The route
 
 1. [Build the image](#1-build-the-image) in the Dev Container.
-2. [Connect the probe](#2-connect-the-probe) as the Crux board pages describe.
+2. [Connect the probe](#2-connect-the-probe) to Linux.
 3. [Open the Dev Container with the probe](#3-open-the-dev-container-with-the-probe).
 4. [Flash, debug and restore](#4-flash-debug-and-restore) as the Crux board page describes.
 
@@ -28,15 +39,32 @@ bash scripts/dev-shell.sh west build -p always -b 'mimxrt1060_evk@B//qspi' -d bu
 
 The image is `build/net/zephyr/zephyr.bin`, with `zephyr.elf` and `zephyr.meta` next to it. The `workload` image,
 which has no network, is the build of [the Tutorial](tutorial.md#4-build-the-image-for-the-rt1060-evkb). CI uploads
-no image, so the image is built where the board is. The VS Code tasks **Build firmware** and **Board: Build and
-flash** in [.vscode/tasks.json](../.vscode/tasks.json) run from the workspace folder (`-d crux-controller/build/net`)
-and write the same `build/net`.
+no image, so the image is built where the board is. In VS Code, the task **Board: Build** builds the same
+configuration in the same `build/net` ([VS Code tasks and debug profiles](#vs-code-tasks-and-debug-profiles)).
 
 ## 2. Connect the probe
 
-The board settings, the probe, usbipd-win on Windows with WSL2 and the Linux side (`scripts/bootstrap.sh
-board-host`) are on the [Crux board page](https://github.com/wonny-labs/crux-pilot/blob/c5439c51741bceb8f3327c11882dc3b58bbe2640/docs/boards/mimxrt1060_evkb.md) and in [Crux's J-Link and usbipd guide](https://github.com/wonny-labs/crux-pilot/blob/c5439c51741bceb8f3327c11882dc3b58bbe2640/docs/board-jlink-usbipd.md). The udev
-rule ([99-crux-jlink.rules](https://github.com/wonny-labs/crux-pilot/blob/c5439c51741bceb8f3327c11882dc3b58bbe2640/.devcontainer/jlink/99-crux-jlink.rules), in the Crux checkout) is not copied here.
+The J-Link software runs in the Dev Container, so the probe must reach Linux first. On Windows with WSL2 it reaches
+WSL2 through usbipd-win (<https://github.com/dorssel/usbipd-win>), as Microsoft describes in
+[Connect USB devices](https://learn.microsoft.com/en-us/windows/wsl/connect-usb). In PowerShell, `usbipd list`
+shows each USB device with its `BUSID` and `STATE`; the J-Link has vendor ID `1366`. Run `bind` only when the STATE
+is `Not shared`, in an administrator PowerShell; the share persists across reboots. Skip it when the STATE is
+`Shared`, and with `Attached` there is nothing to do. `attach` needs no administrator:
+
+```powershell
+usbipd list
+usbipd bind --busid <BUSID>
+usbipd attach --wsl --busid <BUSID>
+```
+
+The attachment ends when the probe re-enumerates, for example when J-Link software updates its firmware, and when
+WSL2 restarts: run `attach` again. While the probe is attached, Windows tools cannot see it;
+`usbipd detach --busid <BUSID>` gives it back.
+
+On native Linux there is no attach. The board settings and the udev rule
+([99-crux-jlink.rules](https://github.com/wonny-labs/crux-pilot/blob/c5439c51741bceb8f3327c11882dc3b58bbe2640/.devcontainer/jlink/99-crux-jlink.rules),
+in the Crux checkout, not copied here) are on the
+[Crux board page](https://github.com/wonny-labs/crux-pilot/blob/c5439c51741bceb8f3327c11882dc3b58bbe2640/docs/boards/mimxrt1060_evkb.md).
 
 ## 3. Open the Dev Container with the probe
 
@@ -55,7 +83,8 @@ cgroup rule for it, and its image build installs the J-Link software. Its files:
   `CRUX_JLINK=1` makes that an error and `CRUX_JLINK=0` skips the step, including the download.
 - [scripts/bootstrap.sh](../scripts/bootstrap.sh): `status` says whether the workspace, the SDK and the J-Link
   software are there.
-- [.vscode/launch.json](../.vscode/launch.json): the two Cortex-Debug profiles of [step 4](#4-flash-debug-and-restore).
+- [.vscode/tasks.json](../.vscode/tasks.json) and [.vscode/launch.json](../.vscode/launch.json): the tasks and
+  the Cortex-Debug profiles of [VS Code tasks and debug profiles](#vs-code-tasks-and-debug-profiles).
 
 How the container reaches the probe:
 
@@ -91,8 +120,30 @@ Should show: `lsusb` lists the probe with ID `1366:<product>`, and `bash scripts
 
 Flashing with `west flash`, debugging, the read-only compare of the flash and the recovery of the board's previous
 image are on the [Crux board page](https://github.com/wonny-labs/crux-pilot/blob/c5439c51741bceb8f3327c11882dc3b58bbe2640/docs/boards/mimxrt1060_evkb.md). This repository adds its image (step 1), the network and log
-values below and the two VS Code profiles of [.vscode/launch.json](../.vscode/launch.json), **Board: Flash and run to
-main** and **Board: Attach (no reset)**, which use `build/net/zephyr/zephyr.elf`.
+values below, and the VS Code tasks and profiles.
+
+### VS Code tasks and debug profiles
+
+The tasks are in [.vscode/tasks.json](../.vscode/tasks.json) (**Terminal > Run Task**) and the profiles in
+[.vscode/launch.json](../.vscode/launch.json) (**Run and Debug**). **Board: Build** runs
+[`scripts/build-board.sh`](../scripts/build-board.sh) for the build configuration you pick, `net` by default. It
+builds it in `build/<configuration>` with the CMake arguments of the `Budget` job, and after a successful build it
+points the link `build/mimxrt1060_evk_B_qspi--current` at that folder. A failed build leaves the link as it was.
+The other tasks and the profiles use the image behind the link, so one set serves every configuration.
+
+| Task or profile | What it does |
+|---|---|
+| **Board: Build** | Builds the configuration you pick, incrementally after the first build |
+| **Board: Flash** | `west flash -d build/mimxrt1060_evk_B_qspi--current --runner jlink`: flashes the last board build |
+| **Board: Clean** | Deletes every `build/<configuration>` and the link; `build/host` and `twister-out` stay |
+| **Board: Debug** | Runs **Board: Build**, then flashes the image through the J-Link GDB Server in the container, resets the board and stops at `main` |
+| **Board: Attach** | Connects through the J-Link GDB Server in the container to the image that runs, without build, reset or download. Connecting may halt the target |
+| **Board: Attach (external)** | Like **Board: Attach**, through a GDB server that VS Code does not start, at `localhost:2331`, for example a `JLinkGDBServer` that you start in a terminal of the container |
+
+**Board: Debug** flashes the board, so it is a physical operation like **Board: Flash** and needs the
+authorisation at the top of this page. The attach profiles do not build: the image on the board must be the one
+behind the link. While **Board: Build** runs, VS Code shows that it is waiting for the `preLaunchTask`; that notice
+is normal.
 
 ## The `net` image on the bench
 

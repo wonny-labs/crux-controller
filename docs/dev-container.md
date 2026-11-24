@@ -28,8 +28,16 @@ image pinned by digest), `.devcontainer/requirements-tools.txt` (the pinned Pyth
 (the check of the folder on the host) and `scripts/dev-shell.sh` (the same without VS Code). The versions follow `ci.yml`, and a tooling test
 compares them. `.gitattributes` pins LF line ends, so that a clone checks the scripts out with LF on every platform.
 For C code, VS Code uses the clangd extension with the image's `clangd-18`, which reads the `compile_commands.json`
-of `build/net` that the task **Build firmware** writes (set in `.clangd`), and `setup.sh` writes the bash Tab
-completion of `west` on every run.
+of the last board build of the task **Board: Build** (set in `.clangd`), and `setup.sh` writes the bash Tab
+completion of `west` on every run. The C/C++ extension (`ms-vscode.cpptools`) and `gdb` are installed for
+debugging, for example of the host tests through CMake Tools; `C_Cpp.intelliSenseEngine` is `disabled` in
+`devcontainer.json`, the setting that the clangd extension asks for when both are installed, so clangd stays the
+language server.
+
+**What has been run** for the editor tools: the tooling tests, which read these files.
+
+Not run: an image with `gdb` and `ms-vscode.cpptools`, a debug session of the host tests, the VS Code tasks and
+profiles ([board route](board-bring-up.md#vs-code-tasks-and-debug-profiles)).
 
 `.devcontainer/check-host.sh` checks the folder layout on the host before the container is created. VS Code runs it
 as the `initializeCommand` of `devcontainer.json`, on the host side, so it needs bash there: open the folder from
@@ -137,9 +145,10 @@ Two limits. A proxy on `127.0.0.1` or `localhost` of the host is not reachable f
 values that `containerEnv` passes are visible with `docker inspect`, so a proxy URL with a password is visible to
 whoever can run Docker as you.
 
-If the proxy decrypts HTTPS and re-signs it with a certificate of your organisation, tools fail with certificate
-errors, for example `curl: (60) SSL certificate problem: unable to get local issuer certificate` from the J-Link
-download of the image build, or `certificate verify failed` from pip or git. The image build
+If the proxy decrypts HTTPS and re-signs it with a certificate of your organisation, downloads in the image build
+or in the container fail with a certificate error, for example
+`curl: (60) SSL certificate problem: unable to get local issuer certificate`, `certificate verify failed`, or the
+same from pip, Git or west. The image build
 and the setup then need the root certificate authority (CA) certificate of your organisation. There are two places
 for it; each developer places their own file in one of them, and neither is in the repository.
 

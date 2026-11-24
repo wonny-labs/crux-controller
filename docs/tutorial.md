@@ -8,7 +8,11 @@ the `native_sim` scenarios of the product, and Part C builds the image for a boa
 
 Finish [Getting started](getting-started.md#set-up-the-dev-container) first: the clone in a folder named
 `crux-controller` under a parent folder of its own, and a first run of the Dev Container that ends with
-`West version: v1.4.0`. Then pick one route for the commands of this page:
+`West version: v1.4.0`. If your network's proxy re-signs TLS (the symptom is in
+[Getting started](getting-started.md#prerequisites)), put your organisation's root CA as a PEM `.crt` file in
+`.devcontainer/certs/` of the clone before the first **Dev Containers: Reopen in Container** or
+`bash scripts/dev-shell.sh`; the [folder README](../.devcontainer/certs/README.md) gives the steps. Then pick one
+route for the commands of this page:
 
 - **Command line.** Run each command through `bash scripts/dev-shell.sh`, as written below. The script runs it in
   the Dev Container with the repository as the working directory.
@@ -99,8 +103,8 @@ The image is `build/workload/zephyr/zephyr.bin` in the clone, next to `zephyr.me
 
 ### 5. Flash and debug the board
 
-[Board bring-up](board-bring-up.md) links the Crux board page for the probe, flash and debug, and adds this
-repository's image and the log to expect.
+[Board bring-up](board-bring-up.md) connects the probe, links the Crux board page for flash and debug, and adds
+this repository's image, its VS Code tasks and debug profiles and the log to expect.
 
 ## Next steps
 
