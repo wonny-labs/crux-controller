@@ -68,7 +68,7 @@ the first run already pulls an image.
    If it stops, the last line names the step:
 
    ```text
-   setup: failed during <step>; rerun: bash .devcontainer/setup.sh
+   setup: failed during <step>; rerun: bash .devcontainer/setup.sh. See docs/troubleshooting.md.
    ```
 
    Read the lines above it, fix the cause and run the same command again: the setup carries on where it stopped.

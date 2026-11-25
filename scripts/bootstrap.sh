@@ -70,7 +70,7 @@ if [[ "$mode" == board-host ]]; then
     fi
     crux_entry="$workspace/crux-pilot/scripts/bootstrap.sh"
     if [[ ! -f "$crux_entry" ]]; then
-        printf 'bootstrap: %s does not exist. The Crux checkout is fetched by the first Dev Container start (west update); open the Dev Container once, then run this again.\n' "$crux_entry"
+        printf 'bootstrap: %s does not exist. Open the Dev Container once, then run this again. See docs/troubleshooting.md.\n' "$crux_entry"
         exit 1
     fi
     exec bash "$crux_entry" board-host
@@ -103,7 +103,7 @@ run_step() {
     if ((status == 0)); then
         return 0
     fi
-    printf 'bootstrap: %s failed (exit %s); rerun: CRUX_BOOTSTRAP=%s bash scripts/bootstrap.sh\n' \
+    printf 'bootstrap: %s failed (exit %s); rerun: CRUX_BOOTSTRAP=%s bash scripts/bootstrap.sh. See docs/troubleshooting.md.\n' \
         "$name" "$status" "$name"
     if ((keep_going == 0)); then
         exit "$status"

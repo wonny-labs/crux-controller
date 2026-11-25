@@ -798,8 +798,8 @@ class SetupRuns(unittest.TestCase):
         result = self.fixture.run(FAKE_SDK_FAIL="1")
         self.assertNotEqual(0, result.returncode)
         self.assertFalse((self.fixture.sdk_dir / ".crux-installed").exists())
-        self.assertIn("setup: failed during the Zephyr SDK install; rerun: bash .devcontainer/setup.sh",
-                      result.stderr)
+        self.assertIn("setup: failed during the Zephyr SDK install; rerun: bash .devcontainer/setup.sh. "
+                      "See docs/troubleshooting.md.\n", result.stderr)
         # The next run starts again and succeeds, because the partial directory has no marker.
         self.ok()
         self.assertFalse((self.fixture.sdk_dir / "partial").exists())
