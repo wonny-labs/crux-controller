@@ -24,6 +24,8 @@ WORKFLOWS = ROOT / ".github" / "workflows"
 CI = WORKFLOWS / "ci.yml"
 WORKFLOW = WORKFLOWS / "devcontainer.yml"
 WEST_UPDATE = "west update --narrow -o=--progress"
+# The line of setup.sh that runs it; the options are built just before (no progress option in CI).
+WEST_UPDATE_LINE = 'west update "${update_args[@]}"'
 
 
 def read(path):
@@ -478,7 +480,7 @@ class SetupScript(unittest.TestCase):
     def test_west_init_and_update_run_only_when_the_workspace_is_not_initialised(self):
         guard = self.text.index('if [[ ! -d "$workspace/.west"')
         init = self.text.index("west init -l crux-controller", guard)
-        update = self.text.index(f"{WEST_UPDATE}\n", init)
+        update = self.text.index(f"{WEST_UPDATE_LINE}\n", init)
         self.assertLess(guard, init)
         self.assertLess(init, update)
 
@@ -490,7 +492,7 @@ class SetupScript(unittest.TestCase):
         self.assertIn('-f "$pending"', condition)
         init = self.text.index("west init -l crux-controller", guard)
         touch = self.text.index('touch "$pending"', init)
-        update = self.text.index(f"{WEST_UPDATE}\n", touch)
+        update = self.text.index(f"{WEST_UPDATE_LINE}\n", touch)
         remove = self.text.index('rm -f "$pending"', update)
         self.assertLess(init, touch)
         self.assertLess(update, remove)
@@ -726,6 +728,12 @@ class SetupRuns(unittest.TestCase):
         # long first fetch shows its progress instead of looking stuck (west 1.4.0 options).
         self.ok()
         self.assertEqual([WEST_UPDATE], self.fixture.calls("west update"))
+
+    def test_the_first_update_keeps_ci_logs_free_of_progress_lines(self):
+        # With CI set, git progress would only fill the job log, so the option is left out, as Crux's
+        # scripts/bootstrap-zephyr.sh does.
+        self.ok(CI="true")
+        self.assertEqual(["west update --narrow"], self.fixture.calls("west update"))
 
     def test_a_fresh_workspace_is_set_up_in_the_order_of_the_workload_job(self):
         self.ok()
