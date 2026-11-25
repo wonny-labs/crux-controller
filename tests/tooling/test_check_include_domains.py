@@ -55,7 +55,7 @@ CI_SNIPPET = """\
 jobs:
   boundary:
     steps:
-      - name: Run the Crux Pilot product include check
+      - name: Run the product include check
         env:
           CHECK_COMMIT: {commit}
           CHECK_SHA256: {checker}

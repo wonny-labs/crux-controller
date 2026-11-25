@@ -1174,7 +1174,7 @@ class DevcontainerWorkflow(unittest.TestCase):
     def test_the_product_include_check_runs_the_script_of_the_pin_after_checking_its_hash(self):
         # The pinned crux-pilot contains the script, with the hash that ci.yml checks the download
         # against. The container job runs that copy instead of downloading a second one.
-        expected = ci_step("boundary", "Run the Crux Pilot product include check")["env"]["CHECK_SHA256"]
+        expected = ci_step("boundary", "Run the product include check")["env"]["CHECK_SHA256"]
         steps = [step for step in self.job["steps"] if "product include check" in step.get("name", "")]
         self.assertEqual(1, len(steps))
         step = steps[0]
@@ -1655,7 +1655,7 @@ class Documentation(unittest.TestCase):
         self.assertNotIn("predates", text)
         comment = " ".join(
             line.strip().lstrip("#").strip()
-            for line in text[: text.index("- name: Run the Crux Pilot product include check")]
+            for line in text[: text.index("- name: Run the product include check")]
             .splitlines()[-6:]
             if line.strip().startswith("#")
         )

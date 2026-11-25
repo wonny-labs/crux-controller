@@ -79,7 +79,7 @@ jobs:
       # The pinned crux-pilot contains this script. The "Boundary check" job of ci.yml downloads the
       # same file from a commit URL and checks this hash; here the copy of the pin is checked
       # against it and run. A test compares the hash with the one of ci.yml.
-      - name: Run the Crux Pilot product include check
+      - name: Run the product include check
         env:
           CHECK_SHA256: 1e19b0aa3e300cfe7a542a06fe348343ad0963883ca822d7d1355be1af6b1e37
         run: |
