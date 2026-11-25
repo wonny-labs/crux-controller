@@ -99,7 +99,9 @@ download endpoint and installs it only if its SHA-256 matches. **The download ac
 you, as clicking the download on SEGGER's page does; if you do not accept them, use one of the overrides below.**
 If the download fails or the SHA-256 does not match, the build prints a warning, installs nothing and finishes
 without the J-Link software; a plain rebuild can reuse that cached step, so use **Dev Containers: Rebuild Container
-Without Cache** to try the download again. Two overrides, in this order, win over the download:
+Without Cache** to try the download again. If the build log shows a certificate error such as `curl: (60)`, a proxy
+re-signs HTTPS: add your organisation's root CA in `.devcontainer/certs/` first
+([README](../.devcontainer/certs/README.md)). Two overrides, in this order, win over the download:
 
 - exactly one `JLink_Linux_<version>_x86_64.deb` in `.devcontainer/jlink/packages/` (Git ignores it);
 - a copy that your organisation hosts after accepting the SEGGER licence itself: the build arguments
