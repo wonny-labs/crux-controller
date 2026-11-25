@@ -71,5 +71,5 @@ provenance, status or verification markers than its entry in
 never raise one. The test matches text only; review applies the checklist to everything else.
 
 Rationale and sources: the
-[Crux documentation guidelines](https://github.com/wonny-labs/crux-pilot/blob/ce2eb313a7d68657da0ca8991c7f13ec011b0a5b/docs/documentation-guidelines.md)
+[Crux documentation guidelines](https://github.com/wonny-labs/crux-pilot/blob/13c950bb031fce0b14d4784f1586057d31434de3/docs/documentation-guidelines.md)
 at the pinned revision.
