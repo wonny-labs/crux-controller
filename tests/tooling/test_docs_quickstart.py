@@ -379,6 +379,14 @@ class Counts(NativePage):
                 self.assertIn(f".{parts[3]}", self.text, identifier)
 
 
+class WindowsVsCode(RefPage):
+    def test_what_you_need_turns_off_the_wayland_socket_mount(self):
+        # Crux's getting-started page has the same step; the setting is per user, not per repository.
+        for needle in ("Dev › Containers: Mount Wayland Socket", "user settings", "wayland-0",
+                       "Dev Containers: Rebuild Container"):
+            self.assertIn(needle, self.dev)
+
+
 class Network(RefPage):
     def test_the_page_names_the_registry_host_of_the_dockerfile(self):
         base = re.search(r"^FROM (\S+?)/", read(DEVCONTAINER / "Dockerfile"), re.M).group(1)
