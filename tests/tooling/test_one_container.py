@@ -398,6 +398,18 @@ class DevShellRuns(unittest.TestCase):
         self.assertNotIn("/dev/bus/usb", run)
         self.assertNotIn("device-cgroup-rule", run)
 
+    # Approved behaviour change: CI reaches the container by name when it is set, as GH_TOKEN does, so
+    # that the setup inside the container sees a CI run (for example the git progress option).
+    def test_ci_reaches_the_container_by_name_when_it_is_set(self):
+        result = self.run_script("true", CI="true")
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn(" -e CI ", f" {self.run_line()} ")
+
+    def test_without_ci_no_ci_variable_is_passed(self):
+        result = self.run_script("true")
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertNotIn(" -e CI ", f" {self.run_line()} ")
+
     def test_it_is_one_build_and_one_run(self):
         self.run_script("true")
         self.assertEqual(1, len([c for c in self.calls() if c.startswith("build ")]))

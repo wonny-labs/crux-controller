@@ -126,8 +126,8 @@ Which route passes what, as the files are written (none of it was run behind a p
   (general knowledge), so export them in a WSL shell and start `code .` from that shell. A VS Code server that
   already runs in WSL keeps its old environment: close all VS Code windows of that distribution, or run
   `wsl --shutdown`, first.
-- `scripts/dev-shell.sh` passes `GH_TOKEN`, your user and group ids and any `CRUX_JLINK*` variable that is set (as
-  build arguments, by name), and no proxy variable. A proxy variable that you export in
+- `scripts/dev-shell.sh` passes `GH_TOKEN` and `CI` when they are set, your user and group ids and any `CRUX_JLINK*`
+  variable that is set (as build arguments, by name), and no proxy variable. A proxy variable that you export in
   your shell does not reach its container. For this route use Docker's own client configuration: the `proxies`
   section of `~/.docker/config.json` makes the Docker command line add the variables to the build and to the
   container (general knowledge, not tested).
