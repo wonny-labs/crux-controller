@@ -3,3 +3,16 @@
 # folder.
 CompileFlags:
   CompilationDatabase: build/mimxrt1060_evk_B_qspi--current
+---
+# Zephyr adds these GCC options to the board build (zephyr/CMakeLists.txt, cmake/compiler/gcc/compiler_flags.cmake
+# and target_arm.cmake); clang rejects or ignores them. The list is Crux's (-fno-freestanding comes from native_sim
+# builds) plus -mfp16-format=ieee of the Arm target. The Dev Container's clangd user config (.devcontainer/Dockerfile)
+# removes the same list for the Zephyr and Crux headers outside this repository.
+CompileFlags:
+  Remove:
+    - -fno-reorder-functions
+    - -fno-defer-pop
+    - --param=min-pagesize=0
+    - -fno-freestanding
+    - -fno-printf-return-value
+    - -mfp16-format=ieee

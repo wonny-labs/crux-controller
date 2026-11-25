@@ -78,6 +78,22 @@ RUN apt-get update \
     && find /var/lib/apt/lists -type f -delete \
     && ln -sf /usr/bin/clangd-18 /usr/local/bin/clangd
 
+# clangd user config: Zephyr and Crux headers sit outside the repository, where .clangd does not apply.
+# It removes the GCC options that Zephyr adds to the board build; keep the list equal to the
+# unconditional fragment of .clangd (tests/tooling/test_editor_tools.py checks it). The next step gives
+# /home/vscode to the user of the container.
+RUN install -d /home/vscode/.config/clangd \
+    && printf '%s\n' \
+        'CompileFlags:' \
+        '  Remove:' \
+        '    - -fno-reorder-functions' \
+        '    - -fno-defer-pop' \
+        '    - --param=min-pagesize=0' \
+        '    - -fno-freestanding' \
+        '    - -fno-printf-return-value' \
+        '    - -mfp16-format=ieee' \
+        > /home/vscode/.config/clangd/config.yaml
+
 RUN if [ "$USER_GID" != "$(id -g vscode)" ]; then groupmod -o --gid "$USER_GID" vscode; fi \
     && if [ "$USER_UID" != "$(id -u vscode)" ]; then usermod -o --uid "$USER_UID" vscode; fi \
     && chown -R "$USER_UID:$USER_GID" /home/vscode \
