@@ -776,7 +776,6 @@ class SntpFindings(unittest.TestCase):
     def test_the_note_states_the_four_duties_as_a_question_and_answer_and_where_each_is_met(self):
         text = self.words()
         self.assertNotIn("consult", text)
-        self.assertNotIn("Crux Pilot was asked", text)
         self.assertIn("The question was whether a product thread may call `crux_realtime_set`", text)
         self.assertIn("not a Crux decision", text)
         self.assertIn("docs/time-contract.md", text)

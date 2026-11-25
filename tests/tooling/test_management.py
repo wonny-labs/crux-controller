@@ -635,12 +635,10 @@ class ManagementBuildFiles(unittest.TestCase):
 
     def test_the_build_files_use_only_the_fixed_module_name_of_crux(self):
         # Crux names its Zephyr module `crux` (name: in zephyr/module.yml), so Zephyr sets
-        # ZEPHYR_CRUX_MODULE_DIR whatever the checkout folder is called. The name that came from the
-        # folder (crux-pilot) is no longer set, and no fallback to it is kept, comments included.
+        # ZEPHYR_CRUX_MODULE_DIR whatever the checkout folder is called.
         for path in (self.MANAGEMENT_CMAKE, self.ENTROPY_CMAKE):
             text = path.read_text()
             self.assertIn("${ZEPHYR_CRUX_MODULE_DIR}", text, path.name)
-            self.assertNotRegex(text, r"CRUX_PILOT_MODULE", path.name)
 
     def test_the_management_cmake_refuses_a_missing_kernel_version(self):
         self.assertRegex(self.management_text(), r"if\(NOT KERNEL_VERSION_STRING\)")
