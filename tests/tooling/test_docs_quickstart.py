@@ -379,6 +379,35 @@ class Counts(NativePage):
                 self.assertIn(f".{parts[3]}", self.text, identifier)
 
 
+class QuotedFailureLines(unittest.TestCase):
+    """Each quoted failure line of the setup and bootstrap scripts is one that the script's printf can print."""
+
+    QUOTES = (
+        ("docs/dev-container.md", ".devcontainer/setup.sh",
+         "setup: failed during <step>; rerun: bash .devcontainer/setup.sh. See docs/troubleshooting.md."),
+        ("docs/troubleshooting.md", "scripts/bootstrap.sh",
+         "bootstrap: zephyr failed (exit N); rerun: CRUX_BOOTSTRAP=zephyr bash scripts/bootstrap.sh. "
+         "See docs/troubleshooting.md."),
+        ("docs/troubleshooting.md", "scripts/bootstrap.sh",
+         "bootstrap: ... does not exist. Open the Dev Container once, then run this again. See docs/troubleshooting.md."),
+        ("docs/troubleshooting.md", ".devcontainer/setup.sh",
+         "setup: failed during <step>; rerun: bash .devcontainer/setup.sh. See docs/troubleshooting.md."),
+    )
+
+    @staticmethod
+    def formats(script):
+        # Every printf format of the script, as a pattern in which each %s stands for any text. Generic
+        # formats such as 'setup: %s' are left out: they would match any line.
+        found = re.findall(r"printf '([^']*)\\n'", (ROOT / script).read_text())
+        return [re.compile(".+".join(re.escape(part) for part in fmt.split("%s")))
+                for fmt in found if len(fmt.replace("%s", "")) >= 20]
+
+    def test_each_quoted_line_is_on_its_page_and_matches_a_printf_of_its_script(self):
+        for page, script, quote in self.QUOTES:
+            self.assertIn(f"`{quote}`", (ROOT / page).read_text(), page)
+            self.assertTrue(any(f.fullmatch(quote) for f in self.formats(script)), f"{page}: {quote}")
+
+
 class WindowsVsCode(RefPage):
     def test_what_you_need_turns_off_the_wayland_socket_mount(self):
         # Crux's getting-started page has the same step; the setting is per user, not per repository.

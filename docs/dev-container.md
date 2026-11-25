@@ -51,7 +51,7 @@ and the markers of a home directory.
 
 `.devcontainer/setup.sh` prints to the standard error stream, also what pip, west and git print, so that a command
 which `scripts/dev-shell.sh` runs after it keeps a clean standard output.
-It prints a `setup:` line for each piece of work that a step does, almost nothing for a step that is already done (the west workspace step reminds you to run `west update` after the pin in `west.yml` moves), and when a step fails it prints `setup: failed during <step>; rerun: bash .devcontainer/setup.sh`.
+It prints a `setup:` line for each piece of work that a step does, almost nothing for a step that is already done (the west workspace step reminds you to run `west update` after the pin in `west.yml` moves), and when a step fails it prints `setup: failed during <step>; rerun: bash .devcontainer/setup.sh. See docs/troubleshooting.md.`.
 It does again what an
 interrupt left half done: a virtual environment without pip, a `.west` folder from an interrupted `west init`, and
 an SDK folder without its install marker.
@@ -290,10 +290,8 @@ Python requirements of Zephyr and runs `west sdk install` for the SDK version of
 and downloads several GiB; watch the creation log.
 The setup runs `west update --narrow -o=--progress`, which fetches only the pinned revisions and prints git's fetch progress, so a long fetch does not look stuck (with `CI` set, it leaves out `-o=--progress`, which would only fill the job log).
 Later starts and rebuilds find all of it already there.
-If the creation fails or is interrupted, run `bash .devcontainer/setup.sh` in a terminal of the container: it carries on,
-and it runs `west update` again if the first one did not finish. After a change of the pin in `west.yml`, run
-`west update` by hand: the setup script does not run it again (see
-[After a pin or SDK change](#after-a-pin-or-sdk-change)).
+If the creation fails or is interrupted, run `bash .devcontainer/setup.sh` in a terminal of the container: it carries on, and it runs `west update` again if the first one did not finish.
+After a change of the pin in `west.yml`, run `west update` by hand: the setup script does not run it again (see [After a pin or SDK change](#after-a-pin-or-sdk-change)).
 
 ## Without VS Code
 

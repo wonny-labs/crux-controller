@@ -114,6 +114,7 @@ class ClangdGccOnlyFlags(unittest.TestCase):
         self.assertLess(joined.index("/home/vscode/.config/clangd/config.yaml"),
                         joined.index('chown -R "$USER_UID:$USER_GID" /home/vscode'))
 
+
 class BashCompletion(unittest.TestCase):
     def test_the_image_has_the_bash_completion_package(self):
         self.assertRegex(apt_step((DEVCONTAINER / "Dockerfile").read_text()), r"\sbash-completion\s")
