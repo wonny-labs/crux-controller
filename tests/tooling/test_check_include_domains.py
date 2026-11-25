@@ -185,7 +185,7 @@ class DefaultCruxRoot(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
         self.assertIn(str(ws.crux.resolve()), result.stdout)
 
-    def test_a_checkout_named_crux_pilot_beside_the_repository_is_found(self):
+    def test_a_checkout_named_for_the_west_project_is_found(self):
         ws = Workspace(self, crux_name="crux-pilot")
         result = ws.run()
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)

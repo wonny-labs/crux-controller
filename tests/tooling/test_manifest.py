@@ -21,7 +21,7 @@ def load_manifest():
 
 
 class ManifestIsOptionA(unittest.TestCase):
-    def test_projects_are_crux_pilot_and_the_test_only_libc(self):
+    def test_projects_are_crux_and_the_test_only_libc(self):
         projects = load_manifest()["projects"]
         self.assertEqual([p["name"] for p in projects], ["crux-pilot", "picolibc"])
         # The Crux import is narrowed: the three GPL stacks are blocked by name, so enabling the
@@ -37,11 +37,11 @@ class ManifestIsOptionA(unittest.TestCase):
         # The revision in Zephyr's own manifest at the Zephyr release that Crux pins.
         self.assertEqual(picolibc["revision"], "01254932e8e81085817ed61fd858648584ffe37c")
 
-    def test_crux_pilot_is_pinned_by_a_full_commit_hash(self):
+    def test_crux_is_pinned_by_a_full_commit_hash(self):
         revision = load_manifest()["projects"][0]["revision"]
         self.assertRegex(revision, r"^[0-9a-f]{40}$")
 
-    def test_crux_pilot_is_pinned_to_the_approved_commit(self):
+    def test_crux_is_pinned_to_the_approved_commit(self):
         # Moving the pin is a reviewed change of this test and of west.yml together.
         # This commit of crux-pilot main follows the one the project owner
         # approved on 16 November 2026 and still contains the move of the crypto modules to
@@ -148,7 +148,7 @@ class MbedOnlyManifest(unittest.TestCase):
             self.assertTrue(problems, group)
             self.assertIn(group, problems[0])
 
-    def test_a_manifest_without_crux_pilot_fails_the_static_check(self):
+    def test_a_manifest_without_crux_fails_the_static_check(self):
         manifest = copy.deepcopy(load_manifest())
         manifest["projects"] = manifest["projects"][1:]
         self.assertTrue(check_mbed_only.check_manifest(manifest))

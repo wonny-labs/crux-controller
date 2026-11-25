@@ -1758,9 +1758,9 @@ class ManagementStepNote(unittest.TestCase):
 
     def test_west_yml_changed_in_comments_only(self):
         data = yaml.safe_load((ROOT / "west.yml").read_text())["manifest"]
-        pilot = next(p for p in data["projects"] if p["name"] == "crux-pilot")
-        self.assertEqual(self.PIN, pilot["revision"])
-        self.assertEqual({"name-blocklist": ["wolfssl", "wolfssh", "wolfpsa"]}, pilot["import"])
+        crux = next(p for p in data["projects"] if p["name"] == "crux-pilot")
+        self.assertEqual(self.PIN, crux["revision"])
+        self.assertEqual({"name-blocklist": ["wolfssl", "wolfssh", "wolfpsa"]}, crux["import"])
         self.assertEqual(["crux-pilot", "picolibc"], [p["name"] for p in data["projects"]])
 
 

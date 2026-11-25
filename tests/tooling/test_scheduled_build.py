@@ -56,7 +56,7 @@ class ScheduledBuild(unittest.TestCase):
         self.assertEqual(1, len(re.findall(r"\$\{\{ *github\.token *\}\}", text)))
         self.assertIn("GH_TOKEN: ${{ github.token }}", text)
 
-    def test_rewrites_the_crux_pilot_revision_to_main_in_the_runner_only(self):
+    def test_rewrites_the_crux_revision_to_main_in_the_runner_only(self):
         import os
         import subprocess
         import tempfile

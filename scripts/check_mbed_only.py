@@ -101,10 +101,10 @@ def check_manifest(manifest):
         entry = str(entry)
         if entry.startswith("+") and entry[1:] in OPTIONAL_GROUPS:
             problems.append(f"{entry[1:]} is enabled in the manifest: optional groups stay off")
-    pilot = next((p for p in manifest.get("projects", []) if p.get("name") == "crux-pilot"), None)
-    if pilot is None:
+    crux = next((p for p in manifest.get("projects", []) if p.get("name") == "crux-pilot"), None)
+    if crux is None:
         return problems + ["the manifest has no crux-pilot project"]
-    imported = pilot.get("import")
+    imported = crux.get("import")
     if not isinstance(imported, dict):
         return problems + ["the crux-pilot import is not narrowed: it has no name filter"]
     blocklist = imported.get("name-blocklist")

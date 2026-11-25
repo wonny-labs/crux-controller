@@ -122,8 +122,8 @@ class Dependencies(unittest.TestCase):
 
     def test_the_pinned_crux_revision_matches_the_manifest(self):
         manifest = yaml.safe_load((ROOT / "west.yml").read_text())["manifest"]
-        pilot = next(p for p in manifest["projects"] if p["name"] == "crux-pilot")
-        short = pilot["revision"][:8]
+        crux = next(p for p in manifest["projects"] if p["name"] == "crux-pilot")
+        short = crux["revision"][:8]
         for name in ("RELEASE.md", "docs/dependencies.md", "CHANGELOG.md"):
             self.assertIn(short, text(name), name)
 
