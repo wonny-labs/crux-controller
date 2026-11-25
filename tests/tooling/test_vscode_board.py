@@ -32,8 +32,9 @@ LINK = "build/mimxrt1060_evk_B_qspi--current"
 ELF = f"${{workspaceFolder}}/{LINK}/zephyr/zephyr.elf"
 TASKS = ["Board: Build", "Board: Flash", "Board: Clean"]
 HIDDEN = ["Board: Check probe", "Board: Check probe and build"]
-PROBE_CHECK = ("grep -qsx 1366 /sys/bus/usb/devices/*/idVendor || { echo 'No J-Link probe found. Attach it to WSL2: "
-               "usbipd attach --wsl --busid <BUSID> (docs/board-bring-up.md, 2. Connect the probe).' >&2; exit 1; }")
+PROBE_CHECK = ("grep -qsx 1366 /sys/bus/usb/devices/*/idVendor || { echo 'No J-Link probe found. Attach it to the "
+               "Dev Container (on Windows with WSL2: usbipd attach --wsl --busid <BUSID>). "
+               "See docs/board-bring-up.md, 2. Connect the probe.' >&2; exit 1; }")
 FLASH = f"exec west flash -d {LINK} --runner jlink"
 PROFILES = ["Board: Debug", "Board: Attach", "Board: Attach (external)"]
 OLD_NAMES = ["Build firmware", "Board: Build and flash", "Board: Flash and run to main", "Board: Attach (no reset)",
@@ -221,6 +222,12 @@ class FlashTask(unittest.TestCase):
         self.assertEqual(1, result.returncode)
         self.assertIn("No J-Link probe found", result.stderr)
         self.assertIn("usbipd attach --wsl --busid <BUSID>", result.stderr)
+        # Native Linux has no WSL2: the message names WSL2 only for the Windows case.
+        self.assertNotIn("Attach it to WSL2", result.stderr)
+        self.assertIn("on Windows with WSL2:", result.stderr)
+        # One line: the failure, one action and the page to read.
+        self.assertEqual(1, len(result.stderr.strip().splitlines()))
+        self.assertIn("See docs/board-bring-up.md", result.stderr)
         self.assertFalse(self.log.exists())
 
     def test_with_a_probe_it_runs_west_flash(self):

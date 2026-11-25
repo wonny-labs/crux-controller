@@ -97,11 +97,9 @@ How the container reaches the probe:
 By default you provide nothing for the J-Link software: the image build downloads the pinned version from SEGGER's
 download endpoint and installs it only if its SHA-256 matches. **The download accepts SEGGER's terms of use for
 you, as clicking the download on SEGGER's page does; if you do not accept them, use one of the overrides below.**
-If the download fails or the SHA-256 does not match, the build prints a warning, installs nothing and finishes
-without the J-Link software; a plain rebuild can reuse that cached step, so use **Dev Containers: Rebuild Container
-Without Cache** to try the download again. If the build log shows a certificate error such as `curl: (60)`, a proxy
-re-signs HTTPS: add your organisation's root CA in `.devcontainer/certs/` first
-([README](../.devcontainer/certs/README.md)). Two overrides, in this order, win over the download:
+If the download fails or the SHA-256 does not match, the build prints a warning, installs nothing and finishes without the J-Link software; a plain rebuild can reuse that cached step, so use **Dev Containers: Rebuild Container Without Cache** to try the download again.
+If the build log shows a certificate error such as `curl: (60)`, a proxy re-signs HTTPS: add your organisation's root CA in `.devcontainer/certs/` first ([README](../.devcontainer/certs/README.md)).
+Two overrides, in this order, win over the download:
 
 - exactly one `JLink_Linux_<version>_x86_64.deb` in `.devcontainer/jlink/packages/` (Git ignores it);
 - a copy that your organisation hosts after accepting the SEGGER licence itself: the build arguments
@@ -145,19 +143,16 @@ The other tasks and the profiles use the image behind the link, so one set serve
 | **Board: Attach** | Checks for the probe, then connects through the J-Link GDB Server in the container to the image that runs, without build, reset or download. Connecting may halt the target |
 | **Board: Attach (external)** | Like **Board: Attach**, without the probe check, through a GDB server that VS Code does not start, at `localhost:2331`, for example a `JLinkGDBServer` that you start in a terminal of the container |
 
-**Board: Flash** runs the probe check in its own command. **Board: Debug** and **Board: Attach** run it first as
-the hidden task **Board: Check probe** (for **Board: Debug**, before **Board: Build**), because a failing
-`preLaunchTask` stops the session. When no J-Link (USB
-vendor ID `1366`) is visible in the container, the check stops with `No J-Link probe found` and the
-`usbipd attach` command of [2. Connect the probe](#2-connect-the-probe).
+**Board: Flash** runs the probe check in its own command.
+**Board: Debug** and **Board: Attach** run it first as the hidden task **Board: Check probe** (for **Board: Debug**, before **Board: Build**), because a failing `preLaunchTask` stops the session.
+When no J-Link (USB vendor ID `1366`) is visible in the container, the check stops with `No J-Link probe found`, the `usbipd attach` command for Windows with WSL2 and a pointer to [2. Connect the probe](#2-connect-the-probe).
 
 | Build | Optimisation |
 |---|---|
 | **Board: Build**, flashed by **Board: Flash** | Size (`-Os`), Zephyr's default |
 
 `scripts/build-board.sh` and the configuration files set no optimisation level, so Zephyr's default applies.
-A debug optimisation level for the board builds is not decided: **Board: Debug** and the attach profiles debug
-the `-Os` image of **Board: Build**.
+A debug optimisation level for the board builds is not decided: **Board: Debug** and the attach profiles debug the `-Os` image of **Board: Build**.
 
 **Board: Debug** flashes the board, so it is a physical operation like **Board: Flash** and needs the
 authorisation at the top of this page. The attach profiles do not build: the image on the board must be the one
