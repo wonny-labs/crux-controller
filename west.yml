@@ -15,19 +15,21 @@ manifest:
   projects:
     - name: crux-pilot
       remote: crux
-      # Commit of crux-pilot origin/main of 24 November 2026. It follows c5439c51 (the samples renamed
-      # time/shell and file/basic, the J-Link package downloaded by the Dev Container image build) and
-      # changes documentation, the Dev Container and VS Code files of Crux, Crux's own scripts/bootstrap.sh
-      # and its time shell sample, and drops the CMake status line "Crux Time realtime provider" of Crux's
-      # host Time build. The Crux manifest, the public headers, the Zephyr code of the components and the
-      # Zephyr module name (crux) are as before. The earlier revision's File composition
-      # interface <crux/file_zephyr.h>, the public management headers, the simulated native_sim System
-      # watchdog, the web header deadline (CONFIG_CRUX_WEB_HEADER_DEADLINE_MS, default 10000) and the
-      # move of the crypto modules to the revisions of Zephyr's v4.4-branch stay in it: Mbed TLS 4.1.1
-      # plus 8 commits and TF-PSA-Crypto 1.1.1 plus 24 commits, as the dependency review of crux-pilot
-      # counts them. Both are in the optional group crux-secure-management, which stays off here. No
-      # Crux tag exists yet, so this is a commit, not a tag.
-      revision: ea16f99f1416085e52bacfa69a22d09e4d057b73
+      # Commit of crux-pilot origin/main, the merge of its IDE and bootstrap fixes. It follows ea16f99f (Crux
+      # documentation, Dev Container and VS Code files, Crux's own scripts/bootstrap.sh and time shell sample,
+      # and the CMake status line "Crux Time realtime provider" dropped from Crux's host Time build) and changes
+      # only Crux's .clangd, VS Code files (unoptimised native_sim builds, a one-process Board: Flash task,
+      # debug stops at main), CMakePresets.json display names, docs/build.md, docs/board-jlink-usbipd.md, Crux's
+      # own scripts/bootstrap.sh (a plain usbipd attach hint) and scripts/bootstrap-zephyr.sh (a narrow first
+      # west update with progress), and their tests. The Crux manifest, the public headers, the Zephyr code of
+      # the components and the Zephyr module name (crux) are as before. The File composition interface
+      # <crux/file_zephyr.h>, the public management headers, the simulated native_sim System watchdog, the web
+      # header deadline (CONFIG_CRUX_WEB_HEADER_DEADLINE_MS, default 10000) and the move of the crypto modules
+      # to the revisions of Zephyr's v4.4-branch stay in it: Mbed TLS 4.1.1 plus 8 commits and
+      # TF-PSA-Crypto 1.1.1 plus 24 commits, as the dependency review of crux-pilot counts them. Both are in
+      # the optional group crux-secure-management, which stays off here. No Crux tag exists yet, so this is a
+      # commit, not a tag.
+      revision: ce2eb313a7d68657da0ca8991c7f13ec011b0a5b
       # The Crux manifest puts Mbed TLS and TF-PSA-Crypto in the same optional group
       # (crux-secure-management) as wolfSSL, wolfSSH and wolfPSA, which are GPL or commercial.
       # Blocking the three wolf projects by name keeps them out of the resolved manifest, so
