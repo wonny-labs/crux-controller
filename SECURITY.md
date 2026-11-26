@@ -9,7 +9,7 @@ repository owner will answer there.
 
 Please do not post exploit details, keys or credentials in a public issue or pull request.
 
-A good report names the commit or release, the build configuration it concerns (`base`, `workload`, `net` and so on) and how
+A good report names the commit or release, the build configuration it concerns (`minimal`, `workload`, `net`, `base` and so on) and how
 to reproduce it. There is no service level for a reply.
 
 ## What this repository is

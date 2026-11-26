@@ -8,8 +8,8 @@ and the [changelog](../CHANGELOG.md) are the reference when this page and a comm
 
 ## Short version
 
-- Seven build configurations, `base` to `management`, are on `main`. CI builds them for the NXP RT1060-EVKB Rev B
-  and runs `native_sim` scenarios for `workload` to `management`. CI results change with every commit, so this
+- Eight build configurations, `minimal` to `base`, are on `main`. CI builds them for the NXP RT1060-EVKB Rev B
+  and runs `native_sim` scenarios for `workload` to `base`. CI results change with every commit, so this
   page claims none; look at the checks of the commit you care about.
 - **Only the `net` image has run on a physical board**, twice, on one bench
   ([what has run on a board](#what-has-run-on-a-board)).
@@ -17,27 +17,32 @@ and the [changelog](../CHANGELOG.md) are the reference when this page and a comm
   status and configuration services and a packaged page). It is built in CI and has never run on a board, and
   the image has no account, so nobody can log in until the first-account console exists. The serial and SSH
   command lines, SFTP, network settings, file and reboot routes are not built, and each has a recorded reason.
+- The controller framework is a Zephyr module of this repository, and the base image (`base`) runs it with web
+  management and time synchronisation and no application. The serial command line, watchdog supervision and
+  the application interface are not in it yet.
 - There is no release and no tag.
 
 ## What is built
 
 | Build configuration | What it adds | What the repository has for it | On a board |
 |---|---|---|---|
-| `base` | The clock of Crux Time answers | A CI build for the board. No scenario. | not run |
+| `minimal` | The clock of Crux Time answers | A CI build for the board. No scenario. | not run |
 | `workload` | The synthetic workload on two Zephyr threads and a message queue in the adapter zone `app/os`, with Crux Time and Logging | A `native_sim` scenario that reads the logged messages from an emulated UART, host tests of the portable workload core, and a CI build for the board. | not run as an image of its own (the `net` image contains it) |
 | `net` | Each message is also sent to a TCP peer over the Crux Sockets profile | A `native_sim` scenario over loopback (it needs the test-only `picolibc` project), host tests of the exchange against a loopback peer, a CI build for the board. | ran twice, on one bench |
 | `file` | The configuration record is kept in a file through Crux File, mounted by the composition zone | A `native_sim` scenario with the simulator provider on a RAM disk, and a CI build for the board with the FatFs provider on microSD. No card was used. | not run |
 | `system` | The reset cause is logged at boot, and a watchdog is fed once for each pass of the workload that has cycles due, through Crux System | A `native_sim` scenario that shows the boot line and an unavailable watchdog (no feed cycle), host tests of the policy, and a CI build for the board with WDOG1 named by a devicetree alias. | not run |
 | `sntp` | The Crux Time realtime clock is set from an SNTP server on the `net` network, by a low-priority thread, and a product policy decides what an answer may do | `native_sim` scenarios with a UDP responder on loopback, in seven cases (each case is its own image), host tests of the policy, and a CI build for the board on the `net` base. | not run |
 | `management` | HTTPS management on the `net` network: Crux Access, the web server on the Mbed TLS profile, the status and configuration services and a packaged page, on a RAM disk | One `native_sim` image with ten ordered cases (a TLS 1.3 handshake that an in-process client verifies, the page bytes and the login path up to a rejected attempt), host tests of the address parser, and a CI build for the board with the Mbed TLS group switched on in its own runner. No account and no successful login. | not run |
+| `base` | The base image: the controller framework from the Zephyr module, with web management (as `management`) and time synchronisation (as `sntp`) on the network of `net`, on a RAM disk, and no workload | One `native_sim` image with four ordered cases that builds the framework from the module and runs its start function (each phase reported, a second start refused, the listener accepting a connection), host tests of the startup sequence, and a CI build for the board with the Mbed TLS group switched on in its own runner. | not run |
 
 The pinned Crux has a simulated `native_sim` watchdog (`CONFIG_CRUX_SYSTEM_NATIVE_SIM_WATCHDOG`). The `system`
 scenario does not enable it, so it shows no feed cycle. Using it is not decided or scheduled.
 
 Around the configurations:
 
-- The boundary check (`scripts/check_boundary.py`) and two zones, `app/os` and `app/compose`.
-- Declared resource limits for `base` to `management` (`budgets/limits.json`), which are placeholders, checked in
+- The boundary check (`scripts/check_boundary.py`) with the zones `app/os`, `framework/compose` and
+  `framework/os`, the portable core `framework/src` and the interface header in `include/`.
+- Declared resource limits for `minimal` to `base` (`budgets/limits.json`), which are placeholders, checked in
   CI against static size only. Stack use, heap use and timing are not measured.
 - Release tooling and a dry run that publishes nothing, a rebuild comparison at another path, and a daily
   build against the current `crux-pilot` main that is information only.
@@ -54,7 +59,7 @@ sizes.
 
 | Build configuration | FLASH used (bytes) | FLASH of region | RAM used (bytes) | RAM of region |
 |---|---|---|---|---|
-| `base` | 32440 | 0.39 % | 4288 | 0.01 % |
+| `minimal` | 32440 | 0.39 % | 4288 | 0.01 % |
 | `workload` | 40720 | 0.49 % | 22656 | 0.07 % |
 | `net` | 100748 | 1.20 % | 70508 | 0.21 % |
 | `file` | 68296 | 0.81 % | 26656 | 0.08 % |
@@ -87,7 +92,7 @@ cycle, run-time values or a repeated exchange. The record, with its full "Not sh
 [docs/findings/s2-first-board-run.md](findings/s2-first-board-run.md). The dates of the runs are in
 [history](history/board-runs-and-tracking.md).
 
-No `base`, `workload`-only, `file`, `system`, `sntp` or `management` image has run on a board. No release exists, so no
+No `minimal`, `workload`-only, `file`, `system`, `sntp`, `management` or `base` image has run on a board. No release exists, so no
 released image has run anywhere. A green `native_sim` run is not a board run and a CI build is not a board run.
 
 ## What is not yet possible, and why
@@ -129,7 +134,7 @@ was tracked is in [history](history/board-runs-and-tracking.md).
 
 - A release, a tag or a published image. The release flow runs only as a dry run, and images are never
   published, only hashes.
-- A board run of `base`, of `workload` alone, of `file`, of `system`, of `sntp` or of `management`, and any run
+- A board run of `minimal`, of `workload` alone, of `file`, of `system`, of `sntp`, of `management` or of `base`, and any run
   after a cold power cycle.
 - Run-time measurement: the budget job measures static size only.
 - A firmware image, `.elf` or `.map` in the repository, a bundle or a CI artifact: this is a rule, not a

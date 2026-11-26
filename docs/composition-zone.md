@@ -2,7 +2,7 @@
 
 This page is the reference for the include rules of the source trees: what each tree may include and why. "Composition"
 has four meanings; see the [glossary](glossary.md#product-platform-and-composition). `file` (Crux File) uses the
-composition zone: `app/compose/storage_mount.c` implements the port `app/src/storage_port.h`. The zone also admits the
+composition zone: `framework/compose/storage_mount.c` implements the port `framework/src/storage_port.h`. The zone also admits the
 headers that the HTTPS management interface (Mbed profile) needs, see [The web composition](#the-web-composition).
 
 ## Running the check
@@ -16,7 +16,8 @@ python scripts/check_boundary.py --crux-root ../crux-pilot
 python ../crux-pilot/templates/product/check_domain_includes.py --product .
 ```
 
-The first command checks `app/src`, `app/compose`, `app/os` and `workload` against the public `<crux/NAME.h>`
+The first command checks `app/src`, `app/compose`, `app/os`, `workload` and the trees of the framework module
+(`include`, `framework/src`, `framework/compose`, `framework/os`) against the public `<crux/NAME.h>`
 headers of the checkout. The second is the product include check, the script
 `templates/product/check_domain_includes.py` of `crux-pilot` (see [the glossary](glossary.md#boundary-and-zones)).
 In product mode (`--product`) it reads every C and C++ source under the repository, the tests included, and fails on
@@ -30,7 +31,7 @@ script through the wrapper `check-includes.sh` of `crux-pilot`, downloaded and c
 nothing but a pass line on success.
 
 Without `--crux-root`, `scripts/check_boundary.py` checks the same rules but cannot tell that a `<crux/NAME.h>` name
-is not a public header. The check skips each absent tree as long as at least one of the four exists. If none exists
+is not a public header. The check skips each absent tree as long as at least one of the eight exists. If none exists
 under `--repo`, because it ran from the wrong directory, the script exits with status 2 and says so, and it does not
 report a pass.
 
@@ -104,12 +105,12 @@ page, in one reviewed pull request.
 
 ## The web composition
 
-The HTTPS management interface (Mbed profile) is composed in `app/compose`, as File is, by
+The HTTPS management interface (Mbed profile) is composed in `framework/compose`, as File is, by
 `management_start.c` (`management`). The reason is that Crux publishes its binding to the Zephyr HTTP server as a composition interface:
 `<crux/web_zephyr.h>` with the CMake target `crux::web_zephyr`. It declares `crux_web_start()`,
 which binds the web core to Zephyr's HTTP server, its sockets and the TLS security tag, so only the
 platform composition of a product calls it. That is the same reason as for `<crux/file_zephyr.h>`,
-and the same rule follows: the include is allowed in `app/compose` and fails in `app/src`, `app/os`
+and the same rule follows: the include is allowed in `framework/compose` and fails in `app/src`, `app/os`
 and `workload`, with or without `--crux-root`.
 
 The zone also needs `zephyr/net/tls_credentials.h`. Crux expects the product to register the TLS
@@ -121,10 +122,10 @@ Crux private or port headers and on any other composition interface. The portabl
 (`<crux/web.h>`, `<crux/web_session.h>`, `<crux/web_management.h>`), `<crux/tls_certificate.h>`
 and `<crux/tls_certificate_start.h>` are ordinary public headers. `app/src`, `app/os` and `workload` fail on
 `<crux/web_zephyr.h>` and on `zephyr/net/tls_credentials.h`.
-`management` is the composition source that uses them: `app/compose/management_start.c` includes the Zephyr and
+`management` is the composition source that uses them: `framework/compose/management_start.c` includes the Zephyr and
 composition headers named above, and no other entry is needed for it. The route sources, the packaged
 page and the route table are not in the zone: they belong to the target `app` and are named by
-`app/management/management.cmake`, which Crux's route function equips with the private include directories of
+`framework/management/management.cmake`, which Crux's route function equips with the private include directories of
 Crux's own sources one source at a time, so no build file here adds an include path.
 
 ## The adapter zone
@@ -145,7 +146,7 @@ network header, `zephyr/net/socket.h` included), on a vendor or third-party head
 inside the zone or to a `.h` file of `app/src`. The scan forms and the indirect reach through an
 `app/src` header are the same as for the composition zone.
 
-`app/src`, `app/compose` and `workload` keep failing on `zephyr/kernel.h` and on `zephyr/net/sntp.h`,
+`app/src`, `app/compose`, `framework/compose`, `framework/src`, `include` and `workload` keep failing on `zephyr/kernel.h` and on `zephyr/net/sntp.h`,
 and a quoted include of an `app/os` header fails in all three, as a quoted include of a composition
 zone header does.
 
@@ -161,7 +162,7 @@ because its Time contract designates the product as the owner of the Time Author
 maintained alternative to a product-written packet parser, and the public Crux interface offers no time-source
 client. The adapter uses the library's string-based query (`sntp_simple()`), so it includes no socket type and no
 socket header itself, and the rule keeps `allow_sockets` off for the zone. The check reads direct includes only; the
-allow-list entry allows the include and nothing else. The one source that uses it is `app/os/time_sync_zephyr.c`
+allow-list entry allows the include and nothing else. The one source that uses it is `framework/os/time_sync_zephyr.c`
 (`sntp`).
 
 Why `zephyr/kernel.h` is not on the composition zone's list: that zone exists to mount a file system
@@ -175,9 +176,11 @@ change to either list is a reviewed change of `scripts/check_boundary.py`, of
 set) and of this page, in one pull request.
 
 The same limit applies as for the composition zone: the check reads includes only, so the adapter
-zone adds no include path to the application target. The tree `app/os` holds two sources,
-`workload_os_zephyr.c` (every configuration) and `time_sync_zephyr.c` (`sntp` only), which its `CMakeLists.txt` adds to
-the application target; the zone is not a library of its own. `tests/tooling/test_os_adapter.py` checks that the zone
+zone adds no include path to the application target. The only source of the tree `app/os` is
+`workload_os_zephyr.c` (every configuration), which its `CMakeLists.txt` adds to the application target; the zone is
+not a library of its own. The adapter zone of the module, `framework/os`, holds `time_sync_zephyr.c`, which
+`framework/configurations.cmake` adds to the application target of `sntp` and the module builds into its library
+for the base image. `tests/tooling/test_os_adapter.py` checks that the zone
 adds no include path and no library, and that the application target links neither a zone library nor Crux Thread nor
 Crux Queue.
 
@@ -188,7 +191,7 @@ Crux Queue.
 statements above about public `<crux/NAME.h>` headers hold for every other name. The product uses
 Zephyr directly for threads and queues, and the rule keeps a later change from bringing the Crux
 contracts back. The rule is a field of the `Rule` of each of the two trees. It does not apply to
-`workload`, which has no Crux header at all, and it does not change `app/compose`. Adding or removing a
+`workload`, which has no Crux header at all, and it does not change `app/compose` or `framework/compose`. Adding or removing a
 name is a reviewed change of the script, of `tests/tooling/test_boundary.py` and of this page.
 
 The check refuses a `<crux/NAME.h>` that Crux does not publish: with `--crux-root`, which CI always passes, in
@@ -196,10 +199,32 @@ every tree, the composition zone included, and the product include check refuses
 the repository. `tests/tooling/test_boundary.py` (`RemovedCruxQueue`) checks the first. Without `--crux-root` the name
 passes the shape test, as any unknown `<crux/NAME.h>` does (see [Running the check](#running-the-check)).
 
+## The trees of the framework module
+
+The controller framework is a Zephyr module of this repository (`zephyr/module.yml`). Its sources live in four
+checked trees, each with a rule of its own in `RULES`:
+
+| Tree | Holds | May include |
+|---|---|---|
+| `include` | The interface header `<controller/framework.h>`, which a product includes | ISO C, public `<crux/NAME.h>` headers except the frozen three, its own tree |
+| `framework/src` | The portable core: the startup sequence and the start function, the time synchronisation glue and policy, the management policy and the port headers | ISO C, public `<crux/NAME.h>` headers except the frozen three, its own tree, `<controller/NAME.h>`; no Zephyr header and no Sockets profile |
+| `framework/compose` | The composition zone of the module: the storage mount and the start of web management | the rule of `app/compose`, with header files (`.h`) of `framework/src` in place of those of `app/src` |
+| `framework/os` | The adapter zone of the module: the SNTP query and its thread | the rule of `app/os`, with header files (`.h`) of `framework/src` in place of those of `app/src` |
+
+`<controller/NAME.h>` must name a file of `include/controller/`, one level deep. `app/src` may include it and the
+headers of `framework/src`, because the base image's `main()` calls the start function and the configurations built
+on the workload compose the framework services that live in the module. No zone of `app/` or of the module may
+include it, and the two zones of the module reach neither `app/src` nor each other.
+
+A C or C++ source or header under `app/`, `framework/` or `include/` that lies in none of the checked trees fails
+the check (`MODULE_TREES` in `scripts/check_boundary.py`), so a source cannot escape the rules by its place. Build
+files, the web assets of `framework/management/` and the data files of `app/conf/` and `app/boards/` are not
+sources. The allow-lists of the zones are those above; the module's trees add no Zephyr header to them.
+
 ## What the zones do not cover
 
 - The CMake side. The check reads includes only and does not see include paths from CMake. The
-  composition zone is built as its own library (`app/compose/CMakeLists.txt`) that links `crux::file_zephyr`
+  composition zone is built as its own library (`framework/compose/CMakeLists.txt`) that links `crux::file_zephyr`
   privately, so the application target gets no include path from it. `tests/tooling/test_boundary.py`
   keeps checking that `app/CMakeLists.txt` adds none, and `tests/tooling/test_file.py` checks that
   only the composition zone's library links the composition interface and that the zone adds no

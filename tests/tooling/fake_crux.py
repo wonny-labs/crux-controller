@@ -16,7 +16,7 @@ PUBLIC_HEADERS = (
     "tls_certificate.h", "tls_certificate_start.h", "web.h", "web_management.h", "web_session.h",
 )
 
-# Composition interfaces, as (component, header): the zone of app/compose may include these.
+# Composition interfaces, as (component, header): the zone of framework/compose may include these.
 COMPOSITION_HEADERS = (("file", "file_zephyr.h"), ("web", "web_zephyr.h"))
 
 

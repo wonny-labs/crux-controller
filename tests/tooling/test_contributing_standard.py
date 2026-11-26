@@ -93,7 +93,18 @@ def product_sources_with_warning_flags():
     for args in statements(os_zone, "set_source_files_properties"):
         if 'COMPILE_OPTIONS "-Wall;-Wextra;-Werror"' in args:
             flagged |= c_names(args)
-    compose = (ROOT / "app/compose/CMakeLists.txt").read_text()
+    # The framework sources that the configurations of app/ compile into the target app.
+    configurations = (ROOT / "framework/configurations.cmake").read_text()
+    if f"target_compile_options(app PRIVATE {flags})" in app:
+        for args in statements(configurations, "target_sources"):
+            if args.startswith("app "):
+                flagged |= c_names(args)
+    # The framework library of the module, for the base image.
+    module = (ROOT / "zephyr/CMakeLists.txt").read_text()
+    if f"zephyr_library_compile_options({flags})" in module:
+        for args in statements(module, "zephyr_library_sources"):
+            flagged |= c_names(args)
+    compose = (ROOT / "framework/compose/CMakeLists.txt").read_text()
     if f"target_compile_options(compose PRIVATE {flags})" in compose:
         for command in ("add_library", "target_sources"):
             for args in statements(compose, command):
@@ -103,7 +114,8 @@ def product_sources_with_warning_flags():
 
 
 def scenario_cmake_files():
-    return sorted((ROOT / "tests").glob("native_sim*/*/CMakeLists.txt"))
+    return sorted([*(ROOT / "tests").glob("native_sim*/*/CMakeLists.txt"),
+                   *(ROOT / "tests").glob("framework/*/CMakeLists.txt")])
 
 
 def sources_given_compile_options_by_scenarios():
@@ -169,15 +181,15 @@ class StaticAnalysisSection(unittest.TestCase):
         body = flat(section())
         analysed = host_built_sources()
         missing = set(not_analysed())
-        self.assertEqual(12, len(analysed))
-        self.assertEqual(16, len(missing))
+        self.assertEqual(14, len(analysed))
+        self.assertEqual(18, len(missing))
         self.assertIn("clang-tidy 18", body)
         for family in ("bugprone", "clang-analyzer", "performance", "portability"):
             self.assertIn(f"`{family}`", body)
         self.assertIn("warnings are errors", body)
-        self.assertIn("the 12 sources", body)
+        self.assertIn("the 14 sources", body)
         self.assertIn("`scripts/analyze_host.py`", body)
-        self.assertIn("16 today", body)
+        self.assertIn("18 today", body)
         self.assertIn("the sources that the host tests do not build", body)
         self.assertIn("Zephyr or Crux headers or Kconfig values", body)
         self.assertNotIn("because they need Zephyr headers", body)
@@ -186,12 +198,12 @@ class StaticAnalysisSection(unittest.TestCase):
     def test_ten_product_sources_get_warning_flags_and_six_scenario_sources_do_not(self):
         body = flat(section())
         names = {path.name: path for path in not_analysed()}
-        self.assertEqual(16, len(names), "a basename is not unique")
+        self.assertEqual(18, len(names), "a basename is not unique")
         flagged = product_sources_with_warning_flags()
         scenario = {n for n, p in names.items() if "/tests/" in p.as_posix()}
         product = set(names) - scenario
-        self.assertEqual(6, len(scenario))
-        self.assertEqual(10, len(product))
+        self.assertEqual(7, len(scenario))
+        self.assertEqual(11, len(product))
         # Each product source is built with the flags by the CMake files that name them.
         self.assertEqual(product, product & flagged, sorted(product - flagged))
         # No scenario source is in a COMPILE_OPTIONS list, and no scenario file sets the flags on
@@ -203,9 +215,9 @@ class StaticAnalysisSection(unittest.TestCase):
         for path in scenario_cmake_files():
             self.assertNotRegex(path.read_text(), r"target_compile_options\(app", path.name)
         # The text says exactly that.
-        self.assertIn("10 of those 16 are product sources", body)
+        self.assertIn("11 of those 18 are product sources", body)
         self.assertIn("`-Wall -Wextra -Werror`", body)
-        self.assertIn("The other 6 are the `native_sim` scenario sources", body)
+        self.assertIn("The other 7 are the `native_sim` scenario sources", body)
         self.assertIn("not on the scenario source", body)
         self.assertNotIn("Those 16 sources get compiler warnings only", body)
         self.assertNotRegex(body, r"(?i)twister")

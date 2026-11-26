@@ -1,10 +1,10 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
-/* Runs the product's own start sequence for HTTPS management (app/compose/management_start.c,
- * through the port of app/src/management_port.h), its route wiring and its packaged page, on the
- * real Crux services and Zephyr's HTTP server with Mbed TLS, in one native_sim image. A TLS client
- * of this test, in the same process, connects to the listener over Zephyr's loopback interface and
- * verifies the server with the certificate that the product registered.
+/* Runs the product's own start sequence for HTTPS management (framework/compose/management_start.c,
+ * through the port of framework/src/management_port.h), its route wiring and its packaged page, on
+ * the real Crux services and Zephyr's HTTP server with Mbed TLS, in one native_sim image. A TLS
+ * client of this test, in the same process, connects to the listener over Zephyr's loopback
+ * interface and verifies the server with the certificate that the product registered.
  *
  * One image runs all cases in order, because the start sequence runs once per program: Crux's init
  * calls cannot be repeated, and a case that needs the running server cannot restart it. The first

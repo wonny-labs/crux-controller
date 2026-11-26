@@ -22,6 +22,7 @@ import fake_crux  # noqa: E402
 
 REGIONS = {"FLASH", "RAM", "ITCM", "DTCM", "OCRAM", "OCRAM2", "IDT_LIST"}
 APP_SRC = ROOT / "app" / "src"
+FRAMEWORK_SRC = ROOT / "framework" / "src"
 
 
 def c_code(path):
@@ -52,8 +53,8 @@ class ManagementLimits(unittest.TestCase):
 
     def test_the_management_row_equals_the_sntp_row_and_no_other_row_changed(self):
         rows = self.limits()["min_free_percent"]
-        self.assertEqual(["base", "workload", "net", "file", "system", "sntp", "management"], list(rows))
-        for step in ("base", "workload", "net", "file", "system"):
+        self.assertEqual(["minimal", "workload", "net", "file", "system", "sntp", "management", "base"], list(rows))
+        for step in ("minimal", "workload", "net", "file", "system"):
             self.assertEqual(rows["sntp"], rows[step], step)
         self.assertEqual(rows["sntp"], rows["management"])
 
@@ -68,21 +69,21 @@ class ManagementValidator(unittest.TestCase):
 
     def test_the_policy_includes_iso_c_and_its_own_header_only(self):
         for name in ("management_policy.h", "management_policy.c"):
-            for include in includes(APP_SRC / name):
+            for include in includes(FRAMEWORK_SRC / name):
                 self.assertTrue(
                     include in self.ISO_C or include == '"management_policy.h"', f"{name}: {include}"
                 )
 
     def test_the_policy_names_no_crux_or_zephyr_symbol(self):
         for name in ("management_policy.h", "management_policy.c"):
-            self.assertNotRegex(c_code(APP_SRC / name), r"\bcrux_|\bCRUX_|\bk_|\bCONFIG_|zephyr", name)
+            self.assertNotRegex(c_code(FRAMEWORK_SRC / name), r"\bcrux_|\bCRUX_|\bk_|\bCONFIG_|zephyr", name)
 
     def test_the_host_build_runs_the_policy_test_with_the_strict_flags(self):
         text = "\n".join(code_lines(ROOT / "tests" / "host" / "CMakeLists.txt"))
         self.assertRegex(
             text,
             r"add_executable\(test_management_policy test_management_policy\.c "
-            r"\.\./\.\./app/src/management_policy\.c\)",
+            r"\.\./\.\./framework/src/management_policy\.c\)",
         )
         self.assertRegex(text, r"target_compile_options\(test_management_policy PRIVATE[^)]*-Werror")
         self.assertRegex(text, r"add_test\(NAME management_policy COMMAND test_management_policy\)")
@@ -121,18 +122,18 @@ class ManagementValidator(unittest.TestCase):
             self.assertIn(needle, source, needle)
 
     def test_the_permission_name_check_is_plain_c_and_has_a_host_test_of_the_mismatch_path(self):
-        header = c_code(APP_SRC / "management_policy.h")
+        header = c_code(FRAMEWORK_SRC / "management_policy.h")
         self.assertRegex(header, r"bool management_permission_names_match\(const char \*access_manage,\s*const char \*status_read,\s*const char \*config_save\);")
         source = (ROOT / "tests" / "host" / "test_management_policy.c").read_text()
         self.assertIn("management_permission_names_match", source)
         for mismatch in ("access.manag", "status.reed", "config.savee"):
             self.assertIn(mismatch, source, mismatch)
-        text = " ".join((APP_SRC / "management_policy.h").read_text().replace("*", " ").split())
+        text = " ".join((FRAMEWORK_SRC / "management_policy.h").read_text().replace("*", " ").split())
         self.assertIn("start-time refusal", text)
 
     def test_the_parser_is_declared_with_the_octets_and_defined_beside_the_validator(self):
-        header = c_code(APP_SRC / "management_policy.h")
-        source = c_code(APP_SRC / "management_policy.c")
+        header = c_code(FRAMEWORK_SRC / "management_policy.h")
+        source = c_code(FRAMEWORK_SRC / "management_policy.c")
         self.assertRegex(header, r"bool management_address_parse\(const char \*text, uint8_t octets\[4\]\);")
         self.assertRegex(source, r"bool management_address_parse\(const char \*text, uint8_t octets\[4\]\)")
         # One rule, not two: the validator calls the parser, so they cannot drift apart.
@@ -144,8 +145,8 @@ class ManagementPolicy(unittest.TestCase):
     services define (crux/access.h, crux/management_status.h and crux/config_service.h at the
     pinned revision), copied as text because the policy builds on the host with no Crux header."""
 
-    POLICY_C = APP_SRC / "management_policy.c"
-    POLICY_H = APP_SRC / "management_policy.h"
+    POLICY_C = FRAMEWORK_SRC / "management_policy.c"
+    POLICY_H = FRAMEWORK_SRC / "management_policy.h"
 
     def test_the_header_defines_the_role_and_permission_names_as_text(self):
         header = c_code(self.POLICY_H)
@@ -204,7 +205,7 @@ class ManagementPort(unittest.TestCase):
     """The port is the product's own header: ISO C and the policy header of this repository, no
     Crux, Zephyr or composition header, so it can sit in app/src."""
 
-    PORT = APP_SRC / "management_port.h"
+    PORT = FRAMEWORK_SRC / "management_port.h"
 
     def test_the_port_header_exists_and_declares_the_start_function(self):
         code = c_code(self.PORT)
@@ -456,20 +457,30 @@ class ManagementNotBuilt(unittest.TestCase):
     # Approved behaviour change: the management sources are wired now. The assertion that no build
     # file names them is replaced by one that says which build file names which source.
     def test_each_management_source_is_named_by_the_build_file_that_owns_it(self):
+        # The sources live in the framework module's tree. The policy is named by the file that adds
+        # it to the management configuration of app/ and by the module's build file for the base
+        # image; the start sequence only by the zone's build file.
         app = "\n".join(code_lines(ROOT / "app" / "CMakeLists.txt"))
-        compose = "\n".join(code_lines(ROOT / "app" / "compose" / "CMakeLists.txt"))
-        self.assertIn("src/management_policy.c", app)
-        self.assertNotIn("management_start", app)
+        configurations = "\n".join(code_lines(ROOT / "framework" / "configurations.cmake"))
+        module = "\n".join(code_lines(ROOT / "zephyr" / "CMakeLists.txt"))
+        compose = "\n".join(code_lines(ROOT / "framework" / "compose" / "CMakeLists.txt"))
+        self.assertNotIn("management_policy", app)
+        self.assertIn("src/management_policy.c", configurations)
+        self.assertIn("framework/src/management_policy.c", module)
+        for text in (app, configurations, module):
+            self.assertNotIn("management_start", text)
         self.assertIn("management_start.c", compose)
         self.assertNotIn("management_policy", compose)
-        for path in sorted((ROOT / "app").rglob("CMakeLists.txt")):
-            self.assertNotIn("management_port", "\n".join(code_lines(path)), str(path))
+        for tree in ("app", "framework", "zephyr"):
+            for path in sorted((ROOT / tree).rglob("CMakeLists.txt")):
+                self.assertNotIn("management_port", "\n".join(code_lines(path)), str(path))
 
     # Approved behaviour change: the management capability is now built, so the old assertion that no build file names
     # it is replaced by one that only its own files do. The files of the other steps stay clean.
+    # The base image (conf/base.conf) builds on the overlay of management and names it.
     MANAGEMENT_FILES = {"Kconfig", "conf/workload.conf", "conf/management.conf", "boards/management.overlay", "CMakeLists.txt",
                 "management/management.cmake", "management/entropy.cmake",
-                "management/reviewed-routes.txt", "compose/CMakeLists.txt"}
+                "management/reviewed-routes.txt", "compose/CMakeLists.txt", "conf/base.conf"}
 
     def test_only_the_files_of_step_management_name_it(self):
         for pattern in self.BUILD_FILES:
@@ -488,8 +499,12 @@ class ManagementNotBuilt(unittest.TestCase):
     # includes it and the policy header. The assertion that nothing includes them becomes a list of
     # the files that may.
     def test_only_the_composition_and_the_zone_include_the_management_headers(self):
-        allowed = {"app/src/composition.c", "app/compose/management_start.c"}
-        for path in sorted(p for p in (ROOT / "app").rglob("*") if p.suffix in (".c", ".h")):
+        # The framework start (framework/src/framework.c) calls the port in the base image.
+        allowed = {"app/src/composition.c", "framework/compose/management_start.c",
+                   "framework/src/framework.c"}
+        paths = [p for tree in ("app", "framework", "include")
+                 for p in (ROOT / tree).rglob("*") if p.suffix in (".c", ".h")]
+        for path in sorted(paths):
             relative = path.relative_to(ROOT).as_posix()
             if path.name.startswith("management_policy") or path.name == "management_port.h":
                 continue
@@ -500,8 +515,9 @@ class ManagementNotBuilt(unittest.TestCase):
     # Approved behaviour change: the management fragment now sets the symbols of the web server and Access.
     # The assertion that no file sets them becomes: no fragment but the management one does.
     def test_only_the_management_fragment_sets_the_crux_symbol_for_the_web_or_access(self):
+        # The base image (conf/base.conf) runs web management and sets the same symbols.
         for path in sorted((ROOT / "app").rglob("*.conf")):
-            if path.name == "management.conf":
+            if path.name in ("management.conf", "base.conf"):
                 continue
             options = conf_options(path)
             for symbol in ("CONFIG_CRUX_ACCESS", "CONFIG_CRUX_WEB", "CONFIG_CRUX_TLS_CERTIFICATE",
@@ -522,9 +538,9 @@ class ManagementBuildFiles(unittest.TestCase):
     one. The product adds no include directory, in any build file."""
 
     APP_CMAKE = ROOT / "app" / "CMakeLists.txt"
-    MANAGEMENT_CMAKE = ROOT / "app" / "management" / "management.cmake"
-    ENTROPY_CMAKE = ROOT / "app" / "management" / "entropy.cmake"
-    COMPOSE_CMAKE = ROOT / "app" / "compose" / "CMakeLists.txt"
+    MANAGEMENT_CMAKE = ROOT / "framework" / "management" / "management.cmake"
+    ENTROPY_CMAKE = ROOT / "framework" / "management" / "entropy.cmake"
+    COMPOSE_CMAKE = ROOT / "framework" / "compose" / "CMakeLists.txt"
     FORBIDDEN = ("include_directories", "zephyr_include_directories", "target_include_directories",
                  "-include", "-I")
 
@@ -544,28 +560,38 @@ class ManagementBuildFiles(unittest.TestCase):
 
     def test_the_management_block_is_inside_the_workload_switch_after_sntp(self):
         text = self.app_text()
+        # The sntp sources are added by framework/configurations.cmake, which the workload block
+        # includes before the management block.
         self.assertGreater(text.index("if(CONFIG_CRUX_CONTROLLER_MANAGEMENT)"),
-                           text.index("if(CONFIG_CRUX_CONTROLLER_SNTP)"))
+                           text.index("framework/configurations.cmake"))
         self.assertGreater(text.index("if(CONFIG_CRUX_CONTROLLER_MANAGEMENT)"),
                            text.index("if(CONFIG_CRUX_CONTROLLER_WORKLOAD)"))
         self.assertLess(text.index("if(CONFIG_CRUX_CONTROLLER_MANAGEMENT)"), text.rindex("endif()"))
 
     def test_the_block_adds_the_policy_links_the_zone_and_includes_the_management_cmake(self):
         block = self.block()
-        self.assertRegex(block, r"target_sources\(app PRIVATE src/management_policy\.c\)")
         self.assertRegex(block, r"target_link_libraries\(app PRIVATE crux::web compose\)")
-        self.assertIn('include("${CMAKE_CURRENT_LIST_DIR}/management/management.cmake")', block)
+        self.assertIn('include("${CMAKE_CURRENT_LIST_DIR}/../framework/management/management.cmake")', block)
+        configurations = "\n".join(code_lines(ROOT / "framework" / "configurations.cmake"))
+        self.assertRegex(
+            configurations,
+            r'if\(CONFIG_CRUX_CONTROLLER_MANAGEMENT\)\s*target_sources\(app PRIVATE '
+            r'"\$\{CMAKE_CURRENT_LIST_DIR\}/src/management_policy\.c"\)\s*endif\(\)',
+        )
 
     def test_the_zone_is_added_once_for_either_step_that_uses_it(self):
         text = self.app_text()
-        self.assertEqual(1, text.count("add_subdirectory(compose)"))
+        self.assertEqual(1, text.count("add_subdirectory(../framework/compose compose)"))
         self.assertRegex(
             text,
-            r"if\(CONFIG_CRUX_CONTROLLER_FILE OR CONFIG_CRUX_CONTROLLER_MANAGEMENT\)\s*add_subdirectory\(compose\)\s*endif\(\)",
+            r"if\(CONFIG_CRUX_CONTROLLER_FILE OR CONFIG_CRUX_CONTROLLER_MANAGEMENT\)\s*"
+            r"add_subdirectory\(\.\./framework/compose compose\)\s*endif\(\)",
         )
 
     def test_no_build_file_of_the_step_adds_an_include_path(self):
-        for path in (self.APP_CMAKE, self.MANAGEMENT_CMAKE, self.ENTROPY_CMAKE, self.COMPOSE_CMAKE):
+        configurations = ROOT / "framework" / "configurations.cmake"
+        for path in (self.APP_CMAKE, self.MANAGEMENT_CMAKE, self.ENTROPY_CMAKE, self.COMPOSE_CMAKE,
+                     configurations):
             for line in code_lines(path):
                 for word in self.FORBIDDEN:
                     self.assertNotIn(word, line, f"{path.name}: {line.strip()}")
@@ -620,7 +646,7 @@ class ManagementBuildFiles(unittest.TestCase):
         self.assertLess(text.index("target_sources(app PRIVATE ${route_sources})"), routes.start())
 
     def test_the_entropy_rules_are_in_their_own_file_that_only_the_image_includes(self):
-        entropy = "\n".join(code_lines(ROOT / "app" / "management" / "entropy.cmake"))
+        entropy = "\n".join(code_lines(ROOT / "framework" / "management" / "entropy.cmake"))
         self.assertIn('include("${ZEPHYR_CRUX_MODULE_DIR}/cmake/CruxMbedtlsEntropy.cmake")', entropy)
         self.assertLess(entropy.index("cmake/CruxMbedtlsEntropy.cmake"),
                         entropy.index("crux_mbedtls_fail_closed_entropy()"))
@@ -691,16 +717,16 @@ class ManagementBuildFiles(unittest.TestCase):
                 self.assertNotIn(word, text, f"{path.name}: {word}")
 
     def test_the_site_folder_is_the_route_set_and_the_reviewed_list_lies_beside_it(self):
-        site = ROOT / "app" / "management" / "site"
+        site = ROOT / "framework" / "management" / "site"
         self.assertEqual(["index.html", "page.css", "page.js"], sorted(p.name for p in site.iterdir()))
-        self.assertTrue((ROOT / "app" / "management" / "reviewed-routes.txt").is_file())
+        self.assertTrue((ROOT / "framework" / "management" / "reviewed-routes.txt").is_file())
 
 
 class ManagementRoutes(unittest.TestCase):
     """The list that the route generator checks the table against. A public or session-only route
     that is not listed fails the build, so this list is the review of what the image serves."""
 
-    LIST = ROOT / "app" / "management" / "reviewed-routes.txt"
+    LIST = ROOT / "framework" / "management" / "reviewed-routes.txt"
     EXPECTED = [
         "public POST /api/v1/session",
         "session DELETE /api/v1/session",
@@ -736,7 +762,7 @@ class ManagementPage(unittest.TestCase):
     """The packaged page: no framework, no external URL, no inline script or style. Only its bytes
     are tested here and by the scenario; no browser has loaded it."""
 
-    SITE = ROOT / "app" / "management" / "site"
+    SITE = ROOT / "framework" / "management" / "site"
 
     def read(self, name):
         return (self.SITE / name).read_text()
@@ -809,8 +835,8 @@ class ManagementPage(unittest.TestCase):
 class ManagementStorage(unittest.TestCase):
     """The storage port gains the two roots of the credential store. The port stays ISO C."""
 
-    HEADER = APP_SRC / "storage_port.h"
-    SOURCE = ROOT / "app" / "compose" / "storage_mount.c"
+    HEADER = FRAMEWORK_SRC / "storage_port.h"
+    SOURCE = ROOT / "framework" / "compose" / "storage_mount.c"
 
     def test_the_port_declares_the_store_binding_and_the_two_root_numbers(self):
         code = c_code(self.HEADER)
@@ -852,7 +878,7 @@ class ManagementStorage(unittest.TestCase):
         self.assertIn("there is no unbind", text)
 
     def test_the_composition_documents_that_an_unusable_credential_store_ends_the_start(self):
-        text = " ".join((ROOT / "app" / "compose" / "management_start.c").read_text().replace("*", " ").split())
+        text = " ".join((ROOT / "framework" / "compose" / "management_start.c").read_text().replace("*", " ").split())
         self.assertIn("CRUX_CREDENTIAL_ERR_UNUSABLE", text)
         self.assertIn("fine on a RAM disk", text)
         self.assertIn("revisited for a persistent medium", text)
@@ -868,7 +894,7 @@ class ManagementSources(unittest.TestCase):
     public Crux headers, the two composition interfaces the zone may name, and one Zephyr header on
     the zone's list. The checks read text; nothing here compiles or runs it."""
 
-    SOURCE = ROOT / "app" / "compose" / "management_start.c"
+    SOURCE = ROOT / "framework" / "compose" / "management_start.c"
     ALLOWED = {
         '"../src/management_port.h"', '"../src/storage_port.h"', "<crux/access.h>",
         "<crux/config_service.h>", "<crux/credential_store.h>", "<crux/logging.h>",
@@ -1022,8 +1048,8 @@ class ManagementSources(unittest.TestCase):
 
     def test_the_fragment_names_the_file_that_applies_the_entropy_correction(self):
         text = (ROOT / "app" / "conf" / "management.conf").read_text()
-        self.assertIn("applied in app/management/entropy.cmake", " ".join(text.replace("#", " ").split()))
-        self.assertNotIn("applied in app/management/management.cmake", " ".join(text.replace("#", " ").split()))
+        self.assertIn("applied in framework/management/entropy.cmake", " ".join(text.replace("#", " ").split()))
+        self.assertNotIn("applied in framework/management/management.cmake", " ".join(text.replace("#", " ").split()))
 
     def test_the_source_reports_through_crux_logging_and_never_logs_a_secret(self):
         code = self.code()
@@ -1066,7 +1092,11 @@ class ManagementComposition(unittest.TestCase):
 
     def test_the_composition_includes_the_port_and_logging_under_the_product_symbol(self):
         text = self.SOURCE.read_text()
-        self.assertRegex(text, r'#ifdef CONFIG_CRUX_CONTROLLER_MANAGEMENT\s*#include <crux/logging.h>\s*#include "management_port.h"')
+        self.assertRegex(
+            text,
+            r'#ifdef CONFIG_CRUX_CONTROLLER_MANAGEMENT\s*#include <crux/logging.h>\s*'
+            r'#include "\.\./\.\./framework/src/management_port.h"',
+        )
 
     def test_the_composition_starts_management_after_sntp_and_before_the_workload_threads(self):
         code = self.code()
@@ -1133,9 +1163,9 @@ class ManagementScenario(unittest.TestCase):
 
     def test_the_scenario_builds_the_real_route_wiring_the_real_zone_and_the_real_policy(self):
         cmake = self.cmake()
-        self.assertIn("${controller_root}/app/management/management.cmake", cmake)
-        self.assertRegex(cmake, r"add_subdirectory\(\$\{controller_root\}/app/compose compose\)")
-        self.assertIn("${controller_root}/app/src/management_policy.c", cmake)
+        self.assertIn("${controller_root}/framework/management/management.cmake", cmake)
+        self.assertRegex(cmake, r"add_subdirectory\(\$\{controller_root\}/framework/compose compose\)")
+        self.assertIn("${controller_root}/framework/src/management_policy.c", cmake)
         self.assertRegex(cmake, r"target_link_libraries\(app PRIVATE[^)]*\bcompose\b")
         self.assertNotIn("management_start", cmake)
         self.assertNotIn("entropy.cmake", cmake)
@@ -1148,7 +1178,7 @@ class ManagementScenario(unittest.TestCase):
                 self.assertNotIn(word, line, line.strip())
         for line in cmake.splitlines():
             if "include_directories" in line:
-                self.assertRegex(line, r"target_include_directories\(app PRIVATE \$\{controller_root\}/app/src\)")
+                self.assertRegex(line, r"target_include_directories\(app PRIVATE \$\{controller_root\}/framework/src\)")
         for private in ("components/", "crux_web_adapter", "/session", "psa_threading"):
             self.assertNotIn(private, cmake, private)
 
@@ -1419,7 +1449,7 @@ class ManagementWorkflows(unittest.TestCase):
         self.assertNotIn("+crux-secure-management", ci_map.BUDGET.read_text())
         for name in ci_map.data()["jobs"]:
             text = ci_map.commands(name)
-            self.assertEqual(name in ("pins", "management", "budget-management"),
+            self.assertEqual(name in ("pins", "management", "budget-management", "base", "budget-base"),
                              "+crux-secure-management" in text, name)
         manifest = (ROOT / "west.yml").read_text()
         self.assertNotIn("group-filter", manifest)
@@ -1529,7 +1559,7 @@ class ManagementWorkflows(unittest.TestCase):
         self.assertIn("This job fetches nothing with the group on. The management job does, after the same check.", words)
 
     ROWS = {
-        "base": {"config": "base", "conf": "", "overlay": "", "require": ""},
+        "minimal": {"config": "minimal", "conf": "", "overlay": "", "require": ""},
         "workload": {"config": "workload", "conf": "conf/workload.conf", "overlay": "", "require": ""},
         "net": {"config": "net", "conf": "conf/workload.conf;conf/net.conf", "overlay": "boards/net.overlay",
                "require": ""},
@@ -1547,7 +1577,7 @@ class ManagementWorkflows(unittest.TestCase):
 
     def test_the_budget_rows_of_base_to_sntp_are_byte_identical_to_the_rows_before_the_step(self):
         rows = self.rows()
-        self.assertEqual(["base", "workload", "net", "file", "system", "sntp", "management"], list(rows))
+        self.assertEqual(["minimal", "workload", "net", "file", "system", "sntp", "management", "base"], list(rows))
         self.assertEqual(list(rows), self.budget()["jobs"]["budget"]["strategy"]["matrix"]["config"])
         for step, expected in self.ROWS.items():
             self.assertEqual(expected, rows[step], step)
@@ -1562,8 +1592,9 @@ class ManagementWorkflows(unittest.TestCase):
             self.assertIn(option, row["require"].split(), option)
 
     def test_only_the_management_row_names_a_group(self):
+        # The base image runs web management on the same Mbed TLS profile.
         for step, row in self.rows().items():
-            self.assertEqual(step == "management", "group" in row, step)
+            self.assertEqual(step in ("management", "base"), "group" in row, step)
 
     def test_the_budget_step_for_the_group_runs_only_for_the_rows_that_ask_and_before_the_sdk(self):
         # Only the job budget-management has the check, after scripts/ci/prepare-job.sh fetched the
@@ -1580,8 +1611,14 @@ class ManagementWorkflows(unittest.TestCase):
         self.assertLess(run.index(self.GROUP_ON), run.index("--mode mbed"))
         for wolf in ("wolfssl", "wolfssh", "wolfpsa"):
             self.assertIn(wolf, run)
+        # The Budget row of the base image has the same check, in the same place.
+        names = ci_map.ids("budget-base")
+        self.assertEqual(0, names.index("budget-base-mbed"))
+        self.assertIn("fetch_workspace", ci_map.prepare_branch("budget-base"))
+        self.assertLess(names.index("budget-base-mbed"), names.index("budget-base-sdk"))
+        self.assertEqual(run, ci_map.run("budget-base-mbed"))
         for job in ci_map.data()["jobs"]:
-            if job.startswith("budget-") and job != "budget-management":
+            if job.startswith("budget-") and job not in ("budget-management", "budget-base"):
                 self.assertNotIn("+crux-secure-management", ci_map.commands(job), job)
 
     def test_the_budget_workflow_only_gained_lines(self):
@@ -1606,25 +1643,25 @@ class ManagementContributing(unittest.TestCase):
 
     def test_the_role_section_lists_the_steps_built_in_ci_up_to_management_and_still_claims_no_board_run(self):
         text = self.text()
-        self.assertIn("`file`, `system`, `sntp` and `management` are built in CI.", text)
+        self.assertIn("`file`, `system`, `sntp`, `management` and `base` are built in CI.", text)
         self.assertIn("Only the `net` image has run on a board (twice, on one bench;", text)
         self.assertIn("and a change must not claim otherwise", text)
 
     def test_the_job_list_names_the_management_build_and_what_it_fetches(self):
         text = self.text()
-        self.assertIn("`management build` (Twister on `native_sim` for the scenario in `tests/native_sim_mbed`, then the RT1060-EVKB build; the only job that fetches the Mbed TLS modules, with the group switched on in its own runner)", text)
-        self.assertIn("`Budget` for `base` to `management`: static resource use against `budgets/limits.json` (the `management` row fetches the Mbed TLS modules in its own runner)", text)
+        self.assertIn("`management build` (Twister on `native_sim` for the scenario in `tests/native_sim_mbed`, then the RT1060-EVKB build; it fetches the Mbed TLS modules, with the group switched on in its own runner)", text)
+        self.assertIn("`Budget` for `minimal` to `base`: static resource use against `budgets/limits.json` (the `management` and `base` rows fetch the Mbed TLS modules in their own runners)", text)
 
     def test_the_optional_group_sentence_names_the_two_places_that_switch_it_on_and_the_check(self):
         text = self.text()
-        self.assertIn("The optional groups of the Crux manifest stay off in `west.yml` and in every job except `management build` and the `Budget` row of `management`.", text)
+        self.assertIn("The optional groups of the Crux manifest stay off in `west.yml` and in every job except `management build`, `base build` and the `Budget` rows of `management` and `base`.", text)
         self.assertIn("only after `scripts/check_mbed_only.py` has checked the resolved project list", text)
         self.assertIn("The other projects of that group are not under the Apache-2.0 terms of this repository, and the narrowed import in `west.yml` keeps them out.", text)
         self.assertNotIn("The optional groups of the Crux manifest stay off, `crux-secure-management` among them", text)
 
     def test_the_boundary_sentence_names_the_two_files_of_the_management_directory(self):
         text = self.text()
-        self.assertIn("`app/CMakeLists.txt`, `app/management/management.cmake` and `app/management/entropy.cmake` are checked for that", text)
+        self.assertIn("`app/CMakeLists.txt`, `framework/management/management.cmake` and `framework/management/entropy.cmake` are checked for that", text)
 
     def test_the_guide_claims_no_login_and_no_board_run_for_management(self):
         text = self.text()
@@ -1768,10 +1805,11 @@ class ManagementStepNote(unittest.TestCase):
             text = (ROOT / name).read_text()
             self.assertRegex(text, r"`management`", name)
         glossary = " ".join((ROOT / "docs" / "glossary.md").read_text().split())
-        self.assertIn("builds one image, `base` to `management`", glossary)
+        self.assertIn("builds one image, `minimal` to `base`", glossary)
         roadmap = " ".join((ROOT / "docs" / "roadmap.md").read_text().split())
-        self.assertIn("Seven build configurations, `base` to `management`, are on `main`", roadmap)
+        self.assertIn("Eight build configurations, `minimal` to `base`, are on `main`", roadmap)
         self.assertNotIn("Six", roadmap)
+        self.assertNotIn("Seven", roadmap)
 
     def test_the_documents_no_longer_say_that_no_step_selects_thread_and_sync_or_that_no_web_source_exists(self):
         zone = " ".join((ROOT / "docs" / "composition-zone.md").read_text().split())

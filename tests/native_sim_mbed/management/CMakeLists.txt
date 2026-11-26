@@ -19,15 +19,15 @@ if(NOT CONFIG_BOARD_NATIVE_SIM OR NOT CONFIG_FAKE_ENTROPY_NATIVE_SIM)
     message(FATAL_ERROR "This scenario is restricted to native_sim: its entropy source is a test source")
 endif()
 
-add_subdirectory(${controller_root}/app/compose compose)
-target_sources(app PRIVATE src/test_management.c ${controller_root}/app/src/management_policy.c)
-target_include_directories(app PRIVATE ${controller_root}/app/src)
+add_subdirectory(${controller_root}/framework/compose compose)
+target_sources(app PRIVATE src/test_management.c ${controller_root}/framework/src/management_policy.c)
+target_include_directories(app PRIVATE ${controller_root}/framework/src)
 target_link_libraries(app PRIVATE crux::web compose)
-include(${controller_root}/app/management/management.cmake)
+include(${controller_root}/framework/management/management.cmake)
 
 # The application's own sources keep the application's warning level. Crux's route sources and the
 # generated route table compile with the flags of the target and not with -Werror here, so that the
 # warnings of the host compiler on Crux's sources do not hide the handshake. The board image of the
 # management job compiles them with -Werror, as the application target does there.
-set_source_files_properties(${controller_root}/app/src/management_policy.c
+set_source_files_properties(${controller_root}/framework/src/management_policy.c
                             PROPERTIES COMPILE_OPTIONS "-Wall;-Wextra;-Werror")

@@ -8,9 +8,9 @@ a named revision: [sntp](findings/s5-time-synchronisation.md), [system](findings
 ## `sntp`
 
 The product sets the Crux Time realtime clock from an SNTP server and decides itself when an answer may move the
-clock. The decision is a pure function in `app/src/time_sync_policy.c`; the glue `app/src/time_sync.c` gives it one
+clock. The decision is a pure function in `framework/src/time_sync_policy.c`; the glue `framework/src/time_sync.c` gives it one
 query result, one Crux Time snapshot, the age of the last good answer and the limits, and carries out what it returns.
-The adapter `app/os/time_sync_zephyr.c` calls the Zephyr SNTP library (`sntp_simple()`) from one thread, so no zone
+The adapter `framework/os/time_sync_zephyr.c` calls the Zephyr SNTP library (`sntp_simple()`) from one thread, so no zone
 includes a socket header.
 
 | Situation | Action | Reason in the log |
@@ -89,11 +89,11 @@ HTTPS management on the `net` network with the Mbed TLS profile of Crux: login a
 service, the configuration service and one packaged page, on `192.168.77.2` port 443. The certificate is self-signed
 and made on the device at its first start. The medium is a RAM disk, so nothing persists across a reset.
 
-- The start sequence is one file in the composition zone, `app/compose/management_start.c`, which implements
-  `app/src/management_port.h`. It refuses to start when the product's copy of a permission name differs from the Crux
+- The start sequence is one file in the composition zone, `framework/compose/management_start.c`, which implements
+  `framework/src/management_port.h`. It refuses to start when the product's copy of a permission name differs from the Crux
   macro, and it checks both `tls_credential_add()` results before the listener starts. The key material is neither
   copied nor logged.
-- The route sources, the packaged page and the entropy rules are in `app/management/`. The page is three files with
+- The route sources, the packaged page and the entropy rules are in `framework/management/`. The page is three files with
   no framework, no external URL and no inline script or style.
 - The image has no account, because the first account needs the serial console and the boundary does not allow
   `<crux/cli_zephyr.h>`. The save route of the configuration service ends as not supported. There is no reboot,

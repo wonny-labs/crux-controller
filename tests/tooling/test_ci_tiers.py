@@ -55,7 +55,7 @@ needs_selector = unittest.skipIf(tiers is None, "scripts/ci/tiers.py needs Pytho
 
 # The checks of the full tier, by job, in run order. Remove an id only with an approved change that
 # removes the check, and say so in the pull request.
-BUDGET = {f"budget-{c}": [f"budget-{c}"] for c in ("base", "workload", "net", "file", "system", "sntp")}
+BUDGET = {f"budget-{c}": [f"budget-{c}"] for c in ("minimal", "workload", "net", "file", "system", "sntp")}
 EXPECTED_FULL = {
     "tooling": ["tooling-tests", "spdx"],
     "pins": ["pins-contract", "pins-mbed-default", "pins-mbed-group-on", "pins-negative-unnarrowed-import",
@@ -72,10 +72,13 @@ EXPECTED_FULL = {
                    "management-outputs", "management-config", "management-symbols"],
     "boundary": ["boundary-check", "product-include-check", "kit-include-check"],
     "patch-style": ["patch-style-fetch-zephyr", "patch-style"],
-    "base": ["base-build", "base-outputs"],
+    "minimal": ["minimal-build", "minimal-outputs"],
+    "base": ["base-mbed-default", "base-mbed-group-on", "base-mbed-fetch", "base-sdk", "base-native-sim",
+             "base-native-sim-report", "base-build", "base-outputs", "base-config", "base-symbols"],
     "static": ["format", "static-analysis"],
     **BUDGET,
     "budget-management": ["budget-management-mbed", "budget-management-sdk", "budget-management"],
+    "budget-base": ["budget-base-mbed", "budget-base-sdk", "budget-base"],
     "devcontainer": ["devcontainer-image", "devcontainer-tooling-tests", "devcontainer-format",
                      "devcontainer-static-analysis", "devcontainer-host-tests", "devcontainer-boundary-check",
                      "devcontainer-product-include-check", "devcontainer-native-sim",
@@ -98,8 +101,9 @@ EVERY_CHANGE = {job for job in EXPECTED_FULL if job not in PATH_FILTERED}
 # Which workflow runs which jobs of the map file.
 WORKFLOW_JOBS = {
     "ci.yml": ["tooling", "pins", "host-OFF", "host-ON", "workload", "net", "file", "system", "sntp",
-               "management", "boundary", "patch-style", "base", "static"],
-    "budget.yml": [f"budget-{c}" for c in ("base", "workload", "net", "file", "system", "sntp", "management")],
+               "management", "boundary", "patch-style", "minimal", "base", "static"],
+    "budget.yml": [f"budget-{c}" for c in ("minimal", "workload", "net", "file", "system", "sntp", "management",
+                                          "base")],
     "devcontainer.yml": ["devcontainer"],
     "rebuild.yml": ["rebuild"],
     "release.yml": ["release"],
@@ -279,8 +283,8 @@ class FastTierTest(unittest.TestCase):
             ["app/conf/net.conf"],
             ["app/boards/net.overlay"],
             ["app/boards/mimxrt1060_evk_mimxrt1062_qspi_B.conf"],
-            ["app/compose/CMakeLists.txt"],
-            ["app/management/management.cmake"],
+            ["framework/compose/CMakeLists.txt"],
+            ["framework/management/management.cmake"],
             ["tests/native_sim/workload/prj.conf"],
             ["tests/native_sim/workload/CMakeLists.txt"],
             ["tests/host/CMakeLists.txt"],
@@ -329,7 +333,7 @@ class FastTierTest(unittest.TestCase):
         self.assertEqual(DOCS_READERS | C_CHECKS | {"host-tests-sanitize-off", "host-tests-sanitize-on"}, ids)
 
     def test_a_management_change_runs_its_scenario_and_no_board_build(self):
-        ids = self.ids(["app/management/management_page.c"])
+        ids = self.ids(["framework/management/management_page.c"])
         expected = (DOCS_READERS | C_CHECKS | set(EXPECTED_FULL["boundary"])
                     | set(EXPECTED_FULL["management"][:6]))
         self.assertEqual(expected, ids)
@@ -807,14 +811,15 @@ class PrepareJobTest(unittest.TestCase):
             self.assertIn("crux-controller", result.stderr)
 
     def test_the_build_jobs_fetch_the_workspace_and_install_the_sdk(self):
-        for job in ("workload", "net", "file", "system", "sntp", "base", "budget-net"):
+        for job in ("workload", "net", "file", "system", "sntp", "minimal", "budget-net"):
             with self.subTest(job=job):
                 branch = ci_map.prepare_branch(job)
                 self.assertIn("fetch_workspace", branch)
                 self.assertIn("install_sdk", branch)
 
     def test_the_jobs_with_the_mbed_group_install_the_sdk_after_they_fetched_its_modules(self):
-        for job, sdk in (("management", "management-sdk"), ("budget-management", "budget-management-sdk")):
+        for job, sdk in (("management", "management-sdk"), ("budget-management", "budget-management-sdk"),
+                         ("base", "base-sdk"), ("budget-base", "budget-base-sdk")):
             with self.subTest(job=job):
                 branch = ci_map.prepare_branch(job)
                 self.assertNotIn("install_sdk", branch)

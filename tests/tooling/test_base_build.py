@@ -85,8 +85,9 @@ class BaseApplication(unittest.TestCase):
         links = [line for line in cmake.splitlines() if "target_link_libraries" in line]
         self.assertTrue(links)
         for line in links:
-            # The workload is this repository's own portable library.
-            self.assertTrue("crux::" in line or "workload" in line, line)
+            # The workload is this repository's own portable library, and controller::framework is
+            # the interface header of the framework module of this repository.
+            self.assertTrue("crux::" in line or "workload" in line or "controller::framework" in line, line)
 
 
 if __name__ == "__main__":

@@ -56,7 +56,7 @@
       "id": "configuration",
       "type": "pickString",
       "description": "Build configuration of app/ to build",
-      "options": ["base", "workload", "net", "file", "system", "sntp", "management"],
+      "options": ["minimal", "workload", "net", "file", "system", "sntp", "management", "base"],
       "default": "net"
     }
   ]

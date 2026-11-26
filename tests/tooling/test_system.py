@@ -72,8 +72,8 @@ class SystemLimits(unittest.TestCase):
     def test_the_system_row_equals_the_file_row_and_no_other_row_changed(self):
         rows = self.limits()["min_free_percent"]
         # Steps sntp and management later added their own rows, which test_sntp.py and test_management.py pin.
-        self.assertEqual(["base", "workload", "net", "file", "system", "sntp", "management"], list(rows))
-        for step in ("base", "workload", "net", "file"):
+        self.assertEqual(["minimal", "workload", "net", "file", "system", "sntp", "management", "base"], list(rows))
+        for step in ("minimal", "workload", "net", "file"):
             self.assertEqual(rows["file"], rows[step], step)
         self.assertEqual(rows["file"], rows["system"])
 
@@ -327,7 +327,8 @@ class SystemSources(unittest.TestCase):
         # <zephyr/sys/reboot.h> inside Crux. A product never needs them, and no zone lists them.
         for header in ("zephyr/drivers/watchdog.h", "zephyr/drivers/hwinfo.h",
                        "zephyr/sys/reboot.h", "fsl_wdog.h"):
-            for tree in ("app/src", "app/os", "app/compose", "workload"):
+            for tree in ("app/src", "app/os", "app/compose", "workload", "framework/src",
+                         "framework/compose", "framework/os", "include"):
                 with tempfile.TemporaryDirectory() as directory:
                     path = pathlib.Path(directory) / tree / "x.c"
                     path.parent.mkdir(parents=True)
@@ -351,12 +352,13 @@ class SystemSources(unittest.TestCase):
             frozenset({"crux/thread.h", "crux/sync.h", "crux/serial.h"}),
             check_boundary.FROZEN_CRUX_HEADERS,
         )
-        self.assertEqual(["app/src", "workload", "app/compose", "app/os"],
+        self.assertEqual(["app/src", "workload", "app/compose", "app/os", "include", "framework/src", "framework/compose", "framework/os"],
                          [rule.directory for rule in check_boundary.RULES])
 
     def test_a_private_system_header_fails_in_every_tree(self):
         for name in ("crux/system_zephyr.h", "crux/system_port.h", "system_port.h"):
-            for tree in ("app/src", "app/os", "app/compose"):
+            for tree in ("app/src", "app/os", "app/compose", "framework/src", "framework/compose",
+                         "framework/os"):
                 with tempfile.TemporaryDirectory() as directory:
                     path = pathlib.Path(directory) / tree / "x.c"
                     path.parent.mkdir(parents=True)
@@ -506,8 +508,8 @@ class SystemWorkflows(unittest.TestCase):
     def test_the_budget_rows_of_the_other_steps_are_unchanged(self):
         rows = self.budget_rows()
         # Steps sntp and management later added their own rows, which test_sntp.py and test_management.py pin.
-        self.assertEqual(["base", "workload", "net", "file", "system", "sntp", "management"], list(rows))
-        self.assertEqual(("", "", ""), (rows["base"]["conf"], rows["base"]["overlay"], rows["base"]["require"]))
+        self.assertEqual(["minimal", "workload", "net", "file", "system", "sntp", "management", "base"], list(rows))
+        self.assertEqual(("", "", ""), (rows["minimal"]["conf"], rows["minimal"]["overlay"], rows["minimal"]["require"]))
         self.assertEqual("conf/workload.conf", rows["workload"]["conf"])
         self.assertEqual("conf/workload.conf;conf/net.conf", rows["net"]["conf"])
         self.assertEqual("boards/net.overlay", rows["net"]["overlay"])

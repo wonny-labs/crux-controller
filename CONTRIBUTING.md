@@ -5,19 +5,20 @@ repository. It is short on purpose. For what the repository is, read the [README
 
 ## What this repository is, and is not
 
-Crux Controller is a consumer of [Crux](https://github.com/wonny-labs/crux-pilot) (the `crux-pilot`
-repository). It exercises Crux through its public and approved composition interfaces, so that a gap in
+Crux Controller is built on [Crux](https://github.com/wonny-labs/crux-pilot) (the `crux-pilot`
+repository) and uses Crux only through its public and approved composition interfaces, so that a gap in
 those interfaces shows up here and is reported to `crux-pilot` as an issue.
 
-- It is not a product, not Crux, and it adds no Crux public interface.
-- Crux Controller is the official reference consumer firmware for ongoing integration, evaluation and
-  regression testing of Crux Platform capabilities through public and approved composition interfaces. It may
-  provide supporting evidence for relevant platform milestones, but it is not a mandatory exit criterion for any
-  of them.
+- Crux Controller is a controller framework for products built on Crux: a Zephyr module that composes
+  the Crux services of a networked controller, with a base image that runs those services and no
+  application. Products import the module and add their application.
+- It is not a product and not Crux, and it adds no Crux public interface. A product is a firmware
+  repository outside this one that imports Crux and the framework module.
 - It is not evidence for any Crux security claim. That evidence lives in `crux-pilot`.
-- Its workload is synthetic and written for this repository. The build configurations `base`, `workload`, `net`,
-  `file`, `system`, `sntp` and `management` are built in CI. Only the `net` image has run on a board (twice, on
-  one bench; see `docs/findings/s2-first-board-run.md`), and a change must not claim otherwise.
+- The configurations from `workload` to `management` build on a synthetic workload written for this
+  repository. The build configurations `minimal`, `workload`, `net`, `file`, `system`, `sntp`, `management`
+  and `base` are built in CI. Only the `net` image has run on a board (twice, on one bench; see
+  `docs/findings/s2-first-board-run.md`), and a change must not claim otherwise.
 
 ## The boundary
 
@@ -26,14 +27,22 @@ those interfaces shows up here and is reported to `crux-pilot` as an issue.
 
 | Tree | May include | Fails |
 |---|---|---|
-| `app/src` | ISO C, the headers of the Crux Sockets profile, public `<crux/NAME.h>` headers except the frozen three, its own tree, `workload/include` | any Zephyr header, `<crux/thread.h>`, `<crux/sync.h>`, `<crux/serial.h>`, `<crux/file_zephyr.h>`, `<crux/web_zephyr.h>`, a header of `app/compose` |
+| `app/src` | ISO C, the headers of the Crux Sockets profile, public `<crux/NAME.h>` headers except the frozen three, its own tree, `workload/include`, the headers of `framework/src`, `<controller/NAME.h>` | any Zephyr header, `<crux/thread.h>`, `<crux/sync.h>`, `<crux/serial.h>`, `<crux/file_zephyr.h>`, `<crux/web_zephyr.h>`, a header of a composition or adapter zone |
 | `workload/` | ISO C and its own tree | Crux, Sockets profile and Zephyr headers |
 | `app/compose/` (the composition zone) | ISO C, public `<crux/NAME.h>` headers, `<crux/file_zephyr.h>`, `<crux/web_zephyr.h>`, `zephyr/fs/fs.h`, `zephyr/devicetree.h`, `zephyr/net/tls_credentials.h`, its own tree, header files (`.h`) of `app/src` | the Sockets profile, a Crux private or port header, any other Zephyr header, vendor and third-party headers |
 | `app/os/` (the adapter zone) | ISO C, public `<crux/NAME.h>` headers except the frozen three, `zephyr/kernel.h`, `zephyr/net/sntp.h`, its own tree, header files (`.h`) of `app/src` | the Sockets profile and other POSIX headers, `<crux/thread.h>`, `<crux/sync.h>`, `<crux/serial.h>`, `<crux/file_zephyr.h>`, `<crux/web_zephyr.h>` or any composition interface, a Crux private or port header, any other Zephyr header, vendor and third-party headers |
+| `include/` (the interface header of the framework) | ISO C, public `<crux/NAME.h>` headers except the frozen three, its own tree | any Zephyr header, the Sockets profile, a composition interface, a header of `framework/` |
+| `framework/src` (the portable core) | ISO C, public `<crux/NAME.h>` headers except the frozen three, its own tree, `<controller/NAME.h>` | any Zephyr header, the Sockets profile, a composition interface, the workload, a header of a zone |
+| `framework/compose/` (the composition zone of the module) | the allow-list of `app/compose/`, header files (`.h`) of `framework/src` | as `app/compose/`, and `app/src` |
+| `framework/os/` (the adapter zone of the module) | the allow-list of `app/os/`, header files (`.h`) of `framework/src` | as `app/os/`, and `app/src` |
+
+A C or C++ source or header under `app/`, `framework/` or `include/` that is in none of these trees fails.
 
 Any other include fails, and so does an include whose operand is a macro, because it cannot be checked.
 The check reads includes only, so do not add include paths in CMake: `app/CMakeLists.txt`,
-`app/management/management.cmake` and `app/management/entropy.cmake` are checked for that.
+`framework/management/management.cmake` and `framework/management/entropy.cmake` are checked for that.
+The module's build file `zephyr/CMakeLists.txt` adds one include path, `include/`, to the interface target that
+an image links.
 
 There is no exception, waiver or per-file opt-out. A boundary that a change can step over says nothing
 about what a real consumer can use, and it would hide the gap that this repository exists to find.
@@ -69,8 +78,8 @@ The workflows in `.github/workflows/` and the [`Jenkinsfile`](Jenkinsfile) only 
 
 | Workflow | Jobs | When |
 |---|---|---|
-| `ci.yml` | `Tooling tests` (with the check `spdx`: `scripts/check_spdx.py`), `West pins`, `Host tests` (sanitizer off and on), `workload` (Twister on `native_sim` for the scenarios in `tests/native_sim`, then the RT1060-EVKB build), `net build`, `file build`, `system build`, `sntp build`, `management build` (Twister on `native_sim` for the scenario in `tests/native_sim_mbed`, then the RT1060-EVKB build; the only job that fetches the Mbed TLS modules, with the group switched on in its own runner), `base build`, `Boundary check` (with the include check script of the Crux style kit as a further check), `Patch style` (Zephyr's checkpatch, rule BRACES, on the changed C lines, with `scripts/check-patch.sh`), `Static analysis` (clang-format 18.1.8 over every tracked C file with `scripts/check-format.sh`, then clang-tidy 18 over the host-built sources with `scripts/analyze_host.py`, which prints the list of tracked sources not analysed; any difference or finding fails the job) (names shortened) | pull requests, pushes to `main`, nightly |
-| `budget.yml` | `Budget` for `base` to `management`: static resource use against `budgets/limits.json` (the `management` row fetches the Mbed TLS modules in its own runner) | pull requests, pushes to `main`, nightly |
+| `ci.yml` | `Tooling tests` (with the check `spdx`: `scripts/check_spdx.py`), `West pins`, `Host tests` (sanitizer off and on), `workload` (Twister on `native_sim` for the scenarios in `tests/native_sim`, then the RT1060-EVKB build), `net build`, `file build`, `system build`, `sntp build`, `management build` (Twister on `native_sim` for the scenario in `tests/native_sim_mbed`, then the RT1060-EVKB build; it fetches the Mbed TLS modules, with the group switched on in its own runner), `minimal build` (`app/prj.conf` alone), `base build` (the base image: Twister on `native_sim` for the scenario in `tests/framework`, which builds the framework from the Zephyr module, then the RT1060-EVKB build; it fetches the Mbed TLS modules as `management build` does), `Boundary check` (with the include check script of the Crux style kit as a further check), `Patch style` (Zephyr's checkpatch, rule BRACES, on the changed C lines, with `scripts/check-patch.sh`), `Static analysis` (clang-format 18.1.8 over every tracked C file with `scripts/check-format.sh`, then clang-tidy 18 over the host-built sources with `scripts/analyze_host.py`, which prints the list of tracked sources not analysed; any difference or finding fails the job) (names shortened) | pull requests, pushes to `main`, nightly |
+| `budget.yml` | `Budget` for `minimal` to `base`: static resource use against `budgets/limits.json` (the `management` and `base` rows fetch the Mbed TLS modules in their own runners) | pull requests, pushes to `main`, nightly |
 | `devcontainer.yml` | `Dev container`: builds the image of `.devcontainer/` and runs in it, through `scripts/dev-shell.sh`, the tooling tests, the format check, the static analysis, the host tests (sanitizer off and on), both boundary checks, the `native_sim` scenarios and the RT1060-EVKB cross-build of `workload` with its output and configuration checks. Its pins are those of `ci.yml`, and `tests/tooling/test_devcontainer.py` compares them | pull requests and pushes to `main` that change `.devcontainer/`, `scripts/dev-shell.sh`, `scripts/bootstrap.sh`, `.vscode/`, `west.yml`, `scripts/ci/` or the workflow, nightly, and by hand |
 | `rebuild.yml` | builds `net` twice at different paths and compares `zephyr.bin` and `firmware_identity` | by hand, nightly, and pull requests that change the workflow, `release/` or `scripts/ci/` |
 | `release.yml` | dry run of the release flow, publishes nothing | by hand, nightly, and pull requests that change the workflow, `release/`, `west.yml` or `scripts/ci/` |
@@ -111,8 +120,8 @@ A new check goes into `scripts/ci/checks.toml`, and its id into `EXPECTED_FULL` 
 crux-pins` must print a `CONTRACT crux-pilot` line and no `MISMATCH`; the `West pins` job checks this
 and has a negative control that must fail. Another project is added to `west.yml` only with a comment
 that says why it is there and where its revision comes from, and `docs/dependencies.md` is updated. The
-optional groups of the Crux manifest stay off in `west.yml` and in every job except `management build` and the
-`Budget` row of `management`. Those two switch `crux-secure-management` on in their own runner, only after
+optional groups of the Crux manifest stay off in `west.yml` and in every job except `management build`, `base build`
+and the `Budget` rows of `management` and `base`. Those four switch `crux-secure-management` on in their own runner, only after
 `scripts/check_mbed_only.py` has checked the resolved project list, so that only the Mbed TLS modules are
 fetched. The other projects of that group are not under the Apache-2.0 terms of this repository, and the
 narrowed import in `west.yml` keeps them out.
@@ -151,15 +160,15 @@ have changed since, they are the source of truth.
 - **Format.** clang-format 18.1.8 over every tracked C file is a gate: `scripts/check-format.sh`, in the
   `Static analysis` job of `ci.yml`.
 - **clang-tidy.** clang-tidy 18 with `.clang-tidy` (checks from `bugprone`, `clang-analyzer`,
-  `performance` and `portability`; warnings are errors) runs over the 12 sources that the host tests
+  `performance` and `portability`; warnings are errors) runs over the 14 sources that the host tests
   build: `scripts/analyze_host.py`, in the same job. `.clang-tidy` also lists
   `readability-identifier-naming` without options, so it checks no naming rule. The script prints the
-  tracked sources that it did not analyse, 16 today: the sources that the host tests do not build,
+  tracked sources that it did not analyse, 18 today: the sources that the host tests do not build,
   because they need Zephyr or Crux headers or Kconfig values. It does so without failing.
-- **The 16 not analysed.** 10 of those 16 are product sources (`app/src`, `app/compose`, `app/os`).
-  They are built with `-Wall -Wextra -Werror` in the board and `native_sim` builds, as
-  `app/CMakeLists.txt`, `app/compose/CMakeLists.txt` and `app/os/CMakeLists.txt` set. The other 6 are
-  the `native_sim` scenario sources (`tests/native_sim*/*/src/test_*.c`): the CMake files of the
+- **The 18 not analysed.** 11 of those 18 are product sources (`app/`, `framework/`), built with
+  `-Wall -Wextra -Werror` as `app/CMakeLists.txt`, `app/os/CMakeLists.txt`, `framework/configurations.cmake`,
+  `framework/compose/CMakeLists.txt` and `zephyr/CMakeLists.txt` set. The other 7 are the `native_sim` scenario
+  sources (`tests/native_sim*/*/src/test_*.c`, `tests/framework/*/src/test_*.c`): the CMake files of the
   scenarios set those flags on the product sources that they pull in, not on the scenario source.
 - **Other gates.** The include rules (`scripts/check_boundary.py` and the Crux product include check,
   both in the `Boundary check` job) and the resource limits (`.github/workflows/budget.yml`).
@@ -174,7 +183,7 @@ or functional-safety compliance. The Crux platform states its own position in it
 [coding guidelines](https://github.com/wonny-labs/crux-pilot/blob/751e04aead779ac08e438ec1e2640e57fc50e9fe/docs/coding-guidelines.md),
 read at that commit.
 
-Known gaps, not scheduled: the 16 sources above have no clang-tidy analysis, and nothing measures how much
+Known gaps, not scheduled: the 18 sources above have no clang-tidy analysis, and nothing measures how much
 of the code the tests run.
 
 The product's own Kconfig symbols use the prefix `CRUX_CONTROLLER_`; they are the product's names, not
