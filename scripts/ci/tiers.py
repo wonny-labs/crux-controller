@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Plan and run one CI tier from scripts/ci/checks.toml.
 
-This is the selector of Crux (crux-pilot scripts/ci/tiers.py at be60bc65), copied unchanged except
+This is the selector of Crux (crux-pilot scripts/ci/tiers.py at 62ed69f1), copied unchanged except
 for the names of this repository's documentation. Use it through scripts/ci/run-tier.sh;
 CONTRIBUTING.md (section "CI tiers") and the Crux CI page linked there describe the tiers, the
 selection rules and the options. The same code decides on every CI system: it reads plain git and environment values,

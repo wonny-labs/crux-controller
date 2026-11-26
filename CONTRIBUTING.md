@@ -83,7 +83,7 @@ review, and a build in CI is not a run on a board.
 
 ### CI tiers
 
-CI runs in the three tiers of Crux, with its entry point, tier names, map file format and Jenkins parameters, as the [Crux CI page](https://github.com/wonny-labs/crux-pilot/blob/be60bc651a609136a363cffdf3c34dca10cc23d3/docs/ci.md) describes.
+CI runs in the three tiers of Crux, with its entry point, tier names, map file format and Jenkins parameters, as the [Crux CI page](https://github.com/wonny-labs/crux-pilot/blob/62ed69f10791695c0350996411676b930a96ce71/docs/ci.md) describes.
 `scripts/ci/tiers.py` is a copy of the Crux selector.
 
 | Tier | When | What runs |
