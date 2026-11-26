@@ -1,17 +1,22 @@
 # SPDX-License-Identifier: Apache-2.0
 """Checks that CI runs the three checks of the style work (SPDX headers, checkpatch, the style-kit
-include check) in a way that can fail. These tests read the workflow only and use no network."""
+include check) in a way that can fail. A job of ci.yml runs the checks of the job of the same name
+in scripts/ci/checks.toml; these tests read both and use no network."""
 
 import hashlib
+import importlib.util
 import os
 import pathlib
 import shutil
 import subprocess
+import sys
 import tempfile
 import re
 import unittest
 
 import yaml
+
+import ci_map
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 CI = ROOT / ".github" / "workflows" / "ci.yml"
@@ -25,10 +30,11 @@ def steps_of(job):
     return jobs()[job]["steps"]
 
 
-def only_step(job, fragment):
-    found = [s for s in steps_of(job) if fragment in s.get("name", "")]
-    assert len(found) == 1, f"{job}: need exactly one step named like {fragment!r}, got {found}"
-    return found[0]
+def only_step(job, check_id):
+    """The check of a job of the CI map file, as a step: its id, its commands, the job env of ci.yml."""
+    assert check_id in ci_map.ids(job), f"{job}: no check {check_id}"
+    return {"name": check_id, "run": ci_map.run(check_id), "env": jobs()[job].get("env", {}),
+            **{k: v for k, v in ci_map.check(check_id).items() if k in ("advisory",)}}
 
 
 class CannotBeSilenced(unittest.TestCase):
@@ -37,15 +43,21 @@ class CannotBeSilenced(unittest.TestCase):
     def assert_can_fail(self, job, step):
         self.assertNotIn("continue-on-error", step)
         self.assertNotIn("continue-on-error", jobs()[job])
+        self.assertNotIn("advisory", step, "an advisory check cannot fail its job")
         self.assertNotIn("if", step, "the step runs conditionally")
+        # The workflow runs the checks of the job in one step that waits only for the plan.
+        tier = next(s for s in steps_of(job) if s.get("name") == "Run the checks of this tier")
+        self.assertNotIn("continue-on-error", tier)
+        self.assertEqual("steps.plan.outputs.checks != '0'", tier["if"])
         run = step.get("run", "")
         self.assertNotRegex(run, r"\|\|\s*(true|:)\b")
         self.assertNotRegex(run, r"(^|\n)\s*set \+e")
 
 
+@ci_map.needs_tomllib
 class SpdxStep(CannotBeSilenced):
     def test_the_tooling_job_runs_the_spdx_check_after_checkout(self):
-        step = only_step("tooling", "SPDX")
+        step = only_step("tooling", "spdx")
         names = [s.get("uses", s.get("name", "")) for s in steps_of("tooling")]
         self.assertTrue(names[0].startswith("actions/checkout@"))
         self.assertEqual("python scripts/check_spdx.py", step["run"].strip())
@@ -58,7 +70,8 @@ class SpdxStep(CannotBeSilenced):
     def test_the_existing_tooling_steps_are_unchanged(self):
         runs = [s.get("run") for s in steps_of("tooling")]
         self.assertIn("python -m pip install pyyaml", runs)
-        self.assertIn("python -m unittest discover -s tests/tooling -v", runs)
+        self.assertEqual("python -m unittest discover -s tests/tooling -v", ci_map.run("tooling-tests").strip())
+        self.assertEqual(["tooling-tests", "spdx"], ci_map.ids("tooling"))
 
 
 def git(repo, *args):
@@ -76,8 +89,9 @@ exit($bad ? 1 : 0);
 """
 
 
+@ci_map.needs_tomllib
 class PatchStyleJob(CannotBeSilenced):
-    STEP = "Check the patch style"
+    STEP = "patch-style"
 
     def test_the_job_is_named_and_fetches_two_commits_and_zephyr(self):
         job = jobs()["patch-style"]
@@ -85,8 +99,10 @@ class PatchStyleJob(CannotBeSilenced):
         checkout = job["steps"][0]
         self.assertTrue(checkout["uses"].startswith("actions/checkout@"))
         self.assertEqual("crux-controller", checkout["with"]["path"])
-        self.assertEqual(2, checkout["with"]["fetch-depth"])
-        runs = "\n".join(s.get("run", "") for s in job["steps"])
+        # The whole history, not two commits: scripts/ci/run-tier.sh compares the change with the
+        # merge base of its target, and the patch style check uses that same base.
+        self.assertEqual(0, checkout["with"]["fetch-depth"])
+        runs = "\n".join(s.get("run", "") for s in job["steps"]) + "\n" + ci_map.commands("patch-style")
         self.assertIn("west init -l crux-controller", runs)
         # west refuses to update a project that comes through an import, so Zephyr is not
         # updated by name: west updates crux-pilot, and the job fetches only the commit that the
@@ -96,7 +112,7 @@ class PatchStyleJob(CannotBeSilenced):
         self.assertIn("west==1.4.0", runs)
 
     def fetch_step(self):
-        return only_step("patch-style", "Fetch Zephyr")
+        return only_step("patch-style", "patch-style-fetch-zephyr")
 
     def test_the_fetch_step_resolves_the_pinned_zephyr_commit_and_fetches_only_it(self):
         run = self.fetch_step()["run"]
@@ -110,28 +126,35 @@ class PatchStyleJob(CannotBeSilenced):
         self.assertNotIn("continue-on-error", self.fetch_step())
 
     def test_the_step_runs_the_script_from_the_repository_with_zephyr_base(self):
+        # The check starts in the repository root, sets ZEPHYR_BASE to the Zephyr of the workspace
+        # folder, and runs scripts/check-patch.sh through scripts/ci/check-patch-range.sh.
         step = only_step("patch-style", self.STEP)
-        self.assertEqual("crux-controller", step["working-directory"])
-        self.assertEqual("${{ github.workspace }}/zephyr", step["env"]["ZEPHYR_BASE"])
-        self.assertIn("scripts/check-patch.sh", step["run"])
+        self.assertNotRegex(step["run"], r"(^|\n)\s*cd ")
+        self.assertIn('export ZEPHYR_BASE="$(cd .. && pwd)/zephyr"', step["run"])
+        self.assertIn("scripts/ci/check-patch-range.sh", step["run"])
+        self.assertIn('exec scripts/check-patch.sh "$base" HEAD', (ROOT / "scripts/ci/check-patch-range.sh").read_text())
         self.assert_can_fail("patch-style", step)
 
     def test_the_job_has_no_other_check_step_that_could_hide_the_result(self):
         for step in steps_of("patch-style"):
             self.assertNotIn("continue-on-error", step)
+        self.assertEqual(["patch-style-fetch-zephyr", "patch-style"], ci_map.ids("patch-style"))
+        for check in ci_map.checks("patch-style"):
+            self.assertNotIn("advisory", check)
 
-    # The step text is run for real, with a stand-in for checkpatch.pl, in repositories built to
-    # look like what GitHub checks out.
+    # The check text is run for real, with a stand-in for checkpatch.pl, in a workspace folder built
+    # to look like what CI checks out: the clone crux-controller beside zephyr.
     def make_repo(self):
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
-        base = pathlib.Path(directory.name)
+        base = pathlib.Path(directory.name).resolve()
         repo = base / "crux-controller"
         zephyr = base / "zephyr"
         (zephyr / "scripts").mkdir(parents=True)
         (zephyr / "scripts" / "checkpatch.pl").write_text(STAND_IN)
-        (repo / "scripts").mkdir(parents=True)
+        (repo / "scripts" / "ci").mkdir(parents=True)
         shutil.copy2(ROOT / "scripts" / "check-patch.sh", repo / "scripts" / "check-patch.sh")
+        shutil.copy2(ROOT / "scripts" / "ci" / "check-patch-range.sh", repo / "scripts" / "ci" / "check-patch-range.sh")
         subprocess.run(["git", "init", "-q", "-b", "main", str(repo)], check=True)
         (repo / "a.c").write_text("int a;\n")
         git(repo, "add", "-A")
@@ -149,12 +172,16 @@ class PatchStyleJob(CannotBeSilenced):
         git(repo, "commit", "-q", "-m", "change " + name)
 
     def run_step(self, repo, zephyr, event, before=""):
+        """Run the check as scripts/ci/run-tier.sh does: the event, and the commit it compared the
+        change with (none when it has none). A missing zephyr folder is moved away first."""
         step = only_step("patch-style", self.STEP)
-        env = {
-            "PATH": os.environ["PATH"], "HOME": str(repo.parent),
-            "GITHUB_EVENT_NAME": event, "PUSH_BEFORE": before, "ZEPHYR_BASE": str(zephyr),
-        }
-        # GitHub runs a step as: bash --noprofile --norc -eo pipefail {0}
+        env = {"PATH": os.environ["PATH"], "HOME": str(repo.parent), "CRUX_CI_EVENT": event}
+        if before:
+            env["CRUX_CI_DIFF_BASE"] = before
+        workspace_zephyr = repo.parent / "zephyr"
+        if zephyr != workspace_zephyr and workspace_zephyr.exists():
+            workspace_zephyr.rename(repo.parent / "zephyr-moved-away")
+        # run-tier.sh runs a check as: bash -eo pipefail -c <run>, from the repository root.
         return subprocess.run(
             ["bash", "--noprofile", "--norc", "-eo", "pipefail", "-c", step["run"]],
             cwd=repo, env=env, capture_output=True, text=True,
@@ -167,7 +194,7 @@ class PatchStyleJob(CannotBeSilenced):
         step = self.fetch_step()
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
-        base = pathlib.Path(directory.name)
+        base = pathlib.Path(directory.name).resolve()
         remote = base / "remote"
         (remote / "scripts").mkdir(parents=True)
         (remote / "scripts" / "checkpatch.pl").write_text("#!/usr/bin/perl\n")
@@ -203,7 +230,7 @@ class PatchStyleJob(CannotBeSilenced):
         west.chmod(0o755)
         env = {
             "PATH": f"{base / 'bin'}:{os.environ['PATH']}", "HOME": str(base),
-            "GITHUB_WORKSPACE": str(base), "WEST_LOG": str(base / "west.log"),
+            "WEST_LOG": str(base / "west.log"),
             "WEST_STATE": str(base / "west.state"),
             "WEST_FAIL_FIRST": "1" if west_list_fails_before_update else "0",
             "ZEPHYR_REVISION": revision or commit, "ZEPHYR_PATH": str(zephyr),
@@ -211,9 +238,10 @@ class PatchStyleJob(CannotBeSilenced):
             "GIT_CONFIG_KEY_0": f"url.file://{remote}.insteadOf",
             "GIT_CONFIG_VALUE_0": "https://github.com/zephyrproject-rtos/zephyr",
         }
+        # The check starts in the repository root and moves to the workspace folder itself.
         result = subprocess.run(
             ["bash", "--noprofile", "--norc", "-eo", "pipefail", "-c", step["run"]],
-            cwd=base, env=env, capture_output=True, text=True,
+            cwd=base / "crux-controller", env=env, capture_output=True, text=True,
         )
         log = (base / "west.log").read_text() if (base / "west.log").exists() else ""
         return result, zephyr, log
@@ -250,15 +278,17 @@ class PatchStyleJob(CannotBeSilenced):
 
     def test_a_pull_request_with_a_bad_change_fails(self):
         _, repo, zephyr = self.make_repo()
+        target = git(repo, "rev-parse", "HEAD")
         self.commit(repo, "int BAD_BRACES;\n")
-        result = self.run_step(repo, zephyr, "pull_request")
+        result = self.run_step(repo, zephyr, "change-request", target)
         self.assertEqual(1, result.returncode, result.stdout + result.stderr)
         self.assertIn("stand-in checkpatch: error", result.stdout)
 
     def test_a_pull_request_with_a_clean_change_passes(self):
         _, repo, zephyr = self.make_repo()
+        target = git(repo, "rev-parse", "HEAD")
         self.commit(repo, "int fine;\n")
-        result = self.run_step(repo, zephyr, "pull_request")
+        result = self.run_step(repo, zephyr, "change-request", target)
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
 
     def test_a_push_checks_everything_since_the_previous_push(self):
@@ -267,29 +297,42 @@ class PatchStyleJob(CannotBeSilenced):
         self.commit_file(repo, "b.c", "int BAD_BRACES;\n")
         self.commit(repo, "int fine;\n")
         # The last commit alone is clean, so only the whole range shows the problem.
-        result = self.run_step(repo, zephyr, "push", before)
+        result = self.run_step(repo, zephyr, "post-merge", before)
         self.assertEqual(1, result.returncode, result.stdout + result.stderr)
-        self.assertEqual(0, self.run_step(repo, zephyr, "pull_request").returncode)
+        self.assertEqual(0, self.run_step(repo, zephyr, "change-request", git(repo, "rev-parse", "HEAD^")).returncode)
 
     def test_a_push_without_a_previous_sha_is_an_error(self):
+        # scripts/ci/run-tier.sh passes no comparison base for a missing or all-zero previous SHA.
         _, repo, zephyr = self.make_repo()
-        for before in ("", "0" * 40):
-            result = self.run_step(repo, zephyr, "push", before)
-            self.assertEqual(2, result.returncode, before)
-            self.assertIn("previous push SHA", result.stderr)
-
-    def test_an_event_that_is_neither_push_nor_pull_request_is_an_error(self):
-        _, repo, zephyr = self.make_repo()
-        result = self.run_step(repo, zephyr, "workflow_dispatch")
+        result = self.run_step(repo, zephyr, "post-merge", "")
         self.assertEqual(2, result.returncode)
+        self.assertIn("previous push SHA", result.stderr)
+
+    def test_a_manual_or_nightly_run_without_a_base_checks_the_latest_commit(self):
+        # A run with no change to compare with (by hand, nightly) checks the latest commit, as the
+        # patch style check of Crux does.
+        _, repo, zephyr = self.make_repo()
+        self.commit(repo, "int BAD_BRACES;\n")
+        for event in ("manual", "scheduled"):
+            self.assertEqual(1, self.run_step(repo, zephyr, event).returncode, event)
+        self.commit(repo, "int fine;\n")
+        self.assertEqual(0, self.run_step(repo, zephyr, "manual").returncode)
 
     def test_a_missing_zephyr_fails_instead_of_passing(self):
         _, repo, zephyr = self.make_repo()
+        target = git(repo, "rev-parse", "HEAD")
         self.commit(repo, "int BAD_BRACES;\n")
-        result = self.run_step(repo, zephyr.parent / "nowhere", "pull_request")
+        result = self.run_step(repo, zephyr.parent / "nowhere", "change-request", target)
         self.assertEqual(2, result.returncode)
 
+    @unittest.skipIf(sys.version_info < (3, 11), "scripts/ci/tiers.py needs Python 3.11 or later")
     def test_a_push_fetches_a_previous_commit_that_the_clone_lacks(self):
+        # The selector fetches the comparison base that a shallow clone lacks, and the check then
+        # covers every commit since it.
+        spec = importlib.util.spec_from_file_location("ci_tiers_for_patch_style", ROOT / "scripts/ci/tiers.py")
+        tiers = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = tiers  # the dataclasses of the module look themselves up here
+        spec.loader.exec_module(tiers)
         base, repo, zephyr = self.make_repo()
         before = git(repo, "rev-parse", "HEAD")
         self.commit_file(repo, "b.c", "int BAD_BRACES;\n")
@@ -305,14 +348,19 @@ class PatchStyleJob(CannotBeSilenced):
                            capture_output=True).returncode == 0,
             "the clone must lack the previous commit",
         )
-        result = self.run_step(clone, zephyr, "push", before)
+        change = tiers.changed_files(clone, before)
+        self.assertEqual(["a.c", "b.c"], change.files)
+        (clone / "scripts" / "ci").mkdir(parents=True, exist_ok=True)
+        (base / "clone" / "zephyr").symlink_to(zephyr, target_is_directory=True)
+        result = self.run_step(clone, base / "clone" / "zephyr", "post-merge", change.diff_base)
         self.assertEqual(1, result.returncode, result.stdout + result.stderr)
 
 
+@ci_map.needs_tomllib
 class KitIncludeStep(CannotBeSilenced):
     """The include check as the crux-pilot style kit wraps it, from an immutable commit."""
 
-    NAME = "style kit include check"
+    NAME = "kit-include-check"
 
     def step(self):
         return only_step("boundary", self.NAME)
@@ -335,7 +383,7 @@ class KitIncludeStep(CannotBeSilenced):
         self.assertNotEqual(env["CHECKER_SHA256"], env["WRAPPER_SHA256"])
 
     def test_the_checker_hash_is_the_one_of_the_existing_step(self):
-        existing = only_step("boundary", "product include check")
+        existing = only_step("boundary", "product-include-check")
         self.assertEqual(existing["env"]["CHECK_SHA256"], self.step()["env"]["CHECKER_SHA256"])
 
     def test_downloads_fail_on_http_errors_and_are_verified_before_the_run(self):
@@ -349,13 +397,14 @@ class KitIncludeStep(CannotBeSilenced):
         self.assertLess(first_verify, execution)
 
     def test_the_wrapper_runs_inside_the_checkout_and_the_step_cannot_pass_on_failure(self):
+        # scripts/ci/run-tier.sh starts every check in the repository root, and this one stays there.
         step = self.step()
-        self.assertRegex(step["run"], r"\bcd crux-controller\b")
+        self.assertNotRegex(step["run"], r"(^|\n)\s*cd ")
         self.assertTrue(step["run"].lstrip().startswith("set -euo pipefail"))
         self.assert_can_fail("boundary", step)
 
     def test_the_existing_boundary_steps_are_still_there(self):
-        runs = "\n".join(s.get("run", "") for s in steps_of("boundary"))
+        runs = ci_map.commands("boundary")
         self.assertIn("check_boundary.py --repo crux-controller --crux-root crux-pilot", runs)
         self.assertIn('python3 "$script" --product .', runs)
 
@@ -364,7 +413,7 @@ class KitIncludeStep(CannotBeSilenced):
         step = self.step()
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
-        base = pathlib.Path(directory.name)
+        base = pathlib.Path(directory.name).resolve()
         served = base / "served"
         (served / "style").mkdir(parents=True)
         (base / "bin").mkdir()
@@ -384,14 +433,14 @@ class KitIncludeStep(CannotBeSilenced):
         (served / "style" / "check-includes.sh").write_text(served_wrapper)
         env = {
             "PATH": f"{base / 'bin'}:{os.environ['PATH']}", "HOME": str(base),
-            "RUNNER_TEMP": str(base / "tmp"), "SERVED": str(served),
+            "TMPDIR": str(base / "tmp"), "SERVED": str(served),
             "KIT_COMMIT": "0" * 40, "CHECKER_SHA256": hashlib.sha256(checker.encode()).hexdigest(),
             "WRAPPER_SHA256": hashlib.sha256(wrapper_text.encode()).hexdigest(),
         }
         (base / "tmp").mkdir()
         return subprocess.run(
             ["bash", "--noprofile", "--norc", "-eo", "pipefail", "-c", step["run"]],
-            cwd=base, env=env, capture_output=True, text=True,
+            cwd=base / "crux-controller", env=env, capture_output=True, text=True,
         )
 
     def test_a_passing_wrapper_passes_the_step(self):

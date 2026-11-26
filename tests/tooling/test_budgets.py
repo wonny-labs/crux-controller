@@ -193,6 +193,9 @@ class DeclaredLimits(unittest.TestCase):
 
 
 class BudgetWorkflow(unittest.TestCase):
+    """budget.yml runs one Budget job of scripts/ci/checks.toml per configuration; each runs
+    scripts/ci/budget.sh, which holds the build, the configuration check and the summary."""
+
     def load(self):
         import yaml
 
@@ -200,7 +203,8 @@ class BudgetWorkflow(unittest.TestCase):
 
     def commands(self):
         job = self.load()["jobs"]["budget"]
-        return "\n".join(step.get("run", "") for step in job["steps"])
+        steps = "\n".join(step.get("run", "") for step in job["steps"])
+        return steps + "\n" + (ROOT / "scripts" / "ci" / "budget.sh").read_text()
 
     def test_every_step_is_built_with_the_gate_required(self):
         self.assertIn("-DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON", self.commands())
@@ -213,7 +217,7 @@ class BudgetWorkflow(unittest.TestCase):
 
     def test_the_job_covers_the_declared_steps_and_uploads_nothing(self):
         job = self.load()["jobs"]["budget"]
-        steps = {entry["config"] for entry in job["strategy"]["matrix"]["include"]}
+        steps = set(job["strategy"]["matrix"]["config"])
         data = json.loads((ROOT / "budgets" / "limits.json").read_text())
         self.assertTrue(steps <= set(data["min_free_percent"]))
         for step in job["steps"]:

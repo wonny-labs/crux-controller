@@ -15,6 +15,8 @@ import unittest
 
 import yaml
 
+import ci_map
+
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 PAGE = ROOT / "docs" / "getting-started.md"
 TROUBLE = ROOT / "docs" / "troubleshooting.md"
@@ -322,23 +324,24 @@ class QuickStart(Page):
         west = re.search(r"^west==(\S+)$", read(DEVCONTAINER / "requirements-tools.txt"), re.M).group(1)
         self.assertIn(f"setup: workspace /workspaces/ws, Zephyr SDK {sdk}, West version: v{west}", self.quick)
 
+    @ci_map.needs_tomllib
     def test_the_one_shot_twister_command_is_the_one_that_ci_and_the_container_job_run(self):
         commands = "\n".join(code_blocks(self.tutorial))
         self.assertIn("bash scripts/dev-shell.sh " + ROOT_TWISTER, commands)
         # dev-shell.sh runs a command with the repository as working directory, so the tutorial
         # needs no change into the workspace folder, which the container job does.
         self.assertIn("-w /workspaces/ws/crux-controller", self.shell)
-        container_job = norm(read(WORKFLOWS / "devcontainer.yml"))
+        # The container job and the workload job run the checks of the CI map file.
+        container_job = norm(ci_map.commands("devcontainer"))
         self.assertIn("cd /workspaces/ws " + ONE_SHOT_TWISTER, container_job)
-        ci_steps = yaml.safe_load(read(WORKFLOWS / "ci.yml"))["jobs"]["workload"]["steps"]
-        ci_run = [step["run"] for step in ci_steps if step.get("name") == "Run the workload scenario on native_sim"]
-        self.assertEqual([ONE_SHOT_TWISTER], [norm(run) for run in ci_run])
+        self.assertEqual(ONE_SHOT_TWISTER, norm(ci_map.command("workload-native-sim")))
 
+    @ci_map.needs_tomllib
     def test_the_tooling_tests_run_through_the_script_as_the_container_job_runs_them(self):
         self.assertIn("bash scripts/dev-shell.sh python -m unittest discover -s tests/tooling",
                       "\n".join(code_blocks(self.tutorial)))
         self.assertIn("dev-shell.sh python -m unittest discover -s tests/tooling",
-                      norm(read(WORKFLOWS / "devcontainer.yml")))
+                      norm(ci_map.commands("devcontainer")))
 
     def test_one_scenario_has_a_command_and_its_directory_exists(self):
         self.assertIn("-T crux-controller/tests/native_sim/workload", self.native)
@@ -750,7 +753,7 @@ class Troubleshooting(unittest.TestCase):
             "budgets/check.py": ("unknown build configuration, no limits are declared for it",
                                  "measured but no limit is declared",
                                  "a limit is declared but the region was not measured"),
-            ".github/workflows/budget.yml": ("the capability was not built",),
+            "scripts/ci/budget.sh": ("the capability was not built",),
             "scripts/dev-shell.sh": ("the clone must be in a folder named crux-controller",),
             ".devcontainer/setup.sh": ("the clone is in a folder named", "looks like a home directory",
                                        "failed during", "which is not a readable file",
@@ -792,10 +795,11 @@ class Troubleshooting(unittest.TestCase):
                       read(ROOT / "scripts" / "check_boundary.py"))
         self.assertIn("path:line: include: reason", self.text)
 
+    @ci_map.needs_tomllib
     def test_the_strong_boundary_form_is_the_one_that_ci_runs(self):
         strong = "check_boundary.py --repo crux-controller --crux-root crux-pilot"
         self.assertIn(strong, self.text)
-        self.assertIn(strong, norm(read(WORKFLOWS / "ci.yml")))
+        self.assertIn(strong, norm(ci_map.run("boundary-check")))
 
     def test_the_doc_pinned_tests_it_names_exist(self):
         for name in ("test_text_accuracy.py", "test_system.py", "test_sntp.py", "test_management.py"):

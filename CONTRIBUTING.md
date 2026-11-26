@@ -43,7 +43,8 @@ reviewed as such, and say in it why the public interface is not enough.
 
 ## Build and test
 
-Tooling tests run locally. They need Python with PyYAML (CI uses Python 3.12):
+Tooling tests run locally.
+They need Python with PyYAML (CI uses Python 3.12); the tests that read the CI map file need Python 3.11 or later and skip on an older one:
 
 ```bash
 python3 -m venv .venv && . .venv/bin/activate && python -m pip install pyyaml
@@ -63,21 +64,46 @@ CI is the reference for the Zephyr builds and the Twister runs.
 [docs/native-setup.md](docs/native-setup.md) gives the CI commands for a local `native_sim` run,
 and a local result does not replace CI. A change to `app/`, `conf`, overlays or `tests/native_sim` takes
 its evidence from CI, and the pull request says so.
-CI is configured in `.github/workflows/`:
+The checks are in [`scripts/ci/checks.toml`](scripts/ci/checks.toml), in a job for each job below.
+The workflows in `.github/workflows/` and the [`Jenkinsfile`](Jenkinsfile) only set up a runner and call `scripts/ci/run-tier.sh` ([CI tiers](#ci-tiers)):
 
 | Workflow | Jobs | When |
 |---|---|---|
-| `ci.yml` | `Tooling tests` (with the step `Check SPDX headers`: `scripts/check_spdx.py`), `West pins`, `Host tests` (sanitizer off and on), `workload` (Twister on `native_sim` for the scenarios in `tests/native_sim`, then the RT1060-EVKB build), `net build`, `file build`, `system build`, `sntp build`, `management build` (Twister on `native_sim` for the scenario in `tests/native_sim_mbed`, then the RT1060-EVKB build; the only job that fetches the Mbed TLS modules, with the group switched on in its own runner), `base build`, `Boundary check` (with the include check script of the Crux style kit as a further step), `Patch style` (Zephyr's checkpatch, rule BRACES, on the changed C lines, with `scripts/check-patch.sh`), `Static analysis` (clang-format 18.1.8 over every tracked C file with `scripts/check-format.sh`, then clang-tidy 18 over the host-built sources with `scripts/analyze_host.py`, which prints the list of tracked sources not analysed; any difference or finding fails the job) (names shortened) | pull requests and pushes to `main` |
-| `budget.yml` | `Budget` for `base` to `management`: static resource use against `budgets/limits.json` (the `management` row fetches the Mbed TLS modules in its own runner) | pull requests and pushes to `main` |
-| `devcontainer.yml` | `Dev container`: builds the image of `.devcontainer/` and runs in it, through `scripts/dev-shell.sh`, the tooling tests, the format check, the static analysis, the host tests (sanitizer off and on), both boundary checks, the `native_sim` scenarios and the RT1060-EVKB cross-build of `workload` with its output and configuration checks. Its pins are those of `ci.yml`, and `tests/tooling/test_devcontainer.py` compares them | pull requests and pushes to `main` that change `.devcontainer/`, `scripts/dev-shell.sh`, `scripts/bootstrap.sh`, `west.yml` or the workflow, and by hand |
-| `rebuild.yml` | builds `net` twice at different paths and compares `zephyr.bin` and `firmware_identity` | by hand, and pull requests that change the workflow or `release/` |
-| `release.yml` | dry run of the release flow, publishes nothing | by hand, and pull requests that change the workflow, `release/` or `west.yml` |
-| `scheduled-main.yml` | `net build against crux-pilot main` | daily, and by hand |
+| `ci.yml` | `Tooling tests` (with the check `spdx`: `scripts/check_spdx.py`), `West pins`, `Host tests` (sanitizer off and on), `workload` (Twister on `native_sim` for the scenarios in `tests/native_sim`, then the RT1060-EVKB build), `net build`, `file build`, `system build`, `sntp build`, `management build` (Twister on `native_sim` for the scenario in `tests/native_sim_mbed`, then the RT1060-EVKB build; the only job that fetches the Mbed TLS modules, with the group switched on in its own runner), `base build`, `Boundary check` (with the include check script of the Crux style kit as a further check), `Patch style` (Zephyr's checkpatch, rule BRACES, on the changed C lines, with `scripts/check-patch.sh`), `Static analysis` (clang-format 18.1.8 over every tracked C file with `scripts/check-format.sh`, then clang-tidy 18 over the host-built sources with `scripts/analyze_host.py`, which prints the list of tracked sources not analysed; any difference or finding fails the job) (names shortened) | pull requests, pushes to `main`, nightly |
+| `budget.yml` | `Budget` for `base` to `management`: static resource use against `budgets/limits.json` (the `management` row fetches the Mbed TLS modules in its own runner) | pull requests, pushes to `main`, nightly |
+| `devcontainer.yml` | `Dev container`: builds the image of `.devcontainer/` and runs in it, through `scripts/dev-shell.sh`, the tooling tests, the format check, the static analysis, the host tests (sanitizer off and on), both boundary checks, the `native_sim` scenarios and the RT1060-EVKB cross-build of `workload` with its output and configuration checks. Its pins are those of `ci.yml`, and `tests/tooling/test_devcontainer.py` compares them | pull requests and pushes to `main` that change `.devcontainer/`, `scripts/dev-shell.sh`, `scripts/bootstrap.sh`, `.vscode/`, `west.yml`, `scripts/ci/` or the workflow, nightly, and by hand |
+| `rebuild.yml` | builds `net` twice at different paths and compares `zephyr.bin` and `firmware_identity` | by hand, nightly, and pull requests that change the workflow, `release/` or `scripts/ci/` |
+| `release.yml` | dry run of the release flow, publishes nothing | by hand, nightly, and pull requests that change the workflow, `release/`, `west.yml` or `scripts/ci/` |
+| `scheduled-main.yml` | `net build against crux-pilot main` (a check of the `nightly` tier only) | daily, and by hand |
 
 The scheduled build is information only: it shows ahead of time that a Crux pin moved or that Crux
 broke the build, and the pinned build stays the gate for pull requests. Every RT1060-EVKB build requires
 the verified Zephyr baseline (`-DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON`). A green CI result does not replace
 review, and a build in CI is not a run on a board.
+
+### CI tiers
+
+CI runs in the three tiers of Crux, with its entry point, tier names, map file format and Jenkins parameters, as the [Crux CI page](https://github.com/wonny-labs/crux-pilot/blob/62ed69f10791695c0350996411676b930a96ce71/docs/ci.md) describes.
+`scripts/ci/tiers.py` is a copy of the Crux selector.
+
+| Tier | When | What runs |
+|---|---|---|
+| `fast` | every push to a draft pull request, a Jenkins branch build | the tooling tests, and the checks of the parts of the repository that the change touches; a change to a CI, build or script file, `west.yml`, a CMake, Kconfig, `.conf` or overlay file, `budgets/`, a path outside the parts, or more than three parts runs `full` instead |
+| `full` | a pull request that is ready for review and every push to it, a push to `main`, a Jenkins change request | every check of the table above, under the path filters of its workflow |
+| `nightly` | daily on `main` | every check whatever the change, and the build against `crux-pilot` main |
+
+The parts and their checks are the `[components]` and `fast` entries of `scripts/ci/checks.toml`.
+Mark a draft pull request ready for review to run the `full` tier.
+To see what a tier selects for the current branch, or to run one check, from the clone in the workspace folder:
+
+```bash
+scripts/ci/run-tier.sh fast --plan
+scripts/ci/run-tier.sh full --job net --check net-config
+```
+
+The entry point needs Python 3.11 or later, and a check that builds needs the workspace that `scripts/ci/prepare-job.sh` sets up.
+A failing check prints the command that reruns it.
+A new check goes into `scripts/ci/checks.toml`, and its id into `EXPECTED_FULL` in `tests/tooling/test_ci_tiers.py`.
 
 ## The pin and the manifest
 
@@ -137,7 +163,7 @@ have changed since, they are the source of truth.
   scenarios set those flags on the product sources that they pull in, not on the scenario source.
 - **Other gates.** The include rules (`scripts/check_boundary.py` and the Crux product include check,
   both in the `Boundary check` job) and the resource limits (`.github/workflows/budget.yml`).
-- **Headers and patch style.** `scripts/check_spdx.py` (the `Check SPDX headers` step of `Tooling tests`)
+- **Headers and patch style.** `scripts/check_spdx.py` (the check `spdx` of `Tooling tests`)
   requires the licence identifier line in first-party C, CMake, Kconfig, Python and shell files, and
   keeps a list of two older scripts that lack it. `scripts/check-patch.sh` (the `Patch style` job) runs
   Zephyr's checkpatch with the rule BRACES on the changed C lines of a change.

@@ -8,6 +8,8 @@ import unittest
 
 import yaml
 
+import ci_map
+
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 WORKFLOWS = ROOT / ".github" / "workflows"
 BOARD = "mimxrt1060_evk@B//qspi"
@@ -97,17 +99,19 @@ class FileBuildFiles(unittest.TestCase):
         self.assertIn("src/config_store.c", text)
 
 
+@ci_map.needs_tomllib
 class FileWorkflows(unittest.TestCase):
+    """A job of a workflow runs the checks of the job of the same name in scripts/ci/checks.toml."""
+
     def ci(self):
         return yaml.safe_load((WORKFLOWS / "ci.yml").read_text())
 
     def commands(self, job):
-        return "\n".join(step.get("run", "") for step in self.ci()["jobs"][job]["steps"])
+        return ci_map.commands(job)
 
     def test_ci_has_a_file_job_that_builds_the_board_image_with_the_gate_required(self):
         self.assertIn("file", self.ci()["jobs"])
-        job = self.ci()["jobs"]["file"]
-        self.assertEqual(BOARD, job["env"]["BOARD"])
+        self.assertEqual(BOARD, ci_map.job_env("file")["BOARD"])
         commands = self.commands("file")
         self.assertIn("-DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON", commands)
         self.assertIn("conf/workload.conf;conf/file.conf", commands)
@@ -139,20 +143,17 @@ class FileWorkflows(unittest.TestCase):
 
     def test_the_budget_matrix_has_a_file_row_on_the_workload_base(self):
         budget = yaml.safe_load((WORKFLOWS / "budget.yml").read_text())
-        rows = {row["config"]: row for row in budget["jobs"]["budget"]["strategy"]["matrix"]["include"]}
-        self.assertIn("file", rows)
-        self.assertEqual("conf/workload.conf;conf/file.conf", rows["file"]["conf"])
-        self.assertEqual("boards/file.overlay", rows["file"]["overlay"])
+        self.assertIn("file", budget["jobs"]["budget"]["strategy"]["matrix"]["config"])
+        row = ci_map.job_env("budget-file")
+        self.assertEqual("conf/workload.conf;conf/file.conf", row["CONF"])
+        self.assertEqual("boards/file.overlay", row["OVERLAY"])
 
     def test_the_budget_job_checks_the_resolved_configuration_of_the_step(self):
-        budget = yaml.safe_load((WORKFLOWS / "budget.yml").read_text())
-        rows = {row["config"]: row for row in budget["jobs"]["budget"]["strategy"]["matrix"]["include"]}
-        self.assertIn("CONFIG_CRUX_CONTROLLER_FILE=y", rows["file"]["require"])
-        self.assertIn("CONFIG_CRUX_FILE_FATFS_RT1060=y", rows["file"]["require"])
-        commands = "\n".join(
-            step.get("run", "") for step in budget["jobs"]["budget"]["steps"]
-        )
-        self.assertIn("matrix.require", yaml.safe_dump(budget))
+        row = ci_map.job_env("budget-file")
+        self.assertIn("CONFIG_CRUX_CONTROLLER_FILE=y", row["REQUIRE"])
+        self.assertIn("CONFIG_CRUX_FILE_FATFS_RT1060=y", row["REQUIRE"])
+        commands = ci_map.BUDGET.read_text()
+        self.assertIn("for option in $REQUIRE", commands)
         self.assertIn(".config", commands)
 
     def test_limits_declare_file_with_the_same_placeholder_margins(self):

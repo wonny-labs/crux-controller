@@ -37,6 +37,9 @@ config CRUX_CONTROLLER_PEER_PORT
 
 config CRUX_CONTROLLER_FILE
 	bool "file: keep the workload configuration record in a file"
+	# The only board-specific dependency of the product's options: Crux enables this FatFs provider only
+	# for the RT1062 SoC and, on the RT1060 EVK, only for its QSPI variant at revision B, and has no
+	# board-neutral symbol for it. Replace it here, and nowhere else, when it has one.
 	depends on CRUX_CONTROLLER_WORKLOAD && CRUX_FILE_FATFS_RT1060
 	help
 	  At start, mount the microSD volume that the devicetree entry controller_storage

@@ -15,6 +15,8 @@ import unittest
 
 import yaml
 
+import ci_map
+
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 TUTORIAL = "docs/tutorial.md"
 BOARD_PAGE = "docs/board-bring-up.md"
@@ -87,11 +89,11 @@ def from_root(command):
     return norm(command).replace("crux-controller/", "")
 
 
-def ci_step_run(job, fragment):
-    steps = [s for s in yaml.safe_load(CI.read_text())["jobs"][job]["steps"] if fragment in s.get("name", "")]
-    assert len(steps) == 1, fragment
-    board = yaml.safe_load(CI.read_text())["jobs"][job]["env"].get("BOARD", "")
-    return steps[0]["run"].replace("${{ env.BOARD }}", board)
+def ci_step_run(job, check_id):
+    """The command of a check of the CI map file, with the board of its job written out."""
+    assert check_id in ci_map.ids(job), check_id
+    board = ci_map.job_env(job).get("BOARD", "")
+    return ci_map.command(check_id).replace('"$BOARD"', f"'{board}'")
 
 
 REPO_PATH = re.compile(r"(?<![\w/.-])((?:scripts|\.devcontainer|tests|app|docs)/[\w*./@-]+)")
@@ -151,15 +153,18 @@ class Tutorial(Common, unittest.TestCase):
         self.assertIn("scripts/dev-shell.sh", part)
         self.assertIn("Reopen in Container", part)
 
+    @ci_map.needs_tomllib
     def test_the_build_is_the_workload_cross_build_of_ci(self):
         # CI runs from the workspace folder; the tutorial runs the same command from the repository root.
-        expected = from_root(ci_step_run("workload", "Cross-build workload with the baseline gate required"))
+        expected = from_root(ci_step_run("workload", "workload-build"))
         self.assertTrue(any(expected in norm(code) for code in code_blocks(read(TUTORIAL))), expected)
 
+    @ci_map.needs_tomllib
     def test_the_native_sim_run_is_the_twister_step_of_ci(self):
-        expected = from_root(ci_step_run("workload", "Run the workload scenario on native_sim"))
+        expected = from_root(ci_step_run("workload", "workload-native-sim"))
         self.assertTrue(any(expected in norm(code) for code in code_blocks(read(TUTORIAL))), expected)
 
+    @ci_map.needs_tomllib
     def test_the_host_tool_and_boundary_commands_are_those_of_ci(self):
         body = norm("\n".join(code_blocks(read(TUTORIAL))))
         for command in ("cmake -S tests/host -B build/host -G Ninja -DWORKLOAD_SANITIZE=OFF",
@@ -169,7 +174,7 @@ class Tutorial(Common, unittest.TestCase):
             self.assertIn(command, body, command)
         # CI runs the boundary check from the workspace folder with workspace-relative paths.
         ci = "python crux-controller/scripts/check_boundary.py --repo crux-controller --crux-root crux-pilot"
-        self.assertIn(ci, norm(CI.read_text()))
+        self.assertIn(ci, norm(ci_map.run("boundary-check")))
         self.assertEqual("python scripts/check_boundary.py --crux-root ../crux-pilot",
                          from_root(ci).replace(" --repo crux-controller", "").replace("--crux-root crux-pilot",
                                                                                       "--crux-root ../crux-pilot"))
@@ -190,14 +195,14 @@ class Tutorial(Common, unittest.TestCase):
                     ("docs/getting-started.md", "docs/dev-container.md", "docs/native-setup.md"))
         self.assertLess(len(read(TUTORIAL).split()), setup / 3)
 
-    def test_parts_a_to_c_with_the_no_board_line_and_the_board_table(self):
+    def test_parts_a_to_c_with_the_no_board_line_and_the_link_to_the_supported_boards(self):
         body = read(TUTORIAL)
         parts = [h for h in headings(TUTORIAL) if h.startswith("Part ")]
         self.assertEqual(["Part A", "Part B", "Part C"], [p[:6] for p in parts])
         self.assertLess(body.index("## Part B"), body.index("## Part C"))
         part_c = section(TUTORIAL, r"Part C")
-        self.assertIn("| Board | `-b` target | Probe | Board guide |", part_c)
-        self.assertIn("`mimxrt1060_evk@B//qspi`", part_c)
+        self.assertIn("../README.md#supported-boards", part_c)
+        self.assertIn("-b 'mimxrt1060_evk@B//qspi'", part_c)
         self.assertIn("board-bring-up.md", part_c)
         self.assertIn("roadmap.md", part_c)
         self.assertRegex(part_c, r"authori[sz]ation")
@@ -289,9 +294,10 @@ class BoardPage(Common, unittest.TestCase):
             self.assertIn(value, note, value)
         self.assertIn('"192.168.77.2"', read("app/conf/net.conf"))
 
+    @ci_map.needs_tomllib
     def test_the_net_board_build_is_the_one_of_ci(self):
         # CI runs from the workspace folder; the page runs the same command from the repository root.
-        expected = norm(ci_step_run("net", "Cross-build net with the baseline gate required")).replace(
+        expected = norm(ci_step_run("net", "net-build")).replace(
             "crux-controller/", "")
         self.assertTrue(any(expected in norm(code) for code in code_blocks(read(BOARD_PAGE))), expected)
 

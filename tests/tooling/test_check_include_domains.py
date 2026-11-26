@@ -79,10 +79,11 @@ def load_script():
 
 
 def ci_pins():
-    """The pins of the two include check steps of ci.yml, read with a YAML parser."""
-    steps = yaml.safe_load(CI.read_text())["jobs"]["boundary"]["steps"]
-    env = {}
-    for step in steps:
+    """The pins of the two include checks in ci.yml, read with a YAML parser: the env of the
+    Boundary check job, which passes them to its checks in scripts/ci/checks.toml."""
+    job = yaml.safe_load(CI.read_text())["jobs"]["boundary"]
+    env = {k: str(v) for k, v in job.get("env", {}).items()}
+    for step in job["steps"]:
         env.update({k: str(v) for k, v in step.get("env", {}).items()})
     return env
 

@@ -1,10 +1,19 @@
 # Crux Controller
 
 Crux Controller is an Apache-2.0 reference consumer firmware of
-[Crux](https://github.com/wonny-labs/crux-pilot), an embedded software platform for Zephyr RTOS firmware. It targets
-the NXP RT1060-EVKB Rev B evaluation board (EVKB for short), and its workload is synthetic. It uses Crux through
-public headers, public CMake targets and published composition interfaces only, one capability per build
-configuration, so that a product team can read how each Crux capability is composed.
+[Crux](https://github.com/wonny-labs/crux-pilot), an embedded software platform for Zephyr RTOS firmware.
+Its workload is synthetic.
+It uses Crux through public headers, public CMake targets and published composition interfaces only, one capability
+per build configuration, so that a product team can read how each Crux capability is composed.
+
+## Supported boards
+
+| Board | Board target | Probe | Page |
+|---|---|---|---|
+| NXP RT1060-EVKB Rev B evaluation board (EVKB for short) | `mimxrt1060_evk@B/mimxrt1062/qspi` | SEGGER J-Link | [Board bring-up](docs/board-bring-up.md) |
+
+CI writes the same board target as `mimxrt1060_evk@B//qspi`, with the default SoC left out; Zephyr resolves both to the same target.
+[Other boards](docs/board-bring-up.md#other-boards) says what a second board needs.
 
 ## Quick start
 

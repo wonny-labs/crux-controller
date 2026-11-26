@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Checks the scheduled build against crux-pilot main: it is read-only, publishes nothing and
-keeps the pinned tool versions and the gate of ci.yml."""
+keeps the pinned tool versions and the gate of ci.yml. The workflow job runs the checks of the
+nightly job scheduled-main of scripts/ci/checks.toml."""
 
 import pathlib
 import re
@@ -8,6 +9,8 @@ import sys
 import unittest
 
 import yaml
+
+import ci_map
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 WORKFLOWS = ROOT / ".github" / "workflows"
@@ -24,9 +27,15 @@ def triggers(data):
 
 
 def commands(job):
-    return "\n".join(step.get("run", "") for step in job["steps"])
+    return "\n".join(step.get("run", "") for step in job["steps"]) + "\n" + ci_map.commands("scheduled-main")
 
 
+def checks():
+    """The steps of the job as they run: its checks in scripts/ci/checks.toml."""
+    return ci_map.checks("scheduled-main")
+
+
+@ci_map.needs_tomllib
 class ScheduledBuild(unittest.TestCase):
     def setUp(self):
         self.assertTrue(PATH.is_file(), "scheduled-main.yml does not exist")
@@ -61,15 +70,16 @@ class ScheduledBuild(unittest.TestCase):
         import subprocess
         import tempfile
 
-        step = next(s["run"] for s in self.job["steps"] if "project[\"revision\"] = \"main\"" in s.get("run", ""))
+        step = next(s["run"] for s in checks() if "project[\"revision\"] = \"main\"" in s.get("run", ""))
         step = step.replace("python - <<", f"{sys.executable} - <<")
         manifest = (ROOT / "west.yml").read_text()
         with tempfile.TemporaryDirectory() as directory:
             work = pathlib.Path(directory)
             (work / "crux-controller").mkdir()
             (work / "crux-controller" / "west.yml").write_text(manifest)
-            result = subprocess.run(["bash", "-e", "-c", step], cwd=directory, capture_output=True,
-                                    text=True, env=dict(os.environ))
+            # A check starts in the repository root and moves to the workspace folder itself.
+            result = subprocess.run(["bash", "-e", "-c", step], cwd=work / "crux-controller",
+                                    capture_output=True, text=True, env=dict(os.environ))
             self.assertEqual(0, result.returncode, result.stderr)
             rewritten = yaml.safe_load((work / "crux-controller" / "west.yml").read_text())
         projects = {p["name"]: p for p in rewritten["manifest"]["projects"]}
@@ -77,7 +87,7 @@ class ScheduledBuild(unittest.TestCase):
         original = {p["name"]: p for p in yaml.safe_load(manifest)["manifest"]["projects"]}
         self.assertEqual(original["picolibc"], projects["picolibc"])
         self.assertEqual(original["crux-pilot"].get("import"), projects["crux-pilot"].get("import"))
-        for step in self.job["steps"]:
+        for step in [*self.job["steps"], *checks()]:
             self.assertNotIn("git commit", step.get("run", ""))
             self.assertNotIn("git push", step.get("run", ""))
 
@@ -94,7 +104,7 @@ class ScheduledBuild(unittest.TestCase):
         self.assertIn("boards/net.overlay", commands)
 
     def pins_step(self):
-        steps = [s for s in self.job["steps"] if "west crux-pins" in s.get("run", "")]
+        steps = [s for s in [*self.job["steps"], *checks()] if "west crux-pins" in s.get("run", "")]
         self.assertEqual(1, len(steps))
         return steps[0]["run"]
 
@@ -114,7 +124,10 @@ class ScheduledBuild(unittest.TestCase):
             summary.write_text("")
             env = dict(os.environ, PATH=f"{bin_dir}:{os.environ['PATH']}",
                        GITHUB_STEP_SUMMARY=str(summary))
-            result = subprocess.run(["bash", "-e", "-c", self.pins_step()], cwd=directory, env=env,
+            # The check starts in the repository root and moves to the workspace folder itself.
+            repo = pathlib.Path(directory) / "crux-controller"
+            repo.mkdir()
+            result = subprocess.run(["bash", "-e", "-c", self.pins_step()], cwd=repo, env=env,
                                     capture_output=True, text=True)
             return result, summary.read_text()
 
@@ -146,15 +159,13 @@ class ScheduledBuild(unittest.TestCase):
         self.assertIs(self.job["steps"][-1], summary_steps[0])
 
     def test_the_resolved_net_configuration_is_checked_as_in_ci(self):
-        ci = load(WORKFLOWS / "ci.yml")["jobs"]["net"]
-        wanted = next(s for s in ci["steps"] if s.get("name", "").startswith("Check the resolved net"))
-        own = [s for s in self.job["steps"] if s.get("name") == wanted["name"]]
-        self.assertEqual([wanted["run"]], [s["run"] for s in own])
+        self.assertEqual(ci_map.run("net-config"), ci_map.run("scheduled-config"))
+        self.assertEqual(ci_map.run("net-build"), ci_map.run("scheduled-build"))
 
     def test_tool_versions_and_sdk_cache_key_match_ci(self):
         ci = load(WORKFLOWS / "ci.yml")["jobs"]["net"]
-        for key in ("SDK_VERSION", "BOARD"):
-            self.assertEqual(ci["env"][key], self.job["env"][key])
+        self.assertEqual(ci["env"]["SDK_VERSION"], self.job["env"]["SDK_VERSION"])
+        self.assertEqual(ci_map.job_env("net")["BOARD"], ci_map.job_env("scheduled-main")["BOARD"])
         self.assertIn("cmake==3.28.4 ninja==1.11.1 west==1.4.0", self.commands)
         keys = [s["with"]["key"] for s in self.job["steps"] if "actions/cache" in s.get("uses", "")]
         ci_keys = [s["with"]["key"] for s in ci["steps"] if "actions/cache" in s.get("uses", "")]

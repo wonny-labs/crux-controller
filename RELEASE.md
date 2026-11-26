@@ -9,8 +9,8 @@ This page does not copy it. It says only what this repository does.
 
 ## The flow
 
-The workflow is `.github/workflows/release.yml`. It runs by hand (`workflow_dispatch`) and on pull
-requests that change the workflow, `release/` or `west.yml`.
+The workflow is `.github/workflows/release.yml`; its steps are the checks of the job `release` in `scripts/ci/checks.toml`.
+It runs by hand (`workflow_dispatch`), in the nightly CI tier and on pull requests that change the workflow, `release/`, `west.yml` or `scripts/ci/`.
 
 ```mermaid
 flowchart TD

@@ -191,7 +191,7 @@ class Contributing(unittest.TestCase):
 
     def budget_steps(self):
         matrix = self.workflow("budget.yml")["jobs"]["budget"]["strategy"]["matrix"]
-        return [entry["config"] for entry in matrix["include"]]
+        return list(matrix["config"])
 
     def other_job_names(self):
         return [job["name"] for job in self.workflow("ci.yml")["jobs"].values()]
