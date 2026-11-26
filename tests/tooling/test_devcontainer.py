@@ -18,6 +18,8 @@ import unittest
 
 import yaml
 
+import ci_map
+
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 DEVCONTAINER = ROOT / ".devcontainer"
 WORKFLOWS = ROOT / ".github" / "workflows"
@@ -501,14 +503,20 @@ class SetupScript(unittest.TestCase):
         self.assertIn("</dev/null", read(ROOT / "scripts" / "dev-shell.sh"))
 
     def test_it_runs_the_sdk_install_of_the_workload_job_with_the_same_toolchain(self):
-        run = ci_step("workload", "Install the Zephyr SDK")["run"]
+        # The workload job installs the SDK with scripts/ci/install-sdk.sh (scripts/ci/prepare-job.sh).
+        run = (ROOT / "scripts" / "ci" / "install-sdk.sh").read_text()
         self.assertIn("--gnu-toolchains arm-zephyr-eabi", run)
         self.assertIn("--gnu-toolchains arm-zephyr-eabi", self.text)
         self.assertIn('sdk_version="${ZEPHYR_SDK_VERSION:?', self.text)
         self.assertIn('west sdk install --version "$sdk_version"', self.text)
 
     def test_it_installs_the_three_zephyr_requirement_files_of_the_workload_job(self):
-        run = ci_step("workload", "Fetch the workspace")["run"]
+        # scripts/ci/prepare-job.sh fetches the workload workspace: its fetch_workspace function
+        # installs the base file, and the workload branch adds the two others.
+        prepare = ci_map.PREPARE.read_text()
+        function = prepare[prepare.index("fetch_workspace() {"):prepare.index("\n}\n", prepare.index("fetch_workspace() {"))]
+        run = function + "\n" + ci_map.prepare_branch("workload")
+        self.assertIn("fetch_workspace", ci_map.prepare_branch("workload"))
         for name in ("requirements-base.txt", "requirements-build-test.txt", "requirements-run-test.txt"):
             self.assertIn(name, run)
             self.assertIn(name, self.text)
@@ -1122,7 +1130,10 @@ class DevShell(unittest.TestCase):
         self.assertIn("USER_UID", read(DEVCONTAINER / "Dockerfile"))
 
 
+@ci_map.needs_tomllib
 class DevcontainerWorkflow(unittest.TestCase):
+    """devcontainer.yml runs the checks of the job devcontainer of scripts/ci/checks.toml."""
+
     @classmethod
     def setUpClass(cls):
         cls.text = read(WORKFLOW)
@@ -1130,10 +1141,11 @@ class DevcontainerWorkflow(unittest.TestCase):
         # PyYAML reads the key "on" as the boolean True.
         cls.on = cls.data.get("on", cls.data.get(True))
         cls.job = next(iter(cls.data["jobs"].values()))
-        cls.commands = "\n".join(step.get("run", "") for step in cls.job["steps"])
+        cls.commands = ci_map.commands("devcontainer")
 
     def test_it_runs_on_the_files_that_decide_the_container_and_by_hand(self):
-        self.assertEqual({"pull_request", "push", "workflow_dispatch"}, set(self.on))
+        # The nightly tier runs it on a schedule as well.
+        self.assertEqual({"pull_request", "push", "schedule", "workflow_dispatch"}, set(self.on))
         self.assertEqual(["main"], self.on["push"]["branches"])
         self.assertEqual(self.on["pull_request"]["paths"], self.on["push"]["paths"])
         paths = self.on["pull_request"]["paths"]
@@ -1149,11 +1161,12 @@ class DevcontainerWorkflow(unittest.TestCase):
     def test_the_image_build_skips_the_j_link_software(self):
         # The SEGGER download accepts SEGGER's terms of use, so CI does not run it: the job sets
         # CRUX_JLINK=0, which scripts/dev-shell.sh passes to the build by name.
-        self.assertEqual("0", str(self.job["env"]["CRUX_JLINK"]))
+        self.assertEqual("0", str(ci_map.job_env("devcontainer")["CRUX_JLINK"]))
 
     def test_it_uploads_nothing_and_starts_no_hardware_command(self):
         for word in ("upload-artifact", "west flash", "west debug", "JLink", "pyocd", "openocd"):
             self.assertNotIn(word, self.text)
+            self.assertNotIn(word, self.commands)
 
     def test_it_uses_only_the_actions_that_ci_yml_uses(self):
         allowed = set(re.findall(r"uses: (\S+)", read(CI)))
@@ -1168,30 +1181,28 @@ class DevcontainerWorkflow(unittest.TestCase):
         self.assertIn("--inline-logs --clobber-output", self.commands)
 
     def test_the_twister_step_matches_the_one_of_the_workload_job(self):
-        run = " ".join(ci_step("workload", "Run the workload scenario on native_sim")["run"].replace("\\", " ").split())
+        run = " ".join(ci_map.command("workload-native-sim").replace("\\", " ").split())
         self.assertIn(run, " ".join(self.commands.replace("\\", " ").split()))
 
     def test_the_product_include_check_runs_the_script_of_the_pin_after_checking_its_hash(self):
         # The pinned crux-pilot contains the script, with the hash that ci.yml checks the download
         # against. The container job runs that copy instead of downloading a second one.
-        expected = ci_step("boundary", "Run the product include check")["env"]["CHECK_SHA256"]
-        steps = [step for step in self.job["steps"] if "product include check" in step.get("name", "")]
+        expected = ci_job("boundary")["env"]["CHECK_SHA256"]
+        steps = [c for c in ci_map.checks("devcontainer") if "product-include-check" in c["id"]]
         self.assertEqual(1, len(steps))
-        step = steps[0]
-        self.assertEqual(expected, step["env"]["CHECK_SHA256"])
-        run = step["run"]
+        self.assertEqual(expected, ci_map.job_env("devcontainer")["CHECK_SHA256"])
+        run = steps[0]["run"]
         self.assertNotIn("curl", run)
         self.assertLess(run.index("sha256sum --check"), run.index("dev-shell.sh"))
         self.assertIn("crux-pilot/templates/product/check_domain_includes.py", run)
         self.assertIn("--product", run)
 
     def test_the_workload_steps_after_twister_are_those_of_the_workload_job(self):
-        board = ci_job("workload")["env"]["BOARD"]
+        board = ci_map.job_env("workload")["BOARD"]
         commands = norm(self.commands)
-        for fragment in ("Cross-build workload with the baseline gate required", "Check the outputs exist",
-                         "Check the resolved workload configuration"):
-            run = ci_step("workload", fragment)["run"].replace("${{ env.BOARD }}", board)
-            self.assertIn(norm(run), commands, fragment)
+        for check_id in ("workload-build", "workload-outputs", "workload-config"):
+            run = ci_map.command(check_id).replace('"$BOARD"', f"'{board}'")
+            self.assertIn(norm(run), commands, check_id)
         self.assertIn("-DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON", self.commands)
 
     def test_the_host_tests_run_with_the_sanitizers_off_and_on_as_ci_does(self):
@@ -1650,12 +1661,13 @@ class Documentation(unittest.TestCase):
 
     def test_the_product_include_check_is_not_said_to_predate_the_pin_in_ci(self):
         # The pinned crux-pilot contains the script with the hash that ci.yml checks, so the comment
-        # above the download says so instead of claiming that the pin predates the script.
-        text = read(CI)
+        # above the download check says so instead of claiming that the pin predates the script.
+        self.assertNotIn("predates", read(CI))
+        text = read(ci_map.MAP)
         self.assertNotIn("predates", text)
         comment = " ".join(
             line.strip().lstrip("#").strip()
-            for line in text[: text.index("- name: Run the product include check")]
+            for line in text[: text.index('[[check]]\nid = "product-include-check"')]
             .splitlines()[-6:]
             if line.strip().startswith("#")
         )

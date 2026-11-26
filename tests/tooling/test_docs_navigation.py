@@ -11,6 +11,8 @@ import subprocess
 import sys
 import unittest
 
+import ci_map
+
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 DOCS = ROOT / "docs"
 NEW_PAGES = ("docs/README.md", "docs/first-change.md", "docs/reviewing.md")
@@ -483,6 +485,8 @@ class StaticAnalysisLimits(unittest.TestCase):
         for config in (".yamllint", ".shellcheckrc", ".flake8", ".pylintrc", "ruff.toml", ".cmake-format"):
             self.assertNotIn(config, names)
         workflows = " ".join(p.read_text() for p in (ROOT / ".github" / "workflows").glob("*.yml"))
+        # The checks of the workflows are in scripts/ci (the CI map file and its scripts).
+        workflows += " ".join(p.read_text() for p in ci_map.ci_sources())
         for tool in ("shellcheck", "yamllint", "ruff", "flake8", "pylint", "cmake-lint"):
             self.assertNotIn(tool, workflows)
         self.assertIn("no linting of Python, shell, YAML and CMake", part)

@@ -2,8 +2,9 @@
 """Checks that CI runs the Crux product include check from a verified, immutable download.
 
 The Boundary check job downloads check_domain_includes.py from a commit URL and verifies its
-SHA-256 before it runs. The revision of crux-pilot that west.yml pins contains the same file with
-the same hash. These tests read the workflow only. They do not use the network.
+SHA-256 before it runs: the check product-include-check of scripts/ci/checks.toml, with the pins
+of the job env in ci.yml. The revision of crux-pilot that west.yml pins contains the same file with
+the same hash. These tests read the workflow and the map file only. They do not use the network.
 """
 
 import pathlib
@@ -11,6 +12,8 @@ import re
 import unittest
 
 import yaml
+
+import ci_map
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 CI = ROOT / ".github" / "workflows" / "ci.yml"
@@ -25,11 +28,12 @@ def boundary_job():
 
 
 def check_step():
-    steps = [s for s in boundary_job()["steps"] if "product include check" in s.get("name", "").lower()]
-    assert len(steps) == 1, "the Boundary check job needs exactly one product include check step"
-    return steps[0]
+    checks = [c for c in ci_map.checks("boundary") if c["id"] == "product-include-check"]
+    assert len(checks) == 1, "the Boundary check job needs exactly one product include check"
+    return {"run": checks[0]["run"], "env": boundary_job().get("env", {})}
 
 
+@ci_map.needs_tomllib
 class ProductIncludeCheckStep(unittest.TestCase):
     def setUp(self):
         self.step = check_step()
@@ -37,7 +41,9 @@ class ProductIncludeCheckStep(unittest.TestCase):
         self.env = self.step.get("env", {})
 
     def test_the_step_is_in_the_boundary_job_and_uses_no_action(self):
-        self.assertNotIn("uses", self.step)
+        self.assertIn("product-include-check", ci_map.ids("boundary"))
+        for step in boundary_job()["steps"]:
+            self.assertNotIn("product include check", step.get("name", "").lower())
 
     def test_the_commit_is_a_full_hash_and_the_url_names_it(self):
         match = URL.search(self.run)
@@ -72,7 +78,7 @@ class ProductIncludeCheckStep(unittest.TestCase):
 
     def test_the_script_is_downloaded_to_the_temporary_directory_before_it_is_checked(self):
         lines = [line.strip() for line in self.run.splitlines()]
-        self.assertTrue(lines[1].startswith('script="$RUNNER_TEMP/'))
+        self.assertTrue(lines[1].startswith('script="$(mktemp -d)/'))
         curl = next(i for i, line in enumerate(lines) if line.startswith("curl"))
         download = " ".join(lines[curl : curl + 3])
         self.assertIn('--output "$script"', download)
@@ -81,17 +87,19 @@ class ProductIncludeCheckStep(unittest.TestCase):
         self.assertIn("set -euo pipefail", self.run)
 
     def test_the_check_runs_in_product_mode_from_the_repository_root_without_exceptions(self):
-        self.assertRegex(self.run, r"cd crux-controller\n")
+        # scripts/ci/run-tier.sh starts every check in the repository root, and this one stays there.
+        self.assertNotRegex(self.run, r"(^|\n)\s*cd ")
         self.assertRegex(self.run, r'python3 "\$script" --product \.(\n|$)')
         for option in ("--domain", "--exclude"):
             self.assertNotIn(option, self.run)
 
     def test_the_script_is_not_stored_in_the_checked_out_repository(self):
-        self.assertIn("$RUNNER_TEMP", self.run)
+        self.assertIn('script="$(mktemp -d)/', self.run)
 
     def test_the_step_comment_says_why_the_script_is_downloaded(self):
-        lines = CI.read_text().splitlines()
-        start = next(i for i, line in enumerate(lines) if "Run the product include check" in line)
+        lines = ci_map.MAP.read_text().splitlines()
+        start = lines.index('id = "product-include-check"') - 1
+        self.assertEqual("[[check]]", lines[start])
         comment = "\n".join(lines[start - 3 : start]).lower()
         self.assertTrue(all(line.strip().startswith("#") for line in lines[start - 3 : start]))
         self.assertIn("pin", comment)

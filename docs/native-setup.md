@@ -108,7 +108,7 @@ The `management` scenario is in a sibling directory, `tests/native_sim_mbed`, so
 workspace that has no Mbed TLS modules. The default workspace above does not have them: the group
 `crux-secure-management` is off in `west.yml`, and the `management` build fails without the modules. The `management build` job
 switches the group on in its own runner, after `scripts/check_mbed_only.py` has checked that only the Mbed TLS
-modules would be fetched. To run `management` locally, repeat those steps (from `ci.yml`) in your workspace, with the
+modules would be fetched. To run `management` locally, repeat those steps (the checks of the job `management` in `scripts/ci/checks.toml`) in your workspace, with the
 virtual environment active:
 
 ```bash
@@ -166,7 +166,7 @@ a commit on GitHub for the real outcome.
 
 These are plain C tests of the portable core, the `net` exchange and the policy code, built with CMake on the build host.
 They need no Zephyr. The `Host tests` job runs them twice, once with the sanitizers off and once on. The
-commands, copied from `ci.yml` with the matrix value filled in (`OFF`, then `ON`):
+commands, copied from the checks `host-tests-sanitize-off` and `host-tests-sanitize-on` of `scripts/ci/checks.toml`:
 
 ```bash
 cmake -S tests/host -B build/host -G Ninja -DWORKLOAD_SANITIZE=OFF

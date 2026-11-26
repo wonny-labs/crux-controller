@@ -22,11 +22,13 @@ import unittest
 
 import yaml
 
+import ci_map
+
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 VSCODE = ROOT / ".vscode"
 DEVCONTAINER = ROOT / ".devcontainer"
 SCRIPT = ROOT / "scripts" / "build-board.sh"
-BUDGET = ROOT / ".github" / "workflows" / "budget.yml"
+BUDGET = ROOT / "scripts" / "ci" / "budget.sh"
 
 # The default board, in full: board, revision, SoC and variant. The Budget job writes the same board with the default
 # SoC left out (mimxrt1060_evk@B//qspi), which Zephyr fills in when it resolves the board.
@@ -52,17 +54,16 @@ def load(path):
 
 
 def budget_rows():
-    """The build configurations of the Budget job: name -> (conf, overlay), in its order."""
-    rows = yaml.safe_load(BUDGET.read_text())["jobs"]["budget"]["strategy"]["matrix"]["include"]
-    return {row["config"]: (row["conf"], row["overlay"]) for row in rows}
+    """The build configurations of the Budget jobs: name -> (conf, overlay), in their order."""
+    return {name: (row["conf"], row["overlay"]) for name, row in ci_map.budget_rows().items()}
 
 
 def budget_build():
-    """The board and the fixed CMake arguments of the Budget job's build step."""
-    job = yaml.safe_load(BUDGET.read_text())["jobs"]["budget"]
-    step = next(s for s in job["steps"] if s.get("name", "").startswith("Build the configuration"))
-    fixed = step["run"].split("args=(", 1)[1].split(")", 1)[0].split()
-    return job["env"]["BOARD"], fixed
+    """The board and the fixed CMake arguments of the build in scripts/ci/budget.sh."""
+    boards = {ci_map.job_env(f"budget-{name}")["BOARD"] for name in ci_map.budget_rows()}
+    assert len(boards) == 1, boards
+    fixed = BUDGET.read_text().split("args=(", 1)[1].split(")", 1)[0].split()
+    return boards.pop(), fixed
 
 
 def text_of(task):
@@ -179,6 +180,7 @@ class Tasks(unittest.TestCase):
         self.assertEqual("build", task["group"])
         self.assertEqual("$gcc", task["problemMatcher"])
 
+    @ci_map.needs_tomllib
     def test_the_only_prompt_is_the_build_configuration(self):
         # net is the image of docs/board-bring-up.md, the one with a board record. The board is a setting.
         inputs = {i["id"]: i for i in self.document["inputs"]}
@@ -318,6 +320,7 @@ class BuildBoardScript(unittest.TestCase):
     def link(self):
         return self.root / LINK
 
+    @ci_map.needs_tomllib
     def test_a_first_build_passes_the_cmake_arguments_of_the_budget_job(self):
         for name, (conf, overlay) in budget_rows().items():
             with self.subTest(name):
@@ -434,6 +437,7 @@ class BuildBoardScript(unittest.TestCase):
         self.assertEqual(0, self.run_script("--board", "mimxrt1060_evk@B//qspi", "net").returncode)
         self.assertEqual("mimxrt1060_evk_B_qspi/net", os.readlink(self.link()))
 
+    @ci_map.needs_tomllib
     def test_the_default_board_is_the_board_of_the_budget_job_and_the_gate_is_its_gate(self):
         board, fixed = budget_build()
         # The Budget job leaves the default SoC out; Zephyr resolves both spellings to the same board target.
