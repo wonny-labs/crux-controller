@@ -56,7 +56,7 @@ Each choice carries one label:
 
 | # | Requirement |
 |---|---|
-| R1 | The hardware watchdog supervises the controller from the framework's start function on, through startup and runtime (sections 4.2 to 4.4). The boot before `main()` (boot ROM, boot loader, kernel initialisation) is outside R1; the watchdog policy from the boot loader to the application is coordinated with Crux's secure boot work (decision D7). |
+| R1 | The hardware watchdog supervises the controller from phase 2 of the framework's start function on, through startup and runtime (sections 4.2 to 4.4); phase 1, which only reads registers and retained RAM and is bounded, runs before the watchdog is armed (section 4.2). The boot before `main()` (boot ROM, boot loader, kernel initialisation) is outside R1; the watchdog policy from the boot loader to the application is coordinated with Crux's secure boot work (decision D7). |
 | R2 | A hang ends in a reset. The next boot reports the reset cause as far as the hardware reports it, and a detailed fault record only when one could be written before the reset. A failure that is not a hang degrades the controller and is reported. |
 | R3 | Repeated fault resets lead to safe mode, which runs a minimal service set from which an operator can recover the controller (section 4.6). A fault in safe mode's own services is recovered by the boot loader or the product's recovery path (section 4.4). |
 | R4 | The product declares start prerequisites, which the framework checks before every application start, and runtime dependencies, which the framework reports while the application runs (section 4.4). |
@@ -180,7 +180,7 @@ Crux change needed: an image state provider for the update path ([crux-pilot#297
 ### C11. Simulated watchdog on `native_sim`
 
 The simulated watchdog of `native_sim` (`CONFIG_CRUX_SYSTEM_NATIVE_SIM_WATCHDOG`) restarts the process after a missed feed, which then reads the reset cause SOFTWARE, never WATCHDOG (`zephyr/Kconfig:277-288`).
-The boot counter's watchdog path is therefore shown by host tests and on a board, not end to end on `native_sim`.
+`native_sim` therefore shows only part of the boot counter's watchdog path and never the WATCHDOG cause; host tests and a board show the case with that cause.
 
 ### C12. SoC gates
 
@@ -226,7 +226,7 @@ Build options, set by the product with Kconfig (the design fixes the symbol name
 | Runtime dependencies | The same set | the start prerequisites | Reported by the framework while the application runs; the application responds (section 4.4) | Configurable design decision |
 | Start without a watchdog | allowed, refused | refused | Allowed only by an explicit option in `native_sim` and bench builds (decision D14) | Recovery policy decision |
 | Safe-mode threshold N | 1 to a small maximum | 3 | Section 4.6 | Configurable design decision |
-| Stable period | seconds | set by the design | Clears the boot counter (section 4.4) | Configurable design decision |
+| Stable period | seconds | set by the design | Clears the boot counter (section 4.6) | Configurable design decision |
 | Startup phase deadlines | milliseconds per phase, including `init`, `start` and `stop` | from board measurement | Section 4.2 | Reference configuration |
 | Image trial deadline | seconds | set by the design | Section 4.8 | Configurable design decision |
 | TLS identity at boot | off, on | off | On only in development and reference builds; a product build refuses it (section 4.7, decision D11) | Configurable design decision |
@@ -281,7 +281,7 @@ The pattern is Crux's documented one for supervising several activities (Crux `m
 | What is supervised | The framework's threads (supervisor inputs, time synchronisation, storage worker) and each application thread that registers a channel (section 4.5) | Architecture decision |
 | Indirect health | Threads that are Zephyr's (HTTP server, network RX and TX, deferred log processing) or Crux's (console, web workers) are not fed from inside; their health is read from link state, network buffer counters, log drop counters and a periodic local probe, until Crux offers a supervision hook (C8) | Interim workaround |
 | Policy | **Degrade and report** for a failure that is not a hang (SNTP rounds fail, a save fails, the link is down); **reset** for a hang (a channel expires, a deadline passes, a fatal error); the reactions are in section 4.4 | Recovery policy decision (D4) |
-| Retained last-fault record | Before it stops feeding, the supervisor writes the failing channel or phase, the uptime and the reason into a retained RAM record with a checksum (Zephyr retention subsystem over `retained_mem`); the fatal error handler writes a minimal record; the next boot reads it once; placement and validity rules are in section 4.6 | Established mechanism (Zephyr retention) |
+| Retained last-fault record | Before it stops feeding, the supervisor writes the failing channel or phase, the uptime and the reason into a retained RAM record with a checksum (Zephyr retention subsystem over `retained_mem`); the fatal error handler writes a minimal record; the fatal path and code in interrupt context must not block, so the fatal path writes the record without a mutex (with `CONFIG_RETENTION_MUTEXES`, `retention_write` takes one), by a mechanism that the design chooses; the next boot reads it once; placement and validity rules are in section 4.6 | Established mechanism (Zephyr retention) |
 | Reporting | The status service shows the controller state, the application state, each service's health, the reset cause, the boot counter, the last-fault record and the watchdog state; liveness from outside is ping, link state and a light status endpoint | Architecture decision |
 
 A per-thread restart is a process-manager pattern that Zephyr threads do not support: `k_thread_abort` leaves locks and sockets behind, Crux Access cannot reopen after an unusable store (C9), and the watchdog has one activation per boot (C3).
@@ -314,10 +314,10 @@ A **channel requirement** is a name and a reload period that `init` registers th
 | Capacity | `CONFIG_TASK_WDT_CHANNELS` (Zephyr default 5, range 2 to 100) bounds the framework's own channels and the application's requirements together; the framework reserves its own channels, and the product raises the value when its application needs more. The framework keeps a fixed table and has no resource manager. |
 | Activate (phase 12, and each operator start) | The framework calls `task_wdt_add()` for every requirement immediately before it calls `start`. `task_wdt_add()` feeds the new channel at once, so timing starts at activation, and each application thread feeds its channel within the reload period from then on. |
 | Partial activation | When `task_wdt_add()` fails for one requirement, the framework deletes the channels it activated in this step with `task_wdt_delete()`, does not call `start`, calls `safe_state`, and the application enters fault. |
-| Feed | An application thread feeds its own channel through the handle that its registration returned in `ctx`, because the Zephyr channel identifier changes at each activation; the supervisor feeds the hardware watchdog only while no channel has expired. |
+| Feed | An application thread feeds its own channel through the handle that its registration returned in `ctx`, because the Zephyr channel identifier may change at each activation; the supervisor feeds the hardware watchdog only while no channel has expired. |
 | Release (`stop`, fault) | After `stop` returns, every application thread has ended (section 4.5), and the framework deletes every active application channel; on an application fault it deletes them after `safe_state`. The requirements stay registered for a later operator start. |
 | Re-activate (operator start) | The framework checks the start prerequisites, activates the registered requirements again and calls `start`; `init` does not run again in the same boot. |
-| Expire | The channel callback records the channel identifier; the supervisor writes the retained record, calls `safe_state` when the application has been initialised, and stops feeding. Zephyr's task watchdog does not re-arm its timer after an expiry callback, so the framework does not wait for further callbacks, and it neither feeds, deletes nor reuses the expired channel before the reset. |
+| Expire | The channel callback records the channel identifier; the supervisor writes the retained record, calls `safe_state` when the application has been initialised, and stops feeding. After an expiry callback, Zephyr's task watchdog re-arms its timer only on the next feed or add of a channel, so the callback can repeat; recording is idempotent, the framework does not depend on further callbacks, and it neither feeds, deletes nor reuses the expired channel before the reset. |
 
 The framework's own channels follow the same rules, activated in the phase that starts the supervised thread.
 
@@ -446,9 +446,9 @@ The transitions into and out of recovery are defined in section 4.4; this sectio
 | Item | Rule | Label |
 |---|---|---|
 | Retained region | The boot counter and the last-fault record share one retained region with a prefix and a checksum (Zephyr retention subsystem). By default it sits in on-chip RAM that neither the boot ROM nor Zephyr's startup initialises, named by the board overlay; external SDRAM is not assumed to retain data, because the boot ROM initialises the SDRAM controller again at every boot | Recovery policy decision |
-| Fault reset | A reset whose captured cause includes WATCHDOG or CPU_LOCKUP, or whose valid record names a deadline, a channel expiry or a fatal error, or a SOFTWARE reset without an operator reset marker; Crux reports zero, one or several latched cause bits (`crux_reset_cause_t`), and any one of these makes the reset a fault reset | Recovery policy decision |
-| Not a fault reset | A reset with an operator reset marker (the framework writes it from Crux Reboot's policy callback at the check before the reset, and before its own operator resets: safe-mode exit and factory reset), a PIN reset, or a DEBUG reset; the counter keeps its value | Recovery policy decision |
-| Power cycle | A captured POR cause, or a region whose prefix or checksum is invalid, means that the region did not survive: the counter starts at zero and no record is reported, whatever other cause bits are latched | Recovery policy decision |
+| Fault reset | A reset whose captured cause includes WATCHDOG, or whose valid record names a deadline, a channel expiry or a fatal error; also, without a valid operator reset marker, a SOFTWARE reset or a reset whose captured cause includes CPU_LOCKUP. CPU_LOCKUP together with SOFTWARE is treated as a SOFTWARE reset, because some SoCs report both from one status bit (on the RT1060-EVKB one SRC status bit serves lockup and SYSRESETREQ, and Zephyr's `drivers/hwinfo/hwinfo_mcux_src.c` reports it as both). Crux reports zero, one or several latched cause bits (`crux_reset_cause_t`), and any one condition of this row makes the reset a fault reset | Recovery policy decision |
+| Not a fault reset | A reset with a valid operator reset marker, unless WATCHDOG is latched or a valid record names a deadline, a channel expiry or a fatal error; a PIN reset or a DEBUG reset that meets no condition of the Fault reset row. The counter keeps its value. The framework writes the marker from Crux Reboot's policy callback at the check before the reset, and before its own operator resets (safe-mode exit and factory reset); Crux Reboot asks the callback twice without saying which check it is, so the framework tracks the order of the calls, or consumes a marker left by a request that never reset | Recovery policy decision |
+| Power cycle | A captured POR cause, or a region whose prefix or checksum is invalid, means that the region did not survive: the counter starts at zero and no record is reported, whatever other cause bits are latched. On the RT1062 a POR cause is never captured and a power-on reads as PIN, so detection of a power cycle there relies on the invalid-region rule | Recovery policy decision |
 | Boot counter | Counts consecutive fault resets; it saturates at its maximum instead of wrapping | Recovery policy decision |
 | Interrupted write | The record and counter are written with their checksum last; a write that a reset interrupts fails the checksum on the next boot and counts as an empty region, while the captured reset cause still decides whether the reset was a fault reset | Recovery policy decision |
 | Stale record | Each record carries a sequence number; the next boot reads it once, passes it to the status service and marks it consumed, so a later reset does not count or report it again | Recovery policy decision |
@@ -462,7 +462,8 @@ The transitions into and out of recovery are defined in section 4.4; this sectio
 | Factory reset | An authorised operator command through the planned Crux Access erase operation (C9) erases credentials (accounts) and configuration and returns to first-account provisioning; it keeps the device identity (TLS key and certificate), which only device preparation replaces; a product may add a physical-presence input such as a button held at boot; no unauthenticated serial command erases the device | Recovery policy decision (D15) |
 
 Comparable mechanisms: U-Boot's boot count limit switches to an alternative boot command after a set number of failed boots, and Zephyr's retention subsystem offers a boot mode that survives a warm reset.
-Whether the reset cause reads WATCHDOG after a WDOG1 reset and whether the retained region survives it on the RT1060-EVKB are board facts; a board check early in phase 2 shows them, in a run that needs its own board authorisation (section 4.14).
+Whether the reset cause reads WATCHDOG after a WDOG1 reset, whether the retained region survives it, whether a software reset reads CPU_LOCKUP together with SOFTWARE, with and without the marker, and whether a power cycle, which reads as PIN, leaves the region invalid are board facts of the RT1060-EVKB.
+A board check early in phase 2 shows them, in a run that needs its own board authorisation (section 4.14).
 
 ### 4.7 Storage, configuration and device preparation
 
@@ -499,7 +500,7 @@ MCUboot reverts a test image that is not confirmed only when the device next res
 |---|---|---|
 | Health verdict | The framework reports a test image as healthy when, during its trial, all of these hold, not uptime alone: the controller is operational; every start prerequisite is healthy and every device management service that the build includes has started; the application, when present and not stopped by an operator, has been running for the stable period; no fault reset happened since the test image first booted; the configuration loaded with a compatible version (section 4.7) | Framework (health input) |
 | Confirmation | When the verdict is healthy, the update component confirms the image through Crux's image state contract (C10) | Update component |
-| Trial deadline | When the verdict is not healthy by the trial deadline (Kconfig, counted on the monotonic clock from the start of the boot), the update component requests a planned reset, with `stop` and `safe_state` as for an operator reset, and the boot loader reverts the image at that reset | Update component, on the framework's verdict |
+| Trial deadline | When the verdict is not healthy by the trial deadline (Kconfig, counted on the monotonic clock from the start of the boot), the update component requests a planned reset, with `stop` and `safe_state` as for an operator reset, and the boot loader reverts the image at that reset. This planned reset carries no operator reset marker, so it counts as a fault reset, which has no effect because the reverted image clears the counter (section 4.6) | Update component, on the framework's verdict |
 | Configuration after a rollback | Section 4.7 | Framework |
 
 The verdict needs no particular device management service: a build without web management is confirmed on the same conditions.
@@ -601,7 +602,7 @@ The fixture application is a test, not an image or variant: it has no board buil
 | Framework integration | Composition, startup order, startup and runtime supervision, safe mode, the application contract through the fixture application, the verification scenarios of section 5.2 | `native_sim`, every pull request |
 | Reference image | The base image builds for the board within its budget and runs on `native_sim`, with image-level regression tests | CI, every pull request |
 | Product integration | An independent west workspace imports the framework as a product would (T2), builds and runs on `native_sim` | The nightly tier of a tiered CI as Crux documents it (Crux `main` at `62ed69f1`, `docs/ci.md`, "Use in a product repository") |
-| Hardware | Watchdog reset cause and the retained region across a WDOG1 reset, a pin reset and a power cycle (early in phase 2); power cut on the medium, timing and jitter of application threads, TLS sessions under application load, output state during a reset | The board, in approved runs only |
+| Hardware | Watchdog reset cause and the retained region across a WDOG1 reset, a pin reset and a power cycle; the cause of a software reset (CPU_LOCKUP together with SOFTWARE, with and without the marker); an invalid region after a power cycle that reads as PIN (these early in phase 2); power cut on the medium, timing and jitter of application threads, TLS sessions under application load, output state during a reset | The board, in approved runs only |
 
 The image keeps essential system-level regression tests even where Crux tests the component: an HTTPS login, the TLS-only listener and the start order in the base image.
 The `native_sim` scenarios keep code of this repository and those image-level checks; a case that only repeats Crux behaviour in detail is dropped (decision D8).
@@ -670,7 +671,7 @@ The startup watchdog needs no Crux change: the framework solves it with the exis
 
 | Milestone | Reached when | Interim states |
 |---|---|---|
-| Framework MVP | Phases 1 to 3 end: criteria 1 to 11 and 13 to 23 | Every interim state of section 5.3 is accepted, with its replacement criterion |
+| Framework MVP | Phases 1 to 3 end: criteria 1 to 11 and 13 to 23 | Every interim state of section 5.3 is accepted; the check of a replacement criterion is not an MVP item |
 | Framework Complete | Phase 4 ends: every mandatory function and platform dependency, including persistence on LittleFS; criteria 1 to 25 | Only the interim states that section 5.3 marks as accepted for Framework Complete |
 | Product Ready | Per product on its board: section 5.4 | None of section 5.3 for the functions the product uses |
 
@@ -693,7 +694,7 @@ The startup watchdog needs no Crux change: the framework solves it with the exis
 15. The repository holds no control algorithm; the architecture, capabilities and roadmap pages describe the framework and the base image; no page claims a board run until one is approved and recorded.
 16. Fatal-error reset: a `native_sim` scenario with an injected fatal error in a framework thread shows that the handler calls no application entry, writes the minimal record and restarts the image; host tests show that the next boot counts it as a fault reset.
 17. Framework fault in safe mode: a `native_sim` scenario that boots in safe mode and stalls a safe-mode service thread shows that the supervisor stops feeding and the image restarts; host tests show that the counter stays saturated and the next boot is again in safe mode.
-18. Host tests of the reset rules of section 4.6: several latched cause bits, POR together with other bits, a SOFTWARE reset with and without the operator reset marker, a consumed record, an interrupted write, counter saturation, and a different image identifier after an update and after a rollback.
+18. Host tests of the reset rules of section 4.6: several latched cause bits, POR together with other bits, a SOFTWARE reset with and without the operator reset marker, CPU_LOCKUP together with SOFTWARE, with and without the marker, a consumed record, an interrupted write, counter saturation, and a different image identifier after an update and after a rollback.
 19. Production watchdog configuration: a build test shows that a product build has `CONFIG_TASK_WDT_HW_FALLBACK=n`, a callback on every channel, neither the start-without-watchdog option nor the TLS identity option, and a timeout T inside the provider's range; a `native_sim` scenario of that configuration with an unavailable watchdog holds the application.
 20. Start timeout: a `native_sim` scenario in which `start` passes its deadline: the supervisor writes the record with the phase name, calls `safe_state`, stops feeding, and the image restarts.
 21. Operator stop and restart: a `native_sim` scenario in which an operator stop calls `stop`, then `safe_state`, and releases the application's channels while the controller stays operational; an operator start checks the start prerequisites, activates the channels again without calling `init`, and calls `start`; a `stop` that passes its deadline restarts the image.
