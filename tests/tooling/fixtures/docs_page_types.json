@@ -12,6 +12,7 @@
     "docs/capabilities.md": "reference",
     "docs/composition-zone.md": "reference",
     "docs/dependencies.md": "reference",
+    "docs/design/integrated-controller-spec.md": "explanation",
     "docs/dev-container.md": "reference",
     "docs/documentation-guidelines.md": "reference",
     "docs/first-change.md": "tutorial",
