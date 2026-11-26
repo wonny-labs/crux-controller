@@ -179,7 +179,7 @@ listening, `net: exchange failed cycle=<n> result=-2` is the expected line, one 
 
 `scripts/build-board.sh` and **Board: Build** take any board target, but the build configurations are the RT1060-EVKB's.
 The overlays of `net`, `sntp`, `management` and `system` set the Ethernet, LED and watchdog nodes of this board, and the script passes them for every board.
-`file` depends on a Crux FatFs provider that only this board and revision enable.
+`file` depends on a Crux FatFs provider for the RT1062 SoC only; on the RT1060 EVK it needs the QSPI variant at revision B.
 A second board first needs the board-specific fragments and overlays split per board and configuration, which the workflows, the `Budget` job and the script do not support yet.
 
 ## Known limits
