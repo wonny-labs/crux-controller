@@ -8,11 +8,12 @@ per build configuration, so that a product team can read how each Crux capabilit
 
 ## Supported boards
 
-| Board | Board target | Page |
-|---|---|---|
-| NXP RT1060-EVKB Rev B evaluation board (EVKB for short) | `mimxrt1060_evk@B/mimxrt1062/qspi` | [Board bring-up](docs/board-bring-up.md) |
+| Board | Board target | Probe | Page |
+|---|---|---|---|
+| NXP RT1060-EVKB Rev B evaluation board (EVKB for short) | `mimxrt1060_evk@B/mimxrt1062/qspi` | SEGGER J-Link | [Board bring-up](docs/board-bring-up.md) |
 
-To add a board, follow [Add a board](docs/board-bring-up.md#add-a-board).
+CI writes the same board target as `mimxrt1060_evk@B//qspi`, with the default SoC left out; Zephyr resolves both to the same target.
+[Other boards](docs/board-bring-up.md#other-boards) says what a second board needs.
 
 ## Quick start
 

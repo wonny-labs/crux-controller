@@ -358,6 +358,7 @@ class BuildBoardScript(unittest.TestCase):
         # Extra CMake arguments make west configure the build again; the folder keeps them in its cache.
         (self.root / f"build/{BOARD_FOLDER}/net").mkdir(parents=True)
         (self.root / f"build/{BOARD_FOLDER}/net/build.ninja").write_text("")
+        (self.root / f"build/{BOARD_FOLDER}/.board-build").write_text("")
         result = self.run_script("net")
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual(["build", "--pristine=never", "-b", BOARD, "-d", f"build/{BOARD_FOLDER}/net", "app"],
@@ -397,6 +398,28 @@ class BuildBoardScript(unittest.TestCase):
                 self.assertEqual(2, result.returncode)
                 self.assertIn("not a board target", result.stderr)
                 self.assertIsNone(self.west_arguments())
+
+    def test_a_board_whose_folder_is_another_folder_of_build_is_refused_and_kept(self):
+        # Without the marker of a board folder, neither a build nor --clean touches it.
+        for name in ("host", "current"):
+            (self.root / "build" / name).mkdir(parents=True, exist_ok=True)
+            (self.root / "build" / name / "keep").write_text("x")
+            for arguments in (("--board", name, "net"), ("--board", name, "--clean")):
+                with self.subTest(arguments):
+                    result = self.run_script(*arguments)
+                    self.assertEqual(2, result.returncode)
+                    self.assertIn("is not a board folder", result.stderr)
+                    self.assertTrue((self.root / "build" / name / "keep").is_file())
+                    self.assertIsNone(self.west_arguments())
+
+    def test_a_board_build_marks_its_board_folder(self):
+        self.assertEqual(0, self.run_script("net").returncode)
+        self.assertTrue((self.root / f"build/{BOARD_FOLDER}/.board-build").is_file())
+
+    def test_the_short_and_full_spellings_of_a_board_get_their_own_folders(self):
+        # The script does not resolve the default SoC; Zephyr does, inside the build.
+        self.assertEqual(0, self.run_script("--board", "mimxrt1060_evk@B//qspi", "net").returncode)
+        self.assertEqual("mimxrt1060_evk_B__qspi/net", os.readlink(self.link()))
 
     def test_the_default_board_is_the_board_of_the_budget_job_and_the_gate_is_its_gate(self):
         board, fixed = budget_build()

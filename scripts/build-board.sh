@@ -8,9 +8,12 @@
 #
 # The board is --board, else the environment variable CRUX_BOARD_TARGET (the name that Crux's scripts use), else
 # west's own setting build.board (`west config build.board`), else the default board below. The board folder is the
-# board name with each '@' and '/' replaced by '_'; board_folder() below is the only place that derives it. west's
-# build.dir-fmt is not used for it: its {board} keeps the '/' of the qualifiers and it has no field for the build
-# configuration.
+# board name with each '@' and '/' replaced by '_'; board_folder() below is the only place that derives it. The
+# folder follows the spelling given: mimxrt1060_evk@B//qspi and mimxrt1060_evk@B/mimxrt1062/qspi name the same
+# board target but get different folders. west's build.dir-fmt is not used for it: its {board} keeps the '/' of the
+# qualifiers and it has no field for the build configuration. A board folder holds the file .board-build; the script
+# builds in, and --clean deletes, only a folder that holds it or does not exist yet, so a board name can never
+# clean or reuse another folder of build/, such as build/host.
 #
 # The CMake arguments of each configuration are those of the Budget job (.github/workflows/budget.yml), with the
 # baseline gate required; a tooling test compares them. They are passed only when the build folder has no build
@@ -58,6 +61,11 @@ if [[ ! "$board" =~ ^[A-Za-z0-9_]+(@[A-Za-z0-9_.]+)?(/[A-Za-z0-9_]*)*$ ]]; then
     exit 2
 fi
 folder="build/$(board_folder "$board")"
+marker="$folder/.board-build"
+if [[ -e "$folder" && ! -f "$marker" ]] || [[ "$folder" == "build/$link" ]]; then
+    printf 'build-board: %s is not a board folder of this script; pick another board name\n' "$folder" >&2
+    exit 2
+fi
 
 if [[ "$1" == --clean ]]; then
     target="$(readlink "build/$link" 2>/dev/null || true)"
@@ -103,6 +111,8 @@ if [[ -d "build/$link" && ! -L "build/$link" ]]; then
     exit 1
 fi
 
+mkdir -p "$folder"
+touch "$marker"
 cmake_args=()
 if [[ ! -f "$build/build.ninja" ]]; then
     cmake_args=(-- -DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON)

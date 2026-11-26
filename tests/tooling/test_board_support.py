@@ -51,12 +51,26 @@ class Readme(unittest.TestCase):
         rows = [line for line in section.splitlines() if line.startswith("| ") and "---" not in line]
         self.assertEqual(2, len(rows), rows)  # the header and one board
         self.assertIn(f"`{BOARD}`", rows[1])
+        self.assertIn("SEGGER J-Link", rows[1])
         self.assertIn("docs/board-bring-up.md", section)
-        self.assertIn("docs/board-bring-up.md#add-a-board", section)
+        # The short spelling that CI uses is stated once, as the same board target.
+        self.assertIn("`mimxrt1060_evk@B//qspi`", section)
+        self.assertIn("docs/board-bring-up.md#other-boards", section)
 
-    def test_the_board_page_says_how_to_add_a_board(self):
+    def test_the_readme_table_is_the_only_list_of_boards(self):
+        for page in ("docs/tutorial.md", "docs/board-bring-up.md"):
+            with self.subTest(page):
+                text = (ROOT / page).read_text()
+                self.assertNotIn("| Board |", text)
+        self.assertIn("../README.md#supported-boards", (ROOT / "docs" / "tutorial.md").read_text())
+
+    def test_the_board_page_says_what_a_second_board_needs_and_gives_no_steps(self):
         text = (ROOT / "docs" / "board-bring-up.md").read_text()
-        self.assertIn("\n## Add a board\n", text)
+        self.assertNotIn("## Add a board", text)
+        section = text.split("\n## Other boards\n", 1)[1].split("\n## ", 1)[0]
+        for name in ("net", "sntp", "management", "system", "file"):
+            self.assertIn(f"`{name}`", section, name)
+        self.assertNotRegex(section, r"(?m)^\d+\. ")
 
 
 class Kconfig(unittest.TestCase):

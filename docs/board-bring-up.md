@@ -175,15 +175,12 @@ listening, `net: exchange failed cycle=<n> result=-2` is the expected line, one 
 `net: exchange ok cycle=<n>`. The record of the two runs is
 [docs/findings/s2-first-board-run.md](findings/s2-first-board-run.md).
 
-## Add a board
+## Other boards
 
-A board is supported when every build configuration builds for it and this page says how to run it.
-
-1. Add its Zephyr board target as an option of the `board` input in [.vscode/tasks.json](../.vscode/tasks.json), and with its J-Link device name in [.vscode/launch.json](../.vscode/launch.json).
-2. Put the values that only this board needs in `app/boards/`, named after the board target with `_` for each `/` (for example `mimxrt1060_evk_mimxrt1062_qspi.overlay`).
-   Zephyr applies such a file to every build configuration, so it holds only what every configuration of that board needs.
-3. Build each configuration with `scripts/build-board.sh --board <board target> <configuration>`.
-4. Add a row to the [README](../README.md#supported-boards) table.
+`scripts/build-board.sh` and **Board: Build** take any board target, but the build configurations are the RT1060-EVKB's.
+The overlays of `net`, `sntp`, `management` and `system` set the Ethernet, LED and watchdog nodes of this board, and the script passes them for every board.
+`file` depends on a Crux FatFs provider that only this board and revision enable.
+A second board first needs the board-specific fragments and overlays split per board and configuration, which the workflows, the `Budget` job and the script do not support yet.
 
 ## Known limits
 
