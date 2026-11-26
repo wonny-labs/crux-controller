@@ -264,7 +264,9 @@ class RemovedCruxQueue(unittest.TestCase):
     RemovedCruxQueue in test_boundary.py."""
 
     def test_no_workflow_names_the_queue_symbol(self):
-        for path in sorted((ROOT / ".github" / "workflows").glob("*.yml")):
+        # The checks of the workflows are in scripts/ci (the CI map file and its scripts).
+        paths = [*(ROOT / ".github" / "workflows").glob("*.yml"), *(ROOT / "scripts" / "ci").rglob("*")]
+        for path in sorted(p for p in paths if p.is_file()):
             self.assertNotIn("CONFIG_CRUX_QUEUE", path.read_text(), path.name)
 
 

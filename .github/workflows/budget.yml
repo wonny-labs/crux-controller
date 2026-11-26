@@ -1,20 +1,32 @@
 name: budget
 
-# Builds each configuration with the Zephyr baseline gate required and checks its static resource
-# use against budgets/limits.json. It publishes the numbers as a job summary only. No
-# image, ELF or map file is uploaded, because the repository publishes hashes only.
-
+# A thin wrapper: each row runs the job budget-<config> of scripts/ci/checks.toml through
+# scripts/ci/run-tier.sh. scripts/ci/budget.sh builds the configuration with the Zephyr baseline gate
+# required and checks its static resource use against budgets/limits.json. It publishes the numbers
+# as a job summary only. No image, ELF or map file is uploaded, because the repository publishes
+# hashes only (CONTRIBUTING.md, CI tiers).
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [main]
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+    inputs:
+      tier:
+        description: "Tier to run (CONTRIBUTING.md, CI tiers)"
+        type: choice
+        options: [full, fast, nightly]
+        default: full
+
+# Supersede only older runs of the same pull request. Runs on main and manual runs are unique.
+concurrency:
+  group: budget-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || format('run-{0}', github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
-
-concurrency:
-  group: budget-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   budget:
@@ -23,140 +35,51 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - config: base
-            conf: ""
-            overlay: ""
-            require: ""
-          - config: workload
-            conf: "conf/workload.conf"
-            overlay: ""
-            require: ""
-          - config: net
-            conf: "conf/workload.conf;conf/net.conf"
-            overlay: "boards/net.overlay"
-            require: ""
-          # file is built on workload, without the network that net configures. Its fragment and overlay would build
-          # silently without File if a Kconfig dependency were unmet, so the build is checked.
-          - config: file
-            conf: "conf/workload.conf;conf/file.conf"
-            overlay: "boards/file.overlay"
-            require: "CONFIG_CRUX_CONTROLLER_FILE=y CONFIG_CRUX_FILE_FATFS_RT1060=y"
-          # system is built on workload, without the network that net configures or the File storage of file. Its fragment
-          # would build silently without System if a Kconfig dependency were unmet, so the build is checked.
-          - config: system
-            conf: "conf/workload.conf;conf/system.conf"
-            overlay: "boards/system.overlay"
-            require: "CONFIG_CRUX_CONTROLLER_SYSTEM=y CONFIG_CRUX_SYSTEM=y"
-          # sntp is built on the network that net configures, with the SNTP library. Its fragment would build
-          # silently without SNTP if a Kconfig dependency were unmet, so the build is checked.
-          - config: sntp
-            conf: "conf/workload.conf;conf/net.conf;conf/sntp.conf"
-            overlay: "boards/net.overlay"
-            require: "CONFIG_CRUX_CONTROLLER_SNTP=y CONFIG_CRUX_CONTROLLER_NET=y CONFIG_SNTP=y"
-          # management is built on the network that net configures, with the Mbed TLS profile of Crux Access, the web
-          # server and the RAM disk. Its fragment would build silently without management if a Kconfig
-          # dependency were unmet, so the build is checked. It is the only row that needs the Mbed
-          # TLS group, which the step below switches on in this runner.
-          - config: management
-            conf: "conf/workload.conf;conf/net.conf;conf/management.conf"
-            overlay: "boards/net.overlay;boards/management.overlay"
-            require: "CONFIG_CRUX_CONTROLLER_MANAGEMENT=y CONFIG_CRUX_ACCESS=y CONFIG_CRUX_PSA_THREADING=y CONFIG_CRUX_WEB_MANAGEMENT=y"
-            group: "mbed"
+        config: [base, workload, net, file, system, sntp, management]
     env:
-      BOARD: mimxrt1060_evk@B//qspi
       SDK_VERSION: "1.0.1"
       ZEPHYR_SDK_INSTALL_DIR: ${{ github.workspace }}/sdk/zephyr-sdk-1.0.1
+      TIER: ${{ inputs.tier || 'auto' }}
     steps:
       - uses: actions/checkout@v4
         with:
           path: crux-controller
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Plan the checks of this tier
+        id: plan
+        working-directory: crux-controller
+        run: |
+          scripts/ci/run-tier.sh "$TIER" --job "budget-${{ matrix.config }}" --plan
+          echo "checks=$(scripts/ci/run-tier.sh "$TIER" --job "budget-${{ matrix.config }}" --count)" >> "$GITHUB_OUTPUT"
       - name: Install host packages
+        if: steps.plan.outputs.checks != '0'
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             build-essential ca-certificates device-tree-compiler file gperf git \
             libmagic1 pkg-config wget xz-utils
       - name: Install pinned build tools
+        if: steps.plan.outputs.checks != '0'
         run: python -m pip install cmake==3.28.4 ninja==1.11.1 west==1.4.0
-      - name: Fetch the workspace
-        run: |
-          west init -l crux-controller
-          west update
-          python -m pip install -r zephyr/scripts/requirements-base.txt
-      - name: Switch the Mbed TLS group on (rows that need it)
-        if: matrix.group == 'mbed'
-        run: |
-          west list --all -f '{name} {active}' > list-default.txt
-          python crux-controller/scripts/check_mbed_only.py --mode default < list-default.txt
-          west config --local manifest.group-filter -- +crux-secure-management
-          west list --all -f '{name} {active}' > list-mbed.txt
-          python crux-controller/scripts/check_mbed_only.py --mode mbed --baseline list-default.txt < list-mbed.txt
-          west update
-          for name in wolfssl wolfssh wolfpsa; do
-            test ! -e "modules/crypto/$name" || { echo "unexpected $name" >&2; exit 1; }
-          done
       - name: Restore the Zephyr SDK
+        if: steps.plan.outputs.checks != '0'
         id: sdk_cache
         uses: actions/cache@v4
         with:
           path: sdk
           key: zephyr-sdk-${{ env.SDK_VERSION }}-arm-zephyr-eabi
-      - name: Install the Zephyr SDK
-        if: steps.sdk_cache.outputs.cache-hit != 'true'
-        working-directory: zephyr
+      - name: Prepare the workspace
+        if: steps.plan.outputs.checks != '0'
+        working-directory: crux-controller
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          west sdk install --version "$SDK_VERSION" --install-base "$GITHUB_WORKSPACE/sdk" \
-            --gnu-toolchains arm-zephyr-eabi --personal-access-token "$GH_TOKEN"
-      - name: Build the configuration with the baseline gate required
+        run: scripts/ci/prepare-job.sh "budget-${{ matrix.config }}"
+      - name: Run the checks of this tier
+        if: steps.plan.outputs.checks != '0'
+        working-directory: crux-controller
         env:
-          ZEPHYR_BASE: ${{ github.workspace }}/zephyr
-          CONF: ${{ matrix.conf }}
-          OVERLAY: ${{ matrix.overlay }}
-        run: |
-          set -o pipefail
-          build="crux-controller/build/${{ matrix.config }}"
-          mkdir -p "$build/budget"
-          args=(-DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON)
-          if [ -n "$CONF" ]; then args+=("-DEXTRA_CONF_FILE=$CONF"); fi
-          if [ -n "$OVERLAY" ]; then args+=("-DEXTRA_DTC_OVERLAY_FILE=$OVERLAY"); fi
-          west build -p always -b '${{ env.BOARD }}' -d "$build" crux-controller/app -- \
-            "${args[@]}" 2>&1 | tee "$build/budget/build.log"
-          west build -d "$build" -t rom_report > "$build/budget/rom_report.log" 2>&1
-          west build -d "$build" -t ram_report > "$build/budget/ram_report.log" 2>&1
-      - name: Check that the configuration is what was built
-        env:
-          REQUIRE: ${{ matrix.require }}
-        run: |
-          # An unmet Kconfig dependency only warns, so an image could build without the capability.
-          for option in $REQUIRE; do
-            grep -qxF "$option" "crux-controller/build/${{ matrix.config }}/zephyr/.config" || {
-              echo "missing $option: the capability was not built" >&2
-              exit 1
-            }
-          done
-      - name: Collect, check and summarise
-        run: |
-          build="crux-controller/build/${{ matrix.config }}"
-          python crux-controller/budgets/collect.py --build-dir "$build" \
-            --config "${{ matrix.config }}" --out measurement.json
-          {
-            echo "### ${{ matrix.config }}"
-            python - <<'PY'
-          import json, sys
-          sys.path.insert(0, "crux-controller/budgets")
-          import check
-          print(check.table(json.load(open("measurement.json"))))
-          PY
-            echo '```json'
-            cat measurement.json
-            echo '```'
-            echo "Run-time values (stack use, heap peaks, timing) are not measured."
-          } >> "$GITHUB_STEP_SUMMARY"
-          python crux-controller/budgets/check.py --measurement measurement.json \
-            --limits crux-controller/budgets/limits.json
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/ci/run-tier.sh "$TIER" --job "budget-${{ matrix.config }}"

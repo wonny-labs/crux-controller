@@ -19,6 +19,7 @@ SCRIPTS = ROOT / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
 import analyze_host  # noqa: E402
+import ci_map  # noqa: E402
 
 CLANG_FORMAT_VERSION = "18.1.8"
 CLANG_TIDY_PACKAGE = "clang-tidy-18=1:18.1.3-1ubuntu1"
@@ -403,6 +404,7 @@ class AnalyzeScript(unittest.TestCase):
         self.assertEqual([], fixture.tidy_files())
 
 
+@ci_map.needs_tomllib
 class CiJob(unittest.TestCase):
     """The workflow runs both checks in one job, with pinned tools, and a finding fails it."""
 
@@ -417,7 +419,9 @@ class CiJob(unittest.TestCase):
         return self.matches[0]
 
     def commands(self):
-        return "\n".join(step.get("run", "") for step in self.job()["steps"])
+        # The job installs the tools, then runs the checks of the job static of scripts/ci/checks.toml.
+        steps = "\n".join(step.get("run", "") for step in self.job()["steps"])
+        return steps + "\n" + ci_map.commands("static")
 
     def test_the_job_runs_on_the_runner_of_the_other_jobs(self):
         self.assertEqual("ubuntu-24.04", self.job()["runs-on"])
@@ -440,8 +444,9 @@ class CiJob(unittest.TestCase):
     def test_a_finding_fails_the_job(self):
         job = self.job()
         self.assertNotIn("continue-on-error", job)
-        for step in job["steps"]:
+        for step in [*job["steps"], *ci_map.checks("static")]:
             self.assertNotIn("continue-on-error", step)
+            self.assertNotIn("advisory", step)
             self.assertNotRegex(step.get("run", ""), r"\|\|\s*true")
 
     def test_the_job_does_not_add_permissions_or_upload_anything(self):

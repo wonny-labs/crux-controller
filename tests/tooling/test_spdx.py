@@ -10,6 +10,7 @@ import unittest
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "release"))
 
+import ci_map  # noqa: E402
 import parse_spdx  # noqa: E402
 
 HEADER = """SPDXVersion: SPDX-2.3
@@ -230,12 +231,15 @@ class CommandLine(unittest.TestCase):
 
 
 class WorkflowStep(unittest.TestCase):
+    """release.yml runs the checks of the job release of scripts/ci/checks.toml in order."""
+
+    @ci_map.needs_tomllib
     def test_the_release_dry_run_parses_the_spdx_files_after_west_spdx_and_uploads_nothing(self):
         import yaml
 
         data = yaml.safe_load((ROOT / ".github" / "workflows" / "release.yml").read_text())
         steps = data["jobs"]["dry-run"]["steps"]
-        commands = [step.get("run", "") for step in steps]
+        commands = [check["run"] for check in ci_map.checks("release")]
         spdx_at = next(i for i, c in enumerate(commands) if "west spdx -d" in c)
         parse_at = next(i for i, c in enumerate(commands) if "parse_spdx.py" in c)
         self.assertGreater(parse_at, spdx_at)

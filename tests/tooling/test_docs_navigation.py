@@ -483,6 +483,8 @@ class StaticAnalysisLimits(unittest.TestCase):
         for config in (".yamllint", ".shellcheckrc", ".flake8", ".pylintrc", "ruff.toml", ".cmake-format"):
             self.assertNotIn(config, names)
         workflows = " ".join(p.read_text() for p in (ROOT / ".github" / "workflows").glob("*.yml"))
+        # The checks of the workflows are in scripts/ci (the CI map file and its scripts).
+        workflows += " ".join(p.read_text() for p in sorted((ROOT / "scripts" / "ci").rglob("*")) if p.is_file())
         for tool in ("shellcheck", "yamllint", "ruff", "flake8", "pylint", "cmake-lint"):
             self.assertNotIn(tool, workflows)
         self.assertIn("no linting of Python, shell, YAML and CMake", part)

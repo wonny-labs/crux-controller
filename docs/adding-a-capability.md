@@ -49,7 +49,7 @@ Work in the order of this table. Each row is a small commit with its test first.
 | 2 | Plain-C policy, if any | `app/src/health_policy.c`, `app/src/health_policy.h`, `tests/host/CMakeLists.txt` | `tests/host/test_health_policy.c`; `SystemPolicy` in `test_system.py` | `Host tests` job, with the sanitizers off and on |
 | 3 | Glue, option, fragment, overlay, build block, start | `app/src/health.[ch]`, `app/Kconfig`, `app/conf/system.conf`, `app/boards/system.overlay`, `app/CMakeLists.txt`, `app/src/composition.c` | `SystemConfiguration`, `SystemBuildFiles`, `SystemSources` in `test_system.py` | `Tooling tests`; `Boundary check`; the build job of row 5 |
 | 4 | Scenario on `native_sim` | `tests/native_sim/system/` (`CMakeLists.txt`, `prj.conf`, `app.overlay`, `testcase.yaml`, `src/test_system.c`) | `SystemScenario` in `test_system.py`, then the scenario itself | The `workload` job runs `west twister -p native_sim/native/64 -T crux-controller/tests/native_sim`, which runs every scenario |
-| 5 | CI build job and Budget row | `.github/workflows/ci.yml` (job `system`), `.github/workflows/budget.yml` (matrix row `system`) | `SystemWorkflows` in `test_system.py` | The new job and the new `Budget system` job |
+| 5 | CI build job and Budget row | `scripts/ci/checks.toml` (jobs `system` and `budget-system`), `.github/workflows/ci.yml` (job `system`), `.github/workflows/budget.yml` (matrix entry `system`), `Jenkinsfile` (two stages), `scripts/ci/prepare-job.sh` | `SystemWorkflows` in `test_system.py`; `tests/tooling/test_ci_tiers.py` | The new job and the new `Budget system` job |
 | 6 | Documents | `docs/findings/s4-system-composition.md`, `docs/findings/README.md`, `README.md`, `docs/roadmap.md`, `CHANGELOG.md`, `CONTRIBUTING.md` | `SystemFindings` in `test_system.py`; `Contributing` in `tests/tooling/test_docs.py` | `Tooling tests` |
 
 Update `CONTRIBUTING.md` in the same pull request as the rest (row 6).
@@ -143,9 +143,10 @@ the pull request cites; say in the pull request whether the scenario ran locally
 
 ### 2.5 The CI job and the Budget row
 
-Add a job `system` to `.github/workflows/ci.yml` by copying the `file` job. The name must read `system build (...)`:
-`tests/tooling/test_docs.py` finds the build jobs by the pattern `<name> build`, for each name of the `Budget`
-matrix. The `system` job:
+Add a job `system` to `scripts/ci/checks.toml` by copying the job `file` and its checks, and a job `system` to `.github/workflows/ci.yml` by copying the `file` job, which only sets up the runner and runs the checks of its job.
+The workflow job's name must read `system build (...)`: `tests/tooling/test_docs.py` finds the build jobs by the pattern `<name> build`, for each name of the `Budget` matrix.
+Add both jobs to the build branch of `scripts/ci/prepare-job.sh`, a stage for each to the `Jenkinsfile`, and the ids of the new checks to `EXPECTED_FULL` in `tests/tooling/test_ci_tiers.py`.
+The checks of the `system` job:
 
 1. builds with `-DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON`, `-DEXTRA_CONF_FILE=conf/workload.conf;conf/system.conf` and
    `-DEXTRA_DTC_OVERLAY_FILE=boards/system.overlay`;
@@ -156,14 +157,20 @@ matrix. The `system` job:
 
 Item 3 exists because an unmet Kconfig dependency only prints a warning: the image would
 build without the capability. CI therefore reads what the build resolved, not what the command line asked for.
-Add the same guard to the Budget matrix through the row's `require` field in
-`.github/workflows/budget.yml`:
+Add the same guard to the Budget job through the `REQUIRE` value of the job `budget-system` in `scripts/ci/checks.toml`, and the name `system` to the matrix of `.github/workflows/budget.yml`:
 
-```yaml
-- config: system
-  conf: "conf/workload.conf;conf/system.conf"
-  overlay: "boards/system.overlay"
-  require: "CONFIG_CRUX_CONTROLLER_SYSTEM=y CONFIG_CRUX_SYSTEM=y"
+```toml
+[jobs.budget-system]
+description = "Budget system"
+env = { BOARD = "mimxrt1060_evk@B//qspi", CONFIG = "system", CONF = "conf/workload.conf;conf/system.conf", OVERLAY = "boards/system.overlay", REQUIRE = "CONFIG_CRUX_CONTROLLER_SYSTEM=y CONFIG_CRUX_SYSTEM=y" }
+
+[[check]]
+id = "budget-system"
+job = "budget-system"
+run = '''
+scripts/ci/budget.sh
+'''
+scope = "always"
 ```
 
 The `Budget system` job builds the configuration, runs the `rom_report` and `ram_report` targets, collects the memory
@@ -221,7 +228,7 @@ Use this at the end. `<name>` is the name of the build configuration, short and 
 - [ ] `app/src/composition.c` starts the capability, at a position that is argued in a comment.
 - [ ] `tests/native_sim/<name>/` has a `testcase.yaml` with `platform_allow: native_sim/native/64`.
 - [ ] `tests/tooling/test_<name>.py` exists, and the exact row lists of `test_system.py`, `test_sntp.py` and `test_management.py` are extended.
-- [ ] `ci.yml` has the job `<name>`, named `<name> build (...)`; `budget.yml` has the row.
+- [ ] `scripts/ci/checks.toml` has the jobs `<name>` and `budget-<name>`; `ci.yml` has the job `<name>`, named `<name> build (...)`; `budget.yml` has the matrix entry; the `Jenkinsfile` has both stages.
 - [ ] Every new first-party C, CMake, Kconfig, Python and shell file starts with
       `SPDX-License-Identifier: Apache-2.0` in the form of section 4.1, and `python scripts/check_spdx.py` passes.
 - [ ] `scripts/check-format.sh` passes, with clang-format 18.1.8.
@@ -321,9 +328,8 @@ three boundary files together.
   quote the pin.
 - `budgets/limits.json`: its own `_comment` says that a change there is a reviewed change; CONTRIBUTING says a
   limit is not changed in a pin-bump pull request.
-- `.github/workflows/*.yml`, `scripts/check_mbed_only.py` and `CODEOWNERS`: CONTRIBUTING does not state a
-  rule for them. They are listed because they hold the checks, the licence gate of the Mbed TLS group and the
-  ownership, and a reviewer should look at a change to them.
+- `scripts/ci/` (the CI map file `checks.toml` and its scripts), `.github/workflows/*.yml`, `Jenkinsfile`, `scripts/check_mbed_only.py` and `CODEOWNERS`: CONTRIBUTING does not state a rule for them.
+  They are listed because they hold the checks, the licence gate of the Mbed TLS group and the ownership, and a reviewer should look at a change to them.
 - `CONTRIBUTING.md` itself.
 
 ## Appendix: how `sntp` and `management` differ

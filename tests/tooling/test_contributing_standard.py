@@ -20,6 +20,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 import analyze_host  # noqa: E402
 import check_spdx  # noqa: E402
+import ci_map  # noqa: E402
 
 PLATFORM_GUIDELINES = (
     "https://github.com/wonny-labs/crux-pilot/blob/"
@@ -235,6 +236,9 @@ class StaticAnalysisSection(unittest.TestCase):
         workflows = " ".join(
             p.read_text().lower() for p in (ROOT / ".github/workflows").glob("*.yml")
         )
+        # The checks of the workflows are in the CI map file and the scripts of scripts/ci.
+        workflows += " ".join(p.read_text().lower() for p in sorted((ROOT / "scripts/ci").rglob("*"))
+                              if p.is_file())
         for tool in ("gcov", "lcov", "ruff", "flake8", "pylint", "shellcheck", "yamllint"):
             self.assertNotIn(tool, workflows)
 
@@ -278,18 +282,19 @@ class CiJobTable(unittest.TestCase):
         self.assertIn("BRACES", row)
         self.assertIn("`scripts/check-patch.sh`", row)
 
+    @ci_map.needs_tomllib
     def test_the_spdx_step_is_in_the_tooling_job(self):
-        steps = [s.get("name") for s in self.jobs["tooling"]["steps"]]
-        self.assertIn("Check SPDX headers", steps)
+        self.assertIn("spdx", ci_map.ids("tooling"))
+        self.assertEqual("python scripts/check_spdx.py\n", ci_map.run("spdx"))
         row = ci_row()
-        self.assertIn("`Check SPDX headers`", row)
+        self.assertIn("`spdx`", row)
         self.assertIn("`scripts/check_spdx.py`", row)
 
+    @ci_map.needs_tomllib
     def test_the_kit_step_is_in_the_boundary_job(self):
-        steps = [s.get("name") for s in self.jobs["boundary"]["steps"]]
-        self.assertIn("Run the style kit include check script", steps)
+        self.assertIn("kit-include-check", ci_map.ids("boundary"))
         row = ci_row()
-        self.assertIn("style kit as a further step", row)
+        self.assertIn("style kit as a further check", row)
         self.assertNotIn("one more step", row)
 
 
@@ -310,8 +315,9 @@ class SpdxAndPatchStyleFacts(unittest.TestCase):
         script = (ROOT / "scripts/check-patch.sh").read_text()
         self.assertIn('types="${CHECKPATCH_TYPES:-BRACES}"', script)
         self.assertIn("'*.c' '*.h'", script)
-        workflow = (ROOT / ".github/workflows/ci.yml").read_text()
-        self.assertIn("scripts/check-patch.sh", workflow)
+        # The Patch style job runs scripts/ci/check-patch-range.sh, which runs the script.
+        self.assertIn("scripts/ci/check-patch-range.sh", (ROOT / "scripts/ci/checks.toml").read_text())
+        self.assertIn("exec scripts/check-patch.sh", (ROOT / "scripts/ci/check-patch-range.sh").read_text())
 
     def test_the_not_done_line_still_holds_for_python_shell_yaml_and_cmake(self):
         # Header and brace checks are not linting of the languages: no linter is configured.
