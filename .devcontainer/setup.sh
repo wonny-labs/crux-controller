@@ -70,7 +70,7 @@ fail() {
 report_failure() {
     local status=$?
     if ((status != 0)); then
-        printf 'setup: failed during %s; rerun: bash .devcontainer/setup.sh\n' "$current_step"
+        printf 'setup: failed during %s; rerun: bash .devcontainer/setup.sh. See docs/troubleshooting.md.\n' "$current_step"
     fi
 }
 trap report_failure EXIT

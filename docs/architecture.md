@@ -93,9 +93,9 @@ Points that the table cannot carry:
 ## How Crux is consumed
 
 Crux states the general rules for a product in its own guides at the pinned revision:
-[Choosing an API](https://github.com/wonny-labs/crux-pilot/blob/13c950bb031fce0b14d4784f1586057d31434de3/docs/choosing-an-api.md)
+[Choosing an API](https://github.com/wonny-labs/crux-pilot/blob/bd9efbc71c0318db2bbf3ced9932f2d872749e99/docs/choosing-an-api.md)
 (Zephyr, Crux or product code) and
-[Composition interfaces](https://github.com/wonny-labs/crux-pilot/blob/13c950bb031fce0b14d4784f1586057d31434de3/docs/composition-interfaces.md).
+[Composition interfaces](https://github.com/wonny-labs/crux-pilot/blob/bd9efbc71c0318db2bbf3ced9932f2d872749e99/docs/composition-interfaces.md).
 This section shows how this repository applies them.
 
 - **Manifest.** `west.yml` makes this repository the west manifest repository. It imports `crux-pilot`

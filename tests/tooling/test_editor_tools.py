@@ -76,6 +76,45 @@ class Clangd(unittest.TestCase):
         self.assertIn(match.group(1).split("/")[-1], (ROOT / "scripts" / "build-board.sh").read_text())
 
 
+# The GCC options that Zephyr adds to this repository's board build (zephyr/CMakeLists.txt and
+# cmake/compiler/gcc/compiler_flags.cmake and target_arm.cmake) and that clang rejects or ignores, plus
+# -fno-freestanding of native_sim builds, so that the list stays equal to Crux's.
+GCC_ONLY = ["-fno-reorder-functions", "-fno-defer-pop", "--param=min-pagesize=0", "-fno-freestanding",
+            "-fno-printf-return-value", "-mfp16-format=ieee"]
+
+
+def remove_list(text):
+    """The items of the first `Remove:` list in a clangd YAML text."""
+    lines = text.splitlines()
+    start = next(i for i, line in enumerate(lines) if line.strip() == "Remove:")
+    items = []
+    for line in lines[start + 1:]:
+        if not line.strip().startswith("- "):
+            break
+        items.append(line.strip()[2:])
+    return items
+
+
+class ClangdGccOnlyFlags(unittest.TestCase):
+    def test_the_repository_config_removes_the_gcc_only_flags_for_every_file(self):
+        fragments = (ROOT / ".clangd").read_text().split("\n---\n")
+        unconditional = [f for f in fragments if "Remove:" in f]
+        self.assertEqual(1, len(unconditional))
+        self.assertNotIn("If:", unconditional[0])
+        self.assertEqual(GCC_ONLY, remove_list(unconditional[0]))
+
+    def test_the_image_writes_the_same_list_as_the_clangd_user_config(self):
+        # Zephyr and Crux headers sit outside the repository, where .clangd does not apply.
+        dockerfile = (DEVCONTAINER / "Dockerfile").read_text()
+        joined = re.sub(r"\\\n", " ", dockerfile)
+        step = next(line for line in joined.splitlines() if "/home/vscode/.config/clangd/config.yaml" in line)
+        written = re.findall(r"'([^']*)'", step.split("printf", 1)[1])[1:]
+        self.assertEqual(["CompileFlags:", "  Remove:"] + [f"    - {flag}" for flag in GCC_ONLY], written)
+        # The ownership step after it gives the folder to the user of the container.
+        self.assertLess(joined.index("/home/vscode/.config/clangd/config.yaml"),
+                        joined.index('chown -R "$USER_UID:$USER_GID" /home/vscode'))
+
+
 class BashCompletion(unittest.TestCase):
     def test_the_image_has_the_bash_completion_package(self):
         self.assertRegex(apt_step((DEVCONTAINER / "Dockerfile").read_text()), r"\sbash-completion\s")

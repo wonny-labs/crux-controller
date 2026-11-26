@@ -93,6 +93,10 @@ class BootstrapDispatch(unittest.TestCase):
         result = self.run_script("zephyr", STUB_FAIL="setup.sh")
         self.assertEqual(7, result.returncode)
         self.assertIn("rerun: CRUX_BOOTSTRAP=zephyr bash scripts/bootstrap.sh", result.stderr)
+        # One line: the failure, the one action (the rerun) and the page to read.
+        report = [line for line in result.stderr.splitlines() if line.startswith("bootstrap:")]
+        self.assertEqual(["bootstrap: zephyr failed (exit 7); rerun: CRUX_BOOTSTRAP=zephyr bash scripts/bootstrap.sh. "
+                          "See docs/troubleshooting.md."], report)
 
     def test_standard_output_stays_clean(self):
         self.assertEqual("", self.run_script().stdout)
@@ -205,7 +209,9 @@ class BootstrapDispatch(unittest.TestCase):
     def test_board_host_without_the_crux_checkout_says_to_open_the_container_once(self):
         result = self.run_script_args("board-host")
         self.assertEqual(1, result.returncode)
-        self.assertIn("open the Dev Container once", result.stderr)
+        self.assertIn("Open the Dev Container once, then run this again.", result.stderr)
+        self.assertIn("See docs/troubleshooting.md.", result.stderr)
+        self.assertEqual(1, len(result.stdout.strip().splitlines()) + len(result.stderr.strip().splitlines()))
 
     def test_board_host_runs_the_step_of_the_crux_checkout(self):
         crux = self.repo.parent / "crux-pilot" / "scripts"

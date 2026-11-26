@@ -45,7 +45,7 @@ build configurations by their earlier step ids, S0 to S6.
 
 ### Build and manifest
 
-- The west manifest imports `crux-pilot` at a pinned commit (`13c950bb`, which contains the File
+- The west manifest imports `crux-pilot` at a pinned commit (`bd9efbc7`, which contains the File
   composition interface `<crux/file_zephyr.h>`) and adds `picolibc` as a test-only project. A CI job
   checks the pins with `west crux-pins` and has a negative control that must fail.
 - The `crux-pilot` pin moved from `37c92b18` to `dfd3ad7d`, which adds the public management headers
@@ -123,6 +123,11 @@ build configurations by their earlier step ids, S0 to S6.
   sample, renamed sections of Crux's coding guidelines, shorter bootstrap and Dev Container guidance, and
   documentation, CI and test changes. The Crux manifest, the existing public headers, the Zephyr module, the board
   samples and the product template are as before. No controller code changes.
+- The `crux-pilot` pin moved from `13c950bb` to `bd9efbc7`, the head of Crux `main` after its onboarding follow-ups:
+  the first CMake configure in VS Code before the preset selection, the Windows step that turns off the Dev Containers
+  Wayland socket mount, one-line bootstrap failure messages with a documentation pointer, and their tests. The Crux
+  manifest, the public headers, the Zephyr module, the board samples and the product template are as before. No
+  controller code changes.
 - The `crux-pilot` import blocks wolfSSL, wolfSSH and wolfPSA by name, so enabling the Mbed TLS group
   would activate Mbed TLS and TF-PSA-Crypto and no GPL stack (checked on the project list; no job
   enables the group or fetches with it on, and it stays off in every job).

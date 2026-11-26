@@ -51,7 +51,7 @@ and the markers of a home directory.
 
 `.devcontainer/setup.sh` prints to the standard error stream, also what pip, west and git print, so that a command
 which `scripts/dev-shell.sh` runs after it keeps a clean standard output.
-It prints a `setup:` line for each piece of work that a step does, almost nothing for a step that is already done (the west workspace step reminds you to run `west update` after the pin in `west.yml` moves), and when a step fails it prints `setup: failed during <step>; rerun: bash .devcontainer/setup.sh`.
+It prints a `setup:` line for each piece of work that a step does, almost nothing for a step that is already done (the west workspace step reminds you to run `west update` after the pin in `west.yml` moves), and when a step fails it prints `setup: failed during <step>; rerun: bash .devcontainer/setup.sh. See docs/troubleshooting.md.`.
 It does again what an
 interrupt left half done: a virtual environment without pip, a `.west` folder from an interrupted `west init`, and
 an SDK folder without its install marker.
@@ -76,6 +76,9 @@ an SDK folder without its install marker.
 
    Run `wsl --shutdown` in PowerShell for a change to apply.
 4. For VS Code: Visual Studio Code on Windows with the WSL extension and the Dev Containers extension.
+5. In VS Code on Windows, turn off **Dev › Containers: Mount Wayland Socket** in your user settings (it cannot be set in the repository).
+   The container needs no display, and with the setting on it can fail to start with `bind source path does not exist: /run/user/1000/wayland-0`.
+   After turning it off, run **Dev Containers: Rebuild Container** once.
 
 Nothing in the files uses `host.docker.internal`, the Docker socket or a mount of your home directory.
 
@@ -126,11 +129,9 @@ Which route passes what, as the files are written (none of it was run behind a p
   (general knowledge), so export them in a WSL shell and start `code .` from that shell. A VS Code server that
   already runs in WSL keeps its old environment: close all VS Code windows of that distribution, or run
   `wsl --shutdown`, first.
-- `scripts/dev-shell.sh` passes `GH_TOKEN` and `CI` when they are set, your user and group ids and any `CRUX_JLINK*`
-  variable that is set (as build arguments, by name), and no proxy variable. A proxy variable that you export in
-  your shell does not reach its container. For this route use Docker's own client configuration: the `proxies`
-  section of `~/.docker/config.json` makes the Docker command line add the variables to the build and to the
-  container (general knowledge, not tested).
+- `scripts/dev-shell.sh` passes `GH_TOKEN` and `CI` when they are set, your user and group ids and any `CRUX_JLINK*` variable that is set (as build arguments, by name), and no proxy variable.
+  A proxy variable that you export in your shell does not reach its container.
+  For this route use Docker's own client configuration: the `proxies` section of `~/.docker/config.json` makes the Docker command line add the variables to the build and to the container (general knowledge, not tested).
 - Inside the container, `.devcontainer/setup.sh` exports both cases of every proxy variable that is set, for pip,
   west, git and curl, and prints their names and never the values.
 
@@ -286,13 +287,11 @@ are exported if you need them: this route passes them on. The first start builds
 `.devcontainer/setup.sh`,
 which does `west init -l crux-controller` and `west update` only when the workspace does not exist yet, installs the
 Python requirements of Zephyr and runs `west sdk install` for the SDK version of the CI jobs. That takes a long time
-and downloads several GiB; watch the creation log. The setup runs `west update --narrow -o=--progress`, which
-fetches only the pinned revisions and prints git's fetch progress, so a long fetch does not look stuck (with `CI`
-set, it leaves out `-o=--progress`, which would only fill the job log). Later starts and rebuilds find all of it already there. If the
-creation fails or is interrupted, run `bash .devcontainer/setup.sh` in a terminal of the container: it carries on,
-and it runs `west update` again if the first one did not finish. After a change of the pin in `west.yml`, run
-`west update` by hand: the setup script does not run it again (see
-[After a pin or SDK change](#after-a-pin-or-sdk-change)).
+and downloads several GiB; watch the creation log.
+The setup runs `west update --narrow -o=--progress`, which fetches only the pinned revisions and prints git's fetch progress, so a long fetch does not look stuck (with `CI` set, it leaves out `-o=--progress`, which would only fill the job log).
+Later starts and rebuilds find all of it already there.
+If the creation fails or is interrupted, run `bash .devcontainer/setup.sh` in a terminal of the container: it carries on, and it runs `west update` again if the first one did not finish.
+After a change of the pin in `west.yml`, run `west update` by hand: the setup script does not run it again (see [After a pin or SDK change](#after-a-pin-or-sdk-change)).
 
 ## Without VS Code
 

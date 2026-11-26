@@ -13,7 +13,7 @@ before touching the board.
 
 **What has been run**: the `net` image on the board, recorded in the
 [roadmap](roadmap.md#what-has-run-on-a-board).
-[Crux's J-Link and usbipd guide](https://github.com/wonny-labs/crux-pilot/blob/13c950bb031fce0b14d4784f1586057d31434de3/docs/board-jlink-usbipd.md)
+[Crux's J-Link and usbipd guide](https://github.com/wonny-labs/crux-pilot/blob/bd9efbc71c0318db2bbf3ced9932f2d872749e99/docs/board-jlink-usbipd.md)
 records, on Windows with WSL2, a usbipd attach without `--auto-attach`, `west flash` and **Board: Debug** in Crux's Dev Container, and a connection check, `west flash` and `west debugserver` with an earlier, separate board Dev Container configuration.
 
 Not run: step 2 in the form of this page, with this repository's Dev Container, the J-Link software of this repository's image with a probe,
@@ -63,9 +63,9 @@ WSL2 restarts: run `attach` again. While the probe is attached, Windows tools ca
 `usbipd detach --busid <BUSID>` gives it back.
 
 On native Linux there is no attach. The board settings and the udev rule
-([99-crux-jlink.rules](https://github.com/wonny-labs/crux-pilot/blob/13c950bb031fce0b14d4784f1586057d31434de3/.devcontainer/jlink/99-crux-jlink.rules),
+([99-crux-jlink.rules](https://github.com/wonny-labs/crux-pilot/blob/bd9efbc71c0318db2bbf3ced9932f2d872749e99/.devcontainer/jlink/99-crux-jlink.rules),
 in the Crux checkout, not copied here) are on the
-[Crux board page](https://github.com/wonny-labs/crux-pilot/blob/13c950bb031fce0b14d4784f1586057d31434de3/docs/boards/mimxrt1060_evkb.md).
+[Crux board page](https://github.com/wonny-labs/crux-pilot/blob/bd9efbc71c0318db2bbf3ced9932f2d872749e99/docs/boards/mimxrt1060_evkb.md).
 
 ## 3. Open the Dev Container with the probe
 
@@ -97,11 +97,9 @@ How the container reaches the probe:
 By default you provide nothing for the J-Link software: the image build downloads the pinned version from SEGGER's
 download endpoint and installs it only if its SHA-256 matches. **The download accepts SEGGER's terms of use for
 you, as clicking the download on SEGGER's page does; if you do not accept them, use one of the overrides below.**
-If the download fails or the SHA-256 does not match, the build prints a warning, installs nothing and finishes
-without the J-Link software; a plain rebuild can reuse that cached step, so use **Dev Containers: Rebuild Container
-Without Cache** to try the download again. If the build log shows a certificate error such as `curl: (60)`, a proxy
-re-signs HTTPS: add your organisation's root CA in `.devcontainer/certs/` first
-([README](../.devcontainer/certs/README.md)). Two overrides, in this order, win over the download:
+If the download fails or the SHA-256 does not match, the build prints a warning, installs nothing and finishes without the J-Link software; a plain rebuild can reuse that cached step, so use **Dev Containers: Rebuild Container Without Cache** to try the download again.
+If the build log shows a certificate error such as `curl: (60)`, a proxy re-signs HTTPS: add your organisation's root CA in `.devcontainer/certs/` first ([README](../.devcontainer/certs/README.md)).
+Two overrides, in this order, win over the download:
 
 - exactly one `JLink_Linux_<version>_x86_64.deb` in `.devcontainer/jlink/packages/` (Git ignores it);
 - a copy that your organisation hosts after accepting the SEGGER licence itself: the build arguments
@@ -122,7 +120,7 @@ Should show: `lsusb` lists the probe with ID `1366:<product>`, and `bash scripts
 ## 4. Flash, debug and restore
 
 Flashing with `west flash`, debugging, the read-only compare of the flash and the recovery of the board's previous
-image are on the [Crux board page](https://github.com/wonny-labs/crux-pilot/blob/13c950bb031fce0b14d4784f1586057d31434de3/docs/boards/mimxrt1060_evkb.md). This repository adds its image (step 1), the network and log
+image are on the [Crux board page](https://github.com/wonny-labs/crux-pilot/blob/bd9efbc71c0318db2bbf3ced9932f2d872749e99/docs/boards/mimxrt1060_evkb.md). This repository adds its image (step 1), the network and log
 values below, and the VS Code tasks and profiles.
 
 ### VS Code tasks and debug profiles
@@ -145,19 +143,16 @@ The other tasks and the profiles use the image behind the link, so one set serve
 | **Board: Attach** | Checks for the probe, then connects through the J-Link GDB Server in the container to the image that runs, without build, reset or download. Connecting may halt the target |
 | **Board: Attach (external)** | Like **Board: Attach**, without the probe check, through a GDB server that VS Code does not start, at `localhost:2331`, for example a `JLinkGDBServer` that you start in a terminal of the container |
 
-**Board: Flash** runs the probe check in its own command. **Board: Debug** and **Board: Attach** run it first as
-the hidden task **Board: Check probe** (for **Board: Debug**, before **Board: Build**), because a failing
-`preLaunchTask` stops the session. When no J-Link (USB
-vendor ID `1366`) is visible in the container, the check stops with `No J-Link probe found` and the
-`usbipd attach` command of [2. Connect the probe](#2-connect-the-probe).
+**Board: Flash** runs the probe check in its own command.
+**Board: Debug** and **Board: Attach** run it first as the hidden task **Board: Check probe** (for **Board: Debug**, before **Board: Build**), because a failing `preLaunchTask` stops the session.
+When no J-Link (USB vendor ID `1366`) is visible in the container, the check stops with `No J-Link probe found`, the `usbipd attach` command for Windows with WSL2 and a pointer to [2. Connect the probe](#2-connect-the-probe).
 
 | Build | Optimisation |
 |---|---|
 | **Board: Build**, flashed by **Board: Flash** | Size (`-Os`), Zephyr's default |
 
 `scripts/build-board.sh` and the configuration files set no optimisation level, so Zephyr's default applies.
-A debug optimisation level for the board builds is not decided: **Board: Debug** and the attach profiles debug
-the `-Os` image of **Board: Build**.
+A debug optimisation level for the board builds is not decided: **Board: Debug** and the attach profiles debug the `-Os` image of **Board: Build**.
 
 **Board: Debug** flashes the board, so it is a physical operation like **Board: Flash** and needs the
 authorisation at the top of this page. The attach profiles do not build: the image on the board must be the one
