@@ -6,11 +6,13 @@
 #   scripts/build-board.sh [--board <board>] --clean           delete build/<board folder>, and the current build
 #                                                             link if it points into that folder
 #
-# The board is --board, else the environment variable CRUX_BOARD_TARGET (the name that Crux's scripts use), else
-# west's own setting build.board (`west config build.board`), else the default board below. The board folder is the
-# board name with each '@' and '/' replaced by '_'; board_folder() below is the only place that derives it. The
-# folder follows the spelling given: mimxrt1060_evk@B//qspi and mimxrt1060_evk@B/mimxrt1062/qspi name the same
-# board target but get different folders. west's build.dir-fmt is not used for it: its {board} keeps the '/' of the
+# The VS Code tasks pass the setting crux.board as --board. The board is --board, else the environment variable
+# CRUX_BOARD_TARGET (the name that Crux's scripts use), else west's own setting build.board (`west config
+# build.board`), else the default board below. The board folder is the board name with each run of characters other
+# than letters, digits, '_', '.' and '-' replaced by one '_' (Crux's rule for its board key, so crux.boardKey of
+# .vscode/settings.json is this folder name); board_folder() below is the only place that derives it. The folder
+# follows the spelling given: mimxrt1060_evk@B//qspi and mimxrt1060_evk@B/mimxrt1062/qspi name the same board target
+# but get different folders. west's build.dir-fmt is not used for it: its {board} keeps the '/' of the
 # qualifiers and it has no field for the build configuration. A board folder holds the file .board-build; the script
 # builds in, and --clean deletes, only a folder that holds it or does not exist yet, so a board name can never
 # clean or reuse another folder of build/, such as build/host.
@@ -36,8 +38,7 @@ usage() {
 
 # The folder below build/ of a board target such as mimxrt1060_evk@B/mimxrt1062/qspi.
 board_folder() {
-    local folder="${1//@/_}"
-    printf '%s' "${folder//\//_}"
+    printf '%s' "$1" | sed -E 's/[^A-Za-z0-9_.-]+/_/g'
 }
 
 board=""

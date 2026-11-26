@@ -1,0 +1,5 @@
+{
+  "crux.board": "mimxrt1060_evk@B/mimxrt1062/qspi",
+  "crux.boardKey": "mimxrt1060_evk_B_mimxrt1062_qspi",
+  "crux.jlinkDevice": "MIMXRT1062xxx6A"
+}

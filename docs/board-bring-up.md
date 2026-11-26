@@ -127,8 +127,8 @@ values below, and the VS Code tasks and profiles.
 
 The tasks are in [.vscode/tasks.json](../.vscode/tasks.json) (**Terminal > Run Task**) and the profiles in
 [.vscode/launch.json](../.vscode/launch.json) (**Run and Debug**). **Board: Build** runs
-[`scripts/build-board.sh`](../scripts/build-board.sh) for the board and the build configuration you pick, `net` by default.
-It builds in `build/<board folder>/<configuration>`, where the board folder is the board target with `_` for each `@` and `/` (`build/mimxrt1060_evk_B_mimxrt1062_qspi/net`), with the CMake arguments of the `Budget` job.
+[`scripts/build-board.sh`](../scripts/build-board.sh) for the board of the setting `crux.board` and the build configuration you pick, `net` by default.
+It builds in `build/<board folder>/<configuration>`, where the board folder is the board target with `_` for each run of characters other than letters, digits, `_`, `.` and `-` (`build/mimxrt1060_evk_B_mimxrt1062_qspi/net`), with the CMake arguments of the `Budget` job.
 After a successful build it points the link `build/current` at that folder; a failed build leaves the link as it was.
 The other tasks and the profiles use the image behind the link, so one set serves every board and configuration.
 On the command line, the script takes `--board <board target>`; without it, it uses `CRUX_BOARD_TARGET`, then `west config build.board`, then the default board of the [README](../README.md#supported-boards). The
@@ -137,9 +137,9 @@ On the command line, the script takes `--board <board target>`; without it, it u
 
 | Task or profile | What it does |
 |---|---|
-| **Board: Build** | Builds the board and configuration you pick, incrementally after the first build |
+| **Board: Build** | Builds the board of `crux.board` and the configuration you pick, incrementally after the first build |
 | **Board: Flash** | Checks for the probe, then runs `west flash -d build/current --runner jlink` in the same process: flashes the last board build, whose board west reads from the build. Without a probe it stops before `west flash` |
-| **Board: Clean** | Deletes the board folder of the board you pick, and the link if it points into it; `build/host` and `twister-out` stay |
+| **Board: Clean** | Deletes the board folder of `crux.board`, and the link if it points into it; `build/host` and `twister-out` stay |
 | **Board: Debug** | Checks for the probe and runs **Board: Build**, then flashes the image through the J-Link GDB Server in the container, resets the board and stops at `main` |
 | **Board: Attach** | Checks for the probe, then connects through the J-Link GDB Server in the container to the image that runs, without build, reset or download. Connecting may halt the target |
 | **Board: Attach (external)** | Like **Board: Attach**, without the probe check, through a GDB server that VS Code does not start, at `localhost:2331`, for example a `JLinkGDBServer` that you start in a terminal of the container |
@@ -147,7 +147,7 @@ On the command line, the script takes `--board <board target>`; without it, it u
 **Board: Flash** runs the probe check in its own command.
 **Board: Debug** and **Board: Attach** run it first as the hidden task **Board: Check probe** (for **Board: Debug**, before **Board: Build**), because a failing `preLaunchTask` stops the session.
 When no J-Link (USB vendor ID `1366`) is visible in the container, the check stops with `No J-Link probe found`, the `usbipd attach` command for Windows with WSL2 and a pointer to [2. Connect the probe](#2-connect-the-probe).
-The three profiles ask for the board of the last board build, which sets the J-Link device name; pick the board that **Board: Build** built.
+The board comes from [.vscode/settings.json](../.vscode/settings.json), read through `${config:...}` with the names that Crux's board tasks use: `crux.board`, the board target for **Board: Build** and **Board: Clean**; `crux.boardKey`, the folder name of that board below `build/` (the target with each run of other characters replaced by `_`); and `crux.jlinkDevice`, the J-Link device name of the three profiles. The defaults are the supported board: `mimxrt1060_evk@B/mimxrt1062/qspi`, `mimxrt1060_evk_B_mimxrt1062_qspi` and `MIMXRT1062xxx6A`. Crux's own values for the same board, `mimxrt1060_evk@B//qspi` and `mimxrt1060_evk_B_qspi`, work here too. To use another board, change the three settings together; **Board: Build** asks only for the build configuration, and the profiles ask for nothing. The script derives the folder name from `crux.board` itself, so the three settings must describe one board.
 
 | Build | Optimisation |
 |---|---|
@@ -177,7 +177,7 @@ listening, `net: exchange failed cycle=<n> result=-2` is the expected line, one 
 
 ## Other boards
 
-`scripts/build-board.sh` and **Board: Build** take any board target, but the build configurations are the RT1060-EVKB's.
+`scripts/build-board.sh` and **Board: Build** (with `crux.board`) take any board target, but the build configurations are the RT1060-EVKB's.
 The overlays of `net`, `sntp`, `management` and `system` set the Ethernet, LED and watchdog nodes of this board, and the script passes them for every board.
 `file` depends on a Crux FatFs provider for the RT1062 SoC only; on the RT1060 EVK it needs the QSPI variant at revision B.
 A second board first needs the board-specific fragments and overlays split per board and configuration, which the workflows, the `Budget` job and the script do not support yet.

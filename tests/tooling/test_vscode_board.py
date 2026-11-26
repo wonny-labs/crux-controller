@@ -14,6 +14,7 @@ temporary folder.
 import json
 import os
 import pathlib
+import re
 import shutil
 import subprocess
 import tempfile
@@ -82,7 +83,7 @@ class LaunchProfiles(unittest.TestCase):
         for name, profile in self.by_name.items():
             with self.subTest(name):
                 self.assertEqual("cortex-debug", profile["type"])
-                self.assertEqual("${input:board}", profile["device"])
+                self.assertEqual("${config:crux.jlinkDevice}", profile["device"])
                 self.assertEqual(ELF, profile["executable"])
                 self.assertEqual(GDB, profile["gdbPath"])
                 self.assertEqual("${workspaceFolder}", profile["cwd"])
@@ -119,19 +120,38 @@ class LaunchProfiles(unittest.TestCase):
         self.assertEqual("localhost:2331", profile["gdbTarget"])
         self.assertNotIn("serverArgs", profile)
 
-    def test_the_board_prompt_gives_the_j_link_device_of_each_supported_board(self):
-        # One option per supported board: the label is the board as Board: Build takes it, the value the device
-        # name that the J-Link GDB Server needs. The board of the last build is the one to pick.
-        inputs = load(VSCODE / "launch.json")["inputs"]
-        self.assertEqual(["board"], [i["id"] for i in inputs])
-        self.assertEqual("pickString", inputs[0]["type"])
-        self.assertEqual([{"label": BOARD, "value": JLINK_DEVICE}], inputs[0]["options"])
-        self.assertEqual(JLINK_DEVICE, inputs[0]["default"])
+    def test_the_profiles_ask_nothing_and_read_the_j_link_device_from_the_settings(self):
+        # No inputs: the board, its key and the J-Link device are the settings of Crux's convention.
+        self.assertNotIn("inputs", load(VSCODE / "launch.json"))
+        self.assertNotIn("${input:", (VSCODE / "launch.json").read_text())
 
     def test_every_pre_launch_task_exists(self):
         for name, profile in self.by_name.items():
             if "preLaunchTask" in profile:
                 self.assertIn(profile["preLaunchTask"], self.tasks, name)
+
+
+class Settings(unittest.TestCase):
+    """The board settings, with the names and the meaning that Crux's .vscode/settings.json gives them."""
+
+    def test_the_board_the_key_and_the_j_link_device_are_settings_with_crux_s_names(self):
+        settings = load(VSCODE / "settings.json")
+        self.assertEqual(BOARD, settings["crux.board"])
+        self.assertEqual(BOARD_FOLDER, settings["crux.boardKey"])
+        self.assertEqual(JLINK_DEVICE, settings["crux.jlinkDevice"])
+
+    def test_the_key_is_the_build_folder_of_the_board_under_crux_s_rule(self):
+        # Crux: every run of characters other than letters, digits, '_', '.' and '-' becomes one '_'.
+        key = re.sub(r"[^A-Za-z0-9_.-]+", "_", load(VSCODE / "settings.json")["crux.board"])
+        self.assertEqual(load(VSCODE / "settings.json")["crux.boardKey"], key)
+        # Crux's own default pair gives the same key, so the settings of one repository work in the other.
+        self.assertEqual("mimxrt1060_evk_B_qspi", re.sub(r"[^A-Za-z0-9_.-]+", "_", "mimxrt1060_evk@B//qspi"))
+
+    def test_tasks_and_profiles_use_only_these_settings_and_the_configuration_prompt(self):
+        text = (VSCODE / "tasks.json").read_text() + (VSCODE / "launch.json").read_text()
+        for used in re.findall(r"\$\{config:([^}]+)\}", text):
+            self.assertIn(used, load(VSCODE / "settings.json"), used)
+        self.assertEqual(["${input:configuration}"], sorted(set(re.findall(r"\$\{input:[^}]+\}", text))))
 
 
 class Tasks(unittest.TestCase):
@@ -154,26 +174,18 @@ class Tasks(unittest.TestCase):
     def test_build_runs_the_board_build_script_for_the_chosen_board_and_configuration(self):
         task = self.tasks["Board: Build"]
         self.assertEqual("bash", task["command"])
-        self.assertEqual(["scripts/build-board.sh", "--board", "${input:board}", "${input:configuration}"],
+        self.assertEqual(["scripts/build-board.sh", "--board", "${config:crux.board}", "${input:configuration}"],
                          task["args"])
         self.assertEqual("build", task["group"])
         self.assertEqual("$gcc", task["problemMatcher"])
 
-    def test_the_prompts_offer_the_supported_boards_and_the_build_configurations(self):
-        # net is the image of docs/board-bring-up.md, the one with a board record.
+    def test_the_only_prompt_is_the_build_configuration(self):
+        # net is the image of docs/board-bring-up.md, the one with a board record. The board is a setting.
         inputs = {i["id"]: i for i in self.document["inputs"]}
-        self.assertEqual(["board", "configuration"], list(inputs))
-        self.assertEqual("pickString", inputs["board"]["type"])
-        self.assertEqual([BOARD], inputs["board"]["options"])
-        self.assertEqual(BOARD, inputs["board"]["default"])
+        self.assertEqual(["configuration"], list(inputs))
         self.assertEqual("pickString", inputs["configuration"]["type"])
         self.assertEqual(list(budget_rows()), inputs["configuration"]["options"])
         self.assertEqual("net", inputs["configuration"]["default"])
-
-    def test_the_two_board_prompts_offer_the_same_boards(self):
-        launch = load(VSCODE / "launch.json")["inputs"][0]["options"]
-        tasks = next(i for i in self.document["inputs"] if i["id"] == "board")["options"]
-        self.assertEqual(tasks, [option["label"] for option in launch])
 
     def test_flash_checks_the_probe_then_flashes_the_last_board_build_in_one_process(self):
         # One bash process: a dependsOn task that fails does not stop the task that depends on it.
@@ -202,7 +214,7 @@ class Tasks(unittest.TestCase):
     def test_clean_runs_the_clean_of_the_script_for_the_chosen_board(self):
         task = self.tasks["Board: Clean"]
         self.assertEqual("bash", task["command"])
-        self.assertEqual(["scripts/build-board.sh", "--board", "${input:board}", "--clean"], task["args"])
+        self.assertEqual(["scripts/build-board.sh", "--board", "${config:crux.board}", "--clean"], task["args"])
         self.assertEqual("clean", task["group"])
 
     def test_nothing_flashes_unless_board_flash_is_chosen(self):
@@ -418,8 +430,9 @@ class BuildBoardScript(unittest.TestCase):
 
     def test_the_short_and_full_spellings_of_a_board_get_their_own_folders(self):
         # The script does not resolve the default SoC; Zephyr does, inside the build.
+        # A run of '@' and '/' becomes one '_', as in Crux's board key.
         self.assertEqual(0, self.run_script("--board", "mimxrt1060_evk@B//qspi", "net").returncode)
-        self.assertEqual("mimxrt1060_evk_B__qspi/net", os.readlink(self.link()))
+        self.assertEqual("mimxrt1060_evk_B_qspi/net", os.readlink(self.link()))
 
     def test_the_default_board_is_the_board_of_the_budget_job_and_the_gate_is_its_gate(self):
         board, fixed = budget_build()
