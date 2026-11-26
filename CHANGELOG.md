@@ -19,7 +19,8 @@ build configurations by their earlier step ids, S0 to S6.
 - The sources of time synchronisation, of the management policy and port, and of the composition zone move from
   `app/` to the module's trees `framework/src`, `framework/os` and `framework/compose`, and the web route files
   from `app/management/` to `framework/management/`. The configurations `sntp`, `file` and `management` build
-  them from there (`framework/configurations.cmake`) and are otherwise unchanged.
+  them from there (`framework/configurations.cmake` adds the sources, and `app/CMakeLists.txt` adds the
+  composition zone `framework/compose`) and are otherwise unchanged.
 - The build configuration `base` is the base image (`app/conf/base.conf`): the framework with web management
   and time synchronisation, on a RAM disk, with no application. The configuration of `app/prj.conf` alone is
   renamed `minimal`, with its CI job and `Budget` row. The `base build` job runs the scenario

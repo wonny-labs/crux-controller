@@ -9,8 +9,8 @@ four trees of the controller framework module and its interface header.
   profile, public ``<crux/NAME.h>`` headers, and headers of its own tree.
 * ``workload/`` is portable code. It may include ISO C headers and headers of its
   own tree, and nothing else.
-* ``app/compose/`` is the composition zone, the one place that mounts a file system and
-  binds it to Crux. It may include ISO C headers, public ``<crux/NAME.h>`` headers, the
+* ``app/compose/`` is the composition zone of the configurations of ``app/``, which mounts a file
+  system and binds it to Crux. Its sources now live in ``framework/compose``, which has the same rule. It may include ISO C headers, public ``<crux/NAME.h>`` headers, the
   composition interfaces ``<crux/file_zephyr.h>`` and ``<crux/web_zephyr.h>`` (``COMPOSITION_CRUX_HEADERS``),
   the explicit allow-list of Zephyr headers in ``COMPOSITION_ZEPHYR_HEADERS``, headers of its own tree and the headers of ``app/src``
   (header files only: the product-owned header that ``app/src`` declares and the zone
@@ -48,7 +48,7 @@ four trees of the controller framework module and its interface header.
 the configurations built on the workload compose the framework services that moved into the
 module. The other trees of ``app`` and the workload may include neither.
 
-A C or C++ source or header file under ``app``, ``framework`` or ``include`` that no rule covers
+A C or C++ source or header file under ``app``, ``framework``, ``include`` or ``zephyr`` that no rule covers
 fails, so a source of the module cannot escape the check by its place (``MODULE_TREES``).
 
 ``app/src`` and ``app/os`` also fail on the three frozen Crux headers, ``crux/thread.h``,
@@ -127,7 +127,7 @@ FRAMEWORK_API = re.compile(r"^controller/[A-Za-z0-9_]+\.h$")
 
 # The top-level trees whose C and C++ sources and headers must each sit in a checked tree. A
 # source of the module, the base image or the configurations of app that no rule covers fails.
-MODULE_TREES = ("app", "framework", FRAMEWORK_API_ROOT)
+MODULE_TREES = ("app", "framework", FRAMEWORK_API_ROOT, "zephyr")
 SOURCE_SUFFIXES = frozenset(
     ".c .h .inc .cc .cpp .cxx .hh .hpp .hxx .s .S".split()
 )

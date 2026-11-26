@@ -1,10 +1,10 @@
 # Crux Controller
 
-Crux Controller is an Apache-2.0 reference consumer firmware of
+Crux Controller is an Apache-2.0 controller framework for products built on
 [Crux](https://github.com/wonny-labs/crux-pilot), an embedded software platform for Zephyr RTOS firmware.
-Its workload is synthetic.
-It uses Crux through public headers, public CMake targets and published composition interfaces only, one capability
-per build configuration, so that a product team can read how each Crux capability is composed.
+It is a Zephyr module that products import, with a base image that runs its services and no application.
+It uses Crux through public headers, public CMake targets and published composition interfaces only. Its other
+build configurations show one Crux capability each, on a synthetic workload.
 
 ## Supported boards
 

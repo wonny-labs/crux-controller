@@ -7,14 +7,16 @@ are used as the [glossary](glossary.md#product-platform-and-composition) explain
 
 ## What the controller is and does
 
-Crux Controller (this repository, `crux-controller`) is firmware for one board, the NXP RT1060-EVKB
-Rev B, built on the Zephyr RTOS. It is the reference consumer firmware of Crux, an embedded software
-platform that lives in the repository [`crux-pilot`](https://github.com/wonny-labs/crux-pilot). Crux
+Crux Controller (this repository, `crux-controller`) is a controller framework for products built on Crux,
+an embedded software platform that lives in the repository [`crux-pilot`](https://github.com/wonny-labs/crux-pilot):
+a Zephyr module that products import, with a base image that runs its services and no application. Its images are
+built for one board, the NXP RT1060-EVKB Rev B, on the Zephyr RTOS. Crux
 publishes components such as Time, Logging, a Sockets profile, File and System as public headers and
 CMake targets (`crux::time`, `crux::logging` and so on). This repository takes those components the
 way an outside product would, through public headers and public targets only, and it checks that rule
 in CI. Where a product cannot reach something, the gap is written down as a *finding* instead of being
-worked around. It is not a product, it adds no Crux interface, and it has no real control logic.
+worked around. It is not a product (a product imports it), it adds no Crux interface, and it has no real
+control logic.
 
 What the firmware does is deliberately small. A synthetic *workload* runs on two Zephyr threads: a
 producer counts cycles (every 100 ms by default) and queues one numbered message every tenth cycle,
@@ -60,8 +62,8 @@ zone, `framework/management`, which holds build files and data for the web route
 | Tree | Role | May include | Fails on, among others |
 |---|---|---|---|
 | `workload/` | The portable core of the workload: configuration record, periodic cycle, message wire form. Built for the image and for the host tests. | ISO C and its own tree | any Crux, Sockets profile or Zephyr header |
-| `app/src` | The application: composition, thread glue, and the code of each capability. Plain C. | ISO C, the Sockets profile headers, public `<crux/NAME.h>` headers except the frozen three, its own tree, `workload/include` | any Zephyr header, the *frozen headers*, `<crux/file_zephyr.h>`, `<crux/web_zephyr.h>`, a quoted include of a header of a zone |
-| `app/os` | The adapter zone. The one place that creates threads, queues messages and sleeps, with Zephyr kernel calls, and the one place that queries an SNTP server (`sntp`). | ISO C, public `<crux/NAME.h>` headers except the frozen three, `zephyr/kernel.h`, `zephyr/net/sntp.h`, its own tree, header files (`.h`) of `app/src` | the Sockets profile and other POSIX headers, any composition interface, every other Zephyr header, vendor headers, the frozen three |
+| `app/src` | The application: composition, thread glue, and the code of each capability. Plain C. | ISO C, the Sockets profile headers, public `<crux/NAME.h>` headers except the frozen three, its own tree, `workload/include`, the headers of `framework/src`, `<controller/NAME.h>` | any Zephyr header, the *frozen headers*, `<crux/file_zephyr.h>`, `<crux/web_zephyr.h>`, a quoted include of a header of a zone |
+| `app/os` | The adapter zone. The one place that creates threads, queues messages and sleeps, with Zephyr kernel calls, for the configurations of the workload. `framework/os` is the adapter zone of the module and queries the SNTP server. | ISO C, public `<crux/NAME.h>` headers except the frozen three, `zephyr/kernel.h`, `zephyr/net/sntp.h`, its own tree, header files (`.h`) of `app/src` | the Sockets profile and other POSIX headers, any composition interface, every other Zephyr header, vendor headers, the frozen three |
 | `framework/compose` | The composition zone of the module. The one place that mounts a file system and binds it to Crux File, and the one place that starts HTTPS management with the Web composition interface and registers its TLS material (`management`, `base`). `app/compose` keeps the same rule and holds no source. | ISO C, public `<crux/NAME.h>` headers, `<crux/file_zephyr.h>`, `<crux/web_zephyr.h>`, `zephyr/fs/fs.h`, `zephyr/devicetree.h`, `zephyr/net/tls_credentials.h`, its own tree, header files (`.h`) of `framework/src` | the Sockets profile, Crux private or port headers, every other Zephyr header, vendor headers |
 
 Points that the table cannot carry:
@@ -75,8 +77,8 @@ Points that the table cannot carry:
   `scripts/check_boundary.py` are sets of names with no wildcards. Changing one is a change of the script,
   of `tests/tooling/test_boundary.py` and of [composition-zone.md](composition-zone.md) in one reviewed
   pull request.
-- **`zephyr/net/sntp.h` is allowed in `app/os`, and one source includes it:
-  `framework/os/time_sync_zephyr.c` (`sntp`).** That file calls the Zephyr SNTP library's string-based
+- **`zephyr/net/sntp.h` is allowed in the adapter zones `app/os` and `framework/os`, and one source includes it:
+  `framework/os/time_sync_zephyr.c` (`sntp`, `base`).** That file calls the Zephyr SNTP library's string-based
   `sntp_simple()` and nothing else of it, so it includes no socket header.
 - **The frozen-header rule covers `app/src` and `app/os`.** `<crux/thread.h>`, `<crux/sync.h>` and
   `<crux/serial.h>` are public Crux headers, and the product does not use them: threads and queues come
@@ -194,9 +196,9 @@ This section shows how this repository applies them.
 | main | Zephyr | not set by this repository | 4096 bytes (`CONFIG_MAIN_STACK_SIZE` in `app/conf/workload.conf`), 16384 in `management` | Runs `composition_start()`, then ends. |
 | producer | `app/os`, through `workload_os_start()` | 5 | `CONFIG_CRUX_CONTROLLER_WORKER_STACK`: 4096 bytes by default, 8192 in `net` | Counts cycles on the Crux monotonic clock, sleeping in slices of at most 50 ms. For each pass with cycles due it calls the cycle hook (`system` feeds the watchdog here), then queues a message for every `message_every`-th cycle. |
 | consumer | `app/os` | 5 | the same size | Waits on the queue for up to 50 ms, logs `cycle=<n> value=<v>` under the tag `workload`, then calls the sink (`net` does its TCP exchange here, on this thread). |
-| time synchronisation (`sntp` only) | `app/os`, through `time_sync_port_start()` | 10 | `CONFIG_CRUX_CONTROLLER_TIME_STACK`: 8192 bytes by default | Waits 5 seconds, then queries the SNTP server once and again after every `CONFIG_CRUX_CONTROLLER_TIME_INTERVAL_S` seconds (600 by default); the policy decides whether the answer sets the Crux Time realtime clock. |
-| web session worker, web management worker, security event drain (`management` only) | Crux services, started by the composition zone | 11 | `CRUX_THREAD_STACK_BYTES` of Crux, 8192 by default with the web session | Verify a login (password hashing), run a configuration save, write security events to Logging. Starting values, not measured. |
-| HTTP server (`management` only) | Zephyr | the lowest preemptive priority; Crux has no setting for it | `CONFIG_HTTP_SERVER_STACK_SIZE`: 16384 bytes | Accepts connections, runs each TLS handshake inside accept and serves requests. Not measured. |
+| time synchronisation (`sntp`, `base`) | `framework/os`, through `time_sync_port_start()` | 10 | `CONFIG_CRUX_CONTROLLER_TIME_STACK`: 8192 bytes by default | Waits 5 seconds, then queries the SNTP server once and again after every `CONFIG_CRUX_CONTROLLER_TIME_INTERVAL_S` seconds (600 by default); the policy decides whether the answer sets the Crux Time realtime clock. |
+| web session worker, web management worker, security event drain (`management`, `base`) | Crux services, started by the composition zone | 11 | `CRUX_THREAD_STACK_BYTES` of Crux, 8192 by default with the web session | Verify a login (password hashing), run a configuration save, write security events to Logging. Starting values, not measured. |
+| HTTP server (`management`, `base`) | Zephyr | the lowest preemptive priority; Crux has no setting for it | `CONFIG_HTTP_SERVER_STACK_SIZE`: 16384 bytes | Accepts connections, runs each TLS handshake inside accept and serves requests. Not measured. |
 | log processing | Zephyr, deferred logging | 14 | 2048 bytes | Writes the log lines to LPUART1 at 115200 baud. |
 
 Priority numbers are Zephyr's, where a lower number is a higher priority, so the workload threads

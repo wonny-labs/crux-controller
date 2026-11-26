@@ -147,7 +147,7 @@ inside the zone or to a `.h` file of `app/src`. The scan forms and the indirect 
 `app/src` header are the same as for the composition zone.
 
 `app/src`, `app/compose`, `framework/compose`, `framework/src`, `include` and `workload` keep failing on `zephyr/kernel.h` and on `zephyr/net/sntp.h`,
-and a quoted include of an `app/os` header fails in all three, as a quoted include of a composition
+and a quoted include of an `app/os` header fails in each of them, as a quoted include of a composition
 zone header does.
 
 The adapter zone's allow-list is the whole list, and each entry has a reason:

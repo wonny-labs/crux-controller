@@ -1415,7 +1415,7 @@ class FrameworkTrees(unittest.TestCase):
 
     def test_a_source_of_the_module_outside_every_tree_fails(self):
         for name in ("framework/extra/x.c", "framework/x.h", "app/extra/main.c",
-                     "framework/tools/y.cpp", "app/management/z.inc"):
+                     "framework/tools/y.cpp", "app/management/z.inc", "zephyr/x.c", "zephyr/sub/y.h"):
             files = {"app/src/main.c": "", name: ""}
             violations = run(files)
             self.assertEqual([name], [v.path for v in violations], name)

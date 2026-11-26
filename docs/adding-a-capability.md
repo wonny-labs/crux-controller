@@ -343,9 +343,9 @@ current files, read from `app/Kconfig`, `app/CMakeLists.txt`, `app/os/CMakeLists
 - **It builds on `net`, not only `workload`.** `CRUX_CONTROLLER_SNTP` depends on `CRUX_CONTROLLER_NET`, `CRUX_TIME`,
   `SNTP`, `NET_UDP` and `NET_IPV4`. Its CI build uses `conf/workload.conf;conf/net.conf;conf/sntp.conf` and
   `boards/net.overlay`, and the Budget row says the same.
-- **It uses a zone entry of its own.** `zephyr/net/sntp.h` is on the allow-list of `app/os`, a separate
-  reviewed change as the ground rules above ask. The adapter zone has a second source,
-  `framework/os/time_sync_zephyr.c`, which `app/os/CMakeLists.txt` builds only when `sntp` is on.
+- **It uses a zone entry of its own.** `zephyr/net/sntp.h` is on the allow-list of the adapter zones, a
+  separate reviewed change as the ground rules above ask. Its adapter is `framework/os/time_sync_zephyr.c`, in the
+  adapter zone of the framework module, which `framework/configurations.cmake` builds only when `sntp` is on.
 - **Three files instead of two for the logic.** The plain-C policy is `framework/src/time_sync_policy.[ch]`, the
   glue that calls the Crux Time authority is `framework/src/time_sync.[ch]`, and the port that the glue calls is
   `framework/src/time_sync_port.h`, implemented by the adapter. The policy has a host test
@@ -376,8 +376,8 @@ the Crux manifest.
   tests that forbid include paths and foreign sources read that file too: extend such a rule to a new build file, and
   never loosen it.
 - **One file starts the services.** `framework/compose/management_start.c` implements `framework/src/management_port.h` in the
-  order that the header documents. The policy, the address check and the version check are plain C in `app/src`
-  and have a host test.
+  order that the header documents. The policy, the address check and the version check are plain C in
+  `framework/src` and have a host test.
 - **The scenario is one image with ordered cases**, because the start sequence runs once per program. Its Mbed
   profile is a copy of the fragment's, and a tooling test compares them.
 - **The CI job reads more of what the build resolved**, including the devicetree alias, the RAM disk and the symbols

@@ -14,7 +14,7 @@ to reproduce it. There is no service level for a reply.
 
 ## What this repository is
 
-This is a reference consumer firmware used to evaluate [Crux](https://github.com/wonny-labs/crux-pilot).
+This is a controller framework for products built on [Crux](https://github.com/wonny-labs/crux-pilot).
 It is built in CI. Only the `net` image has run on a board, twice, on one bench. A weakness in Crux itself belongs in the `crux-pilot`
 repository. A report here can be redirected there.
 
