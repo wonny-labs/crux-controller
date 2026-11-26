@@ -237,8 +237,7 @@ class StaticAnalysisSection(unittest.TestCase):
             p.read_text().lower() for p in (ROOT / ".github/workflows").glob("*.yml")
         )
         # The checks of the workflows are in the CI map file and the scripts of scripts/ci.
-        workflows += " ".join(p.read_text().lower() for p in sorted((ROOT / "scripts/ci").rglob("*"))
-                              if p.is_file())
+        workflows += " ".join(p.read_text().lower() for p in ci_map.ci_sources())
         for tool in ("gcov", "lcov", "ruff", "flake8", "pylint", "shellcheck", "yamllint"):
             self.assertNotIn(tool, workflows)
 

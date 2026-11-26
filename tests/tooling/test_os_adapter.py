@@ -6,6 +6,8 @@ import pathlib
 import re
 import unittest
 
+import ci_map
+
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 APP = ROOT / "app"
 ZONE = APP / "os"
@@ -265,8 +267,8 @@ class RemovedCruxQueue(unittest.TestCase):
 
     def test_no_workflow_names_the_queue_symbol(self):
         # The checks of the workflows are in scripts/ci (the CI map file and its scripts).
-        paths = [*(ROOT / ".github" / "workflows").glob("*.yml"), *(ROOT / "scripts" / "ci").rglob("*")]
-        for path in sorted(p for p in paths if p.is_file()):
+        paths = [*(ROOT / ".github" / "workflows").glob("*.yml"), *ci_map.ci_sources()]
+        for path in sorted(paths):
             self.assertNotIn("CONFIG_CRUX_QUEUE", path.read_text(), path.name)
 
 

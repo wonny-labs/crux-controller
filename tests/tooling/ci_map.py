@@ -107,3 +107,10 @@ def budget_rows():
             row["group"] = "mbed"
         rows[job[len("budget-"):]] = row
     return rows
+
+
+def ci_sources():
+    """The text files of scripts/ci (the map file and its scripts), without the bytecode that
+    Python writes there when a test loads scripts/ci/tiers.py."""
+    return sorted(p for p in (ROOT / "scripts" / "ci").rglob("*")
+                  if p.is_file() and "__pycache__" not in p.parts and p.suffix != ".pyc")

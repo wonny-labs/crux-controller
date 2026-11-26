@@ -88,7 +88,7 @@ CI runs in the three tiers of Crux, with its entry point, tier names, map file f
 
 | Tier | When | What runs |
 |---|---|---|
-| `fast` | every push to a draft pull request, a Jenkins branch build | the tooling tests, and the checks of the parts of the repository that the change touches; a change to a CI, build or script file, `west.yml`, a CMake, Kconfig, `.conf` or overlay file, `budgets/`, or a path outside the parts runs `full` instead |
+| `fast` | every push to a draft pull request, a Jenkins branch build | the tooling tests, and the checks of the parts of the repository that the change touches; a change to a CI, build or script file, `west.yml`, a CMake, Kconfig, `.conf` or overlay file, `budgets/`, a path outside the parts, or more than three parts runs `full` instead |
 | `full` | a pull request that is ready for review and every push to it, a push to `main`, a Jenkins change request | every check of the table above, under the path filters of its workflow |
 | `nightly` | daily on `main` | every check whatever the change, and the build against `crux-pilot` main |
 
