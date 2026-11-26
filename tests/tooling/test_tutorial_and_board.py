@@ -190,14 +190,14 @@ class Tutorial(Common, unittest.TestCase):
                     ("docs/getting-started.md", "docs/dev-container.md", "docs/native-setup.md"))
         self.assertLess(len(read(TUTORIAL).split()), setup / 3)
 
-    def test_parts_a_to_c_with_the_no_board_line_and_the_board_table(self):
+    def test_parts_a_to_c_with_the_no_board_line_and_the_link_to_the_supported_boards(self):
         body = read(TUTORIAL)
         parts = [h for h in headings(TUTORIAL) if h.startswith("Part ")]
         self.assertEqual(["Part A", "Part B", "Part C"], [p[:6] for p in parts])
         self.assertLess(body.index("## Part B"), body.index("## Part C"))
         part_c = section(TUTORIAL, r"Part C")
-        self.assertIn("| Board | `-b` target | Probe | Board guide |", part_c)
-        self.assertIn("`mimxrt1060_evk@B//qspi`", part_c)
+        self.assertIn("../README.md#supported-boards", part_c)
+        self.assertIn("-b 'mimxrt1060_evk@B//qspi'", part_c)
         self.assertIn("board-bring-up.md", part_c)
         self.assertIn("roadmap.md", part_c)
         self.assertRegex(part_c, r"authori[sz]ation")

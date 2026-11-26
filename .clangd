@@ -2,7 +2,7 @@
 # of the VS Code task "Board: Build" (scripts/build-board.sh); Zephyr writes compile_commands.json into every build
 # folder.
 CompileFlags:
-  CompilationDatabase: build/mimxrt1060_evk_B_qspi--current
+  CompilationDatabase: build/current
 ---
 # Zephyr adds these GCC options to the board build (zephyr/CMakeLists.txt, cmake/compiler/gcc/compiler_flags.cmake
 # and target_arm.cmake); clang rejects or ignores them. The list is Crux's (-fno-freestanding comes from native_sim
