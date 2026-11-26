@@ -7,8 +7,8 @@
       "request": "launch",
       "servertype": "jlink",
       "cwd": "${workspaceFolder}",
-      "executable": "${workspaceFolder}/build/mimxrt1060_evk_B_qspi--current/zephyr/zephyr.elf",
-      "device": "MIMXRT1062xxx6A",
+      "executable": "${workspaceFolder}/build/current/zephyr/zephyr.elf",
+      "device": "${input:board}",
       "interface": "swd",
       "serverArgs": ["-speed", "auto"],
       "gdbPath": "${env:ZEPHYR_SDK_INSTALL_DIR}/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gdb",
@@ -21,8 +21,8 @@
       "request": "attach",
       "servertype": "jlink",
       "cwd": "${workspaceFolder}",
-      "executable": "${workspaceFolder}/build/mimxrt1060_evk_B_qspi--current/zephyr/zephyr.elf",
-      "device": "MIMXRT1062xxx6A",
+      "executable": "${workspaceFolder}/build/current/zephyr/zephyr.elf",
+      "device": "${input:board}",
       "interface": "swd",
       "serverArgs": ["-speed", "auto"],
       "gdbPath": "${env:ZEPHYR_SDK_INSTALL_DIR}/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gdb",
@@ -35,9 +35,18 @@
       "servertype": "external",
       "gdbTarget": "localhost:2331",
       "cwd": "${workspaceFolder}",
-      "executable": "${workspaceFolder}/build/mimxrt1060_evk_B_qspi--current/zephyr/zephyr.elf",
-      "device": "MIMXRT1062xxx6A",
+      "executable": "${workspaceFolder}/build/current/zephyr/zephyr.elf",
+      "device": "${input:board}",
       "gdbPath": "${env:ZEPHYR_SDK_INSTALL_DIR}/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gdb"
+    }
+  ],
+  "inputs": [
+    {
+      "id": "board",
+      "type": "pickString",
+      "description": "Board of the last board build (sets the J-Link device)",
+      "options": [{ "label": "mimxrt1060_evk@B/mimxrt1062/qspi", "value": "MIMXRT1062xxx6A" }],
+      "default": "MIMXRT1062xxx6A"
     }
   ]
 }

@@ -1,37 +1,70 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
-# Board build of one build configuration of app/ for the RT1060-EVKB, for the VS Code tasks and debug profiles.
+# Board build of one build configuration of app/, for the VS Code tasks and debug profiles.
 #
-#   scripts/build-board.sh <configuration>   build it in build/<configuration>
-#   scripts/build-board.sh --clean           delete every build/<configuration> and the current build link
+#   scripts/build-board.sh [--board <board>] <configuration>   build it in build/<board folder>/<configuration>
+#   scripts/build-board.sh [--board <board>] --clean           delete build/<board folder>, and the current build
+#                                                             link if it points into that folder
+#
+# The board is --board, else the environment variable CRUX_BOARD_TARGET (the name that Crux's scripts use), else
+# west's own setting build.board (`west config build.board`), else the default board below. The board folder is the
+# board name with each '@' and '/' replaced by '_'; board_folder() below is the only place that derives it. west's
+# build.dir-fmt is not used for it: its {board} keeps the '/' of the qualifiers and it has no field for the build
+# configuration.
 #
 # The CMake arguments of each configuration are those of the Budget job (.github/workflows/budget.yml), with the
 # baseline gate required; a tooling test compares them. They are passed only when the build folder has no build
 # system yet: extra arguments make west configure again, and the folder keeps them in its CMake cache, so a later
-# run is an incremental build. After a successful build, the link build/mimxrt1060_evk_B_qspi--current points at
-# the folder just built, and the VS Code profiles and the task Board: Flash use the image behind it. A failed
-# build leaves the link as it was. The script runs from the repository root wherever it is started. It never
-# flashes or touches a board.
+# run is an incremental build. After a successful build, the link build/current points at the folder just built,
+# and the VS Code profiles and the task Board: Flash use the image behind it; west flash reads the board from that
+# build. A failed build leaves the link as it was. The script runs from the repository root wherever it is started.
+# It never flashes or touches a board.
 set -euo pipefail
 
-board='mimxrt1060_evk@B//qspi'
-link='mimxrt1060_evk_B_qspi--current'
+default_board='mimxrt1060_evk@B/mimxrt1062/qspi'
+link='current'
 configurations=(base workload net file system sntp management)
 
 usage() {
-    printf 'Usage: %s <configuration> | --clean\n' "$0" >&2
+    printf 'Usage: %s [--board <board>] <configuration> | [--board <board>] --clean\n' "$0" >&2
     printf '       configurations: %s\n' "${configurations[*]}" >&2
     exit 2
 }
 
+# The folder below build/ of a board target such as mimxrt1060_evk@B/mimxrt1062/qspi.
+board_folder() {
+    local folder="${1//@/_}"
+    printf '%s' "${folder//\//_}"
+}
+
+board=""
+if [[ $# -ge 1 && "$1" == --board ]]; then
+    [[ $# -ge 2 && -n "$2" ]] || usage
+    board="$2"
+    shift 2
+fi
 [[ $# -eq 1 ]] || usage
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
+board="${board:-${CRUX_BOARD_TARGET:-}}"
+if [[ -z "$board" ]]; then
+    board="$(west config build.board 2>/dev/null || true)"
+    board="${board:-$default_board}"
+fi
+# A Zephyr board target: board name, optional @revision, optional /qualifiers. Nothing else, because the name
+# becomes a folder below build/.
+if [[ ! "$board" =~ ^[A-Za-z0-9_]+(@[A-Za-z0-9_.]+)?(/[A-Za-z0-9_]*)*$ ]]; then
+    printf 'build-board: %s is not a board target (board[@revision][/soc[/variant]])\n' "$board" >&2
+    exit 2
+fi
+folder="build/$(board_folder "$board")"
+
 if [[ "$1" == --clean ]]; then
-    for name in "${configurations[@]}"; do
-        rm -rf -- "build/$name"
-    done
-    rm -f -- "build/$link"
+    target="$(readlink "build/$link" 2>/dev/null || true)"
+    if [[ -n "$target" && "build/${target%%/*}" == "$folder" ]]; then
+        rm -f -- "build/$link"
+    fi
+    rm -rf -- "$folder"
     exit 0
 fi
 
@@ -63,7 +96,7 @@ case "$1" in
     *) usage ;;
 esac
 name="$1"
-build="build/$name"
+build="$folder/$name"
 
 if [[ -d "build/$link" && ! -L "build/$link" ]]; then
     printf 'build-board: build/%s is a folder, not a link; move it away, then run this again\n' "$link" >&2
@@ -84,5 +117,5 @@ if [[ ! -f "$build/zephyr/zephyr.elf" ]]; then
     exit 1
 fi
 rm -f -- "build/$link"
-ln -s "$name" "build/$link"
-printf 'build-board: %s built; build/%s points at it\n' "$name" "$link"
+ln -s "${build#build/}" "build/$link"
+printf 'build-board: %s for %s built; build/%s points at it\n' "$name" "$board" "$link"

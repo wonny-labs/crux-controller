@@ -39,7 +39,7 @@ bash scripts/dev-shell.sh west build -p always -b 'mimxrt1060_evk@B//qspi' -d bu
 The image is `build/net/zephyr/zephyr.bin`, with `zephyr.elf` and `zephyr.meta` next to it. The `workload` image,
 which has no network, is the build of [the Tutorial](tutorial.md#4-build-the-image-for-the-rt1060-evkb). CI uploads
 no image, so the image is built where the board is. In VS Code, the task **Board: Build** builds the same
-configuration in the same `build/net` ([VS Code tasks and debug profiles](#vs-code-tasks-and-debug-profiles)).
+configuration in `build/<board folder>/net` ([VS Code tasks and debug profiles](#vs-code-tasks-and-debug-profiles)).
 
 ## 2. Connect the probe
 
@@ -127,18 +127,19 @@ values below, and the VS Code tasks and profiles.
 
 The tasks are in [.vscode/tasks.json](../.vscode/tasks.json) (**Terminal > Run Task**) and the profiles in
 [.vscode/launch.json](../.vscode/launch.json) (**Run and Debug**). **Board: Build** runs
-[`scripts/build-board.sh`](../scripts/build-board.sh) for the build configuration you pick, `net` by default. It
-builds it in `build/<configuration>` with the CMake arguments of the `Budget` job, and after a successful build it
-points the link `build/mimxrt1060_evk_B_qspi--current` at that folder. A failed build leaves the link as it was.
-The other tasks and the profiles use the image behind the link, so one set serves every configuration. The
+[`scripts/build-board.sh`](../scripts/build-board.sh) for the board and the build configuration you pick, `net` by default.
+It builds in `build/<board folder>/<configuration>`, where the board folder is the board target with `_` for each `@` and `/` (`build/mimxrt1060_evk_B_mimxrt1062_qspi/net`), with the CMake arguments of the `Budget` job.
+After a successful build it points the link `build/current` at that folder; a failed build leaves the link as it was.
+The other tasks and the profiles use the image behind the link, so one set serves every board and configuration.
+On the command line, the script takes `--board <board target>`; without it, it uses `CRUX_BOARD_TARGET`, then `west config build.board`, then the default board of the [README](../README.md#supported-boards). The
 `management` configuration needs the Mbed TLS group, which the Dev Container does not switch on
 ([the `workload` to `sntp` scenarios](native-setup.md#run-the-workload-to-sntp-scenarios) show how).
 
 | Task or profile | What it does |
 |---|---|
-| **Board: Build** | Builds the configuration you pick, incrementally after the first build |
-| **Board: Flash** | Checks for the probe, then runs `west flash -d build/mimxrt1060_evk_B_qspi--current --runner jlink` in the same process: flashes the last board build. Without a probe it stops before `west flash` |
-| **Board: Clean** | Deletes every `build/<configuration>` and the link; `build/host` and `twister-out` stay |
+| **Board: Build** | Builds the board and configuration you pick, incrementally after the first build |
+| **Board: Flash** | Checks for the probe, then runs `west flash -d build/current --runner jlink` in the same process: flashes the last board build, whose board west reads from the build. Without a probe it stops before `west flash` |
+| **Board: Clean** | Deletes the board folder of the board you pick, and the link if it points into it; `build/host` and `twister-out` stay |
 | **Board: Debug** | Checks for the probe and runs **Board: Build**, then flashes the image through the J-Link GDB Server in the container, resets the board and stops at `main` |
 | **Board: Attach** | Checks for the probe, then connects through the J-Link GDB Server in the container to the image that runs, without build, reset or download. Connecting may halt the target |
 | **Board: Attach (external)** | Like **Board: Attach**, without the probe check, through a GDB server that VS Code does not start, at `localhost:2331`, for example a `JLinkGDBServer` that you start in a terminal of the container |
@@ -146,6 +147,7 @@ The other tasks and the profiles use the image behind the link, so one set serve
 **Board: Flash** runs the probe check in its own command.
 **Board: Debug** and **Board: Attach** run it first as the hidden task **Board: Check probe** (for **Board: Debug**, before **Board: Build**), because a failing `preLaunchTask` stops the session.
 When no J-Link (USB vendor ID `1366`) is visible in the container, the check stops with `No J-Link probe found`, the `usbipd attach` command for Windows with WSL2 and a pointer to [2. Connect the probe](#2-connect-the-probe).
+The three profiles ask for the board of the last board build, which sets the J-Link device name; pick the board that **Board: Build** built.
 
 | Build | Optimisation |
 |---|---|
@@ -172,6 +174,16 @@ The log shows `workload:` lines `cycle=10` to `cycle=1750` in steps of 10 and `n
 listening, `net: exchange failed cycle=<n> result=-2` is the expected line, one per message; with a peer,
 `net: exchange ok cycle=<n>`. The record of the two runs is
 [docs/findings/s2-first-board-run.md](findings/s2-first-board-run.md).
+
+## Add a board
+
+A board is supported when every build configuration builds for it and this page says how to run it.
+
+1. Add its Zephyr board target as an option of the `board` input in [.vscode/tasks.json](../.vscode/tasks.json), and with its J-Link device name in [.vscode/launch.json](../.vscode/launch.json).
+2. Put the values that only this board needs in `app/boards/`, named after the board target with `_` for each `/` (for example `mimxrt1060_evk_mimxrt1062_qspi.overlay`).
+   Zephyr applies such a file to every build configuration, so it holds only what every configuration of that board needs.
+3. Build each configuration with `scripts/build-board.sh --board <board target> <configuration>`.
+4. Add a row to the [README](../README.md#supported-boards) table.
 
 ## Known limits
 
