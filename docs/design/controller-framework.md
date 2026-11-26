@@ -80,7 +80,7 @@ product/                 manifest repository
     boards/<board>.overlay
 ```
 
-The manifest imports both repositories at pinned commits:
+The manifest lists both repositories at pinned commits and imports the Crux manifest, which brings in Zephyr, without the three wolf projects:
 
 ```yaml
 manifest:
@@ -91,6 +91,11 @@ manifest:
     - name: crux-pilot          # Crux, at a pinned commit
       remote: crux
       revision: <commit>
+      import:
+        name-blocklist:
+          - wolfssl
+          - wolfssh
+          - wolfpsa
     - name: crux-controller     # the controller framework, at a pinned commit
       remote: crux
       revision: <commit>
@@ -144,7 +149,7 @@ stateDiagram-v2
     Initialised --> Running: start succeeds
     Initialised --> Fault: activation or start fails
     Initialised --> Held: start not called
-    Held --> Running: operator start, prerequisites healthy
+    Held --> Running: operator start after a prerequisite hold, all prerequisites healthy
     Running --> Stopped: stop returns in time
     Running --> Fault: application reports a fault
     Stopped --> Running: operator start

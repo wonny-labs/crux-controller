@@ -264,6 +264,7 @@ Each framework service has one health value: **healthy**, **degraded** (running 
 | Command line | Every configured transport started | Some configured transports started | No transport started |
 
 Reachability of a remote peer is not part of any service's health, because it depends on the network outside the device; an application that needs it reports it as its own status item.
+
 The product's required services are of two kinds:
 
 - **Start prerequisites**: the framework checks them in step 11 and before every operator start, and holds the application while one of them is not healthy.
@@ -355,7 +356,7 @@ FatFs stays a selectable Crux File provider for other products, and a build with
 
 ### 5.6 Board facts
 
-Whether the reset cause reads WATCHDOG after a WDOG1 reset, whether the retained region survives it, whether a software reset reads CPU_LOCKUP together with SOFTWARE, with and without the marker, and whether a power cycle, which reads as PIN, leaves the region invalid are board facts of the RT1060-EVKB.
+Whether the reset cause reads WATCHDOG after a WDOG1 reset, whether the retained region survives that reset and a pin reset, whether a software reset reads CPU_LOCKUP together with SOFTWARE, with and without the marker, and whether a power cycle, which reads as PIN, leaves the region invalid are board facts of the RT1060-EVKB.
 A board check early in delivery stage 2 shows them, in a run that needs its own board authorisation (section 8.2).
 
 ## 6. Update and security items
@@ -416,10 +417,10 @@ The last column names the decision or constraint that defines the option.
 | Per-board values live in board files | `app/boards/<board>.conf`, merged with `prj.conf` when `CONF_FILE` is unset, and `app/boards/<board>.overlay`, in the base image and in each product | Established mechanism (Zephyr application development) |
 | Variants are fragments | `EXTRA_CONF_FILE`, `EXTRA_DTC_OVERLAY_FILE`, `FILE_SUFFIX` with fallback | Established mechanism |
 | Roles by devicetree | Aliases `crux-serial0` (console) and `crux-watchdog0` (watchdog), `chosen` `zephyr,log-uart` (logging), node label `controller_storage` (storage) | Established mechanism |
-| No board name in sources | Nothing in the framework module, the base image's sources or the application interface names a board or SoC (P1) | D9 |
+| No board name in sources | Nothing in the framework module, the base image's sources or the application interface names a board or SoC (P1) | P1 |
 | Snippets only for cross-cutting settings | Debug and the RAM disk CI form; never per-board values | Established mechanism (Zephyr snippets) |
 | Generic Kconfig dependencies | `CRUX_CONTROLLER_FILE` depends on `CRUX_FILE_FATFS_RT1060` (`app/Kconfig:40`); it changes to a generic "Crux File provider present" symbol or a `DT_HAS_*_ENABLED` test when Crux offers one | Platform constraint or interim |
-| Board as a build input | `scripts/build-board.sh` builds the RT1060-EVKB only; the board target becomes an input, and builds go to `build/<board folder>/<configuration>` | D9 |
+| Board as a build input | `scripts/build-board.sh` builds the RT1060-EVKB only; the board target becomes an input, and builds go to `build/<board folder>/<configuration>` | P1 |
 
 Adding a board takes, in this order: the board's `.conf` and `.overlay`, the aliases and `chosen` nodes, the partition layout from the secure boot work, a CI row, and the smallest build configuration as its first passing build.
 A second board is outside the current scope (D9), and the SoC gates of [C12](controller-framework-platform-gaps.md#c12-soc-gates) apply.
@@ -437,7 +438,7 @@ The 25 percent free margin of `budgets/limits.json` is a budget of the reference
 
 The fixture application is a test, not an image or variant: it has no board build and no `Budget` row, and it is not a product template.
 
-### 7.3 Source zones and OS neutrality (D17)
+### 7.3 Source zones and OS neutrality (P2)
 
 `scripts/check_boundary.py` checks only the trees in its `RULES` (`app/src`, `workload`, `app/compose`, `app/os`; lines 125-162), and `check()` scans only those trees (lines 308-313).
 A framework source outside them would escape the check, so every source of the module, the base image and the fixture application lives in a checked zone; the paths are open, decided at implementation.
@@ -490,7 +491,7 @@ Zephyr priorities, where a lower number is a higher priority; a product tunes th
 | Framework unit | The portable core: the states and lifecycles of section 4, policies, boot counter and retained record rules, startup step table, health verdict and trial deadline | Host tests, every pull request |
 | Framework integration | Composition, startup order, startup and runtime supervision, safe mode, the application contract through the fixture application, the scenarios of section 8.4 | `native_sim`, every pull request |
 | Reference image | The base image builds for the board within its budget and runs on `native_sim`, with image-level regression tests | CI, every pull request |
-| Product integration | An independent west workspace imports the framework as a product would (T2), builds and runs on `native_sim` | The nightly tier of a tiered CI as Crux documents it (Crux `main`, `docs/ci.md`, "Use in a product repository") |
+| Product integration | An independent west workspace imports the framework as a product would (T2), builds and runs on `native_sim` | The nightly tier of a tiered CI as Crux documents it (Crux `main` at `62ed69f1`, `docs/ci.md`, "Use in a product repository") |
 | Hardware | The board facts of section 5.6 (early in delivery stage 2); power cut on the medium, timing and jitter of application threads, TLS sessions under application load, output state during a reset | The board, in approved runs only |
 
 - The image keeps essential system-level regression tests even where Crux tests the component: an HTTPS login, the TLS-only listener and the start order in the base image.
@@ -504,14 +505,15 @@ Zephyr priorities, where a lower number is a higher priority; a product tunes th
 
 | Stage | Content | Ends with |
 |---|---|---|
-| 1. Foundation | The Zephyr module, the repository role (D12), service composition, the base image, the boundary check of section 7.3 and the consumer integration job; it shows that a product imports the module and that the base services compose | Criteria 1 to 3, 13, 14 and 26 to 30 |
+| 1. Foundation | The Zephyr module, the repository role (D12), service composition, the base image, the boundary check of section 7.3 and the consumer integration job; it shows that a product imports the module and that the base services compose | Criteria 1 to 3, 13, 14, 26 and 28 to 30 |
 | 2. Reliability | First, the board check of section 5.6; then the startup and runtime watchdog, the channel lifecycle, the supervisor, boot counter, safe mode, retained record and diagnostics | Criteria 6, 7, 10, 11 and 16 to 19 |
 | 3. Application integration | The application contract of sections 3 and 4, shown through the fixture application | Criteria 4, 5, 8, 9 and 20 to 23 |
-| 4. Framework completion | Persistence on LittleFS and the other [platform gaps](controller-framework-platform-gaps.md), as Crux closes them | Criteria 12 and 24 on LittleFS, criterion 25, and the end of every interim state that section 8.5 does not accept for Framework Complete |
+| 4. Framework completion | Persistence on LittleFS and the interim states of section 8.5 | Criteria 12 and 24 on LittleFS, criterion 25, and the end of every interim state that section 8.5 does not accept for Framework Complete |
 | 5. Product readiness | Per product: secure boot and update, factory reset, hardware validation, security hardening, and validation of the application interface with a first real runtime consumer | PR1 to PR6 and criterion 31 |
 | 6. Linux functions (later) | A Linux adapter over Crux's Linux providers, coordinated with Crux | A later specification |
 
 Criterion 15 holds in every delivery stage.
+Criterion 27 is checked in each delivery stage for the options of section 7.1 that the stage adds.
 Later items:
 
 | Item | Rule |
@@ -527,7 +529,7 @@ Later items:
 
 | Milestone | Reached when | Interim states |
 |---|---|---|
-| Framework MVP | Delivery stages 1 to 3 end: criteria 1 to 11, 13 to 23 and 26 to 30 | Every interim state of section 8.5 is accepted |
+| Framework MVP | Delivery stages 1 to 3 end: criteria 1 to 11, 13 to 23 and 26 to 30, with criterion 27 for the options that these stages add | Every interim state of section 8.5 is accepted |
 | Framework Complete | Delivery stage 4 ends: every mandatory function and platform dependency, including persistence on LittleFS; criteria 1 to 30 | Only the interim states that section 8.5 accepts for Framework Complete |
 | Product Ready | Delivery stage 5 ends, per product on its board: PR1 to PR6 and criterion 31 | None of section 8.5 for the functions the product uses |
 
@@ -560,10 +562,10 @@ Framework MVP:
 | 22 | F3 | Partial start failure: a `native_sim` scenario in which a channel activation fails and one in which `start` returns an error: the activated channels are deleted, `safe_state` ran, the application is in fault, the controller state is unchanged, and device management answers; host tests show that a requirement beyond the channel capacity and a duplicate name are refused in `init`. |
 | 23 | R4 | Required-service failure: a `native_sim` scenario in which a start prerequisite fails at boot: the application is held, the controller is degraded, and after the service recovers an operator start runs the application; and one in which a runtime dependency fails while the application runs: the change is reported through the status service and `ctx`, the application keeps running, and the controller is degraded. |
 | 26 | F4 | Device management: a `native_sim` scenario of the base image answers an HTTPS login through web management and a command through the serial command line; an image with SSH is checked once Crux offers the conditions of D6. |
-| 27 | F6 | Build options: a build test sets each option of section 7.1 to a value other than its default and builds, and shows that a value the rule column refuses (SSH with the Mbed profile, the TLS identity option in a product build) fails the build. |
+| 27 | F6 | Build options: a build test sets each option of section 7.1 to a value other than its default that the pinned Crux supports and builds; a value that needs a Crux change that is not at the pin (the SSH command line transport and the Wolf TLS profile, [C7](controller-framework-platform-gaps.md#c7-ssh-and-tls-profiles); the shared console and logging UART, [C6](controller-framework-platform-gaps.md#c6-console-and-logging-uart)) fails the build with a clear message, as does a value that the rule column refuses (the TLS identity option in a product build); each option is checked in the delivery stage that adds it. |
 | 28 | S1 | First account: a `native_sim` scenario shows that a new image has no account and accepts no login, that first-account setup over the serial command line creates the first account, and that setup is refused after that first save. |
-| 29 | S2 | No unauthenticated erase: a `native_sim` scenario shows that, after the first account exists, the serial command line refuses every command without an Access login, so no unauthenticated command erases credentials or configuration. |
-| 30 | P1 | No board name: a check fails when a C source or header of the framework module, the base image or the application interface names a board or an SoC; board files are outside the check. |
+| 29 | S2 | No unauthenticated erase: a `native_sim` scenario shows that, before the first account exists, no unauthenticated serial command erases credentials or configuration, and that, after it exists, the serial command line accepts the login command and refuses every other command without an Access login, so no unauthenticated command erases credentials or configuration. |
+| 30 | P1 | No board name: a check fails when a C source or header of the framework module, the base image or the application interface names a board or an SoC; board files are outside the check, and board names in Kconfig and CMake stay under [C12](controller-framework-platform-gaps.md#c12-soc-gates) until a second board enters the scope (D9). |
 
 Framework Complete adds:
 
@@ -601,7 +603,7 @@ Each interim state is accepted until its Crux change is at the pin; the [platfor
 
 ## 9. Decision register
 
-D1 to D17 are decided, except D9, which is deferred, and D16, which is a product decision whose direction is decided and whose details each product settles at product readiness.
+D1 to D16 are decided, except D9, which is deferred, and D16, which is a product decision whose direction is decided and whose details each product settles at product readiness.
 
 | # | Decision | State | Chosen | Not chosen | Source |
 |---|---|---|---|---|---|
@@ -621,7 +623,6 @@ D1 to D17 are decided, except D9, which is deferred, and D16, which is a product
 | D14 | Application start without a hardware watchdog | Decided | In product builds the application does not start; `native_sim` and bench builds may allow it by an explicit build option | Start the application and report "watchdog not armed" | Crux System reports an unavailable watchdog as not supported |
 | D15 | Recovery and factory reset authority | Decided | Factory reset by an authorised operator through Crux's planned Access erase, with an optional product-defined physical-presence input, and device preparation as the recovery when Access is unusable; it erases credentials and configuration and keeps the device identity (section 5.3) | An unauthenticated serial wipe | IEC 62443-4-2 CR 4.2, as direction |
 | D16 | Serial command line in production and audit persistence | Product decision | Direction in section 6.2; each product settles the details at product readiness | — | IEC 62443-4-2 CR 2.8 to 2.11 and CR 7.7, as direction |
-| D17 | Framework core structure | Decided | The framework core is portable C; OS-specific code sits behind port headers in the adapter and composition zones (section 7.3) | — | Ports and adapters (A. Cockburn, "Hexagonal architecture"); Crux ADR-0003 R2 |
 
 ## 10. Terms
 
@@ -668,7 +669,7 @@ These sources cover this page, the [overview](controller-framework.md) and the [
 - RFC 7435, "Opportunistic Security: Some Protection Most of the Time" (trust on first use).
 - littlefs design notes: copy-on-write and power-loss resilience.
 - Crux at the pin: `zephyr/Kconfig`, `zephyr/CMakeLists.txt`, `components/logging/ports/zephyr/`, `components/cli/ports/zephyr/include/crux/cli_zephyr.h`, `components/system/`, `components/access/include/crux/access.h`, `components/mgmt_status/include/crux/management_status.h`, `components/file/ports/zephyr/CMakeLists.txt`, `components/image_state/`, `components/*/ports/linux`, `docs/decisions/0001-application-boundary-and-api-stability.md` (Decision 4), `docs/decisions/0003-p9-result-services-keep-narrow-thread-sync.md` (R2, R5), `docs/management-in-a-product.md`, `tests/native/configuration_settings_littlefs`, `tests/native/file_littlefs`, `templates/product/README.md`.
-- Crux `main`: `docs/superpowers/specs/2026-10-24-system-health-design.md`, section "Supervising several activities"; `docs/ci.md`, "Use in a product repository".
+- Crux `main`: `docs/superpowers/specs/2026-10-24-system-health-design.md`, section "Supervising several activities"; `docs/ci.md` at `62ed69f1`, "Use in a product repository".
 - Crux issues [#188](https://github.com/wonny-labs/crux-pilot/issues/188) and [#297](https://github.com/wonny-labs/crux-pilot/issues/297).
 - This repository: `scripts/check_boundary.py`, `scripts/build-board.sh`, `budgets/limits.json`, `docs/dependencies.md`, `docs/glossary.md`, `docs/roadmap.md`.
 - IEC 61508-4 (definition of safe state); IEC 62443-4-2 by clause title (CR 1.5, 2.8 to 2.11, 4.2, 7.3, 7.4, 7.7); ETSI EN 303 645, provision 5.1; the EU Cyber Resilience Act, Annex I; all as direction, not as compliance claims.
