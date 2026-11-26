@@ -71,6 +71,7 @@ The [capabilities](capabilities.md), the [findings](findings/README.md), the [ro
 | [documentation-guidelines.md](documentation-guidelines.md) | Reference | The checklist, page types and homes for every page, and the check that guards them. |
 | [dependencies.md](dependencies.md) | Reference | What `west.yml` fetches, why, under which licence, and how the Crux import is narrowed. |
 | [board-bring-up.md](board-bring-up.md) | How-to guide | The RT1060-EVKB Rev B board route. |
+| [design/controller-framework-spec.md](design/controller-framework-spec.md) | Explanation | The proposed controller framework: its services, application interface, images and the decisions they need. |
 
 ### In `docs/findings/`
 
