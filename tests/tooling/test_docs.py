@@ -65,7 +65,7 @@ class Promises(unittest.TestCase):
         body = text("RELEASE.md")
         self.assertIn("never published", body)
         self.assertIn("approval", body)
-        self.assertIn("c5439c51", body)
+        self.assertIn("13c950bb", body)
         self.assertIn("docs/product-composition.md", body)
 
 
@@ -122,8 +122,8 @@ class Dependencies(unittest.TestCase):
 
     def test_the_pinned_crux_revision_matches_the_manifest(self):
         manifest = yaml.safe_load((ROOT / "west.yml").read_text())["manifest"]
-        pilot = next(p for p in manifest["projects"] if p["name"] == "crux-pilot")
-        short = pilot["revision"][:8]
+        crux = next(p for p in manifest["projects"] if p["name"] == "crux-pilot")
+        short = crux["revision"][:8]
         for name in ("RELEASE.md", "docs/dependencies.md", "CHANGELOG.md"):
             self.assertIn(short, text(name), name)
 
@@ -289,6 +289,36 @@ class GenericWording(unittest.TestCase):
     def test_the_documents_say_the_ci_where_the_sentence_is_not_about_github(self):
         self.assertNotIn("GitHub Actions", text("docs/roadmap.md"))
         self.assertNotIn("GitHub Actions", text("docs/glossary.md"))
+
+
+class ParagraphRules(unittest.TestCase):
+    """The guidelines carry Crux's paragraph and blank-line rules, and no page has two blank lines in a row."""
+
+    def test_the_guidelines_state_the_paragraph_and_blank_line_rules(self):
+        body = text("docs/documentation-guidelines.md")
+        self.assertIn("\n## Paragraphs and line breaks\n", (ROOT / "docs/documentation-guidelines.md").read_text())
+        for rule in ("one sentence on each line", "Do not reflow text that a change does not otherwise touch",
+                     "one blank line between paragraphs and around every heading, list, table and fenced code block",
+                     "Never put two blank lines in a row", "https://sembr.org/",
+                     "https://spec.commonmark.org/0.31.2/#paragraphs"):
+            self.assertIn(rule, body, rule)
+
+    def test_no_page_has_two_blank_lines_in_a_row(self):
+        names = ["README.md", "CONTRIBUTING.md", "RELEASE.md", "SECURITY.md"]
+        names += [str(p.relative_to(ROOT)) for p in sorted((ROOT / "docs").glob("*.md"))]
+        for name in names:
+            self.assertNotIn("\n\n\n", (ROOT / name).read_text(), name)
+
+
+class EntryTable(unittest.TestCase):
+    def test_the_documentation_map_is_the_last_row_of_where_to_read_next(self):
+        # Reader order as in Crux: the task rows first, the map for any other page last.
+        body = (ROOT / "README.md").read_text()
+        part = body[body.index("## Where to read next"):]
+        part = part[:part.index("\n## ")]
+        rows = [line for line in part.splitlines() if line.startswith("| ") and not line.startswith("| You want")]
+        self.assertEqual("| Find any other page by task | [Documentation map](docs/README.md) |", rows[-1])
+        self.assertEqual(1, sum("docs/README.md" in row for row in rows))
 
 
 if __name__ == "__main__":

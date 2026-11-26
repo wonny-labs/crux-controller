@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Tests of scripts/check-patch.sh, the checkpatch wrapper adopted from the Crux Pilot style kit.
+"""Tests of scripts/check-patch.sh, the checkpatch wrapper adopted from the Crux style kit.
 
 Most tests run it against a stand-in for Zephyr's checkpatch.pl, so that the wiring (which lines
 are handed over, the rule set, the exit status, the refusals) is checked on every machine and

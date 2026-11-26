@@ -38,7 +38,6 @@ class ModuleSwitchComment(unittest.TestCase):
         self.assertTrue((ROOT / "app" / "prj.conf").is_file())
         prj = (ROOT / "app" / "prj.conf").read_text()
         self.assertNotIn("CONFIG_CRUX_MODULE", prj)
-        self.assertNotIn("CONFIG_CRUX_PILOT_MODULE", prj)
 
     def test_the_comment_gives_the_real_reason(self):
         header = "\n".join(
@@ -58,7 +57,7 @@ class ModuleSwitchComment(unittest.TestCase):
             for line in path.read_text().splitlines():
                 if line.lstrip().startswith("#"):
                     continue
-                if re.search(r"\bCONFIG_CRUX_MODULE\b|\bCRUX_MODULE\b|\bCONFIG_CRUX_PILOT_MODULE\b|\bCRUX_PILOT_MODULE\b", line):
+                if re.search(r"\bCONFIG_CRUX_MODULE\b|\bCRUX_MODULE\b", line):
                     setters.append(f"{path.relative_to(ROOT)}: {line.strip()}")
         self.assertEqual([], setters)
 

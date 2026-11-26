@@ -8,13 +8,19 @@ configuration, so that a product team can read how each Crux capability is compo
 
 ## Quick start
 
-You do not need a board. Set up with [Getting started](docs/getting-started.md), then follow the
-[Tutorial](docs/tutorial.md): it takes you from a clone to the host tests, one run of the `native_sim` scenarios with
-Twister (Zephyr's test runner) and one EVKB build.
+You do not need a board. Supported: x86_64 Linux with Docker Engine, through the Dev Container;
+[Set up without the Dev Container](docs/native-setup.md) is the alternative on Ubuntu 24.04.
 
-Supported: x86_64 Linux with Docker Engine, through the Dev Container; [Set up without the Dev Container](docs/native-setup.md)
-is the alternative on Ubuntu 24.04. Each command runs in it through
-`bash scripts/dev-shell.sh`; [Getting started](docs/getting-started.md#set-up-the-dev-container) covers the set-up.
+1. Clone the repository and open the Dev Container, as [Getting started](docs/getting-started.md#set-up-the-dev-container)
+   says: **Dev Containers: Reopen in Container** in VS Code, or `bash scripts/dev-shell.sh` on the command line.
+2. Wait for the automatic set-up to finish; you do not run it. It checks the folder layout, fetches Zephyr and the
+   modules with west and installs the Zephyr SDK, with a `setup:` line for each piece of work it does. It ends with
+   `setup: workspace <folder>, Zephyr SDK <version>, West version: <version>`, or with `setup: failed during <step>`
+   and the command that reruns it. In VS Code, each attach prints `bootstrap: workspace   ok` and
+   `bootstrap: Zephyr SDK  ok`.
+3. Follow the [Tutorial](docs/tutorial.md): the host tests, one run of the `native_sim` scenarios with Twister
+   (Zephyr's test runner) and one EVKB build.
+
 Look a failure up by its message in [troubleshooting](docs/troubleshooting.md).
 
 ## Capabilities
@@ -39,14 +45,14 @@ it, and [Adding a capability](docs/adding-a-capability.md) shows how a configura
 
 | You want to | Read |
 |---|---|
-| Find any page by task | [Documentation map](docs/README.md) |
 | Understand the source trees, the zones, the threads and how Crux is consumed | [Architecture](docs/architecture.md), with the [glossary](docs/glossary.md) |
 | Know what is built and what has run on a board | [Roadmap](docs/roadmap.md) |
 | Make a first change, from a branch to a pull request | [First change](docs/first-change.md), then [CONTRIBUTING.md](CONTRIBUTING.md) |
 | Add a capability | [Adding a capability](docs/adding-a-capability.md) and [the composition zone](docs/composition-zone.md) |
 | Review a change | [Reviewing](docs/reviewing.md) |
 | Run an image on a board | [Board bring-up](docs/board-bring-up.md) |
-| Build a product of your own on Crux | Crux's guides at the pinned revision: [Choosing an API](https://github.com/wonny-labs/crux-pilot/blob/c5439c51741bceb8f3327c11882dc3b58bbe2640/docs/choosing-an-api.md), [Composition interfaces](https://github.com/wonny-labs/crux-pilot/blob/c5439c51741bceb8f3327c11882dc3b58bbe2640/docs/composition-interfaces.md), the [Product Composition Guide](https://github.com/wonny-labs/crux-pilot/blob/c5439c51741bceb8f3327c11882dc3b58bbe2640/docs/product-composition.md) with its [product template](https://github.com/wonny-labs/crux-pilot/blob/c5439c51741bceb8f3327c11882dc3b58bbe2640/templates/product/README.md), and [Component readiness](https://github.com/wonny-labs/crux-pilot/blob/c5439c51741bceb8f3327c11882dc3b58bbe2640/docs/component-readiness.md) |
+| Build a product of your own on Crux | Crux's guides at the pinned revision: [Choosing an API](https://github.com/wonny-labs/crux-pilot/blob/13c950bb031fce0b14d4784f1586057d31434de3/docs/choosing-an-api.md), [Composition interfaces](https://github.com/wonny-labs/crux-pilot/blob/13c950bb031fce0b14d4784f1586057d31434de3/docs/composition-interfaces.md), the [Product Composition Guide](https://github.com/wonny-labs/crux-pilot/blob/13c950bb031fce0b14d4784f1586057d31434de3/docs/product-composition.md) with its [product template](https://github.com/wonny-labs/crux-pilot/blob/13c950bb031fce0b14d4784f1586057d31434de3/templates/product/README.md), and [Component readiness](https://github.com/wonny-labs/crux-pilot/blob/13c950bb031fce0b14d4784f1586057d31434de3/docs/component-readiness.md) |
+| Find any other page by task | [Documentation map](docs/README.md) |
 
 ## Status
 

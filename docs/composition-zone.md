@@ -24,7 +24,7 @@ an include of `<crux/thread.h>`, `<crux/sync.h>`, `<crux/serial.h>` or `<crux/qu
 to a directory named `domain/`, which this repository does not have.
 
 CI downloads that script from a fixed commit of `crux-pilot` and checks its SHA-256 before it runs it (the step
-`Run the Crux Pilot product include check` of the `Boundary check` job). A second step of the job runs the same
+`Run the product include check` of the `Boundary check` job). A second step of the job runs the same
 script through the wrapper `check-includes.sh` of `crux-pilot`, downloaded and checked the same way. The pinned
 `crux-pilot` contains the same script with the same SHA-256, so a local run uses the pinned copy. Both commands print
 nothing but a pass line on success.

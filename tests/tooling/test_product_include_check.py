@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Checks that CI runs the Crux Pilot product include check from a verified, immutable download.
+"""Checks that CI runs the Crux product include check from a verified, immutable download.
 
 The Boundary check job downloads check_domain_includes.py from a commit URL and verifies its
 SHA-256 before it runs. The revision of crux-pilot that west.yml pins contains the same file with
@@ -91,7 +91,7 @@ class ProductIncludeCheckStep(unittest.TestCase):
 
     def test_the_step_comment_says_why_the_script_is_downloaded(self):
         lines = CI.read_text().splitlines()
-        start = next(i for i, line in enumerate(lines) if "Run the Crux Pilot product include check" in line)
+        start = next(i for i, line in enumerate(lines) if "Run the product include check" in line)
         comment = "\n".join(lines[start - 3 : start]).lower()
         self.assertTrue(all(line.strip().startswith("#") for line in lines[start - 3 : start]))
         self.assertIn("pin", comment)

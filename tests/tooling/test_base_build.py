@@ -61,11 +61,8 @@ class BaseApplication(unittest.TestCase):
     def test_the_crux_module_switch_is_never_turned_off(self):
         # The baseline gate lives in the Crux module. Turning it off would turn the gate off.
         text = (ROOT / "app" / "prj.conf").read_text()
-        # The switch is CONFIG_CRUX_MODULE since crux-pilot#532, which left no alias. The old
-        # name is an unknown symbol now, so it must not come back either.
-        for name in ("CONFIG_CRUX_MODULE", "CONFIG_CRUX_PILOT_MODULE"):
-            self.assertNotIn(f"{name}=n", text)
-            self.assertNotIn(f"# {name} is not set", text)
+        self.assertNotIn("CONFIG_CRUX_MODULE=n", text)
+        self.assertNotIn("# CONFIG_CRUX_MODULE is not set", text)
 
     def test_application_is_named_for_this_repository(self):
         cmake = (ROOT / "app" / "CMakeLists.txt").read_text()

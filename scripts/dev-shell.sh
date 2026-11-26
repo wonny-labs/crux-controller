@@ -21,7 +21,8 @@
 # CRUX_JLINK=0 skips the J-Link software.
 #
 # CRUX_DEV_IMAGE overrides the image name. GH_TOKEN, when set, is passed to the container for the
-# SDK download. See docs/dev-container.md, "Network and prerequisites".
+# SDK download, and CI, when set, is passed by name so that the setup in the container sees a CI run.
+# See docs/dev-container.md, "Network and prerequisites".
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -74,6 +75,9 @@ elif [[ ! -t 0 ]]; then
 fi
 if [[ -n "${GH_TOKEN:-}" ]]; then
     flags+=(-e GH_TOKEN)
+fi
+if [[ -n "${CI:-}" ]]; then
+    flags+=(-e CI)
 fi
 
 if (($# == 0)); then

@@ -36,16 +36,10 @@
       "verification": 1
     },
     "docs/architecture.md": {
-      "verification": 4
-    },
-    "docs/board-bring-up.md": {
-      "verification": 12
+      "verification": 3
     },
     "docs/dev-container.md": {
-      "verification": 9
-    },
-    "docs/first-change.md": {
-      "verification": 1
+      "verification": 6
     },
     "docs/glossary.md": {
       "verification": 2
@@ -61,9 +55,6 @@
     },
     "docs/troubleshooting.md": {
       "verification": 8
-    },
-    "docs/tutorial.md": {
-      "verification": 2
     }
   }
 }

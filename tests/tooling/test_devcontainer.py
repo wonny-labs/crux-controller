@@ -23,6 +23,9 @@ DEVCONTAINER = ROOT / ".devcontainer"
 WORKFLOWS = ROOT / ".github" / "workflows"
 CI = WORKFLOWS / "ci.yml"
 WORKFLOW = WORKFLOWS / "devcontainer.yml"
+WEST_UPDATE = "west update --narrow -o=--progress"
+# The line of setup.sh that runs it; the options are built just before (no progress option in CI).
+WEST_UPDATE_LINE = 'west update "${update_args[@]}"'
 
 
 def read(path):
@@ -477,7 +480,7 @@ class SetupScript(unittest.TestCase):
     def test_west_init_and_update_run_only_when_the_workspace_is_not_initialised(self):
         guard = self.text.index('if [[ ! -d "$workspace/.west"')
         init = self.text.index("west init -l crux-controller", guard)
-        update = self.text.index("west update\n", init)
+        update = self.text.index(f"{WEST_UPDATE_LINE}\n", init)
         self.assertLess(guard, init)
         self.assertLess(init, update)
 
@@ -489,7 +492,7 @@ class SetupScript(unittest.TestCase):
         self.assertIn('-f "$pending"', condition)
         init = self.text.index("west init -l crux-controller", guard)
         touch = self.text.index('touch "$pending"', init)
-        update = self.text.index("west update\n", touch)
+        update = self.text.index(f"{WEST_UPDATE_LINE}\n", touch)
         remove = self.text.index('rm -f "$pending"', update)
         self.assertLess(init, touch)
         self.assertLess(update, remove)
@@ -573,6 +576,19 @@ init)
     mkdir .west
     if [ "${FAKE_INIT_FAIL:-}" = 1 ]; then exit 1; fi
     echo "[manifest]" >.west/config
+    ;;
+completion)
+    # `completion` is a Zephyr extension command: west knows it only in a workspace after west update.
+    if [ ! -d zephyr/scripts ]; then
+        echo "west: unknown command \"completion\"" >&2
+        exit 1
+    fi
+    if [ "${FAKE_COMPLETION_FAIL:-}" = 1 ]; then
+        echo "# partial"
+        echo "west: completion failed" >&2
+        exit 1
+    fi
+    echo "# west completion script for $2"
     ;;
 update)
     if [ "${FAKE_UPDATE_FAIL:-}" = 1 ]; then exit 1; fi
@@ -707,6 +723,18 @@ class SetupRuns(unittest.TestCase):
         self.assertEqual("", result.stdout, "setup.sh must keep the standard output clean")
         return result
 
+    def test_the_first_update_fetches_narrowly_and_shows_git_progress(self):
+        # --narrow fetches only the pinned revisions; -o=--progress passes --progress to git fetch, so a
+        # long first fetch shows its progress instead of looking stuck (west 1.4.0 options).
+        self.ok()
+        self.assertEqual([WEST_UPDATE], self.fixture.calls("west update"))
+
+    def test_the_first_update_keeps_ci_logs_free_of_progress_lines(self):
+        # With CI set, git progress would only fill the job log, so the option is left out, as Crux's
+        # scripts/bootstrap-zephyr.sh does.
+        self.ok(CI="true")
+        self.assertEqual(["west update --narrow"], self.fixture.calls("west update"))
+
     def test_a_fresh_workspace_is_set_up_in_the_order_of_the_workload_job(self):
         self.ok()
         calls = self.fixture.calls()
@@ -727,7 +755,8 @@ class SetupRuns(unittest.TestCase):
         before = self.fixture.calls()
         result = self.ok()
         new = self.fixture.calls()[len(before):]
-        self.assertEqual(["west --version"], new)
+        # Only the offline west completion script is written again (test_editor_tools.py).
+        self.assertEqual(["west completion bash", "west --version"], new)
         self.assertIn("the workspace is initialised", result.stderr)
 
     def test_the_sdk_directory_without_the_install_marker_is_removed_and_installed_again(self):
@@ -1145,7 +1174,7 @@ class DevcontainerWorkflow(unittest.TestCase):
     def test_the_product_include_check_runs_the_script_of_the_pin_after_checking_its_hash(self):
         # The pinned crux-pilot contains the script, with the hash that ci.yml checks the download
         # against. The container job runs that copy instead of downloading a second one.
-        expected = ci_step("boundary", "Run the Crux Pilot product include check")["env"]["CHECK_SHA256"]
+        expected = ci_step("boundary", "Run the product include check")["env"]["CHECK_SHA256"]
         steps = [step for step in self.job["steps"] if "product include check" in step.get("name", "")]
         self.assertEqual(1, len(steps))
         step = steps[0]
@@ -1591,6 +1620,13 @@ class Documentation(unittest.TestCase):
         self.assertIn("x86_64", line)
         self.assertNotIn("any host", line)
 
+    def test_the_rerun_output_names_the_west_update_reminder(self):
+        # On a rerun setup.sh still prints the reminder to run west update after a pin move (SetupRuns).
+        text = " ".join(self.ref.split())
+        self.assertNotIn(", nothing for a step that is already done", text)
+        self.assertIn("almost nothing for a step that is already done", text)
+        self.assertIn("reminds you to run `west update` after the pin in `west.yml` moves", text)
+
     def test_the_certificate_route_names_the_buildkit_bind_mount(self):
         text = " ".join(self.ref.split())
         self.assertIn("BuildKit bind mount", text)
@@ -1619,7 +1655,7 @@ class Documentation(unittest.TestCase):
         self.assertNotIn("predates", text)
         comment = " ".join(
             line.strip().lstrip("#").strip()
-            for line in text[: text.index("- name: Run the Crux Pilot product include check")]
+            for line in text[: text.index("- name: Run the product include check")]
             .splitlines()[-6:]
             if line.strip().startswith("#")
         )

@@ -3,7 +3,8 @@
 This page describes the Dev Container in detail: what it is and what CI runs in it, what it needs from the host,
 the hosts it contacts, proxies and certificates, the folder layout, the VS Code and command-line routes, the
 commands that run in it, and what to do after a pin or SDK change. To set it up, follow
-[Getting started](getting-started.md#set-up-the-dev-container); what is untested is stated there.
+[Getting started](getting-started.md#set-up-the-dev-container); what has been run on the board route is listed on
+the [board page](board-bring-up.md#board-route-for-the-rt1060-evkb-rev-b).
 
 ## What the container is
 
@@ -27,6 +28,17 @@ image pinned by digest), `.devcontainer/requirements-tools.txt` (the pinned Pyth
 `all`, the default), `.devcontainer/setup.sh` (the workspace and SDK setup it calls), `.devcontainer/check-host.sh`
 (the check of the folder on the host) and `scripts/dev-shell.sh` (the same without VS Code). The versions follow `ci.yml`, and a tooling test
 compares them. `.gitattributes` pins LF line ends, so that a clone checks the scripts out with LF on every platform.
+For C code, VS Code uses the clangd extension with the image's `clangd-18`, which reads the `compile_commands.json`
+of the last board build of the task **Board: Build** (set in `.clangd`), and `setup.sh` writes the bash Tab
+completion of `west` on every run. The C/C++ extension (`ms-vscode.cpptools`) and `gdb` are installed for
+debugging, for example of the host tests through CMake Tools; `C_Cpp.intelliSenseEngine` is `disabled` in
+`devcontainer.json`, the setting that the clangd extension asks for when both are installed, so clangd stays the
+language server.
+
+**What has been run** for the editor tools: the tooling tests, which read these files.
+
+Not run: an image with `gdb` and `ms-vscode.cpptools`, a debug session of the host tests, the VS Code tasks and
+profiles ([board route](board-bring-up.md#vs-code-tasks-and-debug-profiles)).
 
 `.devcontainer/check-host.sh` checks the folder layout on the host before the container is created. VS Code runs it
 as the `initializeCommand` of `devcontainer.json`, on the host side, so it needs bash there: open the folder from
@@ -38,8 +50,9 @@ folder holds other entries, because the container sees them (`.crux-extra-ca.crt
 and the markers of a home directory.
 
 `.devcontainer/setup.sh` prints to the standard error stream, also what pip, west and git print, so that a command
-which `scripts/dev-shell.sh` runs after it keeps a clean standard output. It names each step as it starts it, and
-when one fails it prints `setup: failed during <step>; rerun: bash .devcontainer/setup.sh`. It does again what an
+which `scripts/dev-shell.sh` runs after it keeps a clean standard output.
+It prints a `setup:` line for each piece of work that a step does, almost nothing for a step that is already done (the west workspace step reminds you to run `west update` after the pin in `west.yml` moves), and when a step fails it prints `setup: failed during <step>; rerun: bash .devcontainer/setup.sh`.
+It does again what an
 interrupt left half done: a virtual environment without pip, a `.west` folder from an interrupted `west init`, and
 an SDK folder without its install marker.
 
@@ -113,8 +126,8 @@ Which route passes what, as the files are written (none of it was run behind a p
   (general knowledge), so export them in a WSL shell and start `code .` from that shell. A VS Code server that
   already runs in WSL keeps its old environment: close all VS Code windows of that distribution, or run
   `wsl --shutdown`, first.
-- `scripts/dev-shell.sh` passes `GH_TOKEN`, your user and group ids and any `CRUX_JLINK*` variable that is set (as
-  build arguments, by name), and no proxy variable. A proxy variable that you export in
+- `scripts/dev-shell.sh` passes `GH_TOKEN` and `CI` when they are set, your user and group ids and any `CRUX_JLINK*`
+  variable that is set (as build arguments, by name), and no proxy variable. A proxy variable that you export in
   your shell does not reach its container. For this route use Docker's own client configuration: the `proxies`
   section of `~/.docker/config.json` makes the Docker command line add the variables to the build and to the
   container (general knowledge, not tested).
@@ -134,9 +147,10 @@ Two limits. A proxy on `127.0.0.1` or `localhost` of the host is not reachable f
 values that `containerEnv` passes are visible with `docker inspect`, so a proxy URL with a password is visible to
 whoever can run Docker as you.
 
-If the proxy decrypts HTTPS and re-signs it with a certificate of your organisation, tools fail with certificate
-errors, for example `curl: (60) SSL certificate problem: unable to get local issuer certificate` from the J-Link
-download of the image build, or `certificate verify failed` from pip or git. The image build
+If the proxy decrypts HTTPS and re-signs it with a certificate of your organisation, downloads in the image build
+or in the container fail with a certificate error, for example
+`curl: (60) SSL certificate problem: unable to get local issuer certificate`, `certificate verify failed`, or the
+same from pip, Git or west. The image build
 and the setup then need the root certificate authority (CA) certificate of your organisation. There are two places
 for it; each developer places their own file in one of them, and neither is in the repository.
 
@@ -272,7 +286,9 @@ are exported if you need them: this route passes them on. The first start builds
 `.devcontainer/setup.sh`,
 which does `west init -l crux-controller` and `west update` only when the workspace does not exist yet, installs the
 Python requirements of Zephyr and runs `west sdk install` for the SDK version of the CI jobs. That takes a long time
-and downloads several GiB; watch the creation log. Later starts and rebuilds find all of it already there. If the
+and downloads several GiB; watch the creation log. The setup runs `west update --narrow -o=--progress`, which
+fetches only the pinned revisions and prints git's fetch progress, so a long fetch does not look stuck (with `CI`
+set, it leaves out `-o=--progress`, which would only fill the job log). Later starts and rebuilds find all of it already there. If the
 creation fails or is interrupted, run `bash .devcontainer/setup.sh` in a terminal of the container: it carries on,
 and it runs `west update` again if the first one did not finish. After a change of the pin in `west.yml`, run
 `west update` by hand: the setup script does not run it again (see
@@ -338,7 +354,7 @@ west build -p always -b 'mimxrt1060_evk@B//qspi' -d crux-controller/build/worklo
 check and the product include check of [Set up without the Dev Container](native-setup.md) work unchanged from `/workspaces/ws` (the pinned
 `crux-pilot` contains the product include check); the container does not switch the Mbed TLS group on by itself. The container mounts the USB bus of the host and can have the J-Link software
 (`.devcontainer/jlink/`), so a probe can be reached from it after the host steps of
-[board-bring-up.md](board-bring-up.md); that route is untested on hardware, and a `native_sim` run is not a board run.
+[board-bring-up.md](board-bring-up.md), whose run list says what has been run; a `native_sim` run is not a board run.
 
 The J-Link software that the build installs, downloaded or placed in `.devcontainer/jlink/packages/`, goes into the
 image you build on your own machine, and so the licensed SEGGER software stays in that local image layer: do not

@@ -35,6 +35,8 @@ ONE_SHOT_TWISTER = (
     "west twister -p native_sim/native/64 -T crux-controller/tests/native_sim "
     "--inline-logs --clobber-output -O twister-out"
 )
+# The same command as it reads from the repository root, where the tutorial runs it.
+ROOT_TWISTER = ONE_SHOT_TWISTER.replace("crux-controller/", "")
 
 
 def read(path):
@@ -216,7 +218,7 @@ class Structure(Page):
         for title in ("Host notes", "If you use a board"):
             self.assertIn(title, [t for _, t, _ in headings(self.text)], title)
         board = section(self.text, "If you use a board")
-        for word in ("J-Link", "board-bring-up.md", "flash and debug"):
+        for word in ("J-Link", "board-bring-up.md", "Crux board page"):
             self.assertIn(word, board, word)
 
     def test_the_page_no_longer_says_that_everything_runs_on_ubuntu_24_04(self):
@@ -322,11 +324,9 @@ class QuickStart(Page):
 
     def test_the_one_shot_twister_command_is_the_one_that_ci_and_the_container_job_run(self):
         commands = "\n".join(code_blocks(self.tutorial))
-        self.assertIn(
-            "bash scripts/dev-shell.sh bash -c 'cd /workspaces/ws && " + ONE_SHOT_TWISTER + "'", commands
-        )
-        # dev-shell.sh runs a command with the repository as working directory, so the command
-        # changes into the workspace folder first, as the container job does.
+        self.assertIn("bash scripts/dev-shell.sh " + ROOT_TWISTER, commands)
+        # dev-shell.sh runs a command with the repository as working directory, so the tutorial
+        # needs no change into the workspace folder, which the container job does.
         self.assertIn("-w /workspaces/ws/crux-controller", self.shell)
         container_job = norm(read(WORKFLOWS / "devcontainer.yml"))
         self.assertIn("cd /workspaces/ws " + ONE_SHOT_TWISTER, container_job)
@@ -341,7 +341,7 @@ class QuickStart(Page):
                       norm(read(WORKFLOWS / "devcontainer.yml")))
 
     def test_one_scenario_has_a_command_and_its_directory_exists(self):
-        self.assertIn("-T crux-controller/tests/native_sim/workload", self.tutorial)
+        self.assertIn("-T crux-controller/tests/native_sim/workload", self.native)
         self.assertTrue((ROOT / "tests" / "native_sim" / "workload" / "testcase.yaml").is_file())
 
     def test_the_quick_start_says_where_the_outputs_are(self):
@@ -437,7 +437,9 @@ class Proxy(RefPage):
         self.assertNotIn("CRUX_EXTRA_CA_FILE", self.shell, message)
         self.assertNotIn("check-host", self.shell, message)
         self.assertIn("-e GH_TOKEN", self.shell)
-        self.assertRegex(self.proxy, r"`scripts/dev-shell\.sh` passes `GH_TOKEN`, your user and group ids and any `CRUX_JLINK\*`")
+        self.assertIn("-e CI", self.shell)
+        self.assertRegex(self.proxy, r"`scripts/dev-shell\.sh` passes `GH_TOKEN` and `CI` when they are set, your user and group ids and any "
+                         r"`CRUX_JLINK\*`")
         for phrase in ("passes it into the image build", "Give `scripts/dev-shell.sh` the certificate",
                        "mounted read-only", "a message of `scripts/dev-shell.sh` that the daemon",
                        "dev-shell.sh` passes it", "dev-shell.sh` runs the host check"):

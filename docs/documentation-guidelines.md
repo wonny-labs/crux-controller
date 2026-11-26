@@ -21,6 +21,20 @@ Never delete a fact that a reader needs and that has no other home: move it to a
 Write the current rule, not the change: "The handle is invalid after close", not a sentence about what a
 release dropped.
 
+## Paragraphs and line breaks
+
+A paragraph covers one idea and stays short, about five sentences at most.
+Three or more parallel items become a list, steps are numbered, and comparisons go in a table.
+
+New or edited text puts one sentence on each line ([semantic line breaks](https://sembr.org/)), so that a diff shows which sentence changed.
+Do not reflow text that a change does not otherwise touch.
+
+In [CommonMark](https://spec.commonmark.org/0.31.2/#paragraphs) a blank line ends a paragraph and consecutive lines join into one:
+
+- Put one blank line between paragraphs and around every heading, list, table and fenced code block.
+- Never put two blank lines in a row.
+- Do not use `<br>` or other HTML for spacing.
+
 ## Page types and homes
 
 | Type | Pages |
@@ -46,7 +60,8 @@ Each fact has one home; other pages link to it.
 ## Product repository
 
 This repository is a product built on Crux. It links the Crux board pages and keeps only its own board
-steps: its image, its build command and the log it expects.
+steps: its image, its build command, the connection of the probe to its Dev Container, its VS Code tasks and debug
+profiles, and the log it expects.
 
 ## Check
 
@@ -56,5 +71,5 @@ provenance, status or verification markers than its entry in
 never raise one. The test matches text only; review applies the checklist to everything else.
 
 Rationale and sources: the
-[Crux documentation guidelines](https://github.com/wonny-labs/crux-pilot/blob/c5439c51741bceb8f3327c11882dc3b58bbe2640/docs/documentation-guidelines.md)
+[Crux documentation guidelines](https://github.com/wonny-labs/crux-pilot/blob/13c950bb031fce0b14d4784f1586057d31434de3/docs/documentation-guidelines.md)
 at the pinned revision.

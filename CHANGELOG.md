@@ -45,7 +45,7 @@ build configurations by their earlier step ids, S0 to S6.
 
 ### Build and manifest
 
-- The west manifest imports `crux-pilot` at a pinned commit (`c5439c51`, which contains the File
+- The west manifest imports `crux-pilot` at a pinned commit (`13c950bb`, which contains the File
   composition interface `<crux/file_zephyr.h>`) and adds `picolibc` as a test-only project. A CI job
   checks the pins with `west crux-pins` and has a negative control that must fail.
 - The `crux-pilot` pin moved from `37c92b18` to `dfd3ad7d`, which adds the public management headers
@@ -110,6 +110,19 @@ build configurations by their earlier step ids, S0 to S6.
   `CRUX_JLINK=0`). The Crux manifest, the public headers and the module name are as before. No controller file named
   the renamed samples, and the J-Link installer and its pinned version already match Crux. The S2 firmware hash and
   the budget tables are in the pull request, because they come from CI.
+- The `crux-pilot` pin moved from `c5439c51` to `ea16f99f`, the head of Crux `main` after changes to its documentation,
+  Dev Container, VS Code files, `scripts/bootstrap.sh` and time shell sample, and the removal of the CMake status line
+  `Crux Time realtime provider` from Crux's host Time build. The Crux manifest, the public headers and the module name
+  are as before. No controller code changes.
+- The `crux-pilot` pin moved from `ea16f99f` to `ce2eb313`, the head of Crux `main` after wonny-labs/crux-pilot#590,
+  which changes Crux's `.clangd`, VS Code files, `CMakePresets.json` display names, two documentation pages,
+  `scripts/bootstrap.sh`, `scripts/bootstrap-zephyr.sh` and their tests. The Crux manifest, the public headers, the
+  component code and the module name are as before. No controller code changes.
+- The `crux-pilot` pin moved from `ce2eb313` to `13c950bb`, the head of Crux `main` after its sample layout and version
+  batch: the release version header `<crux/version.h>`, `zephyr/`, `linux/` and `common/` folders for each Crux
+  sample, renamed sections of Crux's coding guidelines, shorter bootstrap and Dev Container guidance, and
+  documentation, CI and test changes. The Crux manifest, the existing public headers, the Zephyr module, the board
+  samples and the product template are as before. No controller code changes.
 - The `crux-pilot` import blocks wolfSSL, wolfSSH and wolfPSA by name, so enabling the Mbed TLS group
   would activate Mbed TLS and TF-PSA-Crypto and no GPL stack (checked on the project list; no job
   enables the group or fetches with it on, and it stays off in every job).

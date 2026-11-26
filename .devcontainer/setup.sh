@@ -180,7 +180,13 @@ if [[ ! -d "$workspace/.west" || ! -f "$workspace/.west/config" || ! -d "$worksp
         fi
         touch "$pending"
         say "west update (the first run fetches several GiB and takes a long time)"
-        west update
+        # --narrow fetches only the pinned revisions; -o=--progress makes git fetch show its progress,
+        # except in CI, where it would fill the log.
+        update_args=(--narrow)
+        if [[ -z "${CI:-}" ]]; then
+            update_args+=(-o=--progress)
+        fi
+        west update "${update_args[@]}"
         rm -f "$pending"
     )
 else
@@ -200,6 +206,23 @@ if [[ "$(cat "$stamp.zephyr" 2>/dev/null || true)" != "$zephyr_hash" ]]; then
     python -m pip install --no-cache-dir \
         -r "${requirements[0]}" -r "${requirements[1]}" -r "${requirements[2]}"
     printf '%s\n' "$zephyr_hash" >"$stamp.zephyr"
+fi
+
+# Tab completion for west in bash (`west completion bash`). `completion` is a Zephyr extension command,
+# so west knows it only in the workspace after west update; this step therefore comes after the workspace
+# and the Zephyr requirements. The west of the virtual environment is in the cache volume, not in the
+# image, so the script is written here on every run, into the user folder that bash-completion loads on
+# the first Tab after `west`. No shell start file is edited. The script is written to a temporary file and
+# moved into place, so a failure keeps the previous file; it is only a convenience, so a failure prints a
+# warning and the setup goes on.
+step "the west Tab completion"
+completions="${BASH_COMPLETION_USER_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/bash-completion}/completions"
+if mkdir -p "$completions" && west completion bash >"$completions/west.tmp" \
+    && mv -f "$completions/west.tmp" "$completions/west"; then
+    :
+else
+    rm -f "$completions/west.tmp"
+    say "warning: the west Tab completion could not be written to $completions/west; west works without it"
 fi
 
 # 4. The Zephyr SDK with the arm-zephyr-eabi toolchain, as the workload job installs it. GH_TOKEN is

@@ -1,0 +1,5 @@
+# clangd (the VS Code clangd extension of the Dev Container) reads the compile database of the last board build
+# of the VS Code task "Board: Build" (scripts/build-board.sh); Zephyr writes compile_commands.json into every build
+# folder.
+CompileFlags:
+  CompilationDatabase: build/mimxrt1060_evk_B_qspi--current

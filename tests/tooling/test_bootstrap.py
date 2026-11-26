@@ -150,7 +150,7 @@ class BootstrapDispatch(unittest.TestCase):
         self.assertIn("workspace   not set up", result.stderr)
         self.assertIn("Zephyr SDK  not installed", result.stderr)
         self.assertNotIn("installed (", result.stderr)
-        self.assertIn(".devcontainer/jlink/packages/", result.stderr)
+        self.assertIn(self.JLINK_NOTICE, result.stderr)
 
     def test_status_installs_nothing_and_says_what_is_missing(self):
         result = self.run_script_args("status")
@@ -171,11 +171,29 @@ class BootstrapDispatch(unittest.TestCase):
         self.assertIn("workspace   ok", result.stderr)
         self.assertIn("Zephyr SDK  ok", result.stderr)
 
-    def test_status_names_the_jlink_package_folder_in_a_container_without_the_software(self):
+    # Approved behaviour change: the notice is one line with the failure, one action and the page
+    # step, as in Crux. The overrides and the organisation CA are on that page step.
+    JLINK_NOTICE = ("J-Link software is not installed: board flashing and debugging need it. "
+                    "See docs/board-bring-up.md, step 3.")
+
+    def test_status_gives_one_line_with_the_page_step_in_a_container_without_the_software(self):
         flag = self.repo.parent / "dockerenv"
         flag.write_text("")
         result = self.run_script_args("status", CRUX_DOCKERENV=str(flag))
-        self.assertIn(".devcontainer/jlink/packages/", result.stderr)
+        jlink = [line for line in result.stderr.splitlines() if "J-Link" in line]
+        self.assertEqual([self.JLINK_NOTICE], jlink)
+        self.assertNotIn(".devcontainer/jlink/packages/", result.stderr)
+
+    def test_the_page_step_of_the_notice_has_the_overrides_and_the_organisation_ca(self):
+        page = (ROOT / "docs" / "board-bring-up.md").read_text()
+        start = page.index("## 3. Open the Dev Container with the probe")
+        step = " ".join(page[start:page.index("## 4.", start)].split())
+        for needle in (".devcontainer/jlink/packages/", "Rebuild Container Without Cache", "curl: (60)",
+                       ".devcontainer/certs/", "(../.devcontainer/certs/README.md)"):
+            self.assertIn(needle, step, needle)
+        readme = (ROOT / ".devcontainer" / "certs" / "README.md").read_text()
+        self.assertIn("curl: (60)", readme)
+        self.assertIn("Rebuild Container", readme)
 
     def test_board_host_is_refused_in_the_container(self):
         flag = self.repo.parent / "dockerenv"

@@ -48,16 +48,21 @@ RUN --mount=type=bind,source=certs,target=/tmp/crux-certs \
 # The packages of the "Install host packages" step of the workload job, plus python3-venv (CI gets its
 # Python from actions/setup-python), curl and sudo for the setup script, and clang-tidy-18 at the
 # version of the "Static analysis" job. update-ca-certificates adds the certificates of the first step
-# to the bundle when the base image had no ca-certificates before this step.
+# to the bundle when the base image had no ca-certificates before this step. For the editor: clangd-18 at
+# the same version, named clangd for the VS Code clangd extension, bash-completion for the west Tab
+# completion that setup.sh writes, and gdb for the debugger of the VS Code C/C++ extension.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
+        bash-completion \
         build-essential \
         gcc-multilib \
         ca-certificates \
+        clangd-18=1:18.1.3-1ubuntu1 \
         clang-tidy-18=1:18.1.3-1ubuntu1 \
         curl \
         device-tree-compiler \
         file \
+        gdb \
         gperf \
         git \
         libmagic1 \
@@ -70,7 +75,8 @@ RUN apt-get update \
         xz-utils \
     && update-ca-certificates \
     && apt-get clean \
-    && find /var/lib/apt/lists -type f -delete
+    && find /var/lib/apt/lists -type f -delete \
+    && ln -sf /usr/bin/clangd-18 /usr/local/bin/clangd
 
 RUN if [ "$USER_GID" != "$(id -g vscode)" ]; then groupmod -o --gid "$USER_GID" vscode; fi \
     && if [ "$USER_UID" != "$(id -u vscode)" ]; then usermod -o --uid "$USER_UID" vscode; fi \

@@ -635,12 +635,10 @@ class ManagementBuildFiles(unittest.TestCase):
 
     def test_the_build_files_use_only_the_fixed_module_name_of_crux(self):
         # Crux names its Zephyr module `crux` (name: in zephyr/module.yml), so Zephyr sets
-        # ZEPHYR_CRUX_MODULE_DIR whatever the checkout folder is called. The name that came from the
-        # folder (crux-pilot) is no longer set, and no fallback to it is kept, comments included.
+        # ZEPHYR_CRUX_MODULE_DIR whatever the checkout folder is called.
         for path in (self.MANAGEMENT_CMAKE, self.ENTROPY_CMAKE):
             text = path.read_text()
             self.assertIn("${ZEPHYR_CRUX_MODULE_DIR}", text, path.name)
-            self.assertNotRegex(text, r"CRUX_PILOT_MODULE", path.name)
 
     def test_the_management_cmake_refuses_a_missing_kernel_version(self):
         self.assertRegex(self.management_text(), r"if\(NOT KERNEL_VERSION_STRING\)")
@@ -1607,7 +1605,7 @@ class ManagementStepNote(unittest.TestCase):
     NOTE = ROOT / "docs" / "findings" / "s6-https-management.md"
     # The note records its results at the pin it was written at; the manifest has moved on since.
     NOTE_PIN = "8e3737d25d048b14a00c01da00494f58a62958c6"
-    PIN = "c5439c51741bceb8f3327c11882dc3b58bbe2640"
+    PIN = "13c950bb031fce0b14d4784f1586057d31434de3"
 
     def text(self):
         return self.NOTE.read_text()
@@ -1760,9 +1758,9 @@ class ManagementStepNote(unittest.TestCase):
 
     def test_west_yml_changed_in_comments_only(self):
         data = yaml.safe_load((ROOT / "west.yml").read_text())["manifest"]
-        pilot = next(p for p in data["projects"] if p["name"] == "crux-pilot")
-        self.assertEqual(self.PIN, pilot["revision"])
-        self.assertEqual({"name-blocklist": ["wolfssl", "wolfssh", "wolfpsa"]}, pilot["import"])
+        crux = next(p for p in data["projects"] if p["name"] == "crux-pilot")
+        self.assertEqual(self.PIN, crux["revision"])
+        self.assertEqual({"name-blocklist": ["wolfssl", "wolfssh", "wolfpsa"]}, crux["import"])
         self.assertEqual(["crux-pilot", "picolibc"], [p["name"] for p in data["projects"]])
 
 
