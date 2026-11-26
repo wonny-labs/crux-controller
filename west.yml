@@ -15,22 +15,22 @@ manifest:
   projects:
     - name: crux-pilot
       remote: crux
-      # Commit of crux-pilot origin/main, the merge of its onboarding follow-ups. It follows 13c950bb (the
-      # release version header <crux/version.h>, zephyr/, linux/ and common/ folders for each Crux sample, the
-      # renamed sections of Crux's docs/coding-guidelines.md and shorter guidance of Crux's own
-      # scripts/bootstrap.sh and Dev Container) and changes only Crux's docs/build.md (the first CMake configure
-      # in VS Code comes before the preset selection), docs/getting-started.md (on Windows, turn off the user
-      # setting Dev > Containers: Mount Wayland Socket), the failure messages of Crux's own scripts/bootstrap.sh,
-      # a comment of scripts/check-web-routes.py and their tests. The board samples under samples/boards, the
-      # Crux manifest, the existing public headers, the Zephyr module (zephyr/, module name crux),
-      # templates/product and scripts/record-build-provenance.py are as before.
+      # Commit of crux-pilot origin/main, the merge of its tiered CI. It follows bd9efbc7 (Crux's onboarding
+      # follow-ups) and contains the board-neutral Zephyr selection: the File symbols CRUX_FILE_FATFS_SDMMC, CRUX_FILE_FATFS_RAM_DISK and
+      # CRUX_FILE_FATFS_SDMMC_COMPILE_CHECK, with the old RT1060 names kept as deprecated aliases that select
+      # them (app/conf/file.conf and app/conf/management.conf still use the old names; Zephyr's Kconfig warns
+      # and does not fail), Logging and Serial accepting any nxp,lpuart node that the devicetree chooses, System
+      # selecting its watchdog by the nxp,imx-wdog compatible of crux-watchdog0, and Crux's own scripts taking
+      # the board as CRUX_BOARD_TARGET. The Crux manifest and its Zephyr revision (v4.4.2), the existing public
+      # headers, the module name crux, the product template files that CI checks by hash and
+      # scripts/record-build-provenance.py are as before.
       # The File composition interface <crux/file_zephyr.h>, the public management headers, the simulated
       # native_sim System watchdog, the web header deadline (CONFIG_CRUX_WEB_HEADER_DEADLINE_MS, default
       # 10000) and the move of the crypto modules to the revisions of Zephyr's v4.4-branch stay in it:
       # Mbed TLS 4.1.1 plus 8 commits and TF-PSA-Crypto 1.1.1 plus 24 commits, as the dependency review of
       # crux-pilot counts them. Both are in the optional group crux-secure-management, which stays off here.
       # No Crux tag exists yet, so this is a commit, not a tag.
-      revision: bd9efbc71c0318db2bbf3ced9932f2d872749e99
+      revision: 62ed69f10791695c0350996411676b930a96ce71
       # The Crux manifest puts Mbed TLS and TF-PSA-Crypto in the same optional group
       # (crux-secure-management) as wolfSSL, wolfSSH and wolfPSA, which are GPL or commercial.
       # Blocking the three wolf projects by name keeps them out of the resolved manifest, so
