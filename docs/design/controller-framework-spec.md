@@ -12,6 +12,7 @@ Zephyr is read at the release that the Crux pin names (v4.4.2, `dccb0959`), and 
 A fact that holds only on Crux `main` says "Crux `main`".
 A Crux change that Crux has decided and that is on neither the pin nor `main` says "planned in Crux".
 A Crux change that the framework needs and that Crux has not decided says "Crux change needed".
+A Crux change that Crux has decided to postpone says "deferred by Crux".
 Each Crux change carries its issue link, or "issue TBD" where Crux has none.
 The terms are defined in the [glossary](#7-glossary).
 
@@ -27,6 +28,7 @@ Each choice carries one label:
 | Recovery policy decision | How the controller reacts to a fault; a product may choose differently where the text says so |
 | Configurable design decision | A design choice whose value is a build option |
 | Reference configuration | Values for the RT1060-EVKB reference board, which a product tunes |
+| Product decision | A choice that the framework leaves to each product |
 
 ## 1. Requirements
 
@@ -142,7 +144,7 @@ Crux refuses every form of it at the pin (the same files are unchanged on `main`
 | `components/logging/ports/zephyr/logging_binding.c:58-60` | A build with `CONFIG_CRUX_SERIAL` whose `crux-serial0` UART is the logging UART ("Crux Logging conflicts with Crux Serial") |
 | `components/logging/ports/zephyr/logging_binding.c:55-57` | The Zephyr shell's serial backend on the logging UART |
 | `components/logging/ports/zephyr/logging_binding.c:41-50` | The Zephyr console on the logging UART, except with logging-only routing (no shell, no console input) |
-| `components/logging/ports/zephyr/CMakeLists.txt:18` | `CONFIG_SHELL_LOG_BACKEND` and every log backend other than the UART backend |
+| `components/logging/ports/zephyr/CMakeLists.txt:18-24` | `CONFIG_SHELL_LOG_BACKEND` and every log backend other than the UART backend |
 | `components/logging/ports/zephyr/logging_binding.c:12-18` | On the RT1060-EVK board, any logging UART other than LPUART1, so the console cannot take LPUART1 and move logging elsewhere |
 | `components/cli/ports/zephyr/include/crux/cli_zephyr.h:26-27`; `zephyr/Kconfig:184`, `:193`, `:222-224` | The console owns the `crux-serial0` UART: no Zephyr console, log backend, shell or other Crux Serial user on it; Crux Serial is "one explicitly dedicated UART"; an image with the Crux command line has no Zephyr shell unless it is marked as a development image |
 
@@ -151,6 +153,9 @@ Planned in Crux: a build option that selects a separate console UART or one UART
 
 ### C7. SSH and TLS profiles
 
+- Crux Access, and so every management service that depends on it (serial console, configuration service, status service, web sessions, web management, TLS certificate, reboot, File service and network settings), needs the Mbed profile of PSA Crypto: `CONFIG_CRUX_ACCESS` stops the build without `CONFIG_PSA_CRYPTO_PROVIDER_MBEDTLS` (`zephyr/CMakeLists.txt:197-201`; `zephyr/Kconfig:632-637`; Crux `docs/management-in-a-product.md:154-155`).
+  An image on the Wolf profile, which SSH needs, therefore has none of these services through the module.
+  Crux change needed: Crux Access on the Wolf profile (issue TBD).
 - Crux SSH has a private provider interface only: no public header and no `crux::` target, so a composition outside Crux needs a Crux composition interface, which Crux has deferred.
 - `CONFIG_CRUX_SSH` needs the Wolf profile; Crux refuses it together with the Mbed TLS module, because two TLS stacks are not a supported image (`zephyr/CMakeLists.txt:285-290`).
   Crux has deferred two TLS stacks in one image.
@@ -192,7 +197,7 @@ At the pin, these refuse an SoC other than the RT1062, by reading the source; th
 ### C13. Linux providers
 
 Crux has Linux providers for File, Logging, Netif, Serial, Sync, System, Thread, Time and Interrupt (`components/*/ports/linux`), and they are test providers until a Linux product is defined (Crux ADR-0003 R5).
-Access, command line, Configuration, configuration service, management status, Web, Sockets, TLS certificate, credential store, Reboot, security events, SSH, File service and network settings have Zephyr providers only.
+Access, command line, Configuration, configuration service, management status, Web, Sockets, TLS certificate, credential store, Reboot, security events, SSH, File service and network settings have Zephyr providers only; the PSA ports of Access, credential store, TLS certificate and Web are crypto ports, not OS providers.
 
 ## 4. Proposed design
 
@@ -214,8 +219,8 @@ Build options, set by the product with Kconfig (the design fixes the symbol name
 
 | Option | Values | Default | Rule | Label |
 |---|---|---|---|---|
-| Command line transport | serial, SSH, both | serial | SSH only with Crux's Wolf TLS profile, which needs a commercial or GPL-3.0-or-later licence, and only when Crux offers an SSH composition interface (C7, decision D6) | Configurable design decision |
-| HTTPS TLS profile | Crux Mbed profile, Crux Wolf profile | Mbed | One profile per image (C7; Crux `docs/management-in-a-product.md:58`) | Configurable design decision |
+| Command line transport | serial, SSH, both | serial | SSH only with Crux's Wolf TLS profile, which needs a commercial or GPL-3.0-or-later licence, and only when Crux offers Access on the Wolf profile and an SSH composition interface (C7, decision D6) | Configurable design decision |
+| HTTPS TLS profile | Crux Mbed profile, Crux Wolf profile | Mbed | One profile per image (C7; Crux `docs/management-in-a-product.md:58`); the Wolf value needs Crux Access on the Wolf profile, a Crux change needed (C7) | Configurable design decision |
 | Console and logging UART | separate, shared | separate | Shared only with Crux's planned build option (C6, decision D5) | Configurable design decision |
 | Required services | Any of network, storage, Access, configuration, time, web management, command line | network, storage, Access, configuration | Preconditions for application start (section 4.2) | Configurable design decision |
 | Start without a watchdog | allowed, refused | refused | Allowed only by an explicit option in `native_sim` and bench builds (decision D14) | Recovery policy decision |
@@ -327,7 +332,8 @@ What the framework gives through `ctx`, because the framework owns it:
 The application calls Crux's public APIs directly for logging, time, sockets, file access under its data root and configuration reads, and Zephyr directly for threads and synchronisation.
 The framework does not wrap them, following the repository rule against pass-through wrappers.
 
-The interface starts at Crux Controller's lowest stability tier and stays there until a consumer uses it, because no consumer exists to confirm its shape.
+The interface starts at the lowest stability tier and stays there until a consumer uses it, because no consumer exists to confirm its shape.
+This repository defines no stability tiers; the design defines them, modelled on Crux ADR-0001 Decision 4.
 
 A framework-owned periodic task that calls an application entry point is not part of the first version.
 If a consumer needs one, it can be added later as an optional helper on top of this interface.
@@ -355,7 +361,7 @@ The framework calls `safe_state` wherever it has control, but it cannot run it a
 |---|---|---|
 | Boot counter | Counts consecutive resets by watchdog or fatal error, kept in retained RAM next to the last-fault record; a power cycle clears retained RAM and so starts the count again | Recovery policy decision |
 | Safe mode entry | After N consecutive fault resets (Kconfig, default 3) the next boot enters safe mode | Configurable design decision |
-| Safe-mode service set | Network, storage, credential store, Access, status, web management, the serial command line and logging, plus the reset cause and last-fault record; no application, no time synchronisation and no optional service | Recovery policy decision |
+| Safe-mode service set | Network, storage, credential store, Access, configuration service (which web management needs), status, web management, the serial command line and logging, plus the reset cause and last-fault record; no application, no time synchronisation and no optional service | Recovery policy decision |
 | Counter reset | The controller is operational for the stable period (Kconfig), an authorised operator command clears it, or a new firmware image boots | Recovery policy decision |
 | Safe-mode exit | An authorised operator command clears the counter and resets into a normal boot; a new firmware image also boots normally | Recovery policy decision |
 | Fault resets in safe mode | Safe mode stays and the counter keeps counting; a test image that is not confirmed stays unconfirmed, so the boot loader reverts it (section 4.8); for a confirmed image, the retained record and the serial log show the cause and recovery is a new image through the update path or the programming interface | Recovery policy decision |
@@ -371,7 +377,7 @@ Whether retained RAM survives a WDOG1 reset on the RT1060-EVKB is a board fact t
 |---|---|---|
 | Reference board medium | The whole microSD card is one LittleFS volume over the card's block device (`FS_LITTLEFS_BLK_DEV`) | Reference configuration (D3) |
 | Product medium | A product chooses its medium (for example eMMC or NOR flash) and its Crux File provider; the framework names neither | Architecture decision |
-| Credentials on removable media | Whether the credential store may sit on a removable card is a product security decision | Architecture decision |
+| Credentials on removable media | Whether the credential store may sit on a removable card is a product security decision | Product decision |
 | One mount, never format | The composition mounts the volume once with the keep policy and binds the roots; no service mounts on its own; the framework never formats, so a blank or foreign medium does not mount and its data stays untouched | Architecture decision |
 | Configuration saving | Crux's Settings File provider for any power-cut-safe file system (`CRUX_CONFIGURATION_SETTINGS_FILE_ANY_FS`) on the LittleFS volume, once Crux's planned LittleFS File provider exists (C4) | Established mechanism |
 | Interim storage | Until then, the microSD FatFs provider serves files and the credential store, Configuration has no save provider, and the status service reports that parameters are not persistent | Interim workaround |
@@ -531,6 +537,8 @@ The `native_sim` scenarios keep code of this repository and those image-level ch
 | 4. Product readiness | Persistent configuration, secure boot and update, factory reset, hardware validation, security hardening | Criterion 12 of section 5.1 and section 5.3 |
 | 5. Linux target (later) | A Linux adapter over Crux's Linux providers, coordinated with Crux | A later specification |
 
+Criterion 15 of section 5.1 holds in every phase.
+
 ### 4.15 Crux changes in priority order
 
 | Priority | Crux change | State |
@@ -542,8 +550,9 @@ The `native_sim` scenarios keep code of this repository and those image-level ch
 | P2 | Shared console and logging UART build option (C6) | Planned in Crux, issue TBD |
 | P2 | Image state provider (C10) | Crux change needed, [crux-pilot#297](https://github.com/wonny-labs/crux-pilot/issues/297) |
 | P3 | SSH composition interface (C7) | Deferred by Crux, issue TBD |
+| P3 | Crux Access on the Wolf profile, needed for the Wolf HTTPS profile and for SSH (C7) | Crux change needed, issue TBD |
 | P3 | Web adapter for the File service | Crux change needed, [crux-pilot#188](https://github.com/wonny-labs/crux-pilot/issues/188) |
-| Deferred | SoC gates for a second board (C12) | Crux change needed when a second board is in scope |
+| Deferred | SoC gates for a second board (C12) | Crux change needed when a second board is in scope, issue TBD |
 
 The startup watchdog needs no Crux change: the framework solves it with the existing single Crux watchdog token (section 4.2), unless a board measurement shows that one timeout cannot cover both startup and runtime.
 
@@ -563,7 +572,7 @@ The startup watchdog needs no Crux change: the framework solves it with the exis
 
 Criteria 1 to 11 and 13 to 15 close phases 1 to 3; criterion 12 closes with Crux's LittleFS File provider (section 5.2).
 
-1. The base image enables every service of section 4.1 with no application, and the framework's Kconfig has no exclusion between services.
+1. The base image enables every service of section 4.1 that its TLS profile allows (C7), with no application, and the framework's Kconfig has no exclusion between services beyond those of the TLS profile.
 2. The RT1060-EVKB build of the base image passes in CI with `-DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON`, and its `Budget` row keeps at least 25 percent free in every region.
 3. The base image builds and runs on `native_sim` in CI.
 4. A fixture application under `tests/`, with its own `main()`, `prj.conf` and descriptor, builds for `native_sim` in CI with this repository as a Zephyr module (`EXTRA_ZEPHYR_MODULES`) and runs: the log shows `init`, `start` and `stop` in order, a thread that the application created with Zephyr, a registered watchdog channel, a status item and a parameter in device management, and a file under its data root.
@@ -591,7 +600,7 @@ Each interim state is accepted until its Crux change is at the pin; the framewor
 | Crux service threads are supervised indirectly | None | Crux's supervision hook (C8) |
 | Factory reset only by device preparation | None | Crux's Access erase operation (C9) |
 | The images are prepared for MCUboot, with no health-gated confirmation | None | Crux's image state provider (C10) |
-| No SSH | None | Crux's SSH composition interface (C7) |
+| No SSH and no Wolf profile | None | Crux Access on the Wolf profile and Crux's SSH composition interface (C7) |
 
 ### 5.3 Product ready
 
@@ -615,7 +624,7 @@ A separate milestone, reached per product on its board:
 | D3 | Medium and file system | Decided | (a) LittleFS on the whole microSD card; (b) LittleFS on a QSPI NOR partition; (c) Reliance Edge under a commercial licence | (a), for the reference board only; products choose their medium and provider (section 4.7) | Section 3, C4 |
 | D4 | Response to a hang | Recommended | (a) `safe_state`, then a device reset, with boot counter and safe mode; (b) stop the application and keep the framework running | (a): a hung Zephyr thread cannot be removed safely (section 4.3), and safe mode after N resets reaches a held application with management running | Zephyr task watchdog; Crux System contract |
 | D5 | Console UART | Recommended | (a) Shared with logging, through Crux's planned build option; (b) a separate console UART | Both as a build option, separate by default; shared is optional and needs the Crux option (C6) | Zephyr shell log backend; Crux Logging binding and console contract |
-| D6 | SSH command line and SFTP | Recommended | (a) A command line transport option that allows SSH only with the Wolf profile under a commercial or GPL-3.0-or-later licence and a Crux SSH composition interface; (b) an SSH server on Mbed TLS | (a), conditional on the licence and on Crux's deferred composition interface; (b) is not an option, because it means writing a security-critical protocol implementation | Licences of wolfSSL and wolfSSH ([dependencies](../dependencies.md)); C7 |
+| D6 | SSH command line and SFTP | Recommended | (a) A command line transport option that allows SSH only with the Wolf profile under a commercial or GPL-3.0-or-later licence, Crux Access on the Wolf profile and a Crux SSH composition interface; (b) an SSH server on Mbed TLS | (a), conditional on the licence, on Crux Access on the Wolf profile (Crux change needed) and on Crux's deferred composition interface; (b) is not an option, because it means writing a security-critical protocol implementation | Licences of wolfSSL and wolfSSH ([dependencies](../dependencies.md)); C7 |
 | D7 | Firmware update | Recommended | (a) Partition layout, image format and confirmation from Crux's secure boot work, with the framework's health input; (b) a framework-owned update design | (a), coordinated with the secure boot work | MCUboot test and confirm; section 4.8 |
 | D8 | Verification | Recommended | (a) The layers of section 4.13: base image on the board and `native_sim`, the fixture application, image-level regression, product integration in the nightly tier and hardware tests; (b) keep every per-capability scenario and board build | (a) | Section 4.13 |
 | D9 | Second board | Decided | — | Deferred; the framework stays board-neutral (section 4.12) | C12 |
