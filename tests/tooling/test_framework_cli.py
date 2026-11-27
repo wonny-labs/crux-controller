@@ -101,10 +101,13 @@ class PortAndZone(unittest.TestCase):
         code = code_of(read("framework/src/framework.c"))
         self.assertIn(f"#ifdef CONFIG_{SYMBOL}", code)
         self.assertIn('#include "cli_port.h"', code)
-        table = code[code.index("static const startup_phase_t phases[]"):]
-        table = table[:table.index("};")]
-        names = re.findall(r'\{"([^"]+)",', table)
-        self.assertEqual(["clock", "web management", "command line", "time synchronisation"], names)
+        table = code[code.index("static const startup_step_t steps[]"):]
+        table = table[:table.index("\n};")]
+        names = re.findall(r'\{\{"([^"]+)",', table)
+        # Health supervision adds the supervisor (step 2) after the clock and the application step
+        # (step 12) at the end; the command line stays after web management.
+        self.assertEqual(["clock", "supervisor", "web management", "command line", "time synchronisation",
+                          "application"], names)
 
     def test_the_first_account_gets_the_role_that_manages_accounts(self):
         code = code_of(read("framework/src/framework.c"))
@@ -195,7 +198,7 @@ class NativeSimScenario(unittest.TestCase):
     def test_the_scenario_types_the_first_account_setup(self):
         code = code_of(read(f"{self.SCENARIO}/src/test_base.c"))
         for text in ('"!setup"', '"account created"', '"setup not available"', '"login failed"',
-                     '"logout"', "startup done phases=4 failed=0", "phase command line ok"):
+                     '"logout"', "startup done phases=6 failed=0", "phase command line ok"):
             self.assertIn(text, code)
 
     @ci_map.needs_tomllib

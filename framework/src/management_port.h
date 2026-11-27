@@ -22,7 +22,8 @@
  *
  *   1. security event init, realtime init, mount the medium and bind the two store roots
  *   2. credential store start, then Access init with the policy below
- *   3. config service start, management status start, then security event start
+ *   3. config service start, management status start, then security event start, then the
+ *      configuration's hook (the framework starts Crux Reboot there)
  *   4. TLS certificate start
  *   5. take the certificate material and register it under the web security tag, and fail the
  *      start if either registration fails (the web listener does not report a missing certificate)
@@ -54,6 +55,25 @@ typedef struct {
     /* At most 63 bytes each, from the build. Borrowed for the call. */
     const char *platform_version;
     const char *project_version;
+    /*
+     * The reset cause that the boot diagnostic owner captured once, for the status service: the
+     * crux_status_t of the read, and the supported and latched masks of crux_reset_cause_t. When
+     * reset_cause_given is false, the port reads the cause itself and never clears it, which suits
+     * a configuration whose system capability reports and clears the cause on its own.
+     */
+    bool reset_cause_given;
+    int reset_cause_status;
+    uint32_t reset_cause_supported;
+    uint32_t reset_cause_causes;
+    /*
+     * Items that the status service shows besides its own: an array of crux_mgmt_status_item_t,
+     * which this header cannot name, borrowed for the program's life, or NULL with a count of zero.
+     */
+    const void *status_items;
+    size_t status_item_count;
+    /* Called once the security events run, before the TLS certificate; a result other than zero
+     * refuses the start. NULL for none. */
+    int (*after_events)(void);
 } management_port_config_t;
 
 /* Start HTTPS management, or refuse and leave it off. Returns once, never serves a half start. */

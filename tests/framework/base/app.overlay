@@ -16,7 +16,7 @@
         compatible = "zephyr,uart-emul";
         current-speed = <115200>;
         rx-fifo-size = <16>;
-        tx-fifo-size = <8192>;
+        tx-fifo-size = <16384>;
         status = "okay";
     };
     serial_test: serial-test {

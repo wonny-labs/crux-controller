@@ -1,0 +1,46 @@
+common:
+  platform_allow:
+    - native_sim/native/64
+  integration_platforms:
+    - native_sim/native/64
+  tags:
+    - controller
+    - framework
+tests:
+  controller.framework.native_sim.recovery:
+    timeout: 600
+    # Boot 2 injects a fatal error on purpose, and Zephyr prints its fatal error line.
+    ignore_faults: true
+    harness: console
+    harness_config:
+      type: multi_line
+      ordered: true
+      regex:
+        - "recovery scenario boot 1"
+        - "boot class=power counter=0 threshold=3 safe mode=no retained region"
+        - "watchdog armed timeout=2000 ms"
+        - "fault injection: step command line stalls"
+        - "Crux simulated watchdog expired"
+        - "recovery scenario boot 2"
+        - "reset cause=0x004 supported=0x005 captured, flags cleared"
+        - "boot class=fault counter=1 threshold=3 safe mode=no retained region"
+        - "last fault deadline command line"
+        - "recovery scenario boot 3"
+        - "boot class=fault counter=2 threshold=3 safe mode=no retained region"
+        - "last fault fatal supervisor"
+        - "Crux simulated watchdog expired"
+        - "recovery scenario boot 4"
+        - "boot class=fault counter=3 threshold=3 safe mode=yes retained region"
+        - "last fault channel time"
+        - "phase time synchronisation left out: safe mode"
+        - "no application: safe mode"
+        - "Crux simulated watchdog expired"
+        - "recovery scenario boot 5"
+        - "boot class=fault counter=3 threshold=3 safe mode=yes retained region"
+        - "last fault channel reboot"
+        - "recovery scenario: status shows safe mode"
+        - "safe mode exit requested by an operator"
+        - "recovery scenario: restart requested"
+        - "recovery scenario boot 6"
+        - "boot class=normal counter=0 threshold=3 safe mode=no retained region"
+        - "recovery scenario done"

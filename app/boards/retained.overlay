@@ -1,0 +1,41 @@
+/* The retained region of the base image's health supervision (specification section 5.1): the boot
+ * counter, the operator reset marker and the last-fault record, as a Zephyr retention area of 48
+ * bytes with a 4-byte prefix and a CRC-32, over a retained RAM area at the end of the RT1062's
+ * OCRAM2. All RAM of this board configuration is the SDRAM, and OCRAM2 holds no section, so neither
+ * Zephyr's startup nor the link touches the area; the OCRAM2 region shrinks by the 256 bytes of the
+ * area so that the link never places anything there, and the area is no linker region of its own. The SDRAM is not used, because the boot ROM
+ * initialises its controller again at every boot.
+ *
+ * Whether the area survives a WDOG1 reset and a pin reset, whether a power cycle leaves it invalid,
+ * and whether the boot ROM leaves it alone are board facts that a board check shows (specification
+ * section 5.6); none has been run.
+ *
+ * Used by the base image, through EXTRA_DTC_OVERLAY_FILE after the overlay of its RAM disk. It is
+ * configuration, not code.
+ */
+&ocram2 {
+    reg = <0x20200000 0x7ff00>;
+};
+
+/ {
+    controller_retained_ram: retained-ram@2027ff00 {
+        compatible = "mmio-sram";
+        reg = <0x2027ff00 0x100>;
+        status = "okay";
+
+        retainedmem {
+            compatible = "zephyr,retained-ram";
+            status = "okay";
+            #address-cells = <1>;
+            #size-cells = <1>;
+
+            controller_retained: retention@0 {
+                compatible = "zephyr,retention";
+                status = "okay";
+                reg = <0x0 0x30>;
+                prefix = [43 52 43 31];
+                checksum = <4>;
+            };
+        };
+    };
+};

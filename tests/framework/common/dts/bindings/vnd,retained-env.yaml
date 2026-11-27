@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Test-only retained memory for the native_sim scenarios of the controller framework. Its bytes
+  live in an environment variable of the simulated process, which a restart through
+  CONFIG_NATIVE_SIM_REBOOT keeps, so a retention area under it survives the restart as retained RAM
+  survives a warm reset on a board. Not a model of any board.
+
+compatible: "vnd,retained-env"
+
+include: base.yaml
+
+properties:
+  size:
+    type: int
+    required: true
+    description: Bytes of the area.
+
+  "#address-cells":
+    const: 1
+
+  "#size-cells":
+    const: 1

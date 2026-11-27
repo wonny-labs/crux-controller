@@ -223,24 +223,37 @@ management_port_status_t management_port_start(const management_port_config_t *c
     }
 
     /* 3. The configuration service with no parameter of its own, the status service with the reset
-     * cause that management captures once and never clears, and the event thread. The cause is read
-     * before the initialiser that holds it, because the members of an initialiser are not
-     * evaluated in a fixed order. */
+     * cause and the configuration's items, and the event thread, then the configuration's hook. The
+     * cause is the copy that the boot diagnostic owner gives (gap C2), or, without one, a read here
+     * that never clears the flags. It is set before the initialiser that holds it, because the
+     * members of an initialiser are not evaluated in a fixed order. */
     if (crux_config_service_start(NULL, 0u) != CRUX_CONFIG_SERVICE_OK) {
         return failed("configuration service");
     }
-    const crux_status_t cause_status = crux_system_reset_cause_get(&cause);
+    crux_status_t cause_status = (crux_status_t)config->reset_cause_status;
+
+    if (config->reset_cause_given) {
+        cause.supported = config->reset_cause_supported;
+        cause.causes = config->reset_cause_causes;
+    } else {
+        cause_status = crux_system_reset_cause_get(&cause);
+    }
     const crux_mgmt_status_config_t status = {
         .platform_version = config->platform_version,
         .project_version = config->project_version,
         .boot_reset_cause_status = cause_status,
         .boot_reset_cause = cause,
+        .project_items = (const crux_mgmt_status_item_t *)config->status_items,
+        .project_item_count = config->status_items != NULL ? config->status_item_count : 0u,
     };
     if (crux_mgmt_status_start(&status) != CRUX_OK) {
         return failed("status");
     }
     if (crux_security_event_start() != CRUX_OK) {
         return failed("security event thread");
+    }
+    if (config->after_events != NULL && config->after_events() != 0) {
+        return failed("services of the configuration");
     }
 
     /* 4. The TLS certificate. The device key is made inside this call, from the hardware random

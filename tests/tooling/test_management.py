@@ -194,11 +194,16 @@ class ManagementPolicy(unittest.TestCase):
         self.assertNotRegex(text, r"password", "the policy states no password rule")
         self.assertIn("password", self.POLICY_H.read_text().lower(), "the header says why")
 
+    # Approved behaviour change (delivery stage 2, specification section 5.2): the administrator holds
+    # system.reboot, which the framework's reboot and recovery commands check through Crux Reboot; the
+    # host test pins that only the administrator holds it. Every other permission stays out.
     def test_the_policy_names_no_permission_that_no_management_route_needs(self):
         text = c_code(self.POLICY_H) + c_code(self.POLICY_C)
-        for permission in ("network.", "system.reboot", "events.read", "tls.manage", "config.read",
+        for permission in ("network.", "events.read", "tls.manage", "config.read",
                            "config.write", "file."):
             self.assertNotIn(permission, text, permission)
+        self.assertEqual(1, text.count('"system.reboot"'))
+        self.assertIn("MANAGEMENT_PERMISSION_SYSTEM_REBOOT,", c_code(self.POLICY_C))
 
 
 class ManagementPort(unittest.TestCase):
@@ -499,9 +504,10 @@ class ManagementNotBuilt(unittest.TestCase):
     # includes it and the policy header. The assertion that nothing includes them becomes a list of
     # the files that may.
     def test_only_the_composition_and_the_zone_include_the_management_headers(self):
-        # The framework start (framework/src/framework.c) calls the port in the base image.
+        # The framework start (framework/src/framework.c) calls the port in the base image, and the
+        # composition part of health supervision gives the status service the framework's items.
         allowed = {"app/src/composition.c", "framework/compose/management_start.c",
-                   "framework/src/framework.c"}
+                   "framework/src/framework.c", "framework/compose/supervision_start.c"}
         paths = [p for tree in ("app", "framework", "include")
                  for p in (ROOT / tree).rglob("*") if p.suffix in (".c", ".h")]
         for path in sorted(paths):
@@ -705,15 +711,27 @@ class ManagementBuildFiles(unittest.TestCase):
                     "crux::security_event", "crux::config_service", "crux::mgmt_status",
                     "crux::tls_certificate", "crux::system", "crux::time", "crux::logging",
                     # The serial command line of the base image, under its own symbol.
-                    "crux::cli_zephyr", "crux::cli"}
+                    "crux::cli_zephyr", "crux::cli",
+                    # Crux Reboot of health supervision, under the framework's reboot symbol.
+                    "crux::reboot"}
         self.assertEqual(expected, names)
 
     def test_the_zone_keeps_the_application_warnings_on_the_management_source(self):
         self.assertRegex(self.compose_text(), r"target_compile_options\(compose PRIVATE -Wall -Wextra -Werror\)")
 
+    # Approved behaviour change (delivery stage 2, specification section 5.1): the framework starts Crux
+    # Reboot with its own callback policy. The assertion that no build file names reboot becomes: only
+    # the composition zone names it, by linking crux::reboot under the framework's reboot symbol, and no
+    # build file names the network settings or the file service.
     def test_no_build_file_names_a_reboot_network_or_file_service_symbol_or_route(self):
+        reboot_block = ("    if(CONFIG_CRUX_CONTROLLER_FRAMEWORK_REBOOT)\n"
+                        "        target_link_libraries(compose PRIVATE crux::reboot)\n"
+                        "    endif()")
         for path in (self.APP_CMAKE, self.MANAGEMENT_CMAKE, self.COMPOSE_CMAKE):
             text = "\n".join(code_lines(path))
+            if path == self.COMPOSE_CMAKE:
+                self.assertEqual(1, text.count(reboot_block), path.name)
+                text = text.replace(reboot_block, "")
             for word in ("reboot", "REBOOT", "network_settings", "NETWORK_SETTINGS", "file_service",
                          "FILE_SERVICE", "crux::reboot", "crux::network_settings"):
                 self.assertNotIn(word, text, f"{path.name}: {word}")
@@ -1021,12 +1039,18 @@ class ManagementSources(unittest.TestCase):
             self.assertIn(member, code, member)
         self.assertIn("management_role_count_fits", code)
 
+    # Approved behaviour change (delivery stage 2, gap C2): the framework's health supervision reads the
+    # reset cause once in startup step 1 and clears it, and passes the copy; the port reads the cause
+    # itself only when no copy is given, and never clears it. Both are set before the initialiser.
     def test_the_reset_cause_is_read_once_and_before_the_initialiser_that_uses_it(self):
         code = self.code()
         self.assertEqual(1, code.count("crux_system_reset_cause_get("))
         self.assertEqual(0, code.count("crux_system_reset_cause_clear"))
-        self.assertRegex(code, r"const crux_status_t cause_status = crux_system_reset_cause_get\(&cause\);")
+        self.assertRegex(code, r"if \(config->reset_cause_given\) \{\s*cause\.supported = "
+                               r"config->reset_cause_supported;\s*cause\.causes = config->reset_cause_causes;"
+                               r"\s*\} else \{\s*cause_status = crux_system_reset_cause_get\(&cause\);")
         self.assertLess(code.index("crux_system_reset_cause_get("), code.index(".boot_reset_cause_status"))
+        self.assertLess(code.index("config->reset_cause_causes"), code.index(".boot_reset_cause_status"))
 
     def test_the_session_module_is_told_https_and_no_origin_list(self):
         self.assertRegex(self.code(), r'crux_web_session_config_t sessions = \{"https", NULL, 0u\}')

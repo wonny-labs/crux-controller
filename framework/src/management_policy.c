@@ -66,6 +66,7 @@ static const char *const administrator_permissions[] = {
     MANAGEMENT_PERMISSION_ACCESS_MANAGE,
     MANAGEMENT_PERMISSION_STATUS_READ,
     MANAGEMENT_PERMISSION_CONFIG_SAVE,
+    MANAGEMENT_PERMISSION_SYSTEM_REBOOT,
 };
 
 static const char *const read_only_permissions[] = {

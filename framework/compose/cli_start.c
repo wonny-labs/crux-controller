@@ -7,10 +7,10 @@
  * to the UART of the devicetree alias crux-serial0. No Zephyr header is needed: the devicetree
  * chooses the UART, and Crux opens it.
  *
- * The framework has no command table of its own yet, so the registry holds the built-in commands
- * of Crux only (help, logout, passwd and account list). The console makes the first account itself
- * when a person types !setup at the login prompt and no account exists; this file makes no
- * account and holds no password.
+ * The registry holds the built-in commands of Crux (help, logout, passwd and account list) and,
+ * when the configuration asks for them, the framework's command table of health supervision
+ * (supervision_start.h). The console makes the first account itself when a person types !setup at
+ * the login prompt and no account exists; this file makes no account and holds no password.
  */
 
 #include "../src/cli_port.h"
@@ -22,6 +22,10 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
+
+#ifdef CONFIG_CRUX_CONTROLLER_FRAMEWORK_SUPERVISION
+#include "supervision_start.h"
+#endif
 
 #define LOG_TAG "cli"
 
@@ -50,9 +54,20 @@ cli_port_status_t cli_port_start(const cli_port_config_t *config)
     }
     started = true;
 
-    const crux_cli_result_t tables = crux_cli_init(NULL, NULL, 0u);
-    if (tables != CRUX_CLI_OK) {
-        return failed("command tables", (int)tables);
+    static const crux_cli_command_t *tables[1];
+    static size_t counts[1];
+    size_t table_count = 0u;
+
+#ifdef CONFIG_CRUX_CONTROLLER_FRAMEWORK_SUPERVISION
+    if (config->framework_commands) {
+        tables[0] = supervision_commands(&counts[0]);
+        table_count = 1u;
+    }
+#endif
+    const crux_cli_result_t registry = crux_cli_init(table_count > 0u ? tables : NULL,
+                                                     table_count > 0u ? counts : NULL, table_count);
+    if (registry != CRUX_CLI_OK) {
+        return failed("command tables", (int)registry);
     }
     console.setup_role = config->setup_role;
     const crux_cli_result_t serial = crux_cli_serial_start(&console);
