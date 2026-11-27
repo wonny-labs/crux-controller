@@ -19,6 +19,7 @@ SCRIPTS = ROOT / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
 import analyze_host  # noqa: E402
+import ci_map  # noqa: E402
 
 CLANG_FORMAT_VERSION = "18.1.8"
 CLANG_TIDY_PACKAGE = "clang-tidy-18=1:18.1.3-1ubuntu1"
@@ -177,7 +178,7 @@ class FormatScript(unittest.TestCase):
             "workload/include/a.h": "int a;\n",
             "app/src/b.c": "int b;\n",
             "app/os/c.c": "int c;\n",
-            "tests/native_sim/s1/src/d.c": "int d;\n",
+            "tests/native_sim/workload/src/d.c": "int d;\n",
             "docs/notes.md": "not code\n",
         }
         fixture = self.fixture(files)
@@ -298,13 +299,13 @@ class NotAnalysed(unittest.TestCase):
     def test_every_tracked_source_outside_the_database_is_listed(self):
         fixture = tree(
             self,
-            ["app/src/a.c", "app/os/z.c", "tests/native_sim/s1/src/t.c", "app/src/a.h", "README.md"],
+            ["app/src/a.c", "app/os/z.c", "tests/native_sim/workload/src/t.c", "app/src/a.h", "README.md"],
             ["../../app/src/a.c"],
         )
         tracked = analyze_host.tracked_sources(fixture.root)
         analysed = analyze_host.database_sources(fixture.database, fixture.root)
         self.assertEqual(
-            ["app/os/z.c", "tests/native_sim/s1/src/t.c"],
+            ["app/os/z.c", "tests/native_sim/workload/src/t.c"],
             [p.relative_to(fixture.root).as_posix()
              for p in analyze_host.not_analysed(tracked, analysed)],
         )
@@ -350,7 +351,7 @@ class AnalyzeScript(unittest.TestCase):
         self.assertEqual(str(fixture.build), arguments[arguments.index("-p") + 1])
 
     def test_the_not_analysed_list_is_printed_last_and_names_every_missing_source(self):
-        fixture = tree(self, ["app/src/a.c", "app/os/z.c", "tests/native_sim/s1/src/t.c"],
+        fixture = tree(self, ["app/src/a.c", "app/os/z.c", "tests/native_sim/workload/src/t.c"],
                        ["../../app/src/a.c"])
         result = fixture.run()
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
@@ -359,7 +360,7 @@ class AnalyzeScript(unittest.TestCase):
         tail = output[output.index("Not analysed"):]
         self.assertIn("2 ", tail.splitlines()[0])
         self.assertIn("app/os/z.c", tail)
-        self.assertIn("tests/native_sim/s1/src/t.c", tail)
+        self.assertIn("tests/native_sim/workload/src/t.c", tail)
         self.assertNotIn("app/src/a.c", tail)
 
     def test_a_finding_fails_the_script_and_the_list_is_still_printed(self):
@@ -403,6 +404,7 @@ class AnalyzeScript(unittest.TestCase):
         self.assertEqual([], fixture.tidy_files())
 
 
+@ci_map.needs_tomllib
 class CiJob(unittest.TestCase):
     """The workflow runs both checks in one job, with pinned tools, and a finding fails it."""
 
@@ -417,7 +419,9 @@ class CiJob(unittest.TestCase):
         return self.matches[0]
 
     def commands(self):
-        return "\n".join(step.get("run", "") for step in self.job()["steps"])
+        # The job installs the tools, then runs the checks of the job static of scripts/ci/checks.toml.
+        steps = "\n".join(step.get("run", "") for step in self.job()["steps"])
+        return steps + "\n" + ci_map.commands("static")
 
     def test_the_job_runs_on_the_runner_of_the_other_jobs(self):
         self.assertEqual("ubuntu-24.04", self.job()["runs-on"])
@@ -430,7 +434,8 @@ class CiJob(unittest.TestCase):
         self.assertIn(f"pip install clang-format=={CLANG_FORMAT_VERSION}", self.commands())
 
     def test_clang_tidy_is_installed_at_the_pinned_package_version(self):
-        self.assertIn(f"apt-get install -y {CLANG_TIDY_PACKAGE}", self.commands())
+        # scripts/ci/apt-install.sh runs `apt-get install -y` with the arguments (test_apt_install.py).
+        self.assertIn(f"scripts/ci/apt-install.sh {CLANG_TIDY_PACKAGE}", self.commands())
 
     def test_both_scripts_run_in_the_job(self):
         commands = self.commands()
@@ -440,8 +445,9 @@ class CiJob(unittest.TestCase):
     def test_a_finding_fails_the_job(self):
         job = self.job()
         self.assertNotIn("continue-on-error", job)
-        for step in job["steps"]:
+        for step in [*job["steps"], *ci_map.checks("static")]:
             self.assertNotIn("continue-on-error", step)
+            self.assertNotIn("advisory", step)
             self.assertNotRegex(step.get("run", ""), r"\|\|\s*true")
 
     def test_the_job_does_not_add_permissions_or_upload_anything(self):

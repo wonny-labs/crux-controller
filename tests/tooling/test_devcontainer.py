@@ -18,11 +18,16 @@ import unittest
 
 import yaml
 
+import ci_map
+
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 DEVCONTAINER = ROOT / ".devcontainer"
 WORKFLOWS = ROOT / ".github" / "workflows"
 CI = WORKFLOWS / "ci.yml"
 WORKFLOW = WORKFLOWS / "devcontainer.yml"
+WEST_UPDATE = "west update --narrow -o=--progress"
+# The line of setup.sh that runs it; the options are built just before (no progress option in CI).
+WEST_UPDATE_LINE = 'west update "${update_args[@]}"'
 
 
 def read(path):
@@ -90,15 +95,15 @@ class Dockerfile(unittest.TestCase):
         self.assertEqual(1, len(re.findall(r"^FROM ", self.text, re.MULTILINE)))
 
     def test_the_zephyr_sdk_version_is_the_one_of_the_ci_jobs(self):
-        sdk = ci_job("s1")["env"]["SDK_VERSION"]
+        sdk = ci_job("workload")["env"]["SDK_VERSION"]
         self.assertRegex(self.text, rf"(?m)^ENV ZEPHYR_SDK_VERSION={re.escape(sdk)}\b")
 
     def test_every_ci_job_that_uses_the_sdk_uses_the_same_version_as_the_image(self):
-        versions = {ci_job(name)["env"]["SDK_VERSION"] for name in ("s1", "s2", "s3", "s4", "s5", "s6")}
+        versions = {ci_job(name)["env"]["SDK_VERSION"] for name in ("workload", "net", "file", "system", "sntp", "management")}
         self.assertEqual(1, len(versions), versions)
 
-    def test_the_host_packages_of_the_s1_job_are_installed(self):
-        run = ci_step("s1", "Install host packages")["run"]
+    def test_the_host_packages_of_the_workload_job_are_installed(self):
+        run = ci_step("workload", "Install host packages")["run"]
         wanted = set(run.split("--no-install-recommends", 1)[1].replace("\\", " ").split())
         self.assertTrue({"build-essential", "gcc-multilib", "device-tree-compiler", "gperf",
                          "libmagic1", "libsdl2-dev", "python3-dev", "xz-utils"} <= wanted, wanted)
@@ -114,8 +119,11 @@ class Dockerfile(unittest.TestCase):
         self.assertIn(pinned, self.text)
 
     def test_the_image_does_not_bake_in_secrets_or_the_workspace(self):
-        for word in ("COPY ", "ADD ", "docker.sock", "host.docker.internal"):
+        for word in ("ADD ", "docker.sock", "host.docker.internal"):
             self.assertNotIn(word, self.text)
+        # The only COPY line takes the J-Link folder of the build context (.devcontainer/), never the
+        # workspace. The certificate folder is bind-mounted, not copied (OrganisationCertificatesInTheImage).
+        self.assertEqual(["COPY jlink/ /tmp/crux-jlink/"], re.findall(r"(?m)^COPY .*$", self.text))
 
     PROXY_NAMES = ("HTTP_PROXY", "http_proxy", "HTTPS_PROXY", "https_proxy", "NO_PROXY", "no_proxy")
 
@@ -194,8 +202,8 @@ class RepositoryFiles(unittest.TestCase):
             (root / ".DS_Store").write_bytes(b"\0")
             (root / "build").mkdir()
             (root / "build" / "out.bin").write_bytes(b"\0")
-            (root / "twister-out-s1").mkdir()
-            (root / "twister-out-s1" / "x.bin").write_bytes(b"\0")
+            (root / "twister-out-workload").mkdir()
+            (root / "twister-out-workload" / "x.bin").write_bytes(b"\0")
             (root / "data.bin").write_bytes(b"\0")
             (root / "fine.txt").write_text("text\n")
             self.assertEqual(["data.bin"], files_with_nul_bytes(root))
@@ -205,10 +213,10 @@ class RepositoryFiles(unittest.TestCase):
             self.assertIn(line, self.ignore)
 
     def test_the_container_files_use_lf_line_endings(self):
-        # Every file under .devcontainer, including the optional board container in a subfolder. A J-Link
-        # package that a developer put into .devcontainer/board/jlink/ is a local binary, ignored by Git.
+        # Every file under .devcontainer, including the J-Link folder. A J-Link package that a developer put
+        # into .devcontainer/jlink/packages/ is a local binary, ignored by Git.
         files = sorted(p for p in DEVCONTAINER.rglob("*") if p.is_file() and p.suffix != ".deb")
-        files += [ROOT / "scripts" / "dev-shell.sh", ROOT / "scripts" / "board-shell.sh"]
+        files += [ROOT / "scripts" / "dev-shell.sh", ROOT / "scripts" / "bootstrap.sh"]
         self.assertIn(DEVCONTAINER / "Dockerfile", files)
         for path in files:
             self.assertNotIn(b"\r", path.read_bytes(), path.name)
@@ -258,8 +266,8 @@ class CheckHostScript(unittest.TestCase):
         self.assertTrue(os.access(self.path, os.X_OK))
 
     def test_it_accepts_the_layout_of_the_documentation_without_a_word(self):
-        for name in ("crux-controller", ".west", "zephyr", "modules", "bootloader", "tools", "crux-pilot",
-                     "twister-out", "twister-out-s1"):
+        for name in ("crux-controller", ".west", "zephyr", "modules", "bootloader", "tools", "crux",
+                     "twister-out", "twister-out-workload"):
             (self.fixture.workspace / name).mkdir(exist_ok=True)
         result = self.fixture.check_host()
         self.assertEqual(0, result.returncode, result.stderr)
@@ -328,14 +336,14 @@ class CheckHostScript(unittest.TestCase):
         (self.fixture.workspace / "zephyr").mkdir()
         (self.fixture.workspace / "holiday-photos").mkdir()
         (self.fixture.workspace / ".hidden-notes").write_text("x\n")
-        (self.fixture.workspace / "twister-out-s2").mkdir()
+        (self.fixture.workspace / "twister-out-net").mkdir()
         result = self.fixture.check_host()
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertIn("warning", result.stderr)
         self.assertIn("holiday-photos", result.stderr)
         self.assertIn(".hidden-notes", result.stderr)
         self.assertNotIn("zephyr", result.stderr)
-        self.assertNotIn("twister-out-s2", result.stderr)
+        self.assertNotIn("twister-out-net", result.stderr)
 
     def test_the_messages_go_to_the_standard_error_stream(self):
         (self.fixture.workspace / "other").mkdir()
@@ -369,7 +377,7 @@ class Requirements(unittest.TestCase):
     def test_the_tool_pins_are_those_of_the_ci_jobs(self):
         pins = requirement_pins(read(DEVCONTAINER / "requirements-tools.txt"))
         ci_tools = requirement_pins("\n".join(
-            re.findall(r"(?:cmake|ninja|west)==\S+", ci_step("s1", "Install pinned build tools")["run"])
+            re.findall(r"(?:cmake|ninja|west)==\S+", ci_step("workload", "Install pinned build tools")["run"])
         ).replace(" ", "\n"))
         self.assertEqual({"cmake", "ninja", "west"}, set(ci_tools))
         for name, version in ci_tools.items():
@@ -416,6 +424,14 @@ class DevcontainerJson(unittest.TestCase):
             and "${devcontainerId}" in mount for mount in self.data["mounts"]
         ), self.data["mounts"])
 
+    def test_the_vscode_extensions_survive_a_rebuild_in_a_folder_the_user_owns(self):
+        # The volume keeps the installed extensions across rebuilds. The image creates the folder for the
+        # user, so a new volume takes the user as owner instead of root.
+        self.assertIn("target=/home/vscode/.vscode-server/extensions", " ".join(self.data["mounts"]))
+        dockerfile = read(DEVCONTAINER / "Dockerfile")
+        self.assertRegex(dockerfile, r'install -d -o "\$USER_UID" -g "\$USER_GID" [^\n]*'
+                                     r'/home/vscode/\.vscode-server/extensions\n')
+
     PROXY_NAMES = ("HTTP_PROXY", "http_proxy", "HTTPS_PROXY", "https_proxy", "NO_PROXY", "no_proxy")
 
     def test_it_has_a_clear_name(self):
@@ -436,15 +452,19 @@ class DevcontainerJson(unittest.TestCase):
         self.assertEqual("bash .devcontainer/check-host.sh", command)  # bash, so a lost execute bit does not matter
         self.assertTrue((DEVCONTAINER / "check-host.sh").is_file())
 
-    def test_the_mounts_and_the_run_arguments_are_unchanged(self):
-        self.assertEqual(["source=crux-controller-dev-cache-${devcontainerId},target=/opt/crux-cache,type=volume"],
+    def test_the_mounts_are_the_cache_and_the_extensions_and_the_run_arguments_add_only_the_usb_bus(self):
+        self.assertEqual(["source=crux-controller-dev-cache-${devcontainerId},target=/opt/crux-cache,type=volume",
+                          "source=crux-controller-vscode-extensions,target=/home/vscode/.vscode-server/extensions,"
+                          "type=volume"],
                          self.data["mounts"])
         self.assertEqual("source=${localWorkspaceFolder}/..,target=/workspaces/ws,type=bind",
                          self.data["workspaceMount"])
-        self.assertEqual(["--platform=linux/amd64"], self.data["runArgs"])
+        self.assertEqual(["--platform=linux/amd64", "--device-cgroup-rule=c 189:* rmw", "-v",
+                          "/dev/bus/usb:/dev/bus/usb"], self.data["runArgs"])
 
-    def test_the_setup_script_runs_after_creation(self):
-        self.assertEqual("bash .devcontainer/setup.sh", self.data["postCreateCommand"])
+    def test_the_bootstrap_entry_runs_after_creation(self):
+        # scripts/bootstrap.sh runs setup.sh; tests/tooling/test_bootstrap.py tests the entry.
+        self.assertEqual("bash scripts/bootstrap.sh --keep-going", self.data["postCreateCommand"])
 
     def test_the_workspace_target_is_the_one_of_the_dockerfile_environment(self):
         target = re.search(r"target=([^,]+)", self.data["workspaceMount"]).group(1)
@@ -462,7 +482,7 @@ class SetupScript(unittest.TestCase):
     def test_west_init_and_update_run_only_when_the_workspace_is_not_initialised(self):
         guard = self.text.index('if [[ ! -d "$workspace/.west"')
         init = self.text.index("west init -l crux-controller", guard)
-        update = self.text.index("west update\n", init)
+        update = self.text.index(f"{WEST_UPDATE_LINE}\n", init)
         self.assertLess(guard, init)
         self.assertLess(init, update)
 
@@ -474,7 +494,7 @@ class SetupScript(unittest.TestCase):
         self.assertIn('-f "$pending"', condition)
         init = self.text.index("west init -l crux-controller", guard)
         touch = self.text.index('touch "$pending"', init)
-        update = self.text.index("west update\n", touch)
+        update = self.text.index(f"{WEST_UPDATE_LINE}\n", touch)
         remove = self.text.index('rm -f "$pending"', update)
         self.assertLess(init, touch)
         self.assertLess(update, remove)
@@ -482,15 +502,21 @@ class SetupScript(unittest.TestCase):
     def test_the_setup_does_not_read_the_standard_input_of_the_caller(self):
         self.assertIn("</dev/null", read(ROOT / "scripts" / "dev-shell.sh"))
 
-    def test_it_runs_the_sdk_install_of_the_s1_job_with_the_same_toolchain(self):
-        run = ci_step("s1", "Install the Zephyr SDK")["run"]
+    def test_it_runs_the_sdk_install_of_the_workload_job_with_the_same_toolchain(self):
+        # The workload job installs the SDK with scripts/ci/install-sdk.sh (scripts/ci/prepare-job.sh).
+        run = (ROOT / "scripts" / "ci" / "install-sdk.sh").read_text()
         self.assertIn("--gnu-toolchains arm-zephyr-eabi", run)
         self.assertIn("--gnu-toolchains arm-zephyr-eabi", self.text)
         self.assertIn('sdk_version="${ZEPHYR_SDK_VERSION:?', self.text)
         self.assertIn('west sdk install --version "$sdk_version"', self.text)
 
-    def test_it_installs_the_three_zephyr_requirement_files_of_the_s1_job(self):
-        run = ci_step("s1", "Fetch the workspace")["run"]
+    def test_it_installs_the_three_zephyr_requirement_files_of_the_workload_job(self):
+        # scripts/ci/prepare-job.sh fetches the workload workspace: its fetch_workspace function
+        # installs the base file, and the workload branch adds the two others.
+        prepare = ci_map.PREPARE.read_text()
+        function = prepare[prepare.index("fetch_workspace() {"):prepare.index("\n}\n", prepare.index("fetch_workspace() {"))]
+        run = function + "\n" + ci_map.prepare_branch("workload")
+        self.assertIn("fetch_workspace", ci_map.prepare_branch("workload"))
         for name in ("requirements-base.txt", "requirements-build-test.txt", "requirements-run-test.txt"):
             self.assertIn(name, run)
             self.assertIn(name, self.text)
@@ -558,6 +584,19 @@ init)
     mkdir .west
     if [ "${FAKE_INIT_FAIL:-}" = 1 ]; then exit 1; fi
     echo "[manifest]" >.west/config
+    ;;
+completion)
+    # `completion` is a Zephyr extension command: west knows it only in a workspace after west update.
+    if [ ! -d zephyr/scripts ]; then
+        echo "west: unknown command \"completion\"" >&2
+        exit 1
+    fi
+    if [ "${FAKE_COMPLETION_FAIL:-}" = 1 ]; then
+        echo "# partial"
+        echo "west: completion failed" >&2
+        exit 1
+    fi
+    echo "# west completion script for $2"
     ;;
 update)
     if [ "${FAKE_UPDATE_FAIL:-}" = 1 ]; then exit 1; fi
@@ -692,7 +731,19 @@ class SetupRuns(unittest.TestCase):
         self.assertEqual("", result.stdout, "setup.sh must keep the standard output clean")
         return result
 
-    def test_a_fresh_workspace_is_set_up_in_the_order_of_the_s1_job(self):
+    def test_the_first_update_fetches_narrowly_and_shows_git_progress(self):
+        # --narrow fetches only the pinned revisions; -o=--progress passes --progress to git fetch, so a
+        # long first fetch shows its progress instead of looking stuck (west 1.4.0 options).
+        self.ok()
+        self.assertEqual([WEST_UPDATE], self.fixture.calls("west update"))
+
+    def test_the_first_update_keeps_ci_logs_free_of_progress_lines(self):
+        # With CI set, git progress would only fill the job log, so the option is left out, as Crux's
+        # scripts/bootstrap-zephyr.sh does.
+        self.ok(CI="true")
+        self.assertEqual(["west update --narrow"], self.fixture.calls("west update"))
+
+    def test_a_fresh_workspace_is_set_up_in_the_order_of_the_workload_job(self):
         self.ok()
         calls = self.fixture.calls()
         steps = ["west init -l crux-controller", "west update", "west sdk install"]
@@ -712,7 +763,8 @@ class SetupRuns(unittest.TestCase):
         before = self.fixture.calls()
         result = self.ok()
         new = self.fixture.calls()[len(before):]
-        self.assertEqual(["west --version"], new)
+        # Only the offline west completion script is written again (test_editor_tools.py).
+        self.assertEqual(["west completion bash", "west --version"], new)
         self.assertIn("the workspace is initialised", result.stderr)
 
     def test_the_sdk_directory_without_the_install_marker_is_removed_and_installed_again(self):
@@ -754,8 +806,8 @@ class SetupRuns(unittest.TestCase):
         result = self.fixture.run(FAKE_SDK_FAIL="1")
         self.assertNotEqual(0, result.returncode)
         self.assertFalse((self.fixture.sdk_dir / ".crux-installed").exists())
-        self.assertIn("setup: failed during the Zephyr SDK install; rerun: bash .devcontainer/setup.sh",
-                      result.stderr)
+        self.assertIn("setup: failed during the Zephyr SDK install; rerun: bash .devcontainer/setup.sh. "
+                      "See docs/troubleshooting.md.\n", result.stderr)
         # The next run starts again and succeeds, because the partial directory has no marker.
         self.ok()
         self.assertFalse((self.fixture.sdk_dir / "partial").exists())
@@ -1078,7 +1130,10 @@ class DevShell(unittest.TestCase):
         self.assertIn("USER_UID", read(DEVCONTAINER / "Dockerfile"))
 
 
+@ci_map.needs_tomllib
 class DevcontainerWorkflow(unittest.TestCase):
+    """devcontainer.yml runs the checks of the job devcontainer of scripts/ci/checks.toml."""
+
     @classmethod
     def setUpClass(cls):
         cls.text = read(WORKFLOW)
@@ -1086,15 +1141,16 @@ class DevcontainerWorkflow(unittest.TestCase):
         # PyYAML reads the key "on" as the boolean True.
         cls.on = cls.data.get("on", cls.data.get(True))
         cls.job = next(iter(cls.data["jobs"].values()))
-        cls.commands = "\n".join(step.get("run", "") for step in cls.job["steps"])
+        cls.commands = ci_map.commands("devcontainer")
 
     def test_it_runs_on_the_files_that_decide_the_container_and_by_hand(self):
-        self.assertEqual({"pull_request", "push", "workflow_dispatch"}, set(self.on))
+        # The nightly tier runs it on a schedule as well.
+        self.assertEqual({"pull_request", "push", "schedule", "workflow_dispatch"}, set(self.on))
         self.assertEqual(["main"], self.on["push"]["branches"])
         self.assertEqual(self.on["pull_request"]["paths"], self.on["push"]["paths"])
         paths = self.on["pull_request"]["paths"]
         # west.yml moves the pin, and with it the Zephyr requirement files that setup.sh installs.
-        for path in (".devcontainer/**", "scripts/dev-shell.sh", "west.yml",
+        for path in (".devcontainer/**", "scripts/dev-shell.sh", "scripts/bootstrap.sh", ".vscode/**", "west.yml",
                      ".github/workflows/devcontainer.yml"):
             self.assertIn(path, paths)
 
@@ -1102,9 +1158,15 @@ class DevcontainerWorkflow(unittest.TestCase):
         self.assertEqual({"contents": "read"}, self.data["permissions"])
         self.assertNotIn("permissions", self.job)
 
+    def test_the_image_build_skips_the_j_link_software(self):
+        # The SEGGER download accepts SEGGER's terms of use, so CI does not run it: the job sets
+        # CRUX_JLINK=0, which scripts/dev-shell.sh passes to the build by name.
+        self.assertEqual("0", str(ci_map.job_env("devcontainer")["CRUX_JLINK"]))
+
     def test_it_uploads_nothing_and_starts_no_hardware_command(self):
         for word in ("upload-artifact", "west flash", "west debug", "JLink", "pyocd", "openocd"):
             self.assertNotIn(word, self.text)
+            self.assertNotIn(word, self.commands)
 
     def test_it_uses_only_the_actions_that_ci_yml_uses(self):
         allowed = set(re.findall(r"uses: (\S+)", read(CI)))
@@ -1114,35 +1176,33 @@ class DevcontainerWorkflow(unittest.TestCase):
     def test_it_runs_the_checks_inside_the_container_through_the_script(self):
         self.assertIn("scripts/dev-shell.sh", self.commands)
         self.assertIn("python -m unittest discover -s tests/tooling", self.commands)
-        self.assertIn("check_boundary.py --repo crux-controller --crux-root crux-pilot", self.commands)
+        self.assertRegex(self.commands, r"check_boundary\.py --repo crux-controller --crux-root crux(?![-\w])")
         self.assertIn("west twister -p native_sim/native/64 -T crux-controller/tests/native_sim", self.commands)
         self.assertIn("--inline-logs --clobber-output", self.commands)
 
-    def test_the_twister_step_matches_the_one_of_the_s1_job(self):
-        run = " ".join(ci_step("s1", "Run the S1 scenario on native_sim")["run"].replace("\\", " ").split())
+    def test_the_twister_step_matches_the_one_of_the_workload_job(self):
+        run = " ".join(ci_map.command("workload-native-sim").replace("\\", " ").split())
         self.assertIn(run, " ".join(self.commands.replace("\\", " ").split()))
 
     def test_the_product_include_check_runs_the_script_of_the_pin_after_checking_its_hash(self):
-        # The pinned crux-pilot contains the script, with the hash that ci.yml checks the download
+        # The pinned Crux contains the script, with the hash that ci.yml checks the download
         # against. The container job runs that copy instead of downloading a second one.
-        expected = ci_step("boundary", "Run the Crux Pilot product include check")["env"]["CHECK_SHA256"]
-        steps = [step for step in self.job["steps"] if "product include check" in step.get("name", "")]
+        expected = ci_job("boundary")["env"]["CHECK_SHA256"]
+        steps = [c for c in ci_map.checks("devcontainer") if "product-include-check" in c["id"]]
         self.assertEqual(1, len(steps))
-        step = steps[0]
-        self.assertEqual(expected, step["env"]["CHECK_SHA256"])
-        run = step["run"]
+        self.assertEqual(expected, ci_map.job_env("devcontainer")["CHECK_SHA256"])
+        run = steps[0]["run"]
         self.assertNotIn("curl", run)
         self.assertLess(run.index("sha256sum --check"), run.index("dev-shell.sh"))
-        self.assertIn("crux-pilot/templates/product/check_domain_includes.py", run)
+        self.assertIn("crux/templates/product/check_domain_includes.py", run)
         self.assertIn("--product", run)
 
-    def test_the_s1_steps_after_twister_are_those_of_the_s1_job(self):
-        board = ci_job("s1")["env"]["BOARD"]
+    def test_the_workload_steps_after_twister_are_those_of_the_workload_job(self):
+        board = ci_map.job_env("workload")["BOARD"]
         commands = norm(self.commands)
-        for fragment in ("Cross-build S1 with the baseline gate required", "Check the outputs exist",
-                         "Check the resolved S1 configuration"):
-            run = ci_step("s1", fragment)["run"].replace("${{ env.BOARD }}", board)
-            self.assertIn(norm(run), commands, fragment)
+        for check_id in ("workload-build", "workload-outputs", "workload-config"):
+            run = ci_map.command(check_id).replace('"$BOARD"', f"'{board}'")
+            self.assertIn(norm(run), commands, check_id)
         self.assertIn("-DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON", self.commands)
 
     def test_the_host_tests_run_with_the_sanitizers_off_and_on_as_ci_does(self):
@@ -1156,53 +1216,468 @@ class DevcontainerWorkflow(unittest.TestCase):
         self.assertIn("timeout-minutes", self.job)
 
 
+CERTS = DEVCONTAINER / "certs"
+INSTALL_CERTS = DEVCONTAINER / "install-org-certs.sh"
+SYSTEM_BUNDLE = "/etc/ssl/certs/ca-certificates.crt"
+
+
+def run_instructions(text):
+    """The RUN instructions of a Dockerfile, in order, each joined over its continuation lines."""
+    joined = re.sub(r"\\\n", " ", text)
+    return [line for line in joined.splitlines() if line.startswith("RUN ")]
+
+
+def env_values(text):
+    """NAME=value pairs of every ENV instruction, joined over continuation lines."""
+    joined = re.sub(r"\\\n", " ", text)
+    values = {}
+    for line in joined.splitlines():
+        if line.startswith("ENV "):
+            values.update(dict(re.findall(r"(\w+)=(\S+)", line)))
+    return values
+
+
+class OrganisationCertificatesInTheImage(unittest.TestCase):
+    """The root certificates of an organisation whose proxy inspects TLS, placed in .devcontainer/certs/."""
+
+    BUNDLE_VARIABLES = ("REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE", "SSL_CERT_FILE", "GIT_SSL_CAINFO", "PIP_CERT",
+                        "NODE_EXTRA_CA_CERTS")
+
+    @classmethod
+    def setUpClass(cls):
+        cls.text = read(DEVCONTAINER / "Dockerfile")
+        cls.runs = run_instructions(cls.text)
+
+    def test_the_certificates_are_installed_by_the_first_run_step_before_any_download(self):
+        # apt-get, the J-Link download and every later step must already trust the certificates.
+        self.assertIn("install-org-certs.sh /tmp/crux-certs", self.runs[0])
+        downloads = [i for i, run in enumerate(self.runs)
+                     if re.search(r"apt-get|curl|wget|pip|install-jlink\.sh|git ", run)]
+        self.assertTrue(downloads)
+        self.assertNotIn(0, downloads)
+
+    def test_the_certificate_folder_is_bind_mounted_into_the_one_step_and_never_copied(self):
+        # A BuildKit bind mount exposes the folder and the script to that RUN step only, so no file of the
+        # folder is stored in a layer of the image; only what update-ca-certificates installs stays.
+        step = self.runs[0]
+        self.assertTrue(step.startswith("RUN --mount=type=bind,source=certs,target=/tmp/crux-certs "), step)
+        self.assertIn("--mount=type=bind,source=install-org-certs.sh,target=/tmp/install-org-certs.sh", step)
+        self.assertTrue(step.endswith("sh /tmp/install-org-certs.sh /tmp/crux-certs"), step)
+        self.assertNotIn(",rw", step)
+        for line in re.findall(r"(?m)^(?:COPY|ADD) .*$", self.text):
+            self.assertNotIn("certs", line)
+            self.assertNotIn("install-org-certs.sh", line)
+        self.assertLess(self.text.index("RUN --mount=type=bind,source=certs"), self.text.index("RUN apt-get"))
+
+    def test_the_package_step_refreshes_the_bundle_after_it_installs_ca_certificates(self):
+        # When the base image has no ca-certificates yet, the first step cannot build the bundle: the
+        # package step does it once the package is there.
+        apt = next(run for run in self.runs if "apt-get install" in run)
+        self.assertLess(apt.index("ca-certificates"), apt.index("update-ca-certificates"))
+
+    def test_every_tool_uses_the_system_bundle_and_the_variables_are_set_before_any_download(self):
+        values = env_values(self.text)
+        for name in self.BUNDLE_VARIABLES:
+            self.assertEqual(SYSTEM_BUNDLE, values.get(name), name)
+        block = self.text.index("ENV REQUESTS_CA_BUNDLE=")
+        self.assertLess(block, self.text.index("RUN apt-get"))
+        self.assertLess(block, self.text.index("COPY jlink/"))
+
+    def test_the_bundle_path_is_the_one_that_setup_sh_selects(self):
+        self.assertIn(f"system_ca_bundle={SYSTEM_BUNDLE}", read(DEVCONTAINER / "setup.sh"))
+
+    def test_no_step_turns_certificate_checks_off(self):
+        lowered = (self.text + read(INSTALL_CERTS)).lower()
+        for weakening in ("--no-check-certificate", "curl -k", "--insecure", "--trusted-host",
+                          "git_ssl_no_verify", "sslverify=false", "pythonhttpsverify=0"):
+            self.assertNotIn(weakening, lowered)
+
+
+class OrganisationCertificateFolder(unittest.TestCase):
+    def test_the_folder_has_a_readme_and_a_keep_file_and_no_ignore_file_of_its_own(self):
+        self.assertTrue((CERTS / "README.md").is_file())
+        self.assertTrue((CERTS / ".gitkeep").is_file())
+        self.assertFalse((CERTS / ".gitignore").exists())
+
+    def test_the_root_ignore_file_keeps_everything_but_the_keep_file_and_the_readme_out_of_git(self):
+        rules = read(ROOT / ".gitignore").splitlines()
+        start = rules.index(".devcontainer/certs/*")
+        self.assertEqual([".devcontainer/certs/*", "!.devcontainer/certs/.gitkeep", "!.devcontainer/certs/README.md"],
+                         rules[start:start + 3])
+
+    def test_git_ignores_a_certificate_placed_in_the_folder(self):
+        if not (ROOT / ".git").exists():
+            self.skipTest("not a Git checkout")
+        for name in ("org-root.crt", "org-root.cer", "org-root.pem", "nested/org.crt"):
+            result = subprocess.run(["git", "-C", str(ROOT), "check-ignore", "-q", "--no-index",
+                                     f".devcontainer/certs/{name}"], check=False)
+            self.assertEqual(0, result.returncode, name)
+        for name in ("README.md", ".gitkeep"):
+            result = subprocess.run(["git", "-C", str(ROOT), "check-ignore", "-q", "--no-index",
+                                     f".devcontainer/certs/{name}"], check=False)
+            self.assertEqual(1, result.returncode, name)
+
+    def tracked(self, *paths):
+        if not (ROOT / ".git").exists():
+            self.skipTest("not a Git checkout")
+        listing = subprocess.run(["git", "-C", str(ROOT), "ls-files", "--", *paths],
+                                 capture_output=True, text=True, check=True).stdout
+        return sorted(listing.split())
+
+    def test_the_folder_tracks_only_its_keep_file_and_readme(self):
+        self.assertEqual([".devcontainer/certs/.gitkeep", ".devcontainer/certs/README.md"],
+                         self.tracked(".devcontainer/certs"))
+
+    def test_no_certificate_file_is_tracked_anywhere(self):
+        # Every developer places their own file locally; none goes into the repository or a copy of it.
+        self.assertEqual([], self.tracked(":(glob,icase)**/*.crt", ":(glob,icase)**/*.pem",
+                                          ":(glob,icase)**/*.cer", ":(glob,icase)**/*.der"))
+
+    def test_no_page_suggests_committing_a_certificate(self):
+        pages = [CERTS / "README.md", ROOT / "docs" / "dev-container.md", ROOT / "docs" / "troubleshooting.md"]
+        for page in pages:
+            text = " ".join(read(page).split()).lower()
+            for phrase in ("commit the certificate", "commit your certificate", "commit the ca",
+                           "git add .devcontainer/certs", "add the certificate to the repository"):
+                self.assertNotIn(phrase, text, page.name)
+
+    def test_the_readme_says_what_goes_there_and_points_at_the_one_home(self):
+        text = " ".join(read(CERTS / "README.md").split())
+        for fragment in (".crt", ".pem", ".cer", "Rebuild Container", "never committed",
+                         "../../docs/dev-container.md#behind-a-proxy-or-with-a-company-certificate"):
+            self.assertIn(fragment, text)
+
+
+def pem_block(label, body):
+    """A PEM block (RFC 7468) with this label. The key fixtures are built from the label so that the
+    source holds no literal private key header, which the secret scan would report."""
+    return f"-----BEGIN {label}-----\n{body}\n-----END {label}-----\n"
+
+
+class InstallOrgCertsScript(unittest.TestCase):
+    """The real install-org-certs.sh in temporary folders, with a stand-in for update-ca-certificates.
+
+    The certificates are made by openssl at run time in a temporary folder; no certificate is committed.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.pem = None
+        openssl = shutil.which("openssl")
+        if openssl:
+            work = pathlib.Path(tempfile.mkdtemp())
+            try:
+                subprocess.run([openssl, "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1",
+                                "-subj", "/CN=Test Root", "-keyout", str(work / "key.pem"),
+                                "-out", str(work / "c.pem")], capture_output=True, check=True)
+                cls.pem = (work / "c.pem").read_text()
+            finally:
+                shutil.rmtree(work)
+
+    def setUp(self):
+        self.base = pathlib.Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.base)
+        self.source = self.base / "certs"
+        self.source.mkdir()
+        (self.source / "README.md").write_text("# readme\n")
+        (self.source / ".gitkeep").write_text("")
+        self.target = self.base / "target"
+        self.stubs = self.base / "bin"
+        self.stubs.mkdir()
+        self.log = self.base / "calls.log"
+        stub = self.stubs / "update-ca-certificates"
+        stub.write_text(f"#!/bin/sh\necho update-ca-certificates >> '{self.log}'\n")
+        stub.chmod(0o755)
+        if self.pem is None:
+            self.skipTest("no openssl on this host")
+        self.PEM = self.pem
+
+    def assert_stopped(self, result, *messages):
+        # The build stops, names the file, and installs nothing at all.
+        self.assertNotEqual(0, result.returncode)
+        for message in messages:
+            self.assertIn(message, result.stderr)
+        self.assertIn("no organisation CA was installed", result.stderr)
+        self.assertEqual([], self.installed())
+        self.assertEqual([], self.updates())
+
+    def run_script(self, with_update=True, openssl=None):
+        env = {"PATH": (f"{self.stubs}:" if with_update else "") + "/usr/bin:/bin"}
+        if openssl is not None:
+            env["CRUX_OPENSSL"] = openssl
+        return subprocess.run(["/bin/sh", str(INSTALL_CERTS), str(self.source), str(self.target)],
+                              capture_output=True, text=True, env=env, check=False)
+
+    def updates(self):
+        return self.log.read_text().splitlines() if self.log.exists() else []
+
+    def installed(self):
+        return sorted(p.name for p in self.target.iterdir()) if self.target.exists() else []
+
+    def der_certificate(self):
+        """A real DER certificate made by openssl, or a skip when the test host has no openssl."""
+        openssl = shutil.which("openssl")
+        if not openssl:
+            self.skipTest("no openssl on this host")
+        work = self.base / "make"
+        work.mkdir()
+        subprocess.run([openssl, "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1",
+                        "-subj", "/CN=Test Root", "-keyout", str(work / "key.pem"), "-out", str(work / "c.pem")],
+                       capture_output=True, check=True)
+        subprocess.run([openssl, "x509", "-in", str(work / "c.pem"), "-outform", "der",
+                        "-out", str(work / "c.der")], capture_output=True, check=True)
+        return (work / "c.der").read_bytes()
+
+    def test_an_empty_folder_installs_nothing_and_succeeds(self):
+        result = self.run_script()
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual([], self.installed())
+        self.assertEqual([], self.updates())
+        self.assertIn("no certificate", result.stdout + result.stderr)
+
+    def test_a_missing_folder_is_the_same_as_an_empty_one(self):
+        shutil.rmtree(self.source)
+        result = self.run_script()
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual([], self.updates())
+
+    def test_a_pem_certificate_is_installed_and_the_bundle_is_built_once(self):
+        (self.source / "org-root.crt").write_text(self.PEM)
+        (self.source / "org-issuing.crt").write_text(self.PEM)
+        result = self.run_script()
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(["org-issuing.crt", "org-root.crt"], self.installed())
+        self.assertEqual(self.PEM, (self.target / "org-root.crt").read_text())
+        self.assertEqual(["update-ca-certificates"], self.updates())
+        self.assertIn("org-root.crt", result.stdout)
+        body = self.PEM.splitlines()[1]
+        self.assertNotIn(body, result.stdout + result.stderr)  # the contents are not printed
+
+    def test_pem_files_ending_in_pem_or_cer_are_installed_as_crt(self):
+        (self.source / "org-a.pem").write_text(self.PEM)
+        (self.source / "org-b.cer").write_text(self.PEM)
+        (self.source / "ORG-C.PEM").write_text(self.PEM)
+        result = self.run_script()
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(["ORG-C.crt", "org-a.crt", "org-b.crt"], self.installed())
+
+    def test_two_files_with_the_same_stem_are_both_installed(self):
+        (self.source / "org.crt").write_text(self.PEM)
+        (self.source / "org.pem").write_text(self.PEM)
+        result = self.run_script()
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(["org-pem.crt", "org.crt"], self.installed())
+
+    def test_names_that_collide_never_overwrite_an_installed_file(self):
+        for name in ("a.crt", "a.pem", "a-pem.crt", "a b.crt", "a_b.crt"):
+            (self.source / name).write_text(self.PEM)
+        result = self.run_script()
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(5, len(self.installed()), self.installed())
+        self.assertIn("installed 5 certificate(s)", result.stdout)
+
+    def test_windows_line_ends_are_removed_and_a_last_line_end_is_added(self):
+        (self.source / "org-root.crt").write_bytes(self.PEM.rstrip("\n").replace("\n", "\r\n").encode())
+        result = self.run_script()
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(self.PEM, (self.target / "org-root.crt").read_text())
+
+    def test_a_der_certificate_is_converted_to_pem(self):
+        (self.source / "org-root.cer").write_bytes(self.der_certificate())
+        result = self.run_script()
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(["org-root.crt"], self.installed())
+        self.assertTrue((self.target / "org-root.crt").read_text().startswith("-----BEGIN CERTIFICATE-----"))
+        self.assertIn("converted org-root.cer from DER", result.stdout)
+        self.assertEqual(["update-ca-certificates"], self.updates())
+
+    def test_without_openssl_a_der_certificate_is_skipped_with_the_conversion_command(self):
+        (self.source / "org-root.cer").write_bytes(b"\x30\x82\x01\x0a\x02\x82")
+        result = self.run_script(openssl=str(self.base / "no-openssl"))
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual([], self.installed())
+        self.assertEqual([], self.updates())
+        self.assertIn("skipping org-root.cer", result.stderr)
+        self.assertIn("openssl x509 -inform der", result.stderr)
+
+    def test_a_file_that_is_neither_pem_nor_der_stops_the_build(self):
+        (self.source / "org-root.crt").write_bytes(b"\x30\x82\x01\x0a\x02\x82")
+        result = self.run_script()
+        self.assert_stopped(result, "error: .devcontainer/certs/org-root.crt: is neither a PEM nor a DER certificate.")
+
+    def test_a_pem_block_that_does_not_parse_stops_the_build(self):
+        (self.source / "org-root.crt").write_text("-----BEGIN CERTIFICATE-----\nMIIBbroken\n-----END CERTIFICATE-----\n")
+        result = self.run_script()
+        self.assert_stopped(result, "error: .devcontainer/certs/org-root.crt: is not a valid certificate.")
+
+    def test_a_file_with_another_ending_is_skipped_with_a_hint(self):
+        (self.source / "org-root.der").write_text(self.PEM)
+        (self.source / "notes.txt").write_text("text\n")
+        result = self.run_script()
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual([], self.installed())
+        self.assertIn("skipping org-root.der: only .crt, .pem and .cer files are installed", result.stderr)
+        self.assertIn("skipping notes.txt", result.stderr)
+
+    def test_a_file_that_holds_a_private_key_stops_the_build(self):
+        (self.source / "bundle.pem").write_text(self.PEM + pem_block("PRIVATE KEY", "MIIE"))
+        result = self.run_script()
+        self.assert_stopped(result, "error: .devcontainer/certs/bundle.pem: holds a private key. "
+                                    "Put only the CA certificate here, never a key.")
+        self.assertNotIn("MIIE", result.stdout + result.stderr)
+
+    def test_a_bundle_is_installed_as_one_file_per_certificate(self):
+        (self.source / "chain.crt").write_text(self.PEM + self.PEM)
+        result = self.run_script()
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(["chain-1.crt", "chain-2.crt"], self.installed())
+        self.assertEqual(self.PEM, (self.target / "chain-2.crt").read_text())
+
+    def test_a_bundle_never_overwrites_a_file_staged_earlier(self):
+        # chain-2.crt (one certificate) is staged first; chain.crt (two) must not land on chain-2.crt.
+        (self.source / "chain-2.crt").write_text(self.PEM)
+        (self.source / "chain.crt").write_text(self.PEM + self.PEM)
+        result = self.run_script()
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(3, len(self.installed()), self.installed())
+        self.assertIn("installed 3 certificate(s)", result.stdout)
+
+    def test_a_pem_marker_that_is_not_on_a_line_of_its_own_stops_the_build_without_openssl(self):
+        (self.source / "odd.crt").write_text("  -----BEGIN CERTIFICATE-----\nMIIB\n  -----END CERTIFICATE-----\n")
+        result = self.run_script(openssl=str(self.base / "no-openssl"))
+        self.assert_stopped(result, "error: .devcontainer/certs/odd.crt: holds no certificate block that can be read.")
+        self.assertNotIn("mv:", result.stderr)
+
+    def test_a_broken_block_after_a_good_one_stops_the_build(self):
+        broken = "-----BEGIN CERTIFICATE-----\nMIIBbroken\n-----END CERTIFICATE-----\n"
+        (self.source / "chain.crt").write_text(self.PEM + broken)
+        result = self.run_script()
+        self.assert_stopped(result, "error: .devcontainer/certs/chain.crt: certificate 2 of 2 is not a valid certificate.")
+
+    def test_a_pem_block_that_is_not_a_certificate_stops_the_build(self):
+        key = "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQ\n-----END PUBLIC KEY-----\n"
+        (self.source / "mixed.pem").write_text(self.PEM + key)
+        result = self.run_script()
+        self.assert_stopped(result, "error: .devcontainer/certs/mixed.pem: holds a PEM block that is not a certificate.")
+
+    def test_a_private_key_stops_the_build_whatever_the_file_ending(self):
+        for name in ("org.key", "notes.txt"):
+            with self.subTest(name):
+                (self.source / name).write_text(pem_block("EC PRIVATE KEY", "MHcC"))
+                result = self.run_script()
+                self.assert_stopped(result, f"error: .devcontainer/certs/{name}: holds a private key.")
+                (self.source / name).unlink()
+
+    def test_a_bad_file_installs_nothing_even_next_to_a_good_one(self):
+        (self.source / "a-good.crt").write_text(self.PEM)
+        (self.source / "b-bad.crt").write_text("not a certificate\n")
+        result = self.run_script()
+        self.assert_stopped(result, "b-bad.crt")
+        self.assertIn("Fix or remove the files named above, then rebuild the container.", result.stderr)
+
+    def test_a_file_with_another_ending_does_not_stop_the_good_ones(self):
+        (self.source / "notes.txt").write_text("text\n")
+        (self.source / "good.crt").write_text(self.PEM)
+        result = self.run_script()
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(["good.crt"], self.installed())
+        self.assertEqual(["update-ca-certificates"], self.updates())
+
+    def test_a_name_with_spaces_is_installed_under_a_safe_name(self):
+        (self.source / "Org Root CA (2026).crt").write_text(self.PEM)
+        result = self.run_script()
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(["Org_Root_CA__2026_.crt"], self.installed())
+
+    def test_folders_and_the_readme_and_keep_file_are_not_reported(self):
+        (self.source / "sub").mkdir()
+        (self.source / "sub" / "x.crt").write_text(self.PEM)
+        result = self.run_script()
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual([], self.installed())
+        for name in ("README.md", ".gitkeep"):
+            self.assertNotIn(name, result.stderr)
+
+    def test_without_update_ca_certificates_the_files_wait_for_the_package_step(self):
+        (self.source / "org-root.crt").write_text(self.PEM)
+        result = self.run_script(with_update=False)
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(["org-root.crt"], self.installed())
+        self.assertIn("update-ca-certificates is not in the base image", result.stdout)
+
+    def test_it_is_a_posix_shell_script_that_downloads_nothing(self):
+        text = read(INSTALL_CERTS)
+        self.assertTrue(text.startswith("#!/bin/sh\n"))
+        body = text.split("set -eu", 1)[1]
+        for tool in ("bash", "python", "curl", "wget"):
+            self.assertNotIn(tool, body)
+
+
 class Documentation(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.page = read(ROOT / "docs" / "try-on-native-sim.md")
-        cls.section = cls.page[cls.page.index("## Dev container"):cls.page.index("## If something fails")]
+        # Getting started states what is untested and sets the container up; the Dev Container
+        # reference holds what the container is and what it needs.
+        cls.page = read(ROOT / "docs" / "getting-started.md")
+        cls.section = cls.page[cls.page.index("## Prerequisites"):cls.page.index("## Without the Dev Container")]
+        cls.ref = read(ROOT / "docs" / "dev-container.md")
         cls.readme = read(ROOT / "README.md")
 
-    def test_the_section_says_that_nobody_ran_it_on_wsl2_and_only_x86_64_ran_in_ci(self):
-        self.assertIn("Nobody has run it on WSL2 yet", self.section)
+    def test_the_section_names_the_supported_route_and_only_x86_64_ran_in_ci(self):
+        self.assertIn("This is the supported route", self.section)
+        self.assertNotIn("WSL2", self.section)
         self.assertIn("x86_64", self.section)
-        self.assertIn("binfmt", self.section)
+        self.assertIn("binfmt", self.ref)
         self.assertNotIn("emulated and slow", self.section)
+        self.assertNotIn("emulated and slow", self.ref)
 
     def test_the_readme_does_not_promise_other_architectures(self):
-        line = self.readme[self.readme.index("On Windows with WSL2"):]
-        line = line[:line.index("yet)")]
+        line = self.readme[self.readme.index("Supported:"):]
+        line = line[:line.index(".")]
         self.assertIn("x86_64", line)
         self.assertNotIn("any host", line)
 
+    def test_the_rerun_output_names_the_west_update_reminder(self):
+        # On a rerun setup.sh still prints the reminder to run west update after a pin move (SetupRuns).
+        text = " ".join(self.ref.split())
+        self.assertNotIn(", nothing for a step that is already done", text)
+        self.assertIn("almost nothing for a step that is already done", text)
+        self.assertIn("reminds you to run `west update` after the pin in `west.yml` moves", text)
+
+    def test_the_certificate_route_names_the_buildkit_bind_mount(self):
+        text = " ".join(self.ref.split())
+        self.assertIn("BuildKit bind mount", text)
+        self.assertIn("a builder without BuildKit stops at that step", text)
+
     def test_the_section_names_the_differences_from_the_ci_runner(self):
         for word in ("actions/setup-python", "python3-venv", "curl", "sudo", "clang-tidy-18"):
-            self.assertIn(word, self.section)
+            self.assertIn(word, self.ref)
 
     def test_the_section_says_what_the_container_job_builds_and_runs(self):
-        self.assertIn("RT1060-EVKB", self.section)
-        self.assertIn("cross-build", self.section)
+        self.assertIn("RT1060-EVKB", self.ref)
+        self.assertIn("cross-build", self.ref)
 
     def test_the_section_covers_a_failed_setup_and_the_wsl_resources(self):
         self.assertIn("bash .devcontainer/setup.sh", self.section)
-        self.assertIn(".wslconfig", self.section)
-        self.assertIn("processors", self.section)
+        self.assertIn(".wslconfig", self.ref)
+        self.assertIn("processors", self.ref)
 
     def test_the_product_include_check_is_not_said_to_predate_the_pin_in_the_workflow(self):
         self.assertNotIn("predates", read(WORKFLOW))
 
     def test_the_product_include_check_is_not_said_to_predate_the_pin_in_ci(self):
-        # The pinned crux-pilot contains the script with the hash that ci.yml checks, so the comment
-        # above the download says so instead of claiming that the pin predates the script.
-        text = read(CI)
+        # The pinned Crux contains the script with the hash that ci.yml checks, so the comment
+        # above the download check says so instead of claiming that the pin predates the script.
+        self.assertNotIn("predates", read(CI))
+        text = read(ci_map.MAP)
         self.assertNotIn("predates", text)
         comment = " ".join(
             line.strip().lstrip("#").strip()
-            for line in text[: text.index("- name: Run the Crux Pilot product include check")]
+            for line in text[: text.index('[[check]]\nid = "product-include-check"')]
             .splitlines()[-6:]
             if line.strip().startswith("#")
         )
-        self.assertIn("The crux-pilot revision pinned in west.yml contains the same script", comment)
+        self.assertIn("The Crux revision pinned in west.yml contains the same script", comment)
 
 
 if __name__ == "__main__":

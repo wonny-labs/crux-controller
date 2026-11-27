@@ -1,0 +1,19 @@
+common:
+  platform_allow:
+    - native_sim/native/64
+  integration_platforms:
+    - native_sim/native/64
+  tags:
+    - controller
+    - file
+tests:
+  controller.file.native_sim.not_ready:
+    extra_args: FILE_CASE=not_ready
+  controller.file.native_sim.mounted_not_bound:
+    extra_args: FILE_CASE=mounted_not_bound
+  controller.file.native_sim.mount_failure:
+    extra_args: FILE_CASE=mount_failure
+  controller.file.native_sim.roundtrip:
+    extra_args: FILE_CASE=roundtrip
+  controller.file.native_sim.bind_failure:
+    extra_args: FILE_CASE=bind_failure

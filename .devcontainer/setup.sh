@@ -9,11 +9,11 @@
 # zephyr/ and modules/. The workspace folder is bind-mounted at /workspaces/ws. The virtual
 # environment and the Zephyr SDK are in /opt/crux-cache, a named volume of this workspace folder.
 #
-# The steps are those of the S1 job of .github/workflows/ci.yml with local values: west init -l
+# The steps are those of the workload job of .github/workflows/ci.yml with local values: west init -l
 # crux-controller, west update, the Python requirements of Zephyr and west sdk install. West is not
 # updated again once the workspace exists: after the pin in west.yml moves, run `west update` by
-# hand. The optional Mbed TLS group of step S6 is not switched on here (see
-# docs/try-on-native-sim.md).
+# hand. The optional Mbed TLS group of the management capability is not switched on here (see
+# docs/native-setup.md).
 #
 # Completion markers: a finished SDK install writes $ZEPHYR_SDK_INSTALL_DIR/.crux-installed, and the
 # west workspace counts as initialised only with .west/config. A folder without its marker is what an
@@ -37,9 +37,9 @@
 #      VS Code and for the command line alike.
 #   3. else no certificate is installed and the script behaves as before.
 # The name of the source is printed, never the contents of the certificate.
-# The variables are set for this script only: a terminal that you open later in the container does not
-# have them, so pip there needs them again (or a cert entry in a pip.conf). The system bundle itself
-# holds the certificate for curl, git and apt.
+# The script sets these variables for its own steps; a terminal that you open later in the container gets
+# them from the image (.devcontainer/Dockerfile). The system bundle itself holds the certificate for curl,
+# git and apt.
 #
 # Everything it prints goes to the standard error stream, also what pip, west and git print, so a
 # command that scripts/dev-shell.sh runs after it keeps a clean standard output. When a step fails it
@@ -70,7 +70,7 @@ fail() {
 report_failure() {
     local status=$?
     if ((status != 0)); then
-        printf 'setup: failed during %s; rerun: bash .devcontainer/setup.sh\n' "$current_step"
+        printf 'setup: failed during %s; rerun: bash .devcontainer/setup.sh. See docs/troubleshooting.md.\n' "$current_step"
     fi
 }
 trap report_failure EXIT
@@ -180,14 +180,20 @@ if [[ ! -d "$workspace/.west" || ! -f "$workspace/.west/config" || ! -d "$worksp
         fi
         touch "$pending"
         say "west update (the first run fetches several GiB and takes a long time)"
-        west update
+        # --narrow fetches only the pinned revisions; -o=--progress makes git fetch show its progress,
+        # except in CI, where it would fill the log.
+        update_args=(--narrow)
+        if [[ -z "${CI:-}" ]]; then
+            update_args+=(-o=--progress)
+        fi
+        west update "${update_args[@]}"
         rm -f "$pending"
     )
 else
     say "the workspace is initialised; run \`west update\` yourself after the pin in west.yml moves."
 fi
 
-# 3. The Python requirements of Zephyr, as the S1 job installs them.
+# 3. The Python requirements of Zephyr, as the workload job installs them.
 step "the Python requirements of Zephyr"
 requirements=(
     "$workspace/zephyr/scripts/requirements-base.txt"
@@ -202,7 +208,24 @@ if [[ "$(cat "$stamp.zephyr" 2>/dev/null || true)" != "$zephyr_hash" ]]; then
     printf '%s\n' "$zephyr_hash" >"$stamp.zephyr"
 fi
 
-# 4. The Zephyr SDK with the arm-zephyr-eabi toolchain, as the S1 job installs it. GH_TOKEN is
+# Tab completion for west in bash (`west completion bash`). `completion` is a Zephyr extension command,
+# so west knows it only in the workspace after west update; this step therefore comes after the workspace
+# and the Zephyr requirements. The west of the virtual environment is in the cache volume, not in the
+# image, so the script is written here on every run, into the user folder that bash-completion loads on
+# the first Tab after `west`. No shell start file is edited. The script is written to a temporary file and
+# moved into place, so a failure keeps the previous file; it is only a convenience, so a failure prints a
+# warning and the setup goes on.
+step "the west Tab completion"
+completions="${BASH_COMPLETION_USER_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/bash-completion}/completions"
+if mkdir -p "$completions" && west completion bash >"$completions/west.tmp" \
+    && mv -f "$completions/west.tmp" "$completions/west"; then
+    :
+else
+    rm -f "$completions/west.tmp"
+    say "warning: the west Tab completion could not be written to $completions/west; west works without it"
+fi
+
+# 4. The Zephyr SDK with the arm-zephyr-eabi toolchain, as the workload job installs it. GH_TOKEN is
 # optional: it only avoids GitHub's rate limit for anonymous requests. The install is complete when
 # the marker exists, and the marker is written only after west sdk install returned. The compiler is
 # looked for by name (a file or a symbolic link, at most five levels down) only to warn: a layout that

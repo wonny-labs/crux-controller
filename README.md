@@ -1,93 +1,116 @@
 # Crux Controller
 
-New here? [docs/first-hour.md](docs/first-hour.md) takes you from a clone to a build, a simulator run and
-the local checks, on one short page.
+Crux Controller is a controller framework for products built on [Crux](https://github.com/wonny-labs/crux).
 
-Crux Controller is an Apache-2.0 reference consumer firmware of
-[Crux](https://github.com/wonny-labs/crux-pilot), an embedded software platform. It targets the NXP
-RT1060-EVKB Rev B evaluation board (EVKB for short) and runs on the Zephyr RTOS.
+Crux is an embedded software platform for Zephyr RTOS firmware.
+Crux Controller is for developers who build a networked controller product on Crux.
+It is a Zephyr module that a product imports, and its base image runs the framework services with no application.
+It uses Crux only through public headers and approved composition interfaces.
+It is not a product, not Crux, and it adds no public interface to Crux.
+As a downstream integration project, it checks Crux against a real consumer: CI builds it against the pinned Crux, and a daily build of the `net` image runs against Crux main.
 
-It is built the way a product is built: on top of Crux's public interfaces, one small step at a time, S0 to S6.
-A missing or awkward public interface shows up as a *finding*, a recorded note in
-[docs/findings/](docs/findings/README.md). The workload is synthetic, and the firmware has no real control logic.
+## Table of Contents
 
-Crux Controller is the official reference consumer firmware for ongoing integration,
-evaluation and regression testing of Crux Platform capabilities through public and approved
-composition interfaces. It may provide supporting evidence for relevant platform milestones, but it
-is not a mandatory exit criterion for any of them.
+- [Capabilities](#capabilities)
+- [Status and limits](#status-and-limits)
+- [Supported boards](#supported-boards)
+- [Quick start](#quick-start)
+- [Build a product on Crux](#build-a-product-on-crux)
+- [Where to read next](#where-to-read-next)
+- [Contributing](#contributing)
+- [Licence, support and ownership](#licence-support-and-ownership)
 
-## State
+## Capabilities
 
-Steps S0 to S6 are on `main`, and there is no release. CI builds every step for the EVKB and checks its declared
-resource limits. CI also runs the `native_sim` scenarios of S1 to S6 on Zephyr's simulated board. Step S2 ran twice
-on a board, on one bench. Nothing else has run on a board. S5 sets the clock from an SNTP server (Simple Network
-Time Protocol).
+The table lists the build configurations, `minimal` to `base`.
+The configurations from `workload` to `management` build on a synthetic workload written for this repository.
+`base` runs the framework with no workload and no application.
 
-| Step | What it adds | `native_sim` scenario | RT1060-EVKB build | On a board |
-|---|---|---|---|---|
-| S0 | The clock of Crux Time | no | yes | not run |
-| S1 | The workload on Zephyr threads and a message queue (adapter zone `app/os`), with Crux Time and Logging | yes | yes | not run |
-| S2 | A TCP exchange over the Crux Sockets profile | yes, over loopback | yes | ran twice, reproduced on one bench (link up, ping answered, one exchange echoed) |
-| S3 | A configuration record in a file through Crux File, mounted by the composition zone | yes, simulator provider on a RAM disk | yes, FatFs provider, microSD, no card used | not run |
-| S4 | The reset cause logged at boot and a watchdog fed once for each pass of the workload that has cycles due, through Crux System | yes, the boot line and a watchdog that the scenario does not enable; no feed cycle | yes, WDOG1 named by a devicetree alias | not run |
-| S5 | The Crux Time realtime clock set from an SNTP server by a low-priority thread, with a product policy for what an answer may do (on the S2 network) | yes, a responder over loopback: seven cases, no failed native write | yes, on the S2 base | not run |
-| S6 | Management over HTTPS on the S2 network: Crux Access, the web server on the Mbed TLS profile, the status and configuration services and a packaged page, on a RAM disk (no account, so no login) | yes, one image of ten cases with an in-process TLS client; no successful login, fake entropy | yes, on the S2 base, with the Mbed TLS group switched on in the job's own runner | not run |
+| Capability | Build configuration | Code to read |
+|---|---|---|
+| The clock of Crux Time | `minimal` | `app/src/composition.c` |
+| A synthetic workload on Zephyr threads and a message queue, with Crux Time and Logging | `workload` | `app/src/workload_thread.c`, `app/os/workload_os_zephyr.c`, `workload/` |
+| A TCP exchange over the Crux Sockets profile | `net` | `app/src/net_client.c` |
+| A configuration record in a file through Crux File, mounted by the composition zone | `file` | `app/src/config_store.c`, `framework/compose/storage_mount.c` |
+| The reset cause at boot and a watchdog fed by the workload, through Crux System | `system` | `app/src/health.c`, `app/src/health_policy.c` |
+| The Crux Time realtime clock set from an SNTP (Simple Network Time Protocol) server, with a product policy | `sntp` | `framework/src/time_sync.c`, `framework/src/time_sync_policy.c`, `framework/os/time_sync_zephyr.c` |
+| Management over HTTPS: Crux Access, the web server on the Mbed TLS profile, status and configuration services and a packaged page | `management` | `framework/compose/management_start.c`, `framework/management/` |
+| The controller framework: its start function composes web management, the serial command line and time synchronisation under health supervision (watchdog, boot counter, safe mode), with no application | `base` | `framework/src/framework.c`, `framework/src/startup.c`, `framework/src/boot_record.c`, `framework/os/supervisor_zephyr.c`, `zephyr/`, `include/controller/framework.h` |
 
-What each step taught is in its finding: [S2 board runs](docs/findings/s2-first-board-run.md),
-[S3](docs/findings/s3-file-composition.md), [S4](docs/findings/s4-system-composition.md), step S5
-([s5-time-synchronisation.md](docs/findings/s5-time-synchronisation.md)) and
-[S6](docs/findings/s6-https-management.md). The [roadmap](docs/roadmap.md) says what is not yet possible and why,
-and gives the static size of each step.
+[Architecture](docs/architecture.md#how-crux-is-consumed) lists each Crux target and header and the file that uses
+it, and [Adding a capability](docs/adding-a-capability.md) shows how a configuration is put together.
 
-## How to try it
+## Status and limits
 
-You do not need a board: the `native_sim` scenarios run on a host, with Twister (Zephyr's test runner).
-On Windows with WSL2 and Docker Engine (no Docker Desktop), or on an x86_64 Linux older than Ubuntu 24.04, use the
-dev container (only an x86_64 host was exercised, and only in CI; nobody has run it on WSL2 yet). Its
-[quick start](docs/try-on-native-sim.md#quick-start), in short:
+- There is no release.
+- Only the `net` image has run on a board, on one bench.
+  No other image has run on a board.
+- CI builds all eight build configurations, `minimal` to `base`, and runs the `native_sim` scenarios of `workload` to `base`.
+- The `base` image has no application.
+  The application interface is not in it yet.
+- CI measures static size only.
+  Stack use, heap use and timing are not measured.
+- It is not evidence for any Crux security claim.
+  That evidence is in Crux.
 
-1. Install Docker Engine and add yourself to the `docker` group.
-2. Clone into `~/work/crux-controller-workspace/crux-controller`, a parent folder of its own.
-3. Run `bash scripts/dev-shell.sh west --version`: the first run downloads several GiB.
-4. Run the Twister command of the quick start for all `native_sim` scenarios.
+The [roadmap](docs/roadmap.md) gives the details and the reason for each limit.
 
-A proxy, a company certificate or an error: see [docs/troubleshooting.md](docs/troubleshooting.md). To make a first
-change without Zephyr, follow [docs/first-change.md](docs/first-change.md). CI stays the reference for Zephyr
-builds and Twister runs ([why](docs/try-on-native-sim.md#why-the-evidence-comes-from-ci)).
+## Supported boards
 
-## Reading path
+| Board | Board target | Probe | Page |
+|---|---|---|---|
+| NXP RT1060-EVKB Rev B evaluation board (EVKB for short) | `mimxrt1060_evk@B/mimxrt1062/qspi` | SEGGER J-Link | [Board bring-up](docs/board-bring-up.md) |
 
-Read these five documents in this order. They take about 70 minutes in full.
+CI writes the same board target as `mimxrt1060_evk@B//qspi`, with the default SoC left out; Zephyr resolves both to the same target.
+[Other boards](docs/board-bring-up.md#other-boards) says what a second board needs.
 
-1. This README (about 4 minutes).
-2. [docs/roadmap.md](docs/roadmap.md) (about 11 minutes): what each step does, what has run on a board and what
-   has not.
-3. [docs/architecture.md](docs/architecture.md) (about 12 minutes): the four source trees, the threads and how
-   Crux is used.
-4. [docs/try-on-native-sim.md](docs/try-on-native-sim.md) (about 32 minutes to read, longer to follow): the
-   commands that run the tests without a board.
-5. [CONTRIBUTING.md](CONTRIBUTING.md) (about 9 minutes): the boundary, the checks, the pin and how a change is
-   reviewed.
+## Quick start
 
-[docs/README.md](docs/README.md) is the index of every page, with a path for each task. For a task, go to
-[docs/adding-a-step.md](docs/adding-a-step.md), [docs/reviewing.md](docs/reviewing.md) or the
-[known limits](docs/README.md#known-limits-not-scheduled). Words used in a particular sense are in the
-[glossary](docs/glossary.md).
+You do not need a board, and building the board image needs none either.
+Supported: x86_64 Linux with Docker Engine, through the Dev Container;
+[Set up without the Dev Container](docs/native-setup.md) is the alternative on Ubuntu 24.04.
 
-## Where the rules are
+1. Clone the repository and open it in the Dev Container, as [Getting started](docs/getting-started.md#set-up-the-dev-container) describes.
+   Use **Dev Containers: Reopen in Container** in VS Code, or `bash scripts/dev-shell.sh` on the command line.
+2. The first run sets up the workspace, Zephyr and the Zephyr SDK by itself, which downloads several gibibytes (GiB).
+   It is done when it prints `setup: workspace <folder>, Zephyr SDK <version>, West version: <version>`; in VS Code, each attach prints `bootstrap: workspace   ok` and `bootstrap: Zephyr SDK  ok`.
+   If it stops with `setup: failed during <step>`, fix the cause and run the same command again; [Getting started](docs/getting-started.md#set-up-the-dev-container) has the details.
+3. Follow the [Tutorial](docs/tutorial.md): the host tests, one run of the `native_sim` scenarios with Twister (Zephyr's test runner) and one build for the EVKB.
 
-- [CONTRIBUTING.md](CONTRIBUTING.md): the boundary, the checks, the pin, commits, pull requests and review.
-- [docs/composition-zone.md](docs/composition-zone.md): the include rules in detail.
-- [docs/dependencies.md](docs/dependencies.md): what `west.yml` fetches, at which pinned commit and licence.
-- [CHANGELOG.md](CHANGELOG.md): what each change added.
-- [docs/history/](docs/history/README.md): the project history that left the main documents.
+Look a failure up by its message in [troubleshooting](docs/troubleshooting.md).
+
+## Build a product on Crux
+
+A product is a firmware repository outside this one.
+It imports Crux and this module, and adds its own application.
+[`tests/product_integration/west.yml`](tests/product_integration/west.yml) is the manifest of a fixture product that imports this repository in that way, and `run.sh` in the same folder builds and runs it on `native_sim`.
+Read the Crux guides at the revision that `west.yml` pins:
+
+- [Choosing an API](https://github.com/wonny-labs/crux/blob/1330195487c34c8df6046d41ae030d3cdf8a5138/docs/choosing-an-api.md)
+- [Composition interfaces](https://github.com/wonny-labs/crux/blob/1330195487c34c8df6046d41ae030d3cdf8a5138/docs/composition-interfaces.md)
+- [Product Composition Guide](https://github.com/wonny-labs/crux/blob/1330195487c34c8df6046d41ae030d3cdf8a5138/docs/product-composition.md), with its [product template](https://github.com/wonny-labs/crux/blob/1330195487c34c8df6046d41ae030d3cdf8a5138/templates/product/README.md)
+- [Component readiness](https://github.com/wonny-labs/crux/blob/1330195487c34c8df6046d41ae030d3cdf8a5138/docs/component-readiness.md)
+
+## Where to read next
+
+| You want to | Read |
+|---|---|
+| Understand the source trees, the zones, the threads and how Crux is consumed | [Architecture](docs/architecture.md), with the [glossary](docs/glossary.md) |
+| Know what is built and what has run on a board | [Roadmap](docs/roadmap.md) |
+| Make a first change, from a branch to a pull request | [First change](docs/first-change.md), then [CONTRIBUTING.md](CONTRIBUTING.md) |
+| Add a capability | [Adding a capability](docs/adding-a-capability.md) and [the composition zone](docs/composition-zone.md) |
+| Review a change | [Reviewing](docs/reviewing.md) |
+| Run an image on a board, with the authorisation that the board page requires | [Board bring-up](docs/board-bring-up.md) |
+| Find any other page by task | [Documentation map](docs/README.md) |
+
+## Contributing
+
+Ask a question or report a problem as an issue at <https://github.com/wonny-labs/crux-controller/issues>.
+Changes come as pull requests, under the rules of [CONTRIBUTING.md](CONTRIBUTING.md); [CHANGELOG.md](CHANGELOG.md) records each change.
 
 ## Licence, support and ownership
 
 - Licence: Apache-2.0. See `LICENSE`.
-- Support: no support period is promised. Only the latest release is supported.
-- Ownership: the repository owner, the account in `CODEOWNERS`, decides what the documents reserve, such as
-  merges, tags, releases and any run on a board ([glossary](docs/glossary.md#people-and-board-procedures)).
-- Problems and questions: open an issue at <https://github.com/wonny-labs/crux-controller/issues>.
-- Security reports: see `SECURITY.md`, and do not use a public issue for them.
-- Releases: see `RELEASE.md`.
+- Ownership: the repository owner, the account in `CODEOWNERS` ([glossary](docs/glossary.md#people-and-board-procedures)).
+- Support and private security reports: `SECURITY.md`.
+- Releases: `RELEASE.md`.

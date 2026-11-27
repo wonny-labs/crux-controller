@@ -1,0 +1,34 @@
+/* The scenario with no watchdog: Crux Logging on an emulated UART, which the program copies to
+ * standard output, and the retained region over the test-only retained memory of ../common, which
+ * keeps its bytes across a restart of the simulated process. No alias crux-watchdog0: Crux System
+ * has no watchdog. */
+/ {
+    chosen { zephyr,log-uart = &logging_uarts; };
+    logging_uarts: logging-uarts {
+        compatible = "zephyr,log-uart";
+        uarts = <&logging_test>;
+    };
+    logging_test: logging-test {
+        compatible = "zephyr,uart-emul";
+        current-speed = <115200>;
+        rx-fifo-size = <16>;
+        tx-fifo-size = <8192>;
+        status = "okay";
+    };
+
+    retained_env: retained-env {
+        compatible = "vnd,retained-env";
+        size = <256>;
+        status = "okay";
+        #address-cells = <1>;
+        #size-cells = <1>;
+
+        controller_retained: retention@0 {
+            compatible = "zephyr,retention";
+            status = "okay";
+            reg = <0x0 0x30>;
+            prefix = [43 52 43 31];
+            checksum = <4>;
+        };
+    };
+};

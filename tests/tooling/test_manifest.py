@@ -14,6 +14,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import check_mbed_only  # noqa: E402
+import ci_map  # noqa: E402
 
 
 def load_manifest():
@@ -21,9 +22,9 @@ def load_manifest():
 
 
 class ManifestIsOptionA(unittest.TestCase):
-    def test_projects_are_crux_pilot_and_the_test_only_libc(self):
+    def test_projects_are_crux_and_the_test_only_libc(self):
         projects = load_manifest()["projects"]
-        self.assertEqual([p["name"] for p in projects], ["crux-pilot", "picolibc"])
+        self.assertEqual([p["name"] for p in projects], ["crux", "picolibc"])
         # The Crux import is narrowed: the three GPL stacks are blocked by name, so enabling the
         # Mbed TLS group would activate Mbed TLS and TF-PSA-Crypto and none of them (project list
         # only: no job fetches or builds with the group on).
@@ -37,18 +38,31 @@ class ManifestIsOptionA(unittest.TestCase):
         # The revision in Zephyr's own manifest at the Zephyr release that Crux pins.
         self.assertEqual(picolibc["revision"], "01254932e8e81085817ed61fd858648584ffe37c")
 
-    def test_crux_pilot_is_pinned_by_a_full_commit_hash(self):
+    def test_crux_is_pinned_by_a_full_commit_hash(self):
         revision = load_manifest()["projects"][0]["revision"]
         self.assertRegex(revision, r"^[0-9a-f]{40}$")
 
-    def test_crux_pilot_is_pinned_to_the_approved_commit(self):
+    def test_crux_is_pinned_to_the_approved_commit(self):
         # Moving the pin is a reviewed change of this test and of west.yml together.
-        # This commit of crux-pilot main (22 November 2026, after crux-pilot#536) follows the one the project owner
-        # approved on 16 November 2026 and still contains the move of the crypto modules to
-        # the Zephyr v4.4-branch revisions (wonny-labs/crux-pilot#416). The move needs the
-        # owner's approval before it merges.
+        # The project owner approved this pin update on 27 November 2026. This commit of Crux
+        # main keeps Zephyr v4.5.0 (wonny-labs/crux#603) and adds the follow-ups up to
+        # wonny-labs/crux#613; the crypto modules follow Zephyr's own manifest at v4.5.0.
         revision = load_manifest()["projects"][0]["revision"]
-        self.assertEqual(revision, "2c017f685e0215e0e269d4bc77272889d06a07d8")
+        self.assertEqual(revision, "1330195487c34c8df6046d41ae030d3cdf8a5138")
+
+    def test_every_pinned_crux_link_of_the_readme_uses_the_manifest_revision(self):
+        revision = load_manifest()["projects"][0]["revision"]
+        text = (ROOT / "README.md").read_text()
+        links = re.findall(r"github\.com/wonny-labs/crux/blob/([0-9a-f]{40})/", text)
+        self.assertTrue(links, "README.md has no pinned Crux link")
+        self.assertEqual({revision}, set(links))
+
+    def test_the_findings_index_names_the_manifest_revision_as_the_current_pin(self):
+        revision = load_manifest()["projects"][0]["revision"]
+        text = (ROOT / "docs" / "findings" / "README.md").read_text()
+        match = re.search(r"The current pin is `([0-9a-f]{40})`", text)
+        self.assertIsNotNone(match)
+        self.assertEqual(revision, match.group(1))
 
     def test_the_pin_comment_does_not_say_the_crypto_move_is_missing(self):
         text = (ROOT / "west.yml").read_text()
@@ -71,7 +85,7 @@ class ManifestIsOptionA(unittest.TestCase):
 # `active` or `inactive`). The Crux
 # manifest filters both optional groups out, so `all` lists their projects as inactive.
 BASE = [
-    ("manifest", True), ("crux-pilot", True), ("zephyr", True), ("cmsis", True),
+    ("manifest", True), ("crux", True), ("zephyr", True), ("cmsis", True),
     ("cmsis_6", True), ("hal_nxp", True), ("littlefs", True), ("fatfs", True),
     ("picolibc", True), ("reliance-edge", False),
 ]
@@ -135,7 +149,7 @@ class MbedOnlyManifest(unittest.TestCase):
             self.assertTrue(problems, group)
             self.assertIn(group, problems[0])
 
-    def test_a_manifest_without_crux_pilot_fails_the_static_check(self):
+    def test_a_manifest_without_crux_fails_the_static_check(self):
         manifest = copy.deepcopy(load_manifest())
         manifest["projects"] = manifest["projects"][1:]
         self.assertTrue(check_mbed_only.check_manifest(manifest))
@@ -222,18 +236,18 @@ class MbedOnlyListing(unittest.TestCase):
             self.assertEqual(2, wrong_mode.returncode)
 
     def test_an_empty_or_unresolved_listing_does_not_pass(self):
-        for text in ("", "manifest active\n", "manifest active\ncrux-pilot active\n"):
+        for text in ("", "manifest active\n", "manifest active\ncrux active\n"):
             for mode in ("default", "mbed"):
                 self.assertTrue(check_mbed_only.check_listing(text, mode), (text, mode))
 
     def test_a_line_that_is_not_name_and_state_is_rejected(self):
         with self.assertRaises(ValueError):
-            check_mbed_only.parse_listing("crux-pilot\n")
+            check_mbed_only.parse_listing("crux\n")
         with self.assertRaises(ValueError):
-            check_mbed_only.parse_listing("crux-pilot maybe\n")
+            check_mbed_only.parse_listing("crux maybe\n")
         # `west list` prints the word active or inactive, not a Python boolean.
         with self.assertRaises(ValueError):
-            check_mbed_only.parse_listing("crux-pilot True\n")
+            check_mbed_only.parse_listing("crux True\n")
 
     def test_an_unknown_mode_is_rejected(self):
         with self.assertRaises(ValueError):
@@ -264,11 +278,27 @@ class MbedOnlyListing(unittest.TestCase):
         self.assertIn("Mbed-only check passed (default)", result.stdout)
 
 
+@ci_map.needs_tomllib
 class PinsJobChecksTheResolvedWorkspace(unittest.TestCase):
+    """The West pins job fetches the workspace with scripts/ci/prepare-job.sh, then runs the checks
+    of the job pins of scripts/ci/checks.toml in order; NAMES names each step's check."""
+
+    NAMES = {
+        "pins-contract": "Contract check",
+        "pins-mbed-default": "Mbed-only check, default workspace",
+        "pins-mbed-group-on": "Mbed-only check, group on",
+        "pins-negative-unnarrowed-import": "Negative control, an unnarrowed import must fail",
+        "pins-negative-pin-without-reason": "Negative control, a pin without a reason must fail",
+    }
+
     @classmethod
     def setUpClass(cls):
         jobs = yaml.safe_load((ROOT / ".github" / "workflows" / "ci.yml").read_text())["jobs"]
-        cls.steps = jobs["pins"]["steps"]
+        names = [step.get("name", "") for step in jobs["pins"]["steps"]]
+        assert names.index("Prepare the workspace") < names.index("Run the checks of this tier")
+        fetch = "".join(line.strip() + "\n" for line in ci_map.prepare_branch("pins").splitlines() if line.strip())
+        cls.steps = [{"name": "Fetch the workspace", "run": fetch}]
+        cls.steps += [{"name": cls.NAMES[c["id"]], "run": c["run"]} for c in ci_map.checks("pins")]
         cls.names = [step.get("name", "") for step in cls.steps]
 
     def index(self, fragment):

@@ -55,7 +55,7 @@ CI_SNIPPET = """\
 jobs:
   boundary:
     steps:
-      - name: Run the Crux Pilot product include check
+      - name: Run the product include check
         env:
           CHECK_COMMIT: {commit}
           CHECK_SHA256: {checker}
@@ -79,10 +79,11 @@ def load_script():
 
 
 def ci_pins():
-    """The pins of the two include check steps of ci.yml, read with a YAML parser."""
-    steps = yaml.safe_load(CI.read_text())["jobs"]["boundary"]["steps"]
-    env = {}
-    for step in steps:
+    """The pins of the two include checks in ci.yml, read with a YAML parser: the env of the
+    Boundary check job, which passes them to its checks in scripts/ci/checks.toml."""
+    job = yaml.safe_load(CI.read_text())["jobs"]["boundary"]
+    env = {k: str(v) for k, v in job.get("env", {}).items()}
+    for step in job["steps"]:
         env.update({k: str(v) for k, v in step.get("env", {}).items()})
     return env
 
@@ -185,7 +186,7 @@ class DefaultCruxRoot(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
         self.assertIn(str(ws.crux.resolve()), result.stdout)
 
-    def test_a_checkout_named_crux_pilot_beside_the_repository_is_found(self):
+    def test_a_checkout_named_for_the_west_project_is_found(self):
         ws = Workspace(self, crux_name="crux-pilot")
         result = ws.run()
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)

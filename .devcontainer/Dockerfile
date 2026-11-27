@@ -27,18 +27,42 @@ ARG USER_GID=1000
 # ENV either: the proxy of the company that builds the image must not become part of the environment
 # of every container.
 
-# The packages of the "Install host packages" step of the S1 job, plus python3-venv (CI gets its
+# Root certificates of an organisation whose proxy inspects TLS, for every download below. The files
+# that a developer placed in .devcontainer/certs/ (Git ignores them; an empty folder installs nothing)
+# are installed by .devcontainer/install-org-certs.sh, before apt-get, the J-Link download and the
+# setup. The folder and the script are bind-mounted into that one RUN step (BuildKit), so the image
+# stores the installed certificates and no other file of the folder. The variables point the tools of
+# the image and of every container at the system bundle, which ca-certificates builds; they change
+# nothing when the folder is empty. See docs/dev-container.md, "Behind a proxy or with a company
+# certificate".
+ENV REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt \
+    CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt \
+    SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
+    GIT_SSL_CAINFO=/etc/ssl/certs/ca-certificates.crt \
+    PIP_CERT=/etc/ssl/certs/ca-certificates.crt \
+    NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
+RUN --mount=type=bind,source=certs,target=/tmp/crux-certs \
+    --mount=type=bind,source=install-org-certs.sh,target=/tmp/install-org-certs.sh \
+    sh /tmp/install-org-certs.sh /tmp/crux-certs
+
+# The packages of the "Install host packages" step of the workload job, plus python3-venv (CI gets its
 # Python from actions/setup-python), curl and sudo for the setup script, and clang-tidy-18 at the
-# version of the "Static analysis" job.
+# version of the "Static analysis" job. update-ca-certificates adds the certificates of the first step
+# to the bundle when the base image had no ca-certificates before this step. For the editor: clangd-18 at
+# the same version, named clangd for the VS Code clangd extension, bash-completion for the west Tab
+# completion that setup.sh writes, and gdb for the debugger of the VS Code C/C++ extension.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
+        bash-completion \
         build-essential \
         gcc-multilib \
         ca-certificates \
+        clangd-18=1:18.1.3-1ubuntu1 \
         clang-tidy-18=1:18.1.3-1ubuntu1 \
         curl \
         device-tree-compiler \
         file \
+        gdb \
         gperf \
         git \
         libmagic1 \
@@ -49,13 +73,32 @@ RUN apt-get update \
         sudo \
         wget \
         xz-utils \
+    && update-ca-certificates \
     && apt-get clean \
-    && find /var/lib/apt/lists -type f -delete
+    && find /var/lib/apt/lists -type f -delete \
+    && ln -sf /usr/bin/clangd-18 /usr/local/bin/clangd
+
+# clangd user config: Zephyr and Crux headers sit outside the repository, where .clangd does not apply.
+# It removes the GCC options that Zephyr adds to the board build; keep the list equal to the
+# unconditional fragment of .clangd (tests/tooling/test_editor_tools.py checks it). The next step gives
+# /home/vscode to the user of the container.
+RUN install -d /home/vscode/.config/clangd \
+    && printf '%s\n' \
+        'CompileFlags:' \
+        '  Remove:' \
+        '    - -fno-reorder-functions' \
+        '    - -fno-defer-pop' \
+        '    - --param=min-pagesize=0' \
+        '    - -fno-freestanding' \
+        '    - -fno-printf-return-value' \
+        '    - -mfp16-format=ieee' \
+        > /home/vscode/.config/clangd/config.yaml
 
 RUN if [ "$USER_GID" != "$(id -g vscode)" ]; then groupmod -o --gid "$USER_GID" vscode; fi \
     && if [ "$USER_UID" != "$(id -u vscode)" ]; then usermod -o --uid "$USER_UID" vscode; fi \
     && chown -R "$USER_UID:$USER_GID" /home/vscode \
-    && install -d -o "$USER_UID" -g "$USER_GID" /opt/crux-cache
+    && install -d -o "$USER_UID" -g "$USER_GID" /opt/crux-cache \
+    && install -d -o "$USER_UID" -g "$USER_GID" /home/vscode/.vscode-server /home/vscode/.vscode-server/extensions
 
 # The Zephyr SDK version of the CI jobs. The SDK and the virtual environment are installed by
 # .devcontainer/setup.sh into /opt/crux-cache, which is a named volume.
@@ -65,3 +108,24 @@ ENV ZEPHYR_SDK_INSTALL_DIR=/opt/crux-cache/sdk/zephyr-sdk-${ZEPHYR_SDK_VERSION} 
     CRUX_CACHE_DIR=/opt/crux-cache \
     CLANG_TIDY=clang-tidy-18 \
     PATH=/opt/crux-cache/venv/bin:${PATH}
+
+# SEGGER J-Link software for flashing and debugging a board (docs/board-bring-up.md). The package comes from
+# the first of: a file the developer placed in .devcontainer/jlink/packages/; CRUX_JLINK_URL, a copy that an
+# organisation hosts, checked against CRUX_JLINK_DEB_SHA256; the version pinned below, downloaded from
+# SEGGER's download endpoint and checked against the pinned SHA-256. That download accepts SEGGER's terms of
+# use (see jlink/install-jlink.sh). CRUX_JLINK=auto (devcontainer.json) installs it and, when none of the
+# three gives a package, prints a warning and builds the image without it, so Host and native_sim work for
+# everyone; 1 requires it; 0 skips it. To bump J-Link, change the two CRUX_JLINK_SEGGER_* values together.
+# The proxy build arguments are not declared here, as above.
+ARG CRUX_JLINK=auto
+ARG CRUX_JLINK_DEB=
+ARG CRUX_JLINK_DEB_SHA256=
+ARG CRUX_JLINK_URL=
+ARG CRUX_JLINK_SEGGER_VERSION=V996a
+ARG CRUX_JLINK_SEGGER_SHA256=e23591160efa39e0f9e184031195a594d962853a801a1261b168a02644ab2a0a
+COPY jlink/ /tmp/crux-jlink/
+RUN if [ "$CRUX_JLINK" != 0 ]; then \
+        sh /tmp/crux-jlink/install-jlink.sh /tmp/crux-jlink/packages \
+        && rm -rf /var/lib/apt/lists/*; \
+    fi \
+    && rm -rf /tmp/crux-jlink

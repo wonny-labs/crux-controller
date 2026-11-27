@@ -14,9 +14,9 @@ Read the [README](../README.md) and [CONTRIBUTING.md](../CONTRIBUTING.md) first 
 - CMake 3.20 or newer and Ninja.
 - Python 3 with PyYAML (CI uses Python 3.12) and clang-format 18.1.8, the version that the format check requires.
 
-[try-on-native-sim.md](try-on-native-sim.md#what-you-need-first) lists the tools in more detail. The build and
-check commands on this page were run on macOS. They use no Linux-only tool, except where a step says so. On Windows, use WSL2 and
-work in the Linux file system, as the try-on page explains.
+[Set up without the Dev Container](native-setup.md#what-you-need-first) lists the tools in more detail. The commands
+on this page use no Linux-only tool, except where a step says so. On Windows, use the Dev Container route in
+[Getting started](getting-started.md).
 
 ## 2. Get the repository and make a branch
 
@@ -30,9 +30,7 @@ git switch -c test/workload-zero-period
 python3 -m venv .venv && . .venv/bin/activate && python -m pip install pyyaml clang-format==18.1.8
 ```
 
-CONTRIBUTING.md does not prescribe a branch name. The branches in this repository's history are called
-`<type>/<short-description>`, with the same types as a commit subject (`fix/...`, `docs/...`). Use one branch for one
-logical change.
+Name the branch as [CONTRIBUTING.md](../CONTRIBUTING.md#commits-and-pull-requests) says.
 
 ## 3. Write the test first
 
@@ -110,10 +108,10 @@ What each one tells you:
 - `check-format.sh` checks that every C file is formatted as `.clang-format` says, with clang-format 18.1.8. It
   prints the number of files it checked. To fix a file, run that clang-format on it.
 
-Three more checks run in CI and need tools that this page did not run on macOS:
+Three more checks run in CI and need tools that step 1 does not install:
 
 - clang-tidy 18 over the sources that the host tests build, which include the files in `tests/host`:
-  `CLANG_TIDY=clang-tidy-18 python3 scripts/analyze_host.py`. Run it on Linux or in the dev container.
+  `CLANG_TIDY=clang-tidy-18 python3 scripts/analyze_host.py`. Run it on Linux or in the Dev Container.
 - Zephyr's checkpatch on the changed C lines, `scripts/check-patch.sh`. It needs a prepared Zephyr checkout in
   `ZEPHYR_BASE`.
 - The Zephyr builds and the Twister scenarios. A change to a host test does not touch them, and CI runs them
@@ -136,54 +134,34 @@ git commit -m "test: cover a zero period in the workload validator" -m "The vali
 git push -u origin test/workload-zero-period
 ```
 
-Then open a pull request from the branch. CONTRIBUTING.md does not say how a contributor gets permission
-to push a branch to this repository. Ask the owner. This page does not cover that step, and the commands above
-stop at the push.
+Then open a pull request from the branch. Ask the owner for permission to push a branch to this repository.
 
-The pull request says what changed, why and how it was checked: what was checked, at which revision, by whom (CI, a
-reviewer or you), and what was not run. Do not report a check as passing if it did not run. For the example:
+A pull request says what changed, why, what was checked at which revision and by whom, and what was left out
+([CONTRIBUTING.md](../CONTRIBUTING.md#commits-and-pull-requests)). For the example:
 
 ```text
 test: cover a zero period in the workload validator
 
-What changed: one case in tests/host/test_workload.c. A period of 0 ms is rejected with
-WORKLOAD_ERR_RANGE. No source file changed.
-
-Why: the host tests check 9 ms and values above the maximum directly, 1 ms only through
-workload_cycle_init(), and 0 ms not at all.
-
-What was checked, at which revision, by whom:
-- Host tests, sanitizers off and on, at <short SHA>: me.
-- Tooling tests, boundary check, SPDX check and format check at <short SHA>: me.
-- CI at <short SHA>: the checks of this pull request, read after they finished.
-
+What changed: one case in tests/host/test_workload.c; a period of 0 ms is rejected with WORKLOAD_ERR_RANGE.
+Why: the host tests did not check 0 ms at all.
+Checked: host tests, sanitizers off and on, at <short SHA>: me. CI at <short SHA>: this pull request.
 What was not run: clang-tidy and checkpatch on my machine (CI runs them), anything on a board.
 ```
 
 ## 8. What CI runs for the change
 
-The [table of workflows in CONTRIBUTING.md](../CONTRIBUTING.md#build-and-test) lists the jobs and when they run.
-For this change the jobs to read are `Tooling tests`, `Host tests` (sanitizer off and on), `Boundary check`,
-`Patch style` and `Static analysis`. CONTRIBUTING.md says that `ci.yml` and `budget.yml` run for pull requests, so the
-step build jobs and the `Budget` jobs run as well, although this change does not touch them. A change to
-`app/`, a configuration fragment, an overlay or `tests/native_sim` takes its evidence from CI, and the pull request
-says so. A build in CI is not a run on a board.
+The [workflow table in CONTRIBUTING.md](../CONTRIBUTING.md#build-and-test) lists the jobs and when they run. For this
+change read `Tooling tests`, `Host tests` (sanitizer off and on), `Boundary check`, `Patch style` and `Static
+analysis`. A change to `app/`, a configuration fragment, an overlay or `tests/native_sim` takes its evidence from CI,
+and the pull request says so. A build in CI is not a run on a board.
 
-A red job is a result to read, not a check to relax. Do not weaken a check or a test to make a job pass. CONTRIBUTING.md
-says to extend a check rather than loosen it.
+A red job is a result to read, not a check to relax: extend a check rather than loosen it.
 
 ## 9. Review and merge
 
-A material change gets an independent review by someone who did not write it. CONTRIBUTING.md does not define
-"material"; ask the owner when you are unsure. The reviewer reads the files and the check results, not your summary,
-and gives `PASS`, `REVISE` or `ESCALATE`.
-
-- `REVISE`: fix the blocking findings and ask for one re-check.
-- `ESCALATE`: the owner decides.
-- `PASS`: there is no blocking finding.
-
-A `PASS` and a green CI do not merge anything. Merging needs the owner's approval, and the history of `main` uses merge
-commits. The checklist that a reviewer follows is in [reviewing.md](reviewing.md).
+A material change gets an independent review, with the verdicts `PASS`, `REVISE` or `ESCALATE`, and merging needs
+the owner's approval: [CONTRIBUTING.md](../CONTRIBUTING.md#review) defines both. The checklist that a reviewer
+follows is in [reviewing.md](reviewing.md).
 
 ## 10. Discard the example
 
@@ -199,5 +177,6 @@ git branch -D test/workload-zero-period
 - To change application code or a build file: [architecture.md](architecture.md) and the "Changing behaviour" section
   of CONTRIBUTING.md. If the check you meet is the boundary check, read [composition-zone.md](composition-zone.md)
   before you look for a way round it. There is none.
-- To add a step: [adding-a-step.md](adding-a-step.md).
-- To run the Zephyr scenarios on your machine: [try-on-native-sim.md](try-on-native-sim.md).
+- To add a capability: [adding-a-capability.md](adding-a-capability.md).
+- To run the Zephyr scenarios on your machine: Part B of the [Tutorial](tutorial.md), or
+  [Set up without the Dev Container](native-setup.md#run-the-workload-to-sntp-scenarios).

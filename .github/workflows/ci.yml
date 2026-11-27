@@ -1,137 +1,89 @@
 name: ci
 
+# A thin wrapper: scripts/ci/run-tier.sh picks and runs the checks of the tier from
+# scripts/ci/checks.toml, where each job of this workflow has the job of the same name
+# (CONTRIBUTING.md, CI tiers). The steps here only set up the runner.
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [main]
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+    inputs:
+      tier:
+        description: "Tier to run (CONTRIBUTING.md, CI tiers)"
+        type: choice
+        options: [full, fast, nightly]
+        default: full
+
+# Supersede only older runs of the same pull request. Runs on main and manual runs are unique.
+concurrency:
+  group: ci-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || format('run-{0}', github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
-
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   tooling:
     name: Tooling tests
     runs-on: ubuntu-24.04
+    env:
+      TIER: ${{ inputs.tier || 'auto' }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          path: crux-controller
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: python -m pip install pyyaml
-      - run: python -m unittest discover -s tests/tooling -v
-      # Every covered first-party file starts with the licence identifier line. The list of the
-      # files that predate the check is in the script and can only get shorter.
-      - name: Check SPDX headers
-        run: python scripts/check_spdx.py
+      - name: Plan the checks of this tier
+        id: plan
+        working-directory: crux-controller
+        run: |
+          scripts/ci/run-tier.sh "$TIER" --job tooling --plan
+          echo "checks=$(scripts/ci/run-tier.sh "$TIER" --job tooling --count)" >> "$GITHUB_OUTPUT"
+      - name: Install PyYAML
+        if: steps.plan.outputs.checks != '0'
+        run: python -m pip install pyyaml
+      - name: Run the checks of this tier
+        if: steps.plan.outputs.checks != '0'
+        working-directory: crux-controller
+        run: scripts/ci/run-tier.sh "$TIER" --job tooling
 
   pins:
     name: West pins
     runs-on: ubuntu-24.04
+    env:
+      TIER: ${{ inputs.tier || 'auto' }}
     steps:
-      # The manifest repository sits in a workspace directory, one level
-      # below the west workspace root, as in the product template.
       - uses: actions/checkout@v4
         with:
           path: crux-controller
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: python -m pip install west==1.4.0
-      - name: Fetch the workspace
+      - name: Plan the checks of this tier
+        id: plan
+        working-directory: crux-controller
         run: |
-          west init -l crux-controller
-          west update
-      - name: Contract check
-        run: |
-          set -o pipefail
-          west crux-pins | tee pins.txt
-          grep -q '^CONTRACT crux-pilot ' pins.txt
-          if grep -q '^MISMATCH' pins.txt; then
-            echo "unexpected MISMATCH" >&2
-            exit 1
-          fi
-      # The Crux import is narrowed by name, so switching the Mbed TLS group on would activate the
-      # Mbed modules and not the GPL stacks that share their group. The three steps below read the
-      # resolved project list (west list does not clone anything) and run before the control that
-      # edits west.yml. This job fetches nothing with the group on. The S6 job does, after the same
-      # check.
-      - name: Mbed-only check, default workspace
-        run: |
-          west list --all -f '{name} {active}' > list-default.txt
-          cat list-default.txt
-          python crux-controller/scripts/check_mbed_only.py --mode default < list-default.txt
-      - name: Mbed-only check, group on
-        run: |
-          # The group is switched on in this runner only, and again off at the end.
-          west config --local manifest.group-filter -- +crux-secure-management
-          west list --all -f '{name} {active}' > list-mbed.txt
-          cat list-mbed.txt
-          python crux-controller/scripts/check_mbed_only.py --mode mbed --baseline list-default.txt < list-mbed.txt
-          west config --local -d manifest.group-filter
-      - name: Negative control, an unnarrowed import must fail
-        run: |
-          # The same manifest without the blocklist, with the group on: the wolf projects are
-          # then in the resolved manifest and the check must find them. The edit and the group
-          # setting stay in the runner and are undone at the end.
-          python - <<'PY'
-          import yaml
-
-          path = "crux-controller/west.yml"
-          data = yaml.safe_load(open(path))
-          for project in data["manifest"]["projects"]:
-              if project["name"] == "crux-pilot":
-                  project["import"] = True
-          yaml.safe_dump(data, open(path, "w"), sort_keys=False)
-          PY
-          west config --local manifest.group-filter -- +crux-secure-management
-          west list --all -f '{name} {active}' > list-negative.txt
-          set +e
-          python crux-controller/scripts/check_mbed_only.py --mode mbed < list-negative.txt > check-negative.txt 2>&1
-          status=$?
-          set -e
-          cat check-negative.txt
-          west config --local -d manifest.group-filter
-          git -C crux-controller checkout -- west.yml
-          test "$status" -eq 1
-          grep -q 'wolfssl' check-negative.txt
-      - name: Negative control, a pin without a reason must fail
-        run: |
-          # A newer revision of littlefs than the one Crux pins, with no
-          # crux-override. It contains the pinned commit, so west crux-pins
-          # reports MISMATCH rather than an error. This edit stays in the
-          # runner's working copy.
-          python - <<'PY'
-          import yaml
-
-          path = "crux-controller/west.yml"
-          data = yaml.safe_load(open(path))
-          manifest = data["manifest"]
-          if not any(remote["name"] == "zephyrproject-rtos" for remote in manifest["remotes"]):
-              manifest["remotes"].append(
-                  {"name": "zephyrproject-rtos", "url-base": "https://github.com/zephyrproject-rtos"}
-              )
-          manifest["projects"].append(
-              {
-                  "name": "littlefs",
-                  "remote": "zephyrproject-rtos",
-                  "revision": "e9a8638fc228e43a3156ed3ac602229af3e3c1d5",
-                  "path": "modules/fs/littlefs",
-              }
-          )
-          yaml.safe_dump(data, open(path, "w"), sort_keys=False)
-          PY
-          west update littlefs
-          set +e
-          west crux-pins > pins-negative.txt 2>&1
-          status=$?
-          set -e
-          cat pins-negative.txt
-          test "$status" -ne 0
-          grep -q '^MISMATCH littlefs .* (contract ' pins-negative.txt
+          scripts/ci/run-tier.sh "$TIER" --job pins --plan
+          echo "checks=$(scripts/ci/run-tier.sh "$TIER" --job pins --count)" >> "$GITHUB_OUTPUT"
+      - name: Install pinned build tools
+        if: steps.plan.outputs.checks != '0'
+        run: python -m pip install west==1.4.0
+      - name: Prepare the workspace
+        if: steps.plan.outputs.checks != '0'
+        working-directory: crux-controller
+        run: scripts/ci/prepare-job.sh pins
+      - name: Run the checks of this tier
+        if: steps.plan.outputs.checks != '0'
+        working-directory: crux-controller
+        run: scripts/ci/run-tier.sh "$TIER" --job pins
 
   host:
     name: Host tests (sanitize ${{ matrix.sanitize }})
@@ -140,821 +92,505 @@ jobs:
       fail-fast: false
       matrix:
         sanitize: ["OFF", "ON"]
-    steps:
-      - uses: actions/checkout@v4
-      - name: Build and run the workload tests
-        run: |
-          cmake -S tests/host -B build/host -G Ninja -DWORKLOAD_SANITIZE=${{ matrix.sanitize }}
-          cmake --build build/host
-          ctest --test-dir build/host --output-on-failure
-
-  s1:
-    name: S1 (native_sim and RT1060-EVKB)
-    runs-on: ubuntu-24.04
     env:
-      BOARD: mimxrt1060_evk@B//qspi
-      SDK_VERSION: "1.0.1"
-      ZEPHYR_SDK_INSTALL_DIR: ${{ github.workspace }}/sdk/zephyr-sdk-1.0.1
+      TIER: ${{ inputs.tier || 'auto' }}
     steps:
       - uses: actions/checkout@v4
         with:
           path: crux-controller
+          fetch-depth: 0
+      - name: Plan the checks of this tier
+        id: plan
+        working-directory: crux-controller
+        run: |
+          scripts/ci/run-tier.sh "$TIER" --job "host-${{ matrix.sanitize }}" --plan
+          echo "checks=$(scripts/ci/run-tier.sh "$TIER" --job "host-${{ matrix.sanitize }}" --count)" >> "$GITHUB_OUTPUT"
+      - name: Run the checks of this tier
+        if: steps.plan.outputs.checks != '0'
+        working-directory: crux-controller
+        run: scripts/ci/run-tier.sh "$TIER" --job "host-${{ matrix.sanitize }}"
+
+  workload:
+    name: workload (native_sim and RT1060-EVKB)
+    runs-on: ubuntu-24.04
+    env:
+      SDK_VERSION: "1.0.1"
+      ZEPHYR_SDK_INSTALL_DIR: ${{ github.workspace }}/sdk/zephyr-sdk-1.0.1
+      TIER: ${{ inputs.tier || 'auto' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: crux-controller
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install host packages
+      - name: Plan the checks of this tier
+        id: plan
+        working-directory: crux-controller
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
+          scripts/ci/run-tier.sh "$TIER" --job workload --plan
+          echo "checks=$(scripts/ci/run-tier.sh "$TIER" --job workload --count)" >> "$GITHUB_OUTPUT"
+      - name: Install host packages
+        if: steps.plan.outputs.checks != '0'
+        run: |
+          crux-controller/scripts/ci/apt-install.sh --no-install-recommends \
             build-essential gcc-multilib ca-certificates device-tree-compiler file gperf git \
             libmagic1 libsdl2-dev pkg-config python3-dev wget xz-utils
       - name: Install pinned build tools
+        if: steps.plan.outputs.checks != '0'
         run: python -m pip install cmake==3.28.4 ninja==1.11.1 west==1.4.0
-      - name: Fetch the workspace
-        run: |
-          west init -l crux-controller
-          west update
-          python -m pip install -r zephyr/scripts/requirements-base.txt \
-            -r zephyr/scripts/requirements-build-test.txt \
-            -r zephyr/scripts/requirements-run-test.txt
       - name: Restore the Zephyr SDK
+        if: steps.plan.outputs.checks != '0'
         id: sdk_cache
         uses: actions/cache@v4
         with:
           path: sdk
           key: zephyr-sdk-${{ env.SDK_VERSION }}-arm-zephyr-eabi
-      - name: Install the Zephyr SDK
-        if: steps.sdk_cache.outputs.cache-hit != 'true'
-        working-directory: zephyr
+      - name: Prepare the workspace
+        if: steps.plan.outputs.checks != '0'
+        working-directory: crux-controller
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          west sdk install --version "$SDK_VERSION" --install-base "$GITHUB_WORKSPACE/sdk" \
-            --gnu-toolchains arm-zephyr-eabi --personal-access-token "$GH_TOKEN"
-      - name: Run the S1 scenario on native_sim
-        env:
-          ZEPHYR_BASE: ${{ github.workspace }}/zephyr
-        run: |
-          west twister -p native_sim/native/64 -T crux-controller/tests/native_sim \
-            --inline-logs --clobber-output -O twister-out
-      - name: Cross-build S1 with the baseline gate required
-        env:
-          ZEPHYR_BASE: ${{ github.workspace }}/zephyr
-        run: |
-          west build -p always -b '${{ env.BOARD }}' -d crux-controller/build/s1 \
-            crux-controller/app -- -DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON \
-            -DEXTRA_CONF_FILE=conf/s1.conf
-      - name: Check the outputs exist
-        run: |
-          for output in zephyr.bin zephyr.meta; do
-            test -f "crux-controller/build/s1/zephyr/$output" || {
-              echo "missing $output" >&2
-              exit 1
-            }
-          done
-      - name: Check the resolved S1 configuration
-        run: |
-          build=crux-controller/build/s1/zephyr
-          for option in CONFIG_CRUX_CONTROLLER_S1=y CONFIG_CRUX_LOGGING=y \
-              CONFIG_CRUX_CONTROLLER_WORKER_STACK=4096; do
-            grep -qx "$option" "$build/.config" || { echo "missing $option" >&2; exit 1; }
-          done
-          # The product does not call the Crux Thread provider, so no step selects it.
-          for option in CONFIG_CRUX_THREAD=y; do
-            ! grep -qx "$option" "$build/.config" || { echo "unexpected $option" >&2; exit 1; }
-          done
-          grep -q 'zephyr,log-uart' "$build/zephyr.dts" || { echo "no log UART selection" >&2; exit 1; }
-          ! grep -qx 'CONFIG_CRUX_CONTROLLER_S2=y' "$build/.config"
+        run: scripts/ci/prepare-job.sh workload
+      - name: Run the checks of this tier
+        if: steps.plan.outputs.checks != '0'
+        working-directory: crux-controller
+        run: scripts/ci/run-tier.sh "$TIER" --job workload
 
-  s2:
-    name: S2 build (RT1060-EVKB, networking)
+  net:
+    name: net build (RT1060-EVKB, networking)
     runs-on: ubuntu-24.04
     env:
-      BOARD: mimxrt1060_evk@B//qspi
       SDK_VERSION: "1.0.1"
       ZEPHYR_SDK_INSTALL_DIR: ${{ github.workspace }}/sdk/zephyr-sdk-1.0.1
+      TIER: ${{ inputs.tier || 'auto' }}
     steps:
       - uses: actions/checkout@v4
         with:
           path: crux-controller
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install host packages
+      - name: Plan the checks of this tier
+        id: plan
+        working-directory: crux-controller
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
+          scripts/ci/run-tier.sh "$TIER" --job net --plan
+          echo "checks=$(scripts/ci/run-tier.sh "$TIER" --job net --count)" >> "$GITHUB_OUTPUT"
+      - name: Install host packages
+        if: steps.plan.outputs.checks != '0'
+        run: |
+          crux-controller/scripts/ci/apt-install.sh --no-install-recommends \
             build-essential ca-certificates device-tree-compiler file gperf git \
             libmagic1 pkg-config wget xz-utils
       - name: Install pinned build tools
+        if: steps.plan.outputs.checks != '0'
         run: python -m pip install cmake==3.28.4 ninja==1.11.1 west==1.4.0
-      - name: Fetch the workspace
-        run: |
-          west init -l crux-controller
-          west update
-          python -m pip install -r zephyr/scripts/requirements-base.txt
       - name: Restore the Zephyr SDK
+        if: steps.plan.outputs.checks != '0'
         id: sdk_cache
         uses: actions/cache@v4
         with:
           path: sdk
           key: zephyr-sdk-${{ env.SDK_VERSION }}-arm-zephyr-eabi
-      - name: Install the Zephyr SDK
-        if: steps.sdk_cache.outputs.cache-hit != 'true'
-        working-directory: zephyr
+      - name: Prepare the workspace
+        if: steps.plan.outputs.checks != '0'
+        working-directory: crux-controller
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          west sdk install --version "$SDK_VERSION" --install-base "$GITHUB_WORKSPACE/sdk" \
-            --gnu-toolchains arm-zephyr-eabi --personal-access-token "$GH_TOKEN"
-      - name: Cross-build S2 with the baseline gate required
-        env:
-          ZEPHYR_BASE: ${{ github.workspace }}/zephyr
-        run: |
-          west build -p always -b '${{ env.BOARD }}' -d crux-controller/build/s2 \
-            crux-controller/app -- -DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON \
-            "-DEXTRA_CONF_FILE=conf/s1.conf;conf/s2.conf" \
-            "-DEXTRA_DTC_OVERLAY_FILE=boards/s2.overlay"
-      - name: Check the outputs exist
-        run: |
-          for output in zephyr.bin zephyr.meta; do
-            test -f "crux-controller/build/s2/zephyr/$output" || {
-              echo "missing $output" >&2
-              exit 1
-            }
-          done
-          echo "Built S2 for $BOARD. No flash, reset or hardware command was run."
-      - name: Check the resolved S2 configuration and devicetree
-        run: |
-          build=crux-controller/build/s2/zephyr
-          # A fragment or overlay that is silently not applied would still build, so check
-          # what the build resolved, not what the command line asked for.
-          for option in CONFIG_CRUX_CONTROLLER_S2=y CONFIG_CRUX_SOCKETS=y CONFIG_CRUX_NETIF=y \
-              'CONFIG_NET_CONFIG_MY_IPV4_ADDR="192.168.77.2"' CONFIG_NET_CONFIG_SETTINGS=y; do
-            grep -qxF "$option" "$build/.config" || { echo "missing $option" >&2; exit 1; }
-          done
-          grep -Eq 'local-mac-address = \[ *02 *43 *52 *55 *58 *20 *\]' "$build/zephyr.dts" || {
-            echo "the S2 overlay did not set the MAC address" >&2
-            grep -n 'mac' "$build/zephyr.dts" | head -20 >&2 || true
-            grep -rn 's2.overlay' crux-controller/build/s2/CMakeCache.txt | head -5 >&2 || true
-            exit 1
-          }
-          ! grep -q 'green_led' "$build/zephyr.dts" || {
-            echo "the S2 overlay did not delete green_led" >&2
-            exit 1
-          }
+        run: scripts/ci/prepare-job.sh net
+      - name: Run the checks of this tier
+        if: steps.plan.outputs.checks != '0'
+        working-directory: crux-controller
+        run: scripts/ci/run-tier.sh "$TIER" --job net
 
-  s3:
-    name: S3 build (RT1060-EVKB, File)
+  file:
+    name: file build (RT1060-EVKB, File)
     runs-on: ubuntu-24.04
     env:
-      BOARD: mimxrt1060_evk@B//qspi
       SDK_VERSION: "1.0.1"
       ZEPHYR_SDK_INSTALL_DIR: ${{ github.workspace }}/sdk/zephyr-sdk-1.0.1
+      TIER: ${{ inputs.tier || 'auto' }}
     steps:
       - uses: actions/checkout@v4
         with:
           path: crux-controller
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install host packages
+      - name: Plan the checks of this tier
+        id: plan
+        working-directory: crux-controller
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
+          scripts/ci/run-tier.sh "$TIER" --job file --plan
+          echo "checks=$(scripts/ci/run-tier.sh "$TIER" --job file --count)" >> "$GITHUB_OUTPUT"
+      - name: Install host packages
+        if: steps.plan.outputs.checks != '0'
+        run: |
+          crux-controller/scripts/ci/apt-install.sh --no-install-recommends \
             build-essential ca-certificates device-tree-compiler file gperf git \
             libmagic1 pkg-config wget xz-utils
       - name: Install pinned build tools
+        if: steps.plan.outputs.checks != '0'
         run: python -m pip install cmake==3.28.4 ninja==1.11.1 west==1.4.0
-      - name: Fetch the workspace
-        run: |
-          west init -l crux-controller
-          west update
-          python -m pip install -r zephyr/scripts/requirements-base.txt
       - name: Restore the Zephyr SDK
+        if: steps.plan.outputs.checks != '0'
         id: sdk_cache
         uses: actions/cache@v4
         with:
           path: sdk
           key: zephyr-sdk-${{ env.SDK_VERSION }}-arm-zephyr-eabi
-      - name: Install the Zephyr SDK
-        if: steps.sdk_cache.outputs.cache-hit != 'true'
-        working-directory: zephyr
+      - name: Prepare the workspace
+        if: steps.plan.outputs.checks != '0'
+        working-directory: crux-controller
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          west sdk install --version "$SDK_VERSION" --install-base "$GITHUB_WORKSPACE/sdk" \
-            --gnu-toolchains arm-zephyr-eabi --personal-access-token "$GH_TOKEN"
-      - name: Cross-build S3 with the baseline gate required
-        env:
-          ZEPHYR_BASE: ${{ github.workspace }}/zephyr
-        run: |
-          west build -p always -b '${{ env.BOARD }}' -d crux-controller/build/s3 \
-            crux-controller/app -- -DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON \
-            "-DEXTRA_CONF_FILE=conf/s1.conf;conf/s3.conf" \
-            "-DEXTRA_DTC_OVERLAY_FILE=boards/s3.overlay"
-      - name: Check the outputs exist
-        run: |
-          for output in zephyr.bin zephyr.meta; do
-            test -f "crux-controller/build/s3/zephyr/$output" || {
-              echo "missing $output" >&2
-              exit 1
-            }
-          done
-          echo "Built S3 for $BOARD. No flash, reset or hardware command was run."
-      - name: Check the resolved S3 configuration and devicetree
-        run: |
-          build=crux-controller/build/s3/zephyr
-          # An unmet Kconfig dependency only warns and a missing overlay entry would still
-          # build, so check what the build resolved, not what the command line asked for.
-          for option in CONFIG_CRUX_CONTROLLER_S3=y CONFIG_CRUX_FILE_FATFS_RT1060=y \
-              CONFIG_FILE_SYSTEM=y CONFIG_FAT_FILESYSTEM_ELM=y CONFIG_DISK_DRIVER_SDMMC=y; do
-            grep -qxF "$option" "$build/.config" || { echo "missing $option" >&2; exit 1; }
-          done
-          # No auto-format, no formatting service, no other storage.
-          for option in CONFIG_FS_FATFS_MOUNT_MKFS=y CONFIG_FILE_SYSTEM_MKFS=y \
-              CONFIG_CRUX_FS_RELIANCE_EDGE=y CONFIG_CRUX_FILE_RELIANCE_EDGE=y; do
-            ! grep -qxF "$option" "$build/.config" || { echo "unexpected $option" >&2; exit 1; }
-          done
-          grep -q 'controller_storage' "$build/zephyr.dts" || {
-            echo "the S3 overlay did not add the fstab entry" >&2
-            exit 1
-          }
-          grep -q 'zephyr,fstab,fatfs' "$build/zephyr.dts" || {
-            echo "the fstab entry is not a FatFs entry" >&2
-            exit 1
-          }
-      - name: Check what the image links
-        run: |
-          nm=$(find "$ZEPHYR_SDK_INSTALL_DIR" -name 'arm-zephyr-eabi-nm' -type f | head -n 1)
-          test -n "$nm" || { echo "no nm in the SDK" >&2; exit 1; }
-          "$nm" crux-controller/build/s3/zephyr/zephyr.elf > symbols.txt
-          # The composition and the binding are linked. The formatting functions are not.
-          for symbol in storage_port_mount storage_port_bind crux_file_zephyr_bind \
-              config_store_save config_store_load fs_mount; do
-            grep -qE " [Tt] ${symbol}$" symbols.txt || { echo "not linked: $symbol" >&2; exit 1; }
-          done
-          for symbol in f_mkfs fs_mkfs; do
-            ! grep -qE " [Tt] ${symbol}$" symbols.txt || { echo "linked: $symbol" >&2; exit 1; }
-          done
+        run: scripts/ci/prepare-job.sh file
+      - name: Run the checks of this tier
+        if: steps.plan.outputs.checks != '0'
+        working-directory: crux-controller
+        run: scripts/ci/run-tier.sh "$TIER" --job file
 
-  s4:
-    name: S4 build (RT1060-EVKB, System)
+  system:
+    name: system build (RT1060-EVKB, System)
     runs-on: ubuntu-24.04
     env:
-      BOARD: mimxrt1060_evk@B//qspi
       SDK_VERSION: "1.0.1"
       ZEPHYR_SDK_INSTALL_DIR: ${{ github.workspace }}/sdk/zephyr-sdk-1.0.1
+      TIER: ${{ inputs.tier || 'auto' }}
     steps:
       - uses: actions/checkout@v4
         with:
           path: crux-controller
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install host packages
+      - name: Plan the checks of this tier
+        id: plan
+        working-directory: crux-controller
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
+          scripts/ci/run-tier.sh "$TIER" --job system --plan
+          echo "checks=$(scripts/ci/run-tier.sh "$TIER" --job system --count)" >> "$GITHUB_OUTPUT"
+      - name: Install host packages
+        if: steps.plan.outputs.checks != '0'
+        run: |
+          crux-controller/scripts/ci/apt-install.sh --no-install-recommends \
             build-essential ca-certificates device-tree-compiler file gperf git \
             libmagic1 pkg-config wget xz-utils
       - name: Install pinned build tools
+        if: steps.plan.outputs.checks != '0'
         run: python -m pip install cmake==3.28.4 ninja==1.11.1 west==1.4.0
-      - name: Fetch the workspace
-        run: |
-          west init -l crux-controller
-          west update
-          python -m pip install -r zephyr/scripts/requirements-base.txt
       - name: Restore the Zephyr SDK
+        if: steps.plan.outputs.checks != '0'
         id: sdk_cache
         uses: actions/cache@v4
         with:
           path: sdk
           key: zephyr-sdk-${{ env.SDK_VERSION }}-arm-zephyr-eabi
-      - name: Install the Zephyr SDK
-        if: steps.sdk_cache.outputs.cache-hit != 'true'
-        working-directory: zephyr
+      - name: Prepare the workspace
+        if: steps.plan.outputs.checks != '0'
+        working-directory: crux-controller
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          west sdk install --version "$SDK_VERSION" --install-base "$GITHUB_WORKSPACE/sdk" \
-            --gnu-toolchains arm-zephyr-eabi --personal-access-token "$GH_TOKEN"
-      - name: Cross-build S4 with the baseline gate required
-        env:
-          ZEPHYR_BASE: ${{ github.workspace }}/zephyr
-        run: |
-          west build -p always -b '${{ env.BOARD }}' -d crux-controller/build/s4 \
-            crux-controller/app -- -DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON \
-            "-DEXTRA_CONF_FILE=conf/s1.conf;conf/s4.conf" \
-            "-DEXTRA_DTC_OVERLAY_FILE=boards/s4.overlay"
-      - name: Check the outputs exist
-        run: |
-          for output in zephyr.bin zephyr.meta; do
-            test -f "crux-controller/build/s4/zephyr/$output" || {
-              echo "missing $output" >&2
-              exit 1
-            }
-          done
-          echo "Built S4 for $BOARD. No flash, reset or hardware command was run."
-      - name: Check the resolved S4 configuration and devicetree
-        run: |
-          build=crux-controller/build/s4/zephyr
-          # An unmet Kconfig dependency only warns and a missing overlay entry would not stop
-          # the build before the provider checks it, so check what the build resolved, not what
-          # the command line asked for.
-          for option in CONFIG_CRUX_CONTROLLER_S4=y CONFIG_CRUX_SYSTEM=y CONFIG_WATCHDOG=y \
-              CONFIG_HWINFO=y CONFIG_REBOOT=y; do
-            grep -qxF "$option" "$build/.config" || { echo "missing $option" >&2; exit 1; }
-          done
-          # Crux System refuses another owner of the watchdog or of the reset cause, and the
-          # product selects no Crux Thread or Sync provider.
-          for option in CONFIG_TASK_WDT=y CONFIG_TASK_WDT_HW_FALLBACK=y CONFIG_WDT_SHELL=y \
-              CONFIG_HWINFO_SHELL=y CONFIG_CRUX_CONTROLLER_M3=y CONFIG_CRUX_THREAD=y \
-              CONFIG_CRUX_SYNC=y; do
-            ! grep -qxF "$option" "$build/.config" || { echo "unexpected $option" >&2; exit 1; }
-          done
-          grep -Eq 'crux-watchdog0 = &?wdog0' "$build/zephyr.dts" || {
-            echo "the S4 overlay did not set the crux-watchdog0 alias" >&2
-            grep -n 'crux-watchdog0' "$build/zephyr.dts" >&2 || true
-            exit 1
-          }
-          awk '/wdog0: /,/};/' "$build/zephyr.dts" | grep -q 'status = "okay"' || {
-            echo "the WDOG1 node (wdog0) is not enabled in the devicetree" >&2
-            awk '/wdog0: /,/};/' "$build/zephyr.dts" >&2 || true
-            exit 1
-          }
-      - name: Check what the image links
-        run: |
-          nm=$(find "$ZEPHYR_SDK_INSTALL_DIR" -name 'arm-zephyr-eabi-nm' -type f | head -n 1)
-          test -n "$nm" || { echo "no nm in the SDK" >&2; exit 1; }
-          "$nm" crux-controller/build/s4/zephyr/zephyr.elf > symbols.txt
-          # The policy, the glue and the public System calls that it makes are linked.
-          for symbol in health_report_reset_cause health_watchdog_start health_cycle \
-              health_feed_result health_watchdog_timeout crux_watchdog_start crux_watchdog_feed \
-              crux_system_reset_cause_get crux_system_reset_cause_clear; do
-            grep -qE " [Tt] ${symbol}$" symbols.txt || { echo "not linked: $symbol" >&2; exit 1; }
-          done
+        run: scripts/ci/prepare-job.sh system
+      - name: Run the checks of this tier
+        if: steps.plan.outputs.checks != '0'
+        working-directory: crux-controller
+        run: scripts/ci/run-tier.sh "$TIER" --job system
 
-  s5:
-    name: S5 build (RT1060-EVKB, SNTP time synchronisation)
+  sntp:
+    name: sntp build (RT1060-EVKB, SNTP time synchronisation)
     runs-on: ubuntu-24.04
     env:
-      BOARD: mimxrt1060_evk@B//qspi
       SDK_VERSION: "1.0.1"
       ZEPHYR_SDK_INSTALL_DIR: ${{ github.workspace }}/sdk/zephyr-sdk-1.0.1
+      TIER: ${{ inputs.tier || 'auto' }}
     steps:
       - uses: actions/checkout@v4
         with:
           path: crux-controller
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install host packages
+      - name: Plan the checks of this tier
+        id: plan
+        working-directory: crux-controller
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
+          scripts/ci/run-tier.sh "$TIER" --job sntp --plan
+          echo "checks=$(scripts/ci/run-tier.sh "$TIER" --job sntp --count)" >> "$GITHUB_OUTPUT"
+      - name: Install host packages
+        if: steps.plan.outputs.checks != '0'
+        run: |
+          crux-controller/scripts/ci/apt-install.sh --no-install-recommends \
             build-essential ca-certificates device-tree-compiler file gperf git \
             libmagic1 pkg-config wget xz-utils
       - name: Install pinned build tools
+        if: steps.plan.outputs.checks != '0'
         run: python -m pip install cmake==3.28.4 ninja==1.11.1 west==1.4.0
-      - name: Fetch the workspace
-        run: |
-          west init -l crux-controller
-          west update
-          python -m pip install -r zephyr/scripts/requirements-base.txt
       - name: Restore the Zephyr SDK
+        if: steps.plan.outputs.checks != '0'
         id: sdk_cache
         uses: actions/cache@v4
         with:
           path: sdk
           key: zephyr-sdk-${{ env.SDK_VERSION }}-arm-zephyr-eabi
-      - name: Install the Zephyr SDK
-        if: steps.sdk_cache.outputs.cache-hit != 'true'
-        working-directory: zephyr
+      - name: Prepare the workspace
+        if: steps.plan.outputs.checks != '0'
+        working-directory: crux-controller
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          west sdk install --version "$SDK_VERSION" --install-base "$GITHUB_WORKSPACE/sdk" \
-            --gnu-toolchains arm-zephyr-eabi --personal-access-token "$GH_TOKEN"
-      - name: Cross-build S5 with the baseline gate required
-        env:
-          ZEPHYR_BASE: ${{ github.workspace }}/zephyr
-        run: |
-          west build -p always -b '${{ env.BOARD }}' -d crux-controller/build/s5 \
-            crux-controller/app -- -DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON \
-            "-DEXTRA_CONF_FILE=conf/s1.conf;conf/s2.conf;conf/s5.conf" \
-            "-DEXTRA_DTC_OVERLAY_FILE=boards/s2.overlay"
-      - name: Check the outputs exist
-        run: |
-          for output in zephyr.bin zephyr.meta; do
-            test -f "crux-controller/build/s5/zephyr/$output" || {
-              echo "missing $output" >&2
-              exit 1
-            }
-          done
-          echo "Built S5 for $BOARD. No flash, reset or hardware command was run."
-      - name: Check the resolved S5 configuration
-        run: |
-          build=crux-controller/build/s5/zephyr
-          # An unmet Kconfig dependency only warns, so the step could be built without the SNTP
-          # library or without the network that it needs. Check what the build resolved, not what
-          # the command line asked for, including the defaults of the settings.
-          for option in CONFIG_CRUX_CONTROLLER_S5=y CONFIG_CRUX_CONTROLLER_S2=y \
-              CONFIG_CRUX_CONTROLLER_S1=y CONFIG_SNTP=y CONFIG_CRUX_TIME=y CONFIG_NET_UDP=y \
-              CONFIG_NET_IPV4=y 'CONFIG_CRUX_CONTROLLER_TIME_SERVER="192.168.77.1"' \
-              CONFIG_CRUX_CONTROLLER_TIME_INTERVAL_S=600 CONFIG_CRUX_CONTROLLER_TIME_TIMEOUT_MS=3000 \
-              CONFIG_CRUX_CONTROLLER_TIME_STALE_AGE_S=1800 CONFIG_CRUX_CONTROLLER_TIME_THRESHOLD_MS=100 \
-              CONFIG_CRUX_CONTROLLER_TIME_MAX_STEP_MS=1000 CONFIG_CRUX_CONTROLLER_TIME_STACK=8192; do
-            grep -qxF "$option" "$build/.config" || { echo "missing $option" >&2; exit 1; }
-          done
-          # Nothing else may own the clock or the time source: no RTC adapter of Crux Time, no
-          # uncertainty option of the SNTP library (it changes the time that the library reports),
-          # none of the network configuration library's own SNTP clock setters (a second writer of
-          # the clock), no other step, and no Crux Thread or Sync provider.
-          for option in CONFIG_CRUX_TIME_RTC=y CONFIG_SNTP_UNCERTAINTY=y CONFIG_CRUX_CONTROLLER_S3=y \
-              CONFIG_CRUX_CONTROLLER_S4=y CONFIG_CRUX_CONTROLLER_M3=y CONFIG_CRUX_THREAD=y \
-              CONFIG_CRUX_SYNC=y CONFIG_NET_CONFIG_CLOCK_SNTP_INIT=y \
-              CONFIG_NET_CONFIG_SNTP_INIT_RESYNC=y; do
-            ! grep -qxF "$option" "$build/.config" || { echo "unexpected $option" >&2; exit 1; }
-          done
-      - name: Check what the image links
-        run: |
-          nm=$(find "$ZEPHYR_SDK_INSTALL_DIR" -name 'arm-zephyr-eabi-nm' -type f | head -n 1)
-          test -n "$nm" || { echo "no nm in the SDK" >&2; exit 1; }
-          "$nm" crux-controller/build/s5/zephyr/zephyr.elf > symbols.txt
-          # The policy, the glue, the adapter and the calls that the glue makes are linked. The
-          # absence of other callers of the clock is checked in the sources by the tooling tests:
-          # the Crux Time library and the SNTP library define the other authority and query calls
-          # themselves, so their symbols are not a sign of a caller.
-          for symbol in time_sync_init time_sync_poll time_sync_start time_sync_decide \
-              time_sync_port_query time_sync_port_start sntp_simple crux_realtime_init \
-              crux_realtime_set crux_realtime_set_synchronized crux_realtime_get_snapshot; do
-            grep -qE " [Tt] ${symbol}$" symbols.txt || { echo "not linked: $symbol" >&2; exit 1; }
-          done
+        run: scripts/ci/prepare-job.sh sntp
+      - name: Run the checks of this tier
+        if: steps.plan.outputs.checks != '0'
+        working-directory: crux-controller
+        run: scripts/ci/run-tier.sh "$TIER" --job sntp
 
-  s6:
-    name: S6 build (HTTPS management, native_sim and RT1060-EVKB)
+  management:
+    name: management build (HTTPS management, native_sim and RT1060-EVKB)
     runs-on: ubuntu-24.04
     env:
-      BOARD: mimxrt1060_evk@B//qspi
       SDK_VERSION: "1.0.1"
       ZEPHYR_SDK_INSTALL_DIR: ${{ github.workspace }}/sdk/zephyr-sdk-1.0.1
+      TIER: ${{ inputs.tier || 'auto' }}
     steps:
       - uses: actions/checkout@v4
         with:
           path: crux-controller
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install host packages
+      - name: Plan the checks of this tier
+        id: plan
+        working-directory: crux-controller
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
+          scripts/ci/run-tier.sh "$TIER" --job management --plan
+          echo "checks=$(scripts/ci/run-tier.sh "$TIER" --job management --count)" >> "$GITHUB_OUTPUT"
+      - name: Install host packages
+        if: steps.plan.outputs.checks != '0'
+        run: |
+          crux-controller/scripts/ci/apt-install.sh --no-install-recommends \
             build-essential gcc-multilib ca-certificates device-tree-compiler file gperf git \
             libmagic1 libsdl2-dev pkg-config python3-dev wget xz-utils
       - name: Install pinned build tools
+        if: steps.plan.outputs.checks != '0'
         run: python -m pip install cmake==3.28.4 ninja==1.11.1 west==1.4.0
-      # The first update is the default one that every job runs. West has to resolve the Crux
-      # manifest before it can list anything, as the West pins job does.
-      - name: Fetch the default workspace
-        run: |
-          west init -l crux-controller
-          west update
-      - name: Mbed-only check, default workspace
-        run: |
-          west list --all -f '{name} {active}' > list-default.txt
-          cat list-default.txt
-          python crux-controller/scripts/check_mbed_only.py --mode default < list-default.txt
-      # The Mbed TLS group is switched on in this runner only, never in west.yml. The resolved
-      # project list is checked before anything is fetched with the group on, so a stack that the
-      # group would activate beyond the Mbed modules fails the job first.
-      - name: Mbed-only check, group on
-        run: |
-          west config --local manifest.group-filter -- +crux-secure-management
-          west list --all -f '{name} {active}' > list-mbed.txt
-          cat list-mbed.txt
-          python crux-controller/scripts/check_mbed_only.py --mode mbed --baseline list-default.txt < list-mbed.txt
-      - name: Fetch the Mbed TLS modules and nothing else
-        run: |
-          west update
-          for name in wolfssl wolfssh wolfpsa; do
-            test ! -e "modules/crypto/$name" || { echo "unexpected $name" >&2; exit 1; }
-          done
-          for name in mbedtls tf-psa-crypto; do
-            test -d "modules/crypto/$name" || { echo "missing $name" >&2; exit 1; }
-          done
-          python -m pip install -r zephyr/scripts/requirements-base.txt \
-            -r zephyr/scripts/requirements-build-test.txt \
-            -r zephyr/scripts/requirements-run-test.txt
       - name: Restore the Zephyr SDK
+        if: steps.plan.outputs.checks != '0'
         id: sdk_cache
         uses: actions/cache@v4
         with:
           path: sdk
           key: zephyr-sdk-${{ env.SDK_VERSION }}-arm-zephyr-eabi
-      - name: Install the Zephyr SDK
-        if: steps.sdk_cache.outputs.cache-hit != 'true'
-        working-directory: zephyr
+      - name: Prepare the workspace
+        if: steps.plan.outputs.checks != '0'
+        working-directory: crux-controller
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          west sdk install --version "$SDK_VERSION" --install-base "$GITHUB_WORKSPACE/sdk" \
-            --gnu-toolchains arm-zephyr-eabi --personal-access-token "$GH_TOKEN"
-      # The scenario is in a sibling of tests/native_sim, so the S1 job, which has no Mbed TLS
-      # modules, never selects it.
-      - name: Run the S6 scenario on native_sim
+        run: scripts/ci/prepare-job.sh management
+      - name: Run the checks of this tier
+        if: steps.plan.outputs.checks != '0'
+        working-directory: crux-controller
         env:
-          ZEPHYR_BASE: ${{ github.workspace }}/zephyr
-        run: |
-          west twister -p native_sim/native/64 -T crux-controller/tests/native_sim_mbed \
-            --inline-logs --clobber-output -O twister-out-s6
-      - name: Check that the scenario ran and was not skipped
-        run: |
-          python - <<'PY'
-          import json
-
-          report = json.load(open("twister-out-s6/twister.json"))
-          suites = [suite for suite in report["testsuites"] if "controller.s6.native_sim.https_management" in suite["name"]]
-          statuses = [case["status"] for suite in suites for case in suite["testcases"]]
-          print([suite["name"] for suite in suites], statuses)
-          assert suites, "the S6 scenario is not in the Twister report"
-          assert statuses and all(status == "passed" for status in statuses), statuses
-          assert len(statuses) == 10, statuses
-          PY
-      - name: Cross-build S6 with the baseline gate required
-        env:
-          ZEPHYR_BASE: ${{ github.workspace }}/zephyr
-        run: |
-          west build -p always -b '${{ env.BOARD }}' -d crux-controller/build/s6 \
-            crux-controller/app -- -DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON \
-            "-DEXTRA_CONF_FILE=conf/s1.conf;conf/s2.conf;conf/s6.conf" \
-            "-DEXTRA_DTC_OVERLAY_FILE=boards/s2.overlay;boards/s6.overlay"
-      - name: Check the outputs exist
-        run: |
-          for output in zephyr.bin zephyr.meta; do
-            test -f "crux-controller/build/s6/zephyr/$output" || {
-              echo "missing $output" >&2
-              exit 1
-            }
-          done
-          echo "Built S6 for $BOARD. No flash, reset or hardware command was run."
-      - name: Check the resolved S6 configuration and devicetree
-        run: |
-          build=crux-controller/build/s6/zephyr
-          # An unmet Kconfig dependency only warns, so check what the build resolved, not what
-          # the command line asked for.
-          for option in CONFIG_CRUX_CONTROLLER_S6=y CONFIG_CRUX_CONTROLLER_S2=y CONFIG_CRUX_CONTROLLER_S1=y \
-              CONFIG_CRUX_PSA_THREADING=y CONFIG_PSA_CRYPTO_PROVIDER_MBEDTLS=y CONFIG_MBEDTLS=y \
-              CONFIG_CRUX_ACCESS=y CONFIG_CRUX_CONFIG_SERVICE=y CONFIG_CRUX_MGMT_STATUS=y \
-              CONFIG_CRUX_TLS_CERTIFICATE=y CONFIG_CRUX_WEB=y CONFIG_CRUX_WEB_SESSION=y \
-              CONFIG_CRUX_WEB_MANAGEMENT=y CONFIG_CRUX_SYSTEM=y CONFIG_CRUX_NETIF=y \
-              CONFIG_CRUX_FILE_FATFS_RT1060_RAM_DISK=y CONFIG_DISK_DRIVER_RAM=y \
-              CONFIG_FILE_SYSTEM_MKFS=y CONFIG_ENTROPY_MCUX_TRNG=y \
-              CONFIG_MBEDTLS_PSA_DRIVER_GET_ENTROPY=y CONFIG_CRUX_WEB_PORT=443 \
-              'CONFIG_CRUX_WEB_BIND_ADDRESS="192.168.77.2"' \
-              CONFIG_CRUX_WEB_SESSION_WORKER_PRIORITY=11 CONFIG_CRUX_WEB_MANAGEMENT_WORKER_PRIORITY=11 \
-              CONFIG_CRUX_SECURITY_EVENT_DRAIN_PRIORITY=11 CONFIG_HTTP_SERVER_MAX_CLIENTS=3 \
-              CONFIG_MBEDTLS_HEAP_SIZE=120000; do
-            grep -qxF "$option" "$build/.config" || { echo "missing $option" >&2; exit 1; }
-          done
-          # The Crux services select Thread and Sync for themselves, so they are on here. The
-          # product's sources include neither (the boundary check), and no fragment names them.
-          for option in CONFIG_CRUX_THREAD=y CONFIG_CRUX_SYNC=y; do
-            grep -qxF "$option" "$build/.config" || { echo "missing $option" >&2; exit 1; }
-          done
-          # No reboot, network, file service, SSH, command line, plain HTTP, other step, shell,
-          # card, test entropy or Settings File backend.
-          for option in CONFIG_CRUX_REBOOT=y CONFIG_CRUX_NETWORK_SETTINGS=y CONFIG_CRUX_FILE_SERVICE=y \
-              CONFIG_CRUX_SSH=y CONFIG_CRUX_CLI=y CONFIG_CRUX_CLI_CONSOLE=y \
-              CONFIG_CRUX_WEB_PLAIN_HTTP_FOR_TESTS=y CONFIG_CRUX_DEVELOPMENT_IMAGE=y \
-              CONFIG_CRUX_CONTROLLER_S3=y CONFIG_CRUX_CONTROLLER_S4=y CONFIG_CRUX_CONTROLLER_M3=y \
-              CONFIG_CRUX_SERIAL=y CONFIG_SHELL=y CONFIG_DISK_DRIVER_SDMMC=y \
-              CONFIG_IMX_USDHC=y CONFIG_CRUX_FILE_FATFS_RT1060=y CONFIG_FS_FATFS_MOUNT_MKFS=y \
-              CONFIG_TEST_RANDOM_GENERATOR=y CONFIG_FAKE_ENTROPY_NATIVE_SIM=y \
-              CONFIG_CRUX_CONFIGURATION_SETTINGS_FILE=y CONFIG_TASK_WDT_HW_FALLBACK=y \
-              CONFIG_WDT_SHELL=y CONFIG_HWINFO_SHELL=y; do
-            ! grep -qxF "$option" "$build/.config" || { echo "unexpected $option" >&2; exit 1; }
-          done
-          ! grep -q '^CONFIG_WOLF' "$build/.config" || { echo "unexpected wolf option" >&2; exit 1; }
-          grep -Eq 'crux-watchdog0 = &?wdog0' "$build/zephyr.dts" || { echo "no crux-watchdog0 alias" >&2; exit 1; }
-          grep -q 'zephyr,ram-disk' "$build/zephyr.dts" || { echo "no RAM disk node" >&2; exit 1; }
-          grep -q 'controller_storage' "$build/zephyr.dts" || { echo "no fstab entry" >&2; exit 1; }
-      - name: Check what the image links
-        run: |
-          nm=$(find "$ZEPHYR_SDK_INSTALL_DIR" -name 'arm-zephyr-eabi-nm' -type f | head -n 1)
-          test -n "$nm" || { echo "no nm in the SDK" >&2; exit 1; }
-          "$nm" crux-controller/build/s6/zephyr/zephyr.elf > symbols.txt
-          for symbol in management_port_start management_address_parse storage_port_bind_store \
-              crux_web_start crux_tls_certificate_start crux_tls_certificate_material_take \
-              tls_credential_add crux_access_init crux_credential_start crux_security_event_start \
-              crux_config_service_start crux_mgmt_status_start crux_web_session_init \
-              crux_web_management_init crux_file_zephyr_bind_root crux_system_reset_cause_get; do
-            grep -qE " [Tt] ${symbol}$" symbols.txt || { echo "not linked: $symbol" >&2; exit 1; }
-          done
-          for symbol in crux_reboot_start crux_network_settings_start crux_file_service_start; do
-            ! grep -qE " [Tt] ${symbol}$" symbols.txt || { echo "linked: $symbol" >&2; exit 1; }
-          done
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/ci/run-tier.sh "$TIER" --job management
 
   boundary:
     name: Boundary check
     runs-on: ubuntu-24.04
+    env:
+      # The pins of the Crux product include check and of the style kit wrapper, from an immutable
+      # commit of Crux. scripts/check_include_domains.py reads them here, and
+      # scripts/include-check-pins.json is their copy for a checkout without .github/.
+      CHECK_COMMIT: cd66b9e5a2f90009e7f4b5de9f6f3bb4efc5b3ea
+      CHECK_SHA256: 1e19b0aa3e300cfe7a542a06fe348343ad0963883ca822d7d1355be1af6b1e37
+      KIT_COMMIT: cd66b9e5a2f90009e7f4b5de9f6f3bb4efc5b3ea
+      CHECKER_SHA256: 1e19b0aa3e300cfe7a542a06fe348343ad0963883ca822d7d1355be1af6b1e37
+      WRAPPER_SHA256: aa2f4e88a19de1f6838aad70c809f543a79b922f781ee4772f367e0ba49262fa
+      TIER: ${{ inputs.tier || 'auto' }}
     steps:
       - uses: actions/checkout@v4
         with:
           path: crux-controller
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: python -m pip install west==1.4.0
-      - name: Fetch crux-pilot at the pinned commit
+      - name: Plan the checks of this tier
+        id: plan
+        working-directory: crux-controller
         run: |
-          west init -l crux-controller
-          west update crux-pilot
-      - name: Check the includes of app/src, app/compose and workload
-        run: python crux-controller/scripts/check_boundary.py --repo crux-controller --crux-root crux-pilot
-      # The crux-pilot revision pinned in west.yml contains the same script with the same hash.
-      # This step downloads it from an immutable commit and checks it against that hash; the Dev
-      # container workflow checks and runs the pinned copy, and a test compares the two hashes.
-      - name: Run the Crux Pilot product include check
-        env:
-          CHECK_COMMIT: cd66b9e5a2f90009e7f4b5de9f6f3bb4efc5b3ea
-          CHECK_SHA256: 1e19b0aa3e300cfe7a542a06fe348343ad0963883ca822d7d1355be1af6b1e37
-        run: |
-          set -euo pipefail
-          script="$RUNNER_TEMP/check_domain_includes.py"
-          curl --fail --silent --show-error --location --retry 3 --output "$script" \
-            "https://raw.githubusercontent.com/wonny-labs/crux-pilot/${CHECK_COMMIT}/templates/product/check_domain_includes.py"
-          echo "${CHECK_SHA256}  ${script}" | sha256sum --check --strict -
-          cd crux-controller
-          python3 "$script" --product .
-      # The style kit of crux-pilot (templates/product/style) wraps the same checker. This step
-      # runs the kit's own wrapper, so that a change of the wrapper or of the layout it expects
-      # shows up here. Both files come from an immutable commit and are checked against their
-      # hashes, laid out as in crux-pilot: the wrapper in style/, the checker beside that folder.
-      - name: Run the style kit include check script
-        env:
-          KIT_COMMIT: cd66b9e5a2f90009e7f4b5de9f6f3bb4efc5b3ea
-          CHECKER_SHA256: 1e19b0aa3e300cfe7a542a06fe348343ad0963883ca822d7d1355be1af6b1e37
-          WRAPPER_SHA256: aa2f4e88a19de1f6838aad70c809f543a79b922f781ee4772f367e0ba49262fa
-        run: |
-          set -euo pipefail
-          kit="$RUNNER_TEMP/style-kit"
-          mkdir -p "$kit/style"
-          base="https://raw.githubusercontent.com/wonny-labs/crux-pilot/${KIT_COMMIT}/templates/product"
-          curl --fail --silent --show-error --location --retry 3 \
-            --output "$kit/check_domain_includes.py" "$base/check_domain_includes.py"
-          curl --fail --silent --show-error --location --retry 3 \
-            --output "$kit/style/check-includes.sh" "$base/style/check-includes.sh"
-          echo "${CHECKER_SHA256}  $kit/check_domain_includes.py" | sha256sum --check --strict -
-          echo "${WRAPPER_SHA256}  $kit/style/check-includes.sh" | sha256sum --check --strict -
-          cd crux-controller
-          bash "$kit/style/check-includes.sh"
+          scripts/ci/run-tier.sh "$TIER" --job boundary --plan
+          echo "checks=$(scripts/ci/run-tier.sh "$TIER" --job boundary --count)" >> "$GITHUB_OUTPUT"
+      - name: Install pinned build tools
+        if: steps.plan.outputs.checks != '0'
+        run: python -m pip install west==1.4.0
+      - name: Prepare the workspace
+        if: steps.plan.outputs.checks != '0'
+        working-directory: crux-controller
+        run: scripts/ci/prepare-job.sh boundary
+      - name: Run the checks of this tier
+        if: steps.plan.outputs.checks != '0'
+        working-directory: crux-controller
+        run: scripts/ci/run-tier.sh "$TIER" --job boundary
 
-  # Zephyr's checkpatch.pl (rule BRACES) on the C lines that the change adds, as the style kit of
-  # crux-pilot does for a product repository (scripts/check-patch.sh is its copy). Zephyr is not a
-  # project of this manifest: it comes through the crux-pilot import, and west refuses to update
-  # it by name. The job lets west update crux-pilot, reads the Zephyr commit that the Crux
-  # manifest names, and fetches only that commit. The script runs from that checkout.
   patch-style:
     name: Patch style
     runs-on: ubuntu-24.04
+    env:
+      TIER: ${{ inputs.tier || 'auto' }}
     steps:
-      # Two commits are enough: for a pull request the checkout is a merge commit and its first
-      # parent is the base. A push compares with the commit before the push.
       - uses: actions/checkout@v4
         with:
           path: crux-controller
-          fetch-depth: 2
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: python -m pip install west==1.4.0
-      - name: Fetch Zephyr at the pinned revision
-        run: |
-          set -euo pipefail
-          west init -l crux-controller
-          west update crux-pilot
-          # The Crux import of Zephyr may not resolve until a full update has run. Then the plain
-          # update of the other jobs is the fallback: heavier, and known to work here.
-          if ! rev=$(west list -f '{revision}' zephyr 2>/dev/null); then
-            echo "west cannot resolve zephyr yet; running a plain west update" >&2
-            west update
-            rev=$(west list -f '{revision}' zephyr)
-          fi
-          path=$(west list -f '{abspath}' zephyr)
-          if [[ ! "$rev" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "The Zephyr revision is not a full commit hash: $rev" >&2
-            exit 1
-          fi
-          if [[ "$path" != "$GITHUB_WORKSPACE/zephyr" ]]; then
-            echo "Zephyr is at $path, not in $GITHUB_WORKSPACE/zephyr" >&2
-            exit 1
-          fi
-          if [[ ! -f "$path/scripts/checkpatch.pl" ]]; then
-            git init -q "$path"
-            git -C "$path" fetch --no-tags --depth=1 https://github.com/zephyrproject-rtos/zephyr "$rev"
-            git -C "$path" checkout -q FETCH_HEAD
-          fi
-          test -f "$path/scripts/checkpatch.pl"
-      - name: Check the patch style of the changed C lines
+      - name: Plan the checks of this tier
+        id: plan
         working-directory: crux-controller
-        env:
-          ZEPHYR_BASE: ${{ github.workspace }}/zephyr
-          PUSH_BEFORE: ${{ github.event.before }}
         run: |
-          set -euo pipefail
-          if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
-            if [[ -z "$PUSH_BEFORE" || "$PUSH_BEFORE" =~ ^0+$ ]]; then
-              echo "Missing previous push SHA for the patch-style comparison." >&2
-              exit 2
-            fi
-            if ! git cat-file -e "${PUSH_BEFORE}^{commit}" 2>/dev/null; then
-              git fetch --no-tags --depth=1 origin "$PUSH_BEFORE"
-            fi
-            scripts/check-patch.sh "$PUSH_BEFORE" HEAD
-          elif [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
-            scripts/check-patch.sh HEAD^ HEAD
-          else
-            echo "Unsupported event $GITHUB_EVENT_NAME: no comparison range is defined." >&2
-            exit 2
-          fi
+          scripts/ci/run-tier.sh "$TIER" --job patch-style --plan
+          echo "checks=$(scripts/ci/run-tier.sh "$TIER" --job patch-style --count)" >> "$GITHUB_OUTPUT"
+      - name: Install pinned build tools
+        if: steps.plan.outputs.checks != '0'
+        run: python -m pip install west==1.4.0
+      - name: Run the checks of this tier
+        if: steps.plan.outputs.checks != '0'
+        working-directory: crux-controller
+        run: scripts/ci/run-tier.sh "$TIER" --job patch-style
 
-  s0:
-    name: S0 build (RT1060-EVKB)
+  minimal:
+    name: minimal build (RT1060-EVKB)
     runs-on: ubuntu-24.04
     env:
-      BOARD: mimxrt1060_evk@B//qspi
       SDK_VERSION: "1.0.1"
       ZEPHYR_SDK_INSTALL_DIR: ${{ github.workspace }}/sdk/zephyr-sdk-1.0.1
+      TIER: ${{ inputs.tier || 'auto' }}
     steps:
       - uses: actions/checkout@v4
         with:
           path: crux-controller
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install host packages
+      - name: Plan the checks of this tier
+        id: plan
+        working-directory: crux-controller
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
+          scripts/ci/run-tier.sh "$TIER" --job minimal --plan
+          echo "checks=$(scripts/ci/run-tier.sh "$TIER" --job minimal --count)" >> "$GITHUB_OUTPUT"
+      - name: Install host packages
+        if: steps.plan.outputs.checks != '0'
+        run: |
+          crux-controller/scripts/ci/apt-install.sh --no-install-recommends \
             build-essential ca-certificates device-tree-compiler file gperf git \
             libmagic1 pkg-config wget xz-utils
       - name: Install pinned build tools
+        if: steps.plan.outputs.checks != '0'
         run: python -m pip install cmake==3.28.4 ninja==1.11.1 west==1.4.0
-      - name: Fetch the workspace
-        run: |
-          west init -l crux-controller
-          west update
-          python -m pip install -r zephyr/scripts/requirements-base.txt
       - name: Restore the Zephyr SDK
+        if: steps.plan.outputs.checks != '0'
         id: sdk_cache
         uses: actions/cache@v4
         with:
           path: sdk
           key: zephyr-sdk-${{ env.SDK_VERSION }}-arm-zephyr-eabi
-      - name: Install the Zephyr SDK
-        if: steps.sdk_cache.outputs.cache-hit != 'true'
-        working-directory: zephyr
+      - name: Prepare the workspace
+        if: steps.plan.outputs.checks != '0'
+        working-directory: crux-controller
         env:
           GH_TOKEN: ${{ github.token }}
+        run: scripts/ci/prepare-job.sh minimal
+      - name: Run the checks of this tier
+        if: steps.plan.outputs.checks != '0'
+        working-directory: crux-controller
+        run: scripts/ci/run-tier.sh "$TIER" --job minimal
+
+  base:
+    name: base build (base image, native_sim and RT1060-EVKB)
+    runs-on: ubuntu-24.04
+    env:
+      SDK_VERSION: "1.0.1"
+      ZEPHYR_SDK_INSTALL_DIR: ${{ github.workspace }}/sdk/zephyr-sdk-1.0.1
+      TIER: ${{ inputs.tier || 'auto' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: crux-controller
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Plan the checks of this tier
+        id: plan
+        working-directory: crux-controller
         run: |
-          west sdk install --version "$SDK_VERSION" --install-base "$GITHUB_WORKSPACE/sdk" \
-            --gnu-toolchains arm-zephyr-eabi --personal-access-token "$GH_TOKEN"
-      - name: Cross-build with the Zephyr baseline gate required
+          scripts/ci/run-tier.sh "$TIER" --job base --plan
+          echo "checks=$(scripts/ci/run-tier.sh "$TIER" --job base --count)" >> "$GITHUB_OUTPUT"
+      - name: Install host packages
+        if: steps.plan.outputs.checks != '0'
+        run: |
+          crux-controller/scripts/ci/apt-install.sh --no-install-recommends \
+            build-essential gcc-multilib ca-certificates device-tree-compiler file gperf git \
+            libmagic1 libsdl2-dev pkg-config python3-dev wget xz-utils
+      - name: Install pinned build tools
+        if: steps.plan.outputs.checks != '0'
+        run: python -m pip install cmake==3.28.4 ninja==1.11.1 west==1.4.0
+      - name: Restore the Zephyr SDK
+        if: steps.plan.outputs.checks != '0'
+        id: sdk_cache
+        uses: actions/cache@v4
+        with:
+          path: sdk
+          key: zephyr-sdk-${{ env.SDK_VERSION }}-arm-zephyr-eabi
+      - name: Prepare the workspace
+        if: steps.plan.outputs.checks != '0'
+        working-directory: crux-controller
         env:
-          ZEPHYR_BASE: ${{ github.workspace }}/zephyr
-        run: |
-          west build -p always -b '${{ env.BOARD }}' -d crux-controller/build/app \
-            crux-controller/app -- -DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON
-      - name: Check the outputs exist
-        run: |
-          for output in zephyr.bin zephyr.meta; do
-            test -f "crux-controller/build/app/zephyr/$output" || {
-              echo "missing $output" >&2
-              exit 1
-            }
-          done
-          echo "Built for $BOARD. No flash, reset or hardware command was run."
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/ci/prepare-job.sh base
+      - name: Run the checks of this tier
+        if: steps.plan.outputs.checks != '0'
+        working-directory: crux-controller
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/ci/run-tier.sh "$TIER" --job base
 
   static:
     name: Static analysis
     runs-on: ubuntu-24.04
+    env:
+      TIER: ${{ inputs.tier || 'auto' }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          path: crux-controller
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Plan the checks of this tier
+        id: plan
+        working-directory: crux-controller
+        run: |
+          scripts/ci/run-tier.sh "$TIER" --job static --plan
+          echo "checks=$(scripts/ci/run-tier.sh "$TIER" --job static --count)" >> "$GITHUB_OUTPUT"
       # The versions are pinned: another clang-format or clang-tidy may report differently.
       # scripts/check-format.sh and scripts/analyze_host.py also check the version they run.
       - name: Install the pinned tools
+        if: steps.plan.outputs.checks != '0'
         run: |
           python -m pip install clang-format==18.1.8
-          sudo apt-get update
-          sudo apt-get install -y clang-tidy-18=1:18.1.3-1ubuntu1
-      - name: Check format
-        run: ./scripts/check-format.sh
-      # Configures tests/host for its compile database and analyses every source in it with the
-      # checks of .clang-tidy. The sources that are not in the database (the ones that need Zephyr)
-      # are listed at the end of the output. Any finding fails the job.
-      - name: Analyze the host-built sources
-        run: python scripts/analyze_host.py
+          crux-controller/scripts/ci/apt-install.sh clang-tidy-18=1:18.1.3-1ubuntu1
+      - name: Run the checks of this tier
+        if: steps.plan.outputs.checks != '0'
+        working-directory: crux-controller
+        run: scripts/ci/run-tier.sh "$TIER" --job static

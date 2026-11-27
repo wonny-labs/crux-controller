@@ -1,150 +1,109 @@
-# Documentation index
+# Documentation map
 
-This page lists every document of the repository, says what each one is for, and gives a short path for each
-task. If you have not seen this repository before, start with the [README](../README.md). To set up, build, run
-and test in the dev container on one short page, follow [first-hour.md](first-hour.md).
-
-The reading times are for reading only, at about 250 words a minute. A page with commands takes longer to follow.
-The five pages of the reading path in the README (the README, the roadmap, the architecture, the try-on page and
-CONTRIBUTING.md) take about 70 minutes together.
+This page finds the right page for what you want to do. Start at the [repository README](../README.md) for what
+the repository is and the quick start, the [Tutorial](tutorial.md). Each page has one type, listed in
+[All documents](#all-documents), and links to the one page that owns a fact; the
+[documentation guidelines](documentation-guidelines.md) say how.
 
 ## Paths by task
 
 ### I want to run it
 
-- [first-hour.md](first-hour.md): clone, open the dev container, one build, one `native_sim` run, the host
-  tests, the tooling tests and the boundary check, with the times that CI measured.
-- [try-on-native-sim.md](try-on-native-sim.md): set up a workspace and run the `native_sim` scenarios, the host
-  tests, the tooling tests and the boundary check without a board.
-- [first-change.md](first-change.md): run the host tests and the checks that need no Zephyr, with a small example.
-- [troubleshooting.md](troubleshooting.md): look up a failure by its message: its cause, its fix and the page to read next.
-- [board-bring-up.md](board-bring-up.md): the board route (probe on WSL2, an optional board container, a read-only
-  compare, `west flash` and `west debug` with J-Link). It is untested on hardware and needs the owner's authorisation.
+[Getting started](getting-started.md) first, then the [Tutorial](tutorial.md). The [Dev Container reference](dev-container.md) and [Set up without the Dev Container](native-setup.md) hold the setup details;
+[troubleshooting.md](troubleshooting.md) is for a failure, and [board-bring-up.md](board-bring-up.md) for a board.
 
 ### I want to change code
 
-- [first-change.md](first-change.md): from a branch to a pull request with a small change that needs no Zephyr.
-- [CONTRIBUTING.md](../CONTRIBUTING.md): the boundary, the checks, the pin, how commits and pull requests are written.
-- [architecture.md](architecture.md): which directory holds what, and which headers each may include.
-- [composition-zone.md](composition-zone.md): read this when the boundary check fails. There is no exception.
+[first-change.md](first-change.md), then [CONTRIBUTING.md](../CONTRIBUTING.md). [architecture.md](architecture.md) says
+which directory holds what; [composition-zone.md](composition-zone.md) explains a failed boundary check.
 
-### I want to add a step
+### I want to add a capability
 
-- [adding-a-step.md](adding-a-step.md): the recipe, the checklist and the rule for drivers and HAL.
-- [architecture.md](architecture.md): the zones and the port headers that a step builds on.
-- [findings/s4-system-composition.md](findings/s4-system-composition.md): a worked example, with the friction that
-  step S4 met.
+[adding-a-capability.md](adding-a-capability.md), with [findings/s4-system-composition.md](findings/s4-system-composition.md) as a
+worked example and [architecture.md](architecture.md) for the zones and port headers.
 
 ### I want to review
 
-- [reviewing.md](reviewing.md): the reviewer checklist.
-- [CONTRIBUTING.md](../CONTRIBUTING.md#review): the three verdicts and what a `PASS` does not grant.
-- [adding-a-step.md](adding-a-step.md#files-that-need-a-reviewed-change): the files whose change needs particular care.
+[reviewing.md](reviewing.md), the three verdicts in [CONTRIBUTING.md](../CONTRIBUTING.md#review), and the
+[files that need a reviewed change](adding-a-capability.md#files-that-need-a-reviewed-change).
+
+### I want to look up how a capability behaves
+
+[capabilities.md](capabilities.md) is the reference for `sntp`, `system` and `management`.
 
 ### I want to know why
 
-- [findings/README.md](findings/README.md): what building each step taught about using Crux, with the revision
-  that each note was read at.
-- [roadmap.md](roadmap.md): what exists, what has run on a board, what is not yet possible and why.
-- [history/README.md](history/README.md): the project history that left the main documents, with a move log.
-- [composition-zone.md](composition-zone.md#why-a-zone): why the boundary has zones and an exact allow-list.
+The [capabilities](capabilities.md), the [findings](findings/README.md), the [roadmap](roadmap.md), [why a zone](composition-zone.md#why-a-zone) and the
+[history](history/README.md).
 
 ## Where decisions are recorded
 
-- **Rules for working here** (what a change must satisfy, what needs the owner's approval): `CONTRIBUTING.md`.
-  `RELEASE.md` covers tags and releases, and `SECURITY.md` covers vulnerability reports. CONTRIBUTING.md does not
-  say where the owner's approval of a merge is recorded.
+- **Rules for working here**: `CONTRIBUTING.md`. `RELEASE.md` covers tags and releases, and `SECURITY.md` covers
+  vulnerability reports.
 - **Boundary rules and the reason for each allow-list entry**: [composition-zone.md](composition-zone.md). The lists
   themselves are in `scripts/check_boundary.py`.
-- **What each step taught, and the decisions taken in it**: the notes in `docs/findings/` ([index](findings/README.md)). They are kept
-  as written, and each names the revision of Crux that it was read at. A later result is added as an update.
-- **What exists, what ran on a board and what is not possible**: [roadmap.md](roadmap.md). Its "not yet possible" rows
-  are recorded positions, not plans.
-- **The pinned Crux revision**: the `revision` in `west.yml`. The comment above it and `tests/tooling/test_manifest.py`
-  record the approved commit, and [CHANGELOG.md](../CHANGELOG.md) records each move.
-- **Tracking**: the issues and pull requests of the public repository. Their open or closed state can lag behind the
-  code. The documents and the CI checks of a commit are the reference. How the steps were tracked is in
+- **What building each capability taught, and the decisions taken in it**: the notes in `docs/findings/`
+  ([index](findings/README.md)).
+- **What exists and what ran on a board**: [roadmap.md](roadmap.md).
+- **The pinned Crux revision**: the `revision` in `west.yml`. [CHANGELOG.md](../CHANGELOG.md) records each move.
+- **Tracking**: the issues and pull requests of the public repository. How the work was tracked is in
   [history](history/board-runs-and-tracking.md).
-
-## Known limits, not scheduled
-
-These are known limits of what the checks and tests cover. They are facts about the files today, not a plan.
-[CONTRIBUTING.md](../CONTRIBUTING.md#static-analysis-and-coding-standard) states the analysis position.
-
-- **clang-tidy covers part of the code.** It runs over the 12 sources that the host tests build. That is 7 of the 17
-  production C files in `app/` and `workload/` (the other 5 of the 12 are test files). The other production files need
-  Zephyr or Crux headers or Kconfig values. `scripts/analyze_host.py` prints the sources that it did not analyse, and
-  the list is printed but does not fail the job.
-- **The naming check enforces nothing.** `readability-identifier-naming` is listed without options and enforces no
-  naming rule (`.clang-tidy`).
-- **Other languages are not linted.** There is no lint for Python, shell, YAML or CMake, and no coverage measurement.
-- **Many tooling tests pin text.** Counted by module (every test of a module counts the same, at the head of this change), the tests in `tests/tooling` that read the repository's
-  documents, workflows, CMake and Kconfig files as text, and run no script on synthetic input, are between about 50
-  and 70 percent of all of them. The upper figure counts three modules that mix both kinds. This is an estimate of tests per module, not of modules. A
-  green tooling run shows that the text and the configuration agree with the tests, and not that the firmware
-  behaves.
-- **Parts of the Zephyr-side glue are not run by any test.** The start order and the decisions in `app/src/composition.c`, the
-  watchdog feed path of step S4 (the S4 scenario cannot show a feed cycle) and the web page script of step S6 (the S6
-  scenario serves its bytes, and nothing runs them) are never run in any test.
-- **Steps S5 and S6 run only on `native_sim`, in CI, and never on a board.** Step S2 ran twice on a board, on one bench.
-  Nothing else has run on a board ([roadmap](roadmap.md#what-has-run-on-a-board)).
-- **The dev container and WSL2 were not tried by anyone.** The dev container was not started on a developer machine, so
-  WSL2, Docker Engine in WSL2 and the proxy settings of `devcontainer.json` have not run there. The dev container job
-  of CI covers an x86_64 runner only ([try-on-native-sim.md](try-on-native-sim.md#what-has-been-checked)).
-- **The board container and the board route are untested.** Nobody has built the optional board container in
-  `.devcontainer/board/`, CI does not build it, and no step of the [board route](board-bring-up.md) has run on a board.
 
 ## All documents
 
 ### In `docs/`
 
-| Document | What it is | Reading time |
+| Document | Type | What it is |
 |---|---|---|
-| [architecture.md](architecture.md) | How the repository is built: the four source trees and their include rules, how Crux is consumed, the threads in the image and a map of the files. | 12 min |
-| [roadmap.md](roadmap.md) | What exists on `main`, the static size per step, what has run on a board and what is not yet possible. It promises no dates. | 11 min |
-| [first-hour.md](first-hour.md) | The short path for a new team member on Linux or WSL2: clone, dev container, one build, one `native_sim` run, host tests, tooling tests and the boundary check, with the times of the CI job. | 4 min |
-| [try-on-native-sim.md](try-on-native-sim.md) | How to run the tests without a board: setup, the `native_sim` scenarios, the host and tooling tests, the dev container, and what has and has not been checked. | 32 min |
-| [troubleshooting.md](troubleshooting.md) | Look a failure up by its message: the cause, the fix and the page that explains more. | 11 min |
-| [first-change.md](first-change.md) | A tutorial from branch to pull request with one small host-test change that needs no Zephyr. | 6 min |
-| [adding-a-step.md](adding-a-step.md) | The recipe for adding a step, its checklist, the rule for drivers and HAL, and the files that need a reviewed change. | 16 min |
-| [reviewing.md](reviewing.md) | A checklist for the reviewer, from CONTRIBUTING.md and from the repository's practice. | 9 min |
-| [composition-zone.md](composition-zone.md) | The include rules in detail: the composition zone and the adapter zone, each allowed Zephyr header and why, the frozen Crux headers, and how to run the check. | 11 min |
-| [glossary.md](glossary.md) | The words that this repository uses in a particular sense (step, stage, product, owner, composition, zones, pin, finding and more), with the file where each use can be checked. | 13 min |
-| [dependencies.md](dependencies.md) | What `west.yml` fetches, why, and under which licence each project states it is distributed, and how the Crux import is narrowed. | 5 min |
-| [board-bring-up.md](board-bring-up.md) | The board route for the RT1060-EVKB Rev B, untested on hardware: the probe on WSL2, the optional board container, a read-only compare of the flash, `west flash` and `west debug` with J-Link, a run record template, the stop conditions and the authorisation that it needs. | 13 min |
+| [architecture.md](architecture.md) | Explanation | How the repository is built: the source trees, how Crux is consumed, the threads, and why the evidence comes from CI. |
+| [capabilities.md](capabilities.md) | Reference | How `sntp`, `system` and `management` behave: policy, settings and limits. |
+| [roadmap.md](roadmap.md) | Reference | What is built on `main`, the static size per build configuration and what has run on a board. |
+| [tutorial.md](tutorial.md) | Tutorial | The first build and run: the host tests, the `native_sim` scenarios and the board image. |
+| [getting-started.md](getting-started.md) | Entry | Prerequisites, the Dev Container set-up and a first command. |
+| [dev-container.md](dev-container.md) | Reference | The Dev Container in detail: requirements, hosts, proxies, layout, VS Code and commands. |
+| [native-setup.md](native-setup.md) | How-to guide | Set up on Ubuntu 24.04 without the Dev Container and run the scenarios and checks. |
+| [troubleshooting.md](troubleshooting.md) | Reference | A failure looked up by its message: cause, fix and the page that explains more. |
+| [first-change.md](first-change.md) | Tutorial | One small host-test change from branch to pull request. |
+| [adding-a-capability.md](adding-a-capability.md) | How-to guide | Add a capability and its build configuration, with the checklist. |
+| [reviewing.md](reviewing.md) | Explanation | A checklist for the reviewer. |
+| [composition-zone.md](composition-zone.md) | Reference | The include rules of the composition and adapter zones. |
+| [glossary.md](glossary.md) | Reference | The words that this repository uses in a particular sense. |
+| [documentation-guidelines.md](documentation-guidelines.md) | Reference | The checklist, page types and homes for every page, and the check that guards them. |
+| [dependencies.md](dependencies.md) | Reference | What `west.yml` fetches, why, under which licence, and how the Crux import is narrowed. |
+| [board-bring-up.md](board-bring-up.md) | How-to guide | The RT1060-EVKB Rev B board route. |
+| [design/controller-framework.md](design/controller-framework.md) | Explanation | The controller framework: what it is, who does what, its services and how a product joins it. |
+| [design/controller-framework-spec.md](design/controller-framework-spec.md) | Reference | The controller framework's requirements, application interface, operating model, verification and decisions. |
+| [design/controller-framework-platform-gaps.md](design/controller-framework-platform-gaps.md) | Reference | The Crux constraints on the controller framework at the pin, with the Crux change that lifts each one. |
+| [design/controller-framework-threat-model.md](design/controller-framework-threat-model.md) | Reference | The controller framework's assets, interfaces, threats and Annex I applicability. |
 
 ### In `docs/findings/`
 
-| Document | What it is | Reading time |
+| Document | Type | What it is |
 |---|---|---|
-| [findings/README.md](findings/README.md) | What a finding is, how the notes are kept, and a table of all notes with the Crux revision each was read at. | 2 min |
-| [findings/file-binding-has-no-public-header.md](findings/file-binding-has-no-public-header.md) | A product could not bind the File provider with public means. Closed upstream since. | 1 min |
-| [findings/management-has-no-public-composition.md](findings/management-has-no-public-composition.md) | Which management features had no public composition, and the licence limits. Partly overtaken by step S6. | 5 min |
-| [findings/s2-first-board-run.md](findings/s2-first-board-run.md) | The two runs of the S2 image on one board and bench, and what they show and do not show. | 7 min |
-| [findings/s3-file-composition.md](findings/s3-file-composition.md) | Step S3: composing Crux File through the composition interface, with the friction found. | 6 min |
-| [findings/s4-system-composition.md](findings/s4-system-composition.md) | Step S4: the reset cause and a single-owner watchdog through Crux System, and why the simulator cannot show a feed cycle. | 8 min |
-| [findings/s5-time-synchronisation.md](findings/s5-time-synchronisation.md) | Step S5: setting the Crux Time realtime clock from SNTP, the product policy and its limits. | 15 min |
-| [findings/s6-https-management-gaps.md](findings/s6-https-management-gaps.md) | Groundwork for step S6: the three gaps found by reading. Superseded by the next note, kept as recorded. | 9 min |
-| [findings/s6-https-management.md](findings/s6-https-management.md) | Step S6: what the product had to write for HTTPS management, the CI results at a named revision and what is open. | 10 min |
+| [findings/README.md](findings/README.md) | Entry (index) | The map from step ids to build configurations, and a table of all notes. |
+| [findings/file-binding-has-no-public-header.md](findings/file-binding-has-no-public-header.md) | Record | A product could not bind the File provider with public means. |
+| [findings/management-has-no-public-composition.md](findings/management-has-no-public-composition.md) | Record | Which management features had no public composition, and the licence limits. |
+| [findings/s2-first-board-run.md](findings/s2-first-board-run.md) | Record | The two runs of the `net` image on one board and bench. |
+| [findings/s3-file-composition.md](findings/s3-file-composition.md) | Record | The `file` capability: Crux File through the composition interface. |
+| [findings/s4-system-composition.md](findings/s4-system-composition.md) | Record | The `system` capability: the reset cause and a single-owner watchdog. |
+| [findings/s5-time-synchronisation.md](findings/s5-time-synchronisation.md) | Record | The `sntp` capability: the Crux Time realtime clock from SNTP, and the product policy. |
+| [findings/s6-https-management-gaps.md](findings/s6-https-management-gaps.md) | Record | Groundwork for `management`: the three gaps found by reading. |
+| [findings/s6-https-management.md](findings/s6-https-management.md) | Record | The `management` capability: what the product wrote, the CI results and what is open. |
 
 ### In `docs/history/`
 
-These pages keep text that left the main documents. They are history, not instructions.
-
-| Document | What it is | Reading time |
+| Document | Type | What it is |
 |---|---|---|
-| [history/README.md](history/README.md) | What the history folder holds, and the move log: each moved section, its source and its destination. | 5 min |
-| [history/board-runs-and-tracking.md](history/board-runs-and-tracking.md) | The board-run summary, the approval wording and the tracking notes that the roadmap and the glossary carried. | 4 min |
-| [history/copy-procedures.md](history/copy-procedures.md) | The steps for a copy without the Git history (a zip), as the install guides had them. | 6 min |
-| [history/readme-before-entry-point.md](history/readme-before-entry-point.md) | The whole README before it became an entry point. | 10 min |
-| [history/team-copy.md](history/team-copy.md) | What a team was told to change and keep in a copy of the repository without GitHub CI. | 6 min |
+| [history/README.md](history/README.md) | Entry (index) | What the history folder holds. |
+| [history/board-runs-and-tracking.md](history/board-runs-and-tracking.md) | History | The board-run summary, the approval wording and the tracking notes. |
+| [history/setup-checks.md](history/setup-checks.md) | History | The local setup runs and the Dev Container job timing behind Getting started. |
 
 ### Outside `docs/`
 
-| Document | What it is | Reading time |
+| Document | Type | What it is |
 |---|---|---|
-| [README.md](../README.md) | What the repository is, its state, how to try it, the reading path and where the rules are. | 4 min |
-| [CHANGELOG.md](../CHANGELOG.md) | What each change added. Everything is unreleased. | 8 min |
-| [CONTRIBUTING.md](../CONTRIBUTING.md) | The boundary, build and test, the CI jobs, the pin, how to change behaviour, commits and pull requests, review, and the rules of a public repository. | 9 min |
-| [RELEASE.md](../RELEASE.md) | The release dry run, what the bundle holds (hashes only) and what a tag needs. | 2 min |
-| [SECURITY.md](../SECURITY.md) | How to report a vulnerability, and what the repository promises about support. | 1 min |
+| [README.md](../README.md) | Entry | What the repository is, the quick start, the capability table and where to read next. |
+| [CHANGELOG.md](../CHANGELOG.md) | Record | What each change added. |
+| [CONTRIBUTING.md](../CONTRIBUTING.md) | Reference | The boundary, build and test, the CI jobs, the pin, review, and the rules of a public repository. |
+| [RELEASE.md](../RELEASE.md) | Reference | The release dry run, what the bundle holds and what a tag needs. |
+| [SECURITY.md](../SECURITY.md) | Reference | How to report a vulnerability and what the repository promises about support. |

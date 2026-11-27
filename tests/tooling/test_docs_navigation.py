@@ -2,8 +2,8 @@
 """Checks of the navigation pages and of the terminology that the documents share.
 
 The index must list every document of docs/ and docs/findings/, the links of the new pages must
-resolve, the reading time in the README must agree with the index, the glossary must define the
-words that the pages use, and the headings of the step recipe must follow one numbering scheme."""
+resolve, the glossary must define the words that the pages use, and the headings of the step recipe must
+follow one numbering scheme."""
 
 import pathlib
 import re
@@ -11,21 +11,23 @@ import subprocess
 import sys
 import unittest
 
+import ci_map
+
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 DOCS = ROOT / "docs"
 NEW_PAGES = ("docs/README.md", "docs/first-change.md", "docs/reviewing.md")
 # Documents whose wording this change owns. Findings are kept as recorded and are not listed.
 OWNED = (
     "README.md", "docs/README.md", "docs/first-change.md", "docs/reviewing.md", "docs/history/README.md",
-    "docs/adding-a-step.md", "docs/glossary.md", "docs/architecture.md", "docs/composition-zone.md",
+    "docs/adding-a-capability.md", "docs/glossary.md", "docs/architecture.md", "docs/composition-zone.md",
 )
 # Pages that another change writes. A link to one of them is checked as soon as the page, or the
 # heading for an anchor, exists, and is skipped while it is missing. Remove an entry from this set
 # when the page has been merged, so that the link is checked without an exception.
 PLANNED_PAGES = {"docs/troubleshooting.md"}
-PLANNED_ANCHORS = {("docs/try-on-native-sim.md", "quick-start")}
+PLANNED_ANCHORS = set()
 HISTORY = ROOT / "docs" / "history"
-FIVE = ("README.md", "docs/roadmap.md", "docs/architecture.md", "docs/try-on-native-sim.md",
+FIVE = ("README.md", "docs/roadmap.md", "docs/architecture.md", "docs/getting-started.md",
         "CONTRIBUTING.md")
 
 
@@ -102,10 +104,9 @@ class Index(unittest.TestCase):
         missing = [f"docs/{n}" for n in documents() if f"docs/{n}" not in targets]
         self.assertEqual([], missing, "docs/README.md does not link these documents")
 
-    def test_the_index_has_a_reading_time_column_and_a_role_path_for_each_task(self):
+    def test_the_index_has_a_role_path_for_each_task(self):
         body = read("docs/README.md")
-        self.assertIn("Reading time", body)
-        for heading in ("I want to run it", "I want to change code", "I want to add a step",
+        for heading in ("I want to run it", "I want to change code", "I want to add a capability",
                         "I want to review", "I want to know why"):
             self.assertRegex(body, rf"(?m)^#{{2,3}} {heading}\b", heading)
 
@@ -116,12 +117,16 @@ class Index(unittest.TestCase):
         for needle in ("docs/findings/", "roadmap.md", "CONTRIBUTING.md"):
             self.assertIn(needle, part, needle)
 
-    def test_every_listed_page_has_a_reading_time_in_minutes(self):
+    def test_every_listed_page_has_a_type_and_no_reading_time(self):
         rows = [line for line in read("docs/README.md").splitlines()
                 if line.startswith("|") and "](" in line]
         self.assertGreaterEqual(len(rows), len(documents()))
+        types = ("Entry", "Tutorial", "How-to guide", "Reference", "Explanation", "Record", "History")
         for row in rows:
-            self.assertRegex(row, r"\|\s*(about |under )?\d+ min\s*\|", row)
+            cells = [c.strip() for c in row.strip().strip("|").split("|")]
+            self.assertEqual(3, len(cells), row)
+            self.assertTrue(cells[1].startswith(types), row)
+        self.assertNotIn("Reading time", read("docs/README.md"))
 
 
 class Links(unittest.TestCase):
@@ -162,56 +167,26 @@ class Links(unittest.TestCase):
             self.assertIn(name, targets, name)
 
 
-class ReadingTime(unittest.TestCase):
-    def index_minutes(self):
-        minutes = {}
-        for line in read("docs/README.md").splitlines():
-            if not line.startswith("|"):
-                continue
-            cells = [c.strip() for c in line.strip().strip("|").split("|")]
-            time = re.search(r"(\d+) min", cells[-1] if cells else "")
-            link = re.search(r"\]\(([^)#\s]+)", cells[0] if cells else "")
-            if time and link:
-                path = (DOCS / link.group(1)).resolve()
-                minutes[str(path.relative_to(ROOT))] = int(time.group(1))
-        return minutes
+class IndexCoverage(unittest.TestCase):
+    def index_pages(self):
+        return {path for path, _, _ in links("docs/README.md")}
 
     def test_the_five_documents_of_the_reading_path_are_in_the_index(self):
-        minutes = self.index_minutes()
+        pages = self.index_pages()
         for name in FIVE:
-            self.assertIn(name, minutes, name)
+            self.assertIn(name, pages, name)
 
-    def test_the_readme_claims_a_total_and_the_index_agrees(self):
-        # The README states the total of the reading path; the index states each page.
-        claimed = re.search(r"They take about (\d+) minutes in full", flat("README.md"))
-        self.assertIsNotNone(claimed)
-        total = sum(self.index_minutes()[name] for name in FIVE)
-        self.assertLessEqual(abs(total - int(claimed.group(1))), 5, f"the five pages add up to {total} minutes")
-        self.assertIn(f"about {claimed.group(1)} minutes together", flat("docs/README.md"))
+    def test_the_readme_points_at_the_main_pages_for_the_next_read(self):
+        # The README task table links the main pages, and the index lists every page.
+        targets = {path for path, _, _ in links("README.md")}
+        for name in FIVE[1:]:
+            self.assertIn(name, targets, name)
+        self.assertIn("docs/tutorial.md", targets)
 
-    def test_the_readme_reading_path_times_are_the_ones_of_the_index(self):
-        minutes = self.index_minutes()
-        path = section("README.md", "Reading path")
-        for name in FIVE:
-            if name == "README.md":
-                stated = re.search(r"This README \(about (\d+) minutes", path)
-            else:
-                stated = re.search(rf"\]\((?:docs/)?{re.escape(pathlib.PurePosixPath(name).name)}\) \(about (\d+) minutes", path)
-            self.assertIsNotNone(stated, name)
-            self.assertEqual(minutes[name], int(stated.group(1)), name)
-
-    def test_the_history_pages_are_in_the_index_with_a_reading_time(self):
-        minutes = self.index_minutes()
+    def test_the_history_pages_are_in_the_index(self):
+        pages = self.index_pages()
         for page in sorted(HISTORY.glob("*.md")):
-            self.assertIn(str(page.relative_to(ROOT)), minutes, page.name)
-
-    def test_the_listed_times_follow_the_length_of_each_page(self):
-        # About 250 words a minute for technical text. A wide band keeps the check from failing
-        # on every edit and still catches a page that has doubled in size or a guess.
-        for name, minutes in self.index_minutes().items():
-            words = len(read(name).split())
-            self.assertLessEqual(minutes, max(2, round(words / 250 * 1.6)), name)
-            self.assertGreaterEqual(minutes, max(1, round(words / 250 / 1.6)), name)
+            self.assertIn(str(page.relative_to(ROOT)), pages, page.name)
 
     def test_the_readme_reading_path_points_at_the_index(self):
         self.assertIn("docs/README.md", {p for p, _, _ in links("README.md")})
@@ -231,8 +206,9 @@ class Glossary(unittest.TestCase):
 
     def test_the_glossary_says_what_product_means_and_does_not_mean(self):
         body = flat("docs/glossary.md")
-        self.assertIn("the firmware that this repository holds", body)
-        self.assertIn("not a product in the commercial sense", body)
+        # Approved behaviour change: the entry takes Crux's sense of the word.
+        self.assertIn("a firmware repository outside this repository that is built on Crux", body)
+        self.assertIn("This repository is not a product.", body)
 
     def test_the_composition_entry_lists_four_meanings(self):
         part = re.search(r"\*\*Composition\.\*\*(.*?)\n\n\*\*", read("docs/glossary.md"), re.S)
@@ -254,9 +230,9 @@ class Glossary(unittest.TestCase):
             self.assertIn(needle, glossary, needle)
 
     def test_the_reviewed_files_entry_points_at_the_list(self):
-        self.assertIn("adding-a-step.md#files-that-need-a-reviewed-change",
+        self.assertIn("adding-a-capability.md#files-that-need-a-reviewed-change",
                       read("docs/glossary.md"))
-        self.assertIn("files-that-need-a-reviewed-change", anchors("docs/adding-a-step.md"))
+        self.assertIn("files-that-need-a-reviewed-change", anchors("docs/adding-a-capability.md"))
 
 
 class Terminology(unittest.TestCase):
@@ -312,23 +288,26 @@ class Terminology(unittest.TestCase):
         body = read("README.md")
         passages = {
             "first paragraphs": " ".join(body.split("\n\n")[1:4]),
-            "state": section("README.md", "State").split("| Step |")[0],
-            "how to try it": section("README.md", "How to try it"),
+            "status": section("README.md", "Status"),
+            "quick start": section("README.md", "Quick start"),
         }
         for label, text in passages.items():
             for sentence in sentences(text):
                 self.assertLessEqual(len(sentence.split()), 40, f"{label}: {sentence}")
 
+    # Approved behaviour change: the README is an entry page. The role sentence lives in CONTRIBUTING.md,
+    # the README keeps "no release" in its one status line, and the board status is on the roadmap.
     def test_the_role_sentence_and_the_pinned_readme_facts_stay(self):
+        self.assertIn("Crux Controller is a controller framework for products built on Crux", flat("CONTRIBUTING.md"))
         text = flat("README.md")
-        self.assertIn("Crux Controller is the official reference consumer firmware", text)
-        for needle in ("Steps S0 to S6 are on `main`, and there is no release",
-                       "Nothing else has run on a board."):
-            self.assertIn(needle, text, needle)
+        self.assertIn("There is no release.", text)
+        self.assertIn("docs/roadmap.md", text)
+        self.assertIn("No `minimal`, `workload`-only, `file`, `system`, `sntp`, `management` or `base` image has run on a board.",
+                      flat("docs/roadmap.md"))
 
 
-class AddingAStep(unittest.TestCase):
-    PAGE = "docs/adding-a-step.md"
+class AddingACapability(unittest.TestCase):
+    PAGE = "docs/adding-a-capability.md"
 
     def headings(self):
         return [m.groups() for m in re.finditer(r"(?m)^(#{2,3}) (.*)$", without_code(read(self.PAGE)))]
@@ -369,12 +348,13 @@ class AddingAStep(unittest.TestCase):
         self.assertIn("the second line when the first is a shebang", body)
         self.assertIn("`.conf` files, devicetree overlays, documents", body)
 
-    def test_the_history_of_s5_and_s6_is_an_appendix_at_the_end(self):
+    def test_the_differences_of_sntp_and_management_are_an_appendix_at_the_end(self):
         titles = [t for level, t in self.headings() if level == "##"]
-        self.assertIn("Appendix: what S5 and S6 did differently", titles)
-        appendix = titles.index("Appendix: what S5 and S6 did differently")
+        self.assertIn("Appendix: how `sntp` and `management` differ", titles)
+        appendix = titles.index("Appendix: how `sntp` and `management` differ")
         self.assertEqual(len(titles) - 1, appendix)
-        self.assertNotIn("What S5 did differently", [t for t in titles if t != titles[appendix]])
+        self.assertFalse([t for t in titles if t != titles[appendix] and "sntp" in t], titles)
+        self.assertNotIn("did differently", flat(self.PAGE))
         self.assertNotIn("was updated in a later commit", flat(self.PAGE))
 
     def test_the_drivers_and_hal_section_states_the_rule_and_where_the_reasoning_lives(self):
@@ -384,8 +364,8 @@ class AddingAStep(unittest.TestCase):
         self.assertEqual(1, len(found), titles)
         self.assertRegex(found[0], r"^\d+\. ")
         part = " ".join(section(self.PAGE, found[0]).split())
-        for needle in ("GPIO, I2C and SPI", "roadmap.md", "composition-zone.md", "architecture.md",
-                       "docs/choosing-an-api.md", "2c017f685e0215e0e269d4bc77272889d06a07d8"):
+        for needle in ("GPIO, I2C and SPI", "1330195487c34c8df6046d41ae030d3cdf8a5138", "roadmap.md",
+                       "composition-zone.md", "architecture.md", "docs/choosing-an-api.md"):
             self.assertIn(needle, part, needle)
 
     def test_the_list_of_files_that_need_a_reviewed_change_is_still_there(self):
@@ -425,7 +405,7 @@ class ReviewingProvenance(unittest.TestCase):
     def test_the_items_that_the_review_found_uncited_are_now_marked(self):
         body = " ".join(read("docs/reviewing.md").split())
         for needle in ("CI results were read for the head commit.** Practice.",
-                       "Practice, from [adding-a-step.md](adding-a-step.md), section 2.1",
+                       "Practice, from [adding-a-capability.md](adding-a-capability.md), section 2.1",
                        "Practice: it also reads the resolved configuration",
                        "\"Extend a check rather than loosen it.\"",
                        "Practice: it also gives the command or configuration",
@@ -459,32 +439,14 @@ class NewPages(unittest.TestCase):
                        "CONTRIBUTING.md does not say"):
             self.assertIn(needle, body, needle)
 
-    def test_the_team_copy_note_covers_the_copy_tasks(self):
-        # The page moved to the history folder unchanged apart from its link targets.
-        body = flat("docs/history/team-copy.md")
-        for needle in ("CODEOWNERS", "git init && git add -A", "upstream", "NOTICE", "LICENSE",
-                       "SPDX-License-Identifier: Apache-2.0", "west.yml", "`.github/workflows/`",
-                       "https://github.com/wonny-labs/crux-controller/issues", "SECURITY.md",
-                       "no support period", "python -m unittest discover -s tests/tooling",
-                       "#44", "pull request 50"):
-            self.assertIn(needle, body, needle)
-        self.assertIn("whoever approves merges and releases", body)
 
+class StaticAnalysisLimits(unittest.TestCase):
+    """CONTRIBUTING.md states what the analysis does not cover, and its statements agree with the files."""
 
-class KnownLimits(unittest.TestCase):
-    """The index states what the checks do not cover, and its numbers agree with the files."""
-
-    HEADING = "Known limits, not scheduled"
+    HEADING = "Static analysis and coding standard"
 
     def part(self):
-        return " ".join(section("docs/README.md", self.HEADING).split())
-
-    @staticmethod
-    def production_sources():
-        out = subprocess.run(["git", "-C", str(ROOT), "ls-files", "-z", "--", "app", "workload"],
-                             check=True, capture_output=True).stdout
-        names = [n.decode() for n in out.split(b"\0") if n.endswith(b".c")]
-        return sorted(ROOT / n for n in names if (ROOT / n).is_file())
+        return " ".join(section("CONTRIBUTING.md", self.HEADING).split())
 
     @staticmethod
     def repository_files():
@@ -504,54 +466,38 @@ class KnownLimits(unittest.TestCase):
         import test_contributing_standard as standard
         return sorted(standard.host_built_sources())
 
-    def test_the_section_is_in_the_index_and_labelled(self):
-        self.assertRegex(read("docs/README.md"), rf"(?m)^## {self.HEADING}$")
-        part = self.part()
-        self.assertIn("known limits, not scheduled", part.lower())
-        self.assertNotRegex(part, r"\b(will be|we will|planned|soon|later)\b")
-        self.assertIn("../CONTRIBUTING.md#static-analysis-and-coding-standard",
-                      section("docs/README.md", self.HEADING))
-        self.assertIn("docs/README.md#known-limits-not-scheduled", {a for a in [
-            f"{p}#{an}" for p, an, _ in links("README.md")]})
+    def test_the_section_exists_and_the_map_keeps_no_copy_of_the_limits(self):
+        self.assertRegex(read("CONTRIBUTING.md"), rf"(?m)^## {self.HEADING}$")
+        self.assertNotIn("Known limits, not scheduled", read("docs/README.md"))
 
-    def test_the_numbers_agree_with_the_files(self):
-        production = self.production_sources()
-        built = self.host_built()
-        built_production = [p for p in built if p.relative_to(ROOT).parts[0] in ("app", "workload")]
-        self.assertEqual(17, len(production))
-        self.assertEqual(12, len(built))
-        self.assertEqual(7, len(built_production))
-        part = self.part()
-        self.assertIn(f"{len(built)} sources that the host tests build", part)
-        self.assertIn(f"{len(built_production)} of the {len(production)} production C files", part)
+    def test_the_number_of_analysed_sources_agrees_with_the_files(self):
+        self.assertIn(f"{len(self.host_built())} sources that the host tests build", self.part())
 
     def test_the_analysis_statements_are_true(self):
         part = self.part()
         script = read("scripts/analyze_host.py")
         self.assertIn("return 1 if status else 0", script)
-        self.assertIn("is printed but does not fail", part)
+        self.assertIn("It does so without failing", part)
         tidy = read(".clang-tidy")
         self.assertRegex(tidy, r"(?m)^\s*readability-identifier-naming\s*$")
         self.assertNotIn("CheckOptions", tidy)
-        self.assertIn("`readability-identifier-naming` is listed without options and enforces no naming rule", part)
+        self.assertIn("`readability-identifier-naming` without options, so it checks no naming rule", part)
         names = " ".join(pathlib.PurePosixPath(n).name for n in self.repository_files())
         for config in (".yamllint", ".shellcheckrc", ".flake8", ".pylintrc", "ruff.toml", ".cmake-format"):
             self.assertNotIn(config, names)
         workflows = " ".join(p.read_text() for p in (ROOT / ".github" / "workflows").glob("*.yml"))
+        # The checks of the workflows are in scripts/ci (the CI map file and its scripts).
+        workflows += " ".join(p.read_text() for p in ci_map.ci_sources())
         for tool in ("shellcheck", "yamllint", "ruff", "flake8", "pylint", "cmake-lint"):
             self.assertNotIn(tool, workflows)
-        self.assertIn("no lint for Python, shell, YAML or CMake", part)
+        self.assertIn("no linting of Python, shell, YAML and CMake", part)
 
     def test_the_untested_glue_statement_does_not_claim_all_glue(self):
-        # S4 compiles health.c and S5 compiles the product's own glue, so only parts are untested.
+        # system compiles health.c and sntp compiles the product's own glue, so only parts are untested.
         part = self.part()
         self.assertIn("Parts of the Zephyr-side glue are not run by any test", part)
-        self.assertNotIn("**Zephyr-side glue is not run", read("docs/README.md"))
-        self.assertIn("health.c", read("tests/native_sim/s4/CMakeLists.txt"))
-
-    def test_the_estimate_says_what_it_counts(self):
-        self.assertIn("estimate of tests per module", self.part())
-        self.assertIn("at the head of this change", self.part())
+        self.assertNotIn("**Zephyr-side glue is not run", read("CONTRIBUTING.md"))
+        self.assertIn("health.c", read("tests/native_sim/system/CMakeLists.txt"))
 
     def test_the_untested_glue_statements_are_true(self):
         part = self.part()
@@ -562,27 +508,14 @@ class KnownLimits(unittest.TestCase):
         self.assertIn("composition.c", part)
         self.assertIn("watchdog feed path", part)
         self.assertIn("web page script", part)
-        self.assertIn("never run in any test", part)
-        s4 = read("tests/native_sim/s4/src/test_s4.c")
-        self.assertIn("a feed cycle and a missed feed cannot be shown here", " ".join(s4.split()))
+        system = read("tests/native_sim/system/src/test_system.c")
+        self.assertIn("a feed cycle and a missed feed cannot be shown here", " ".join(system.split()))
         self.assertEqual([], [p for p in (ROOT / "tests").rglob("*.js")])
 
-    def test_the_tooling_tests_statement_names_its_method_and_says_estimate(self):
-        part = self.part()
-        self.assertIn("estimate", part)
-        self.assertRegex(part, r"between about \d+ and \d+ percent")
-        self.assertIn("by module", part)
-
-    def test_the_board_and_environment_statements_match_the_other_pages(self):
-        part = self.part()
-        self.assertIn("Step S2 ran twice on a board, on one bench", part)
-        self.assertIn("Step S2 ran twice on a board", flat("README.md"))
-        self.assertIn("was not started on a developer machine", part)
-        self.assertIn("was not started on a developer machine at all", flat("docs/try-on-native-sim.md"))
-        self.assertIn("WSL2", part)
-        self.assertIn("proxy", part)
-        self.assertIn("x86_64", part)
-        self.assertIn("never on a board", part)
+    def test_the_board_status_has_one_home_the_roadmap(self):
+        self.assertIn("Only the `net` image has run on a board: twice, on one RT1060-EVKB Rev B on one bench",
+                      flat("docs/roadmap.md"))
+        self.assertNotIn("ran twice", flat("README.md"))
 
 
 class ShellExamples(unittest.TestCase):

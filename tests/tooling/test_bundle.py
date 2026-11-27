@@ -29,8 +29,8 @@ METADATA = {
     "runner_image": "ubuntu-24.04",
     "target": TARGET,
 }
-LOCK = "manifest:\n  projects:\n    - name: crux-pilot\n      revision: db5adca\n"
-PINS = "CONTRACT crux-pilot db5adca28bd3\nOK zephyr dccb09599635\n"
+LOCK = "manifest:\n  projects:\n    - name: crux\n      revision: db5adca\n"
+PINS = "CONTRACT crux db5adca28bd3\nOK zephyr dccb09599635\n"
 
 
 def make_build_dir(base, image=IMAGE, config=CONFIG):
@@ -215,7 +215,7 @@ class CheckBundle(unittest.TestCase):
                 + "remote: git://example.org/var/lib/x.git\n"
                 + "remote: ssh://git@example.org/opt/x.git\n"
                 + "path: modules/hal/nxp\n"
-                + "path: crux-controller/build/s2\n"
+                + "path: crux-controller/build/net\n"
                 + "path: a/home/b\n"
             )
             put_item(bundle, "pins-report.txt", text.encode())

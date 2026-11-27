@@ -4,13 +4,33 @@ Status: no release exists and no tag has been made. The only release flow that r
 CI. It builds, assembles the bundle and checks it, and it publishes nothing.
 
 The general rules for releasing a product on Crux are in the Crux composition guide, section
-"Release": [`docs/product-composition.md` at the pinned revision `2c017f68`](https://github.com/wonny-labs/crux-pilot/blob/2c017f685e0215e0e269d4bc77272889d06a07d8/docs/product-composition.md).
+"Release": [`docs/product-composition.md` at the pinned revision `13301954`](https://github.com/wonny-labs/crux/blob/1330195487c34c8df6046d41ae030d3cdf8a5138/docs/product-composition.md).
 This page does not copy it. It says only what this repository does.
+
+## Versions
+
+The rules for daily work, such as what `main` carries, are in [CONTRIBUTING.md](CONTRIBUTING.md#versions-releases-and-tags).
+This section holds the release rules.
+
+- `X.Y.Z-dev` is `main` between releases. `X.Y.Z-rc.N` is a release candidate. `X.Y.Z` is a release.
+- A release is explicit. The owner approves it, and it is made in a release task: the release pull request
+  drops the suffix in `CONTROLLER_VERSION_PRERELEASE` and `CONTROLLER_VERSION_STRING`, and moves the
+  CHANGELOG entries under the release number.
+- The owner approves the merge of the release pull request. The owner then tags that merge commit
+  `vX.Y.Z` with an annotated tag. Tags are never moved.
+- Right after a release, `main` moves to the next version in a pull request: `X.(Y+1).0-dev`.
+- Only tags of the form `vX.Y.Z` exist. A release candidate is a version string, not a tag.
+- Before 1.0.0 (versions `0.Y.Z`), every release from `main` raises the minor number, breaking changes
+  included. A patch release `0.Y.(Z+1)` comes only from a release branch `v0.Y.x`, cut from the tag when it
+  is needed.
+- From 1.0.0, follow [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html): a major number for an
+  incompatible change, a minor number for a compatible addition, a patch number for a fix.
+- Releases happen when they are needed, not on a calendar.
 
 ## The flow
 
-The workflow is `.github/workflows/release.yml`. It runs by hand (`workflow_dispatch`) and on pull
-requests that change the workflow, `release/` or `west.yml`.
+The workflow is `.github/workflows/release.yml`; its steps are the checks of the job `release` in `scripts/ci/checks.toml`.
+It runs by hand (`workflow_dispatch`), in the nightly CI tier and on pull requests that change the workflow, `release/`, `west.yml` or `scripts/ci/`.
 
 ```mermaid
 flowchart TD
@@ -18,7 +38,7 @@ flowchart TD
     B --> C["Freeze the manifest<br/>west manifest --freeze"]
     C --> D["Fresh workspace at another path<br/>from the frozen manifest<br/>west crux-pins again"]
     D --> E["west spdx --init"]
-    E --> F["Build S2<br/>baseline gate required<br/>ROM and RAM reports"]
+    E --> F["Build net<br/>baseline gate required<br/>ROM and RAM reports"]
     F --> G["west spdx"]
     G --> H["Parse the SPDX files<br/>release/parse_spdx.py"]
     H --> I["Assemble the bundle<br/>release/assemble_bundle.py"]
@@ -28,7 +48,7 @@ flowchart TD
 
 | Step | Tool | What fails the run |
 |---|---|---|
-| Pins | `west crux-pins` | no `CONTRACT crux-pilot` line, or any `MISMATCH` |
+| Pins | `west crux-pins` | no `CONTRACT crux` line, or any `MISMATCH` |
 | Freeze | `west manifest --freeze` | a manifest west cannot freeze |
 | Fresh workspace | `west init --mf`, `west update` | a revision that cannot be fetched |
 | Build | `west build` with `-DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON` | a Zephyr that is not the verified baseline, or a build error |
@@ -50,7 +70,7 @@ the SDK version, the runner image, the target, the hash of each bundle item, the
 CI artefact, not on a release page. `release/check_bundle.py` refuses a bundle that holds an image, an
 `.elf` or `.map` file, a file that starts like an ELF, an Intel HEX or S-record dump, or an archive,
 and an item with an absolute path of a build machine. No workflow in this repository uploads an
-artefact, and a test (`tests/tooling/test_s0_build.py`) fails if one starts to.
+artefact, and a test (`tests/tooling/test_base_build.py`) fails if one starts to.
 
 The full SBOM from `west spdx` is parsed in the dry run but is not in the bundle yet. Whether it can go
 out as it is has not been decided.

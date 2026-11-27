@@ -1,0 +1,5 @@
+# Optional override: a SEGGER J-Link package that a developer downloaded and
+# placed here, accepting its licence. It is never committed.
+*
+!.gitignore
+!README.md

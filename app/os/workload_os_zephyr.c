@@ -7,12 +7,12 @@
  * file includes is <zephyr/kernel.h>, an entry on the allow-list of docs/composition-zone.md for
  * this zone (the allow-list also names zephyr/net/sntp.h, which only time_sync_zephyr.c includes).
  *
- * The numbers below are the ones that the Crux providers gave this workload, read at crux-pilot
+ * The numbers below are the ones that the Crux providers gave this workload, read at Crux
  * revision 37c92b18b44b7dfb95c2109f036f23d00f05cb4c (the revision that west.yml pins when this
  * file was written). This file may not include <crux/thread.h> or <crux/queue.h>, so it cannot
  * compare against them: each BUILD_ASSERT below compares a name to the literal copied from the
  * provider, so that a change of either side is a visible edit. The provider paths are relative to
- * the crux-pilot repository.
+ * the Crux repository.
  *
  *   thread priority  components/thread/ports/zephyr/thread_native.c:99
  *                    native_priority = 6 - options->priority, and CRUX_THREAD_PRIORITY_NORMAL is 1
@@ -21,9 +21,9 @@
  *   stack bytes      thread_native.c:7 declares the stacks with CRUX_THREAD_STACK_BYTES, whose
  *                    default is 4096 (components/thread/src/thread_internal.h:14). This workload
  *                    takes its size from CONFIG_CRUX_CONTROLLER_WORKER_STACK, default 4096 (the
- *                    S2 image sets 8192). One stack per thread. No image selects Crux Thread any
+ *                    net image sets 8192). One stack per thread. No image selects Crux Thread any
  *                    more, so the provider's option, CONFIG_CRUX_THREAD_STACK_BYTES, is not
- *                    defined in any step and nothing here reads it. A build without
+ *                    defined in any image and nothing here reads it. A build without
  *                    app/Kconfig, the native_sim scenario, takes the 4096 default below.
  *   queue depth      8 messages and an item of sizeof(workload_message_t), 8 bytes: what
  *   and item size    workload_thread.c passed to crux_queue_create before this adapter. The
@@ -69,7 +69,8 @@ BUILD_ASSERT(CONFIG_NUM_PREEMPT_PRIORITIES > 6, "the provider needs preemptive p
 BUILD_ASSERT(WORKLOAD_OS_THREAD_PRIORITY == 5, "Crux normal priority is Zephyr priority 5");
 BUILD_ASSERT(WORKLOAD_OS_STACK_DEFAULT_BYTES == 4096, "the provider's default stack is 4096 bytes");
 /* Absolute deadlines need 64-bit kernel timeouts. The Crux providers selected them; the product's
- * CRUX_CONTROLLER_S1 option does now, and the native_sim scenario sets them in its prj.conf. */
+ * CRUX_CONTROLLER_WORKLOAD option does now, and the native_sim scenario sets them in its prj.conf.
+ */
 BUILD_ASSERT(IS_ENABLED(CONFIG_TIMEOUT_64BIT), "the absolute deadlines need CONFIG_TIMEOUT_64BIT");
 BUILD_ASSERT(WORKLOAD_OS_QUEUE_DEPTH == 8, "the queue holds 8 messages");
 BUILD_ASSERT(WORKLOAD_OS_ITEM_BYTES == 8, "a queue item is a workload_message_t of 8 bytes");

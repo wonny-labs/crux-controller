@@ -1,14 +1,93 @@
 # Changelog
 
 This file follows the idea of [Keep a Changelog](https://keepachangelog.com/). There is no release
-yet and no tag, so everything below is unreleased: it is what the `main` branch contains. Step S2 ran
-twice on a board (see `docs/findings/s2-first-board-run.md`); nothing else has run on a board.
+yet and no tag, so everything below is unreleased: it is what the `main` branch contains. Only the `net`
+image ran on a board, twice (see `docs/findings/s2-first-board-run.md`). Entries below the first section name the
+build configurations by their earlier step ids, S0 to S6.
 
 ## Unreleased
 
+### Controller framework
+
+- The repository is a controller framework for products built on Crux: a Zephyr module (`zephyr/module.yml`)
+  that one Kconfig symbol, `CRUX_CONTROLLER_FRAMEWORK`, turns on, with a base image. The role section of
+  `CONTRIBUTING.md` and the glossary entry "Product" say so; "product" now means a firmware repository outside
+  this one, in Crux's sense.
+- The framework's start function, `controller_framework_start()` in `<controller/framework.h>`, runs a table
+  of phases with the portable startup sequence of `framework/src/startup.c` (host tests in
+  `tests/host/test_startup.c`): the clock, web management and time synchronisation, each logged with its result.
+- The sources of time synchronisation, of the management policy and port, and of the composition zone move from
+  `app/` to the module's trees `framework/src`, `framework/os` and `framework/compose`, and the web route files
+  from `app/management/` to `framework/management/`. The configurations `sntp`, `file` and `management` build
+  them from there (`framework/configurations.cmake` adds the sources, and `app/CMakeLists.txt` adds the
+  composition zone `framework/compose`) and are otherwise unchanged.
+- The build configuration `base` is the base image (`app/conf/base.conf`): the framework with web management
+  and time synchronisation, on a RAM disk, with no application. The configuration of `app/prj.conf` alone is
+  renamed `minimal`, with its CI job and `Budget` row. The `base build` job runs the scenario
+  `tests/framework/base`, which builds the framework from the module on `native_sim`, then builds the image for
+  the RT1060-EVKB; `budgets/limits.json` has a row for it with the placeholder margin.
+- The boundary check covers the trees of the module (`include`, `framework/src`, `framework/compose`,
+  `framework/os`), and a C source under `app/`, `framework/` or `include/` outside every checked tree fails.
+- The base image starts the serial command line: the Crux serial console, with its login and its first-account
+  setup, on LPUART3 of the RT1060-EVKB (alias `crux-serial0` in the board file), after web management. The
+  service symbol is `CRUX_CONTROLLER_FRAMEWORK_CLI_SERIAL`, and `<crux/cli_zephyr.h>` joins the composition
+  zone's allow-list. The `native_sim` scenario types the setup and a login into an emulated UART.
+- The nightly job `product-integration` builds a fixture product (`tests/product_integration`) in a west workspace
+  of its own, which imports this repository at the commit under test, and runs it on `native_sim`
+  (`tests/product_integration/run.sh`, a job of `scheduled-main.yml` and a Jenkins stage).
+- The framework has a version, `0.1.0-dev`: the next planned release with `-dev`, as Crux's `main` carries.
+  `<controller/version.h>` is the only place it is kept, with Semantic Versioning macros
+  (`CONTROLLER_VERSION_MAJOR` to `CONTROLLER_VERSION_STRING`), and `tests/tooling/test_version.py` fails when
+  the parts and the string disagree. It is not an image version; no tag exists.
+- The versioning and release rules are in [CONTRIBUTING.md](CONTRIBUTING.md#versions-releases-and-tags) and
+  [RELEASE.md](RELEASE.md#versions). No compatibility effect.
+- Health supervision (delivery stage 2): a boot record in a retained region of the base image, the reset cause
+  read once, a supervisor thread that feeds the Crux watchdog only while each step meets its deadline, a fault
+  record for a hang or fatal error, and a safe-mode boot after repeated faults. The serial commands `status`,
+  `reboot`, `recovery clear` and `recovery exit` join the base image; the last three need the permission
+  `system.reboot` and exist only in an image with Crux Reboot. Compatibility: additive; the administrator role
+  gains `system.reboot`; no existing command, public interface or stored format changes. Verified on `native_sim` and by host tests only; nothing ran on a
+  board, and the board check of the retained region is open.
+
+### Capability names
+
+- The step ids S0 to S6 are replaced by capability names: S0 `base`, S1 `workload`, S2 `net`, S3 `file`,
+  S4 `system`, S5 `sntp` and S6 `management`. The fragments and overlays (`app/conf/<name>.conf`,
+  `app/boards/<name>.overlay`), the product's Kconfig options (`CRUX_CONTROLLER_WORKLOAD` to
+  `CRUX_CONTROLLER_MANAGEMENT`), the CI jobs (`net build` and so on), the `Budget` rows and jobs, the build
+  directories, the `native_sim` scenario directories and Twister names (`controller.<name>.native_sim...`), the
+  case variables (`FILE_CASE`, `SYSTEM_CASE`, `SNTP_CASE`), the tooling tests (`test_<name>.py`), the budget tool
+  option (`--config`) and `docs/adding-a-capability.md` carry the new names. `docs/findings/README.md` maps each
+  old id to its name, and the notes in `docs/findings/` and `docs/history/` keep the ids they were written with.
+  No limit changes and no assertion is weakened. The `management` image reports the project version
+  `crux-controller-management` instead of `crux-controller-s6`, and the firmware identity of each image changes
+  with its Kconfig names.
+- The documents are reworked by page type: the README is an entry page (capabilities, quick start, where to read
+  next, one status line), and the board-run status, sizes and evidence links are on the roadmap and in the
+  findings index.
+
+### Dev Container and onboarding
+
+- With `CRUX_JLINK=auto`, the image build downloads the J-Link version pinned in `.devcontainer/Dockerfile`
+  (`CRUX_JLINK_SEGGER_VERSION`, `CRUX_JLINK_SEGGER_SHA256`) from SEGGER when no package is placed and no
+  `CRUX_JLINK_URL` is set, as Crux's Dev Container does. A failed download or a SHA-256 mismatch installs nothing
+  and builds without it, with a warning; `CRUX_JLINK=1` makes either an error. The `devcontainer` CI job sets
+  `CRUX_JLINK=0`, so CI does not download the software or accept SEGGER's terms of use.
+- One Dev Container instead of two: it mounts the USB bus of the host with a device cgroup rule, installs the
+  SEGGER J-Link software from `.devcontainer/jlink/packages/` or from a hosted copy (`CRUX_JLINK_URL` with
+  `CRUX_JLINK_DEB_SHA256`), and builds without it, with a warning, when neither is given. The optional board
+  container (`.devcontainer/board/`) and `scripts/board-shell.sh` are removed; `scripts/dev-shell.sh` passes the USB
+  bus itself.
+- `scripts/bootstrap.sh` is the one entry that prepares a clone (`CRUX_BOOTSTRAP=host|zephyr|all`, `status`,
+  `board-host`, `--keep-going`); the Dev Container runs it after it is created, as Crux's Dev Container does.
+  `.devcontainer/setup.sh` and `.devcontainer/check-host.sh` keep their logic.
+- `.vscode/` has the two Cortex-Debug profiles for the board, "Board: Flash and run to main" and "Board: Attach (no
+  reset)", with the J-Link speed `auto`, and the tasks "Build firmware" and "Board: Build and flash". None has run
+  on hardware.
+
 ### Build and manifest
 
-- The west manifest imports `crux-pilot` at a pinned commit (`2c017f68`, which publishes the File
+- The west manifest imports `crux` at a pinned commit (`13301954`, which contains the File
   composition interface `<crux/file_zephyr.h>`) and adds `picolibc` as a test-only project. A CI job
   checks the pins with `west crux-pins` and has a negative control that must fail.
 - The `crux-pilot` pin moved from `37c92b18` to `dfd3ad7d`, which adds the public management headers
@@ -61,6 +140,70 @@ twice on a board (see `docs/findings/s2-first-board-run.md`); nothing else has r
   `crux-pilot`. The range also renames the Crux CMake project (#533) and adds Zephyr-style samples, host
   samples in CTest and a first-hour guide (#536). The S2 firmware hash and the budget tables are in the
   pull request, because they come from CI.
+- The `crux-pilot` pin moved from `2c017f68` to `1c4cf284`, the head of Crux `main` after its onboarding
+  change (one board-ready Dev Container with `scripts/bootstrap.sh`, samples sorted by purpose, the controller
+  sample removed from Crux, the Settings File selection that does not depend on Reliance Edge, the pin bot). The
+  Crux manifest, the public headers and the module name are as before. No controller code changes; four comments in
+  `app/conf/` and `app/boards/` name the moved Crux files and sample folders. The S2 firmware hash and the budget tables
+  are in the pull request, because they come from CI.
+- The `crux-pilot` pin moved from `1c4cf284` to `c5439c51`, the head of Crux `main` after two changes: the
+  samples `time/clock_shell` and `file/write_read` are renamed `time/shell` and `file/basic`, and the Dev Container
+  image build downloads the pinned J-Link package when none is given (CI and automated image builds pass
+  `CRUX_JLINK=0`). The Crux manifest, the public headers and the module name are as before. No controller file named
+  the renamed samples, and the J-Link installer and its pinned version already match Crux. The S2 firmware hash and
+  the budget tables are in the pull request, because they come from CI.
+- The `crux-pilot` pin moved from `c5439c51` to `ea16f99f`, the head of Crux `main` after changes to its documentation,
+  Dev Container, VS Code files, `scripts/bootstrap.sh` and time shell sample, and the removal of the CMake status line
+  `Crux Time realtime provider` from Crux's host Time build. The Crux manifest, the public headers and the module name
+  are as before. No controller code changes.
+- The `crux-pilot` pin moved from `ea16f99f` to `ce2eb313`, the head of Crux `main` after wonny-labs/crux-pilot#590,
+  which changes Crux's `.clangd`, VS Code files, `CMakePresets.json` display names, two documentation pages,
+  `scripts/bootstrap.sh`, `scripts/bootstrap-zephyr.sh` and their tests. The Crux manifest, the public headers, the
+  component code and the module name are as before. No controller code changes.
+- The `crux-pilot` pin moved from `ce2eb313` to `13c950bb`, the head of Crux `main` after its sample layout and version
+  batch: the release version header `<crux/version.h>`, `zephyr/`, `linux/` and `common/` folders for each Crux
+  sample, renamed sections of Crux's coding guidelines, shorter bootstrap and Dev Container guidance, and
+  documentation, CI and test changes. The Crux manifest, the existing public headers, the Zephyr module, the board
+  samples and the product template are as before. No controller code changes.
+- The `crux-pilot` pin moved from `13c950bb` to `bd9efbc7`, the head of Crux `main` after its onboarding follow-ups:
+  the first CMake configure in VS Code before the preset selection, the Windows step that turns off the Dev Containers
+  Wayland socket mount, one-line bootstrap failure messages with a documentation pointer, and their tests. The Crux
+  manifest, the public headers, the Zephyr module, the board samples and the product template are as before. No
+  controller code changes.
+- The `crux-pilot` pin moved from `bd9efbc7` to `62ed69f1`, the head of Crux `main` after its board-neutral Zephyr
+  selection (wonny-labs/crux-pilot#601) and tiered CI (wonny-labs/crux-pilot#602). The File symbols
+  `CRUX_FILE_FATFS_SDMMC`, `CRUX_FILE_FATFS_RAM_DISK` and `CRUX_FILE_FATFS_SDMMC_COMPILE_CHECK` replace the RT1060
+  names, which stay as deprecated aliases, so `app/conf/file.conf` and `app/conf/management.conf` keep the old names
+  and Zephyr's Kconfig prints a deprecation warning for them. Logging, Serial and System select their hardware by
+  devicetree instead of by board or SoC name. The Crux manifest, the Zephyr revision, the public headers and the
+  module name are as before. No controller code changes.
+- The `crux-pilot` pin moved from `62ed69f1` to `05a50475`, the head of Crux `main` after its move to Zephyr v4.5.0
+  (wonny-labs/crux-pilot#603), its CI sharding (#604), the fail-closed TCP initial sequence number (#605), LittleFS
+  storage for products (#607) and the service-thread progress hook and shared console (#606). Zephyr's manifest moves
+  `hal_nxp`, `cmsis_6`, `littlefs` and `fatfs`; `picolibc` keeps its revision. The `management` and `base` images,
+  which have Zephyr's TCP with the RFC 6528 sequence number, now build Crux's copy of `tcp.c` that refuses a
+  connection when the key or the hash fails. The new Crux features stay off here. The comment of
+  `framework/os/time_sync_zephyr.c` now says what changed in Zephyr's SNTP library up to v4.5.0. Zephyr v4.5.0
+  deprecates `CONFIG_MBEDTLS_SSL_MAX_CONTENT_LEN`, and the Twister build of the `management` scenario stops on that
+  warning, so `app/conf/management.conf`, `app/conf/base.conf`, the `management` and `tests/framework/base`
+  scenarios and the product-integration fixture set `CONFIG_MBEDTLS_SSL_IN_CONTENT_LEN` and
+  `CONFIG_MBEDTLS_SSL_OUT_CONTENT_LEN` to the same 16384 instead. The `West pins` negative control pinned `littlefs` at a newer commit that is now the contract, so it
+  pins the parent of the contract commit instead. No controller code or overlay changes.
+- Crux's repository was renamed from `wonny-labs/crux-pilot` to `wonny-labs/crux`, and the west project is now
+  `crux`, so west checks Crux out in `crux/`. The pinned commit and the Zephyr module name (`crux`) are as before.
+  Scripts, CI, tests and documents use the new name; the local include check still accepts a Crux checkout folder named
+  `crux-pilot` beside the repository. Earlier entries and findings keep the old name. An existing workspace needs
+  `west update` once, then a pristine build (`-p always`); its `crux-pilot/` folder is no longer used. No controller
+  code changes.
+- The Crux pin moved from `05a50475` to `13301954`, the head of Crux `main` after the native PTY UART for
+  Logging on `native_sim` (wonny-labs/crux#608), a documentation clean-up (#609), the byte limit of a File root
+  (#610), a direct CI manifest for hardware modules (#611), the CI package sources (#612) and the account-only erase
+  of the credential store with the `require_existing_identity` option of TLS certificate start (#613). The Crux
+  manifest, the Zephyr revision and every module revision are as before. The new option is the last member of
+  `crux_tls_certificate_options_t`, and false keeps the earlier behaviour; `framework/compose/management_start.c`
+  sets the options with designated initialisers, so the option is false there. The other additions are new
+  functions and accepted devicetree nodes that this repository does not use. No controller code, configuration or
+  overlay changes.
 - The `crux-pilot` import blocks wolfSSL, wolfSSH and wolfPSA by name, so enabling the Mbed TLS group
   would activate Mbed TLS and TF-PSA-Crypto and no GPL stack (checked on the project list; no job
   enables the group or fetches with it on, and it stays off in every job).
@@ -155,6 +298,29 @@ twice on a board (see `docs/findings/s2-first-board-run.md`); nothing else has r
 
 ### Documents
 
+- The documents follow the documentation guidelines of Crux: one type per page, current state only, one home
+  for each fact, and the Crux page names and terms. `docs/first-hour.md` is renamed `docs/tutorial.md` and takes
+  over the run steps of the Getting started quick start, so there is one path from a clone to the first build and
+  run. `docs/try-on-native-sim.md` becomes the Getting started page: its "Quick start" is "Set up the Dev
+  Container" with the host steps only, its term paragraph points at the glossary, and its dated "What has been
+  checked" record moves to `docs/history/setup-checks.md`; "Why the evidence comes from CI" moves to
+  `docs/architecture.md` and "What `native_sim` is" into the glossary entry for `native_sim`. Getting started then
+  holds only the environment and the first command: the Dev Container details move to `docs/dev-container.md`
+  (reference) and the route without the Dev Container to `docs/native-setup.md` (how-to), with a short section
+  and the same check left on Getting started. The tutorial runs from a working Dev Container in three parts: host
+  tests, the `native_sim` scenarios, and the board image with a board table. The README has the shape of the Crux README (what it
+  is and for whom, what it provides, quick start, where to read next, status and limits, contributing, licence),
+  `docs/README.md` is the documentation map with the type of each page, and the glossary defines workspace, Dev
+  Container and host tests. "Dev Container" is written as Crux writes it. `docs/try-on-native-sim.md` is renamed
+  `docs/getting-started.md`, with the paths in `CONTRIBUTING.md`, `scripts/` and `.devcontainer/`. No
+  firmware image changes.
+- The README is an entry point: the quick start points at `docs/first-hour.md`, a step table shows which code
+  and which finding teach each Crux capability, the Crux guides at the pin are linked as the canonical place
+  for building a product, and a task table replaces the timed reading path. `docs/README.md`,
+  `docs/try-on-native-sim.md`, `docs/roadmap.md` and `docs/architecture.md` lose duplicated text; the failure list
+  of the dev container lives only in `docs/troubleshooting.md`. Stale statements are corrected in
+  `docs/adding-a-step.md` (the S4 job checks Crux Thread and Sync, not Queue), `docs/dependencies.md` and
+  `docs/roadmap.md`. `docs/history/README.md` lists what was removed. No firmware image changes.
 - `docs/first-hour.md`, linked at the top of the README and of `docs/README.md`: the short path for a new team
   member on Linux or WSL2, from a clone to one build, one `native_sim` run and the local checks in the dev
   container, with the times of the CI job. `docs/board-bring-up.md` is now a board route: the probe on WSL2 with

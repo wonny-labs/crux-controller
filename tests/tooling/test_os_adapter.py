@@ -6,6 +6,8 @@ import pathlib
 import re
 import unittest
 
+import ci_map
+
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 APP = ROOT / "app"
 ZONE = APP / "os"
@@ -73,9 +75,10 @@ class ZoneBuildFiles(unittest.TestCase):
         )
 
     def test_the_zone_has_exactly_two_sources_and_one_build_file(self):
-        # Step S5 added the SNTP adapter as the second source; test_s5.py pins it.
+        # The SNTP adapter of the sntp capability is in the adapter zone of the framework module;
+        # test_sntp.py pins it.
         names = sorted(p.name for p in ZONE.iterdir())
-        self.assertEqual(["CMakeLists.txt", "time_sync_zephyr.c", "workload_os_zephyr.c"], names)
+        self.assertEqual(["CMakeLists.txt", "workload_os_zephyr.c"], names)
 
 
 class ApplicationBuildFiles(unittest.TestCase):
@@ -116,7 +119,7 @@ class ApplicationBuildFiles(unittest.TestCase):
 class Scenario(unittest.TestCase):
     """The native_sim scenario builds the real adapter and the real domain source."""
 
-    TEXT = code(ROOT / "tests" / "native_sim" / "s1" / "CMakeLists.txt")
+    TEXT = code(ROOT / "tests" / "native_sim" / "workload" / "CMakeLists.txt")
 
     def test_it_builds_the_zone_of_the_application(self):
         self.assertRegex(self.TEXT, r"add_subdirectory\(\$\{controller_root\}/app/os os\)")
@@ -264,7 +267,9 @@ class RemovedCruxQueue(unittest.TestCase):
     RemovedCruxQueue in test_boundary.py."""
 
     def test_no_workflow_names_the_queue_symbol(self):
-        for path in sorted((ROOT / ".github" / "workflows").glob("*.yml")):
+        # The checks of the workflows are in scripts/ci (the CI map file and its scripts).
+        paths = [*(ROOT / ".github" / "workflows").glob("*.yml"), *ci_map.ci_sources()]
+        for path in sorted(paths):
             self.assertNotIn("CONFIG_CRUX_QUEUE", path.read_text(), path.name)
 
 

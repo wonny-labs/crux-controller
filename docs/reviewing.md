@@ -54,7 +54,7 @@ that does not say what it covered is hard to use later.
 - [ ] **CI results were read for the head commit.** Practice. A green CI result does not replace review. CI is the
   reference for the Zephyr builds and the Twister runs, and a local result does not replace it (CONTRIBUTING.md,
   "Build and test").
-- [ ] **A claim about a board matches the record.** Only step S2 has run on a board, twice, on one bench
+- [ ] **A claim about a board matches the record.** Only the `net` image has run on a board, twice, on one bench
   (CONTRIBUTING.md, "What this repository is, and is not", and `docs/findings/s2-first-board-run.md`). A change must
   not claim otherwise.
 - [ ] **The text is fit for a public repository.** No name of an employer or customer, no proprietary product, runtime
@@ -75,9 +75,9 @@ rules. These items are practice, taken from how the tests and the findings are w
 - [ ] **Each fact matches a file.** Open every file, command, number and name that a changed sentence cites.
   Some of these are pinned by tests, many are not. A sentence that cites a path, a job name or an option must still
   name something that exists.
-- [ ] **No claim about an environment that nobody ran.** [try-on-native-sim.md](try-on-native-sim.md), "What has
-  been checked", lists what was run. A document that says "works on" a system either adds the run to that list or does
-  not say it.
+- [ ] **No claim about an environment that nobody ran.** The [setup checks record](history/setup-checks.md) lists
+  the local runs, and CI shows the rest. A document that says "works on" a system cites a recorded run (the pull
+  request that adds the claim records a new run, or a new record page under `docs/history/` does) or does not say it.
 - [ ] **No claim that a CI build is a board run,** and no claim that a `native_sim` pass shows board behaviour
   (CONTRIBUTING.md, "Commits and pull requests", and the glossary entry for `native_sim`).
 - [ ] **No private names.** The same rule as in section 3 (CONTRIBUTING.md, "Content rules"), applied to quoted approvals and to examples.
@@ -94,46 +94,45 @@ rules. These items are practice, taken from how the tests and the findings are w
 - [ ] **Dates and "now" are tied to a record or absent.** A date belongs to a recorded result. A phrase such as
   "currently" or "at the time of writing" becomes false later. Practice only.
 
-## 5. Step and driver changes
+## 5. Capability and driver changes
 
-A change that adds a step, a Crux component, a zone entry or a build option. [adding-a-step.md](adding-a-step.md) has
+A change that adds a capability, a Crux component, a zone entry or a build option. [adding-a-capability.md](adding-a-capability.md) has
 the recipe and the mechanical checklist; the points below are what a reviewer verifies.
 
-- [ ] **The limits row came first.** Practice, from [adding-a-step.md](adding-a-step.md), section 2.1: the row is
-  added before any job names the step. `budgets/limits.json` has the row for the step, and no other step's limit changed to make a build pass. CONTRIBUTING.md says a limit is not changed in the
+- [ ] **The limits row came first.** Practice, from [adding-a-capability.md](adding-a-capability.md), section 2.1: the row is
+  added before any job names the configuration. `budgets/limits.json` has the row for it, and no other configuration's limit changed to make a build pass. CONTRIBUTING.md says a limit is not changed in the
   same pull request as a pin move to make a bump pass, and the file's own comment says that a change there is a
   reviewed change.
 - [ ] **The boundary lists changed together.** A new allowed include means a change of `scripts/check_boundary.py`,
   `tests/tooling/test_boundary.py` and `docs/composition-zone.md` in one pull request that is reviewed as such, with
   the reason why the public interface is not enough (CONTRIBUTING.md, "The boundary"). There is no exception,
   waiver or per-file opt-out.
-- [ ] **No include path in CMake.** `app/CMakeLists.txt`, `app/management/management.cmake` and
-  `app/management/entropy.cmake` add none, because the check reads includes only (CONTRIBUTING.md, "The boundary").
+- [ ] **No include path in CMake.** `app/CMakeLists.txt`, `framework/management/management.cmake` and
+  `framework/management/entropy.cmake` add none, because the check reads includes only (CONTRIBUTING.md, "The boundary").
 - [ ] **Kconfig dependencies hold in the resolved configuration.** An unmet dependency only prints a warning, and the
-  image builds without the step. Look for the job's checks of the resolved `.config` and `zephyr.dts` (options that
+  image builds without the capability. Look for the job's checks of the resolved `.config` and `zephyr.dts` (options that
   must be on, options that must be off, the devicetree alias) and for the `require` field of the `Budget` row. Practice:
-  the CI job `s<n>` and `budget.yml` in [adding-a-step.md](adding-a-step.md), section 2.5.
-- [ ] **The CI job checks what the build resolved.** The job named `S<n> build (...)` builds with the baseline gate
+  the CI job `<name>` and `budget.yml` in [adding-a-capability.md](adding-a-capability.md), section 2.5.
+- [ ] **The CI job checks what the build resolved.** The job named `<name> build (...)` builds with the baseline gate
   required (CONTRIBUTING.md, "Build and test"). Practice: it also reads the resolved configuration, not only the
   command line.
-- [ ] **The three statements in CONTRIBUTING.md are updated.** Practice, from [adding-a-step.md](adding-a-step.md),
-  section 2.6: the role section ("Steps S0 to S<n> are built in CI"),
-  the `ci.yml` row (`S<n> build`) and the `budget.yml` row (`Budget` for S0 to S<n>). `tests/tooling/test_docs.py`
+- [ ] **The three statements in CONTRIBUTING.md are updated.** Practice, from [adding-a-capability.md](adding-a-capability.md),
+  section 2.6: the role section (every build configuration of the `Budget` matrix, in order),
+  the `ci.yml` row (`<name> build`) and the `budget.yml` row (`Budget` for `minimal` to the last configuration). `tests/tooling/test_docs.py`
   checks them against the workflows.
-- [ ] **The exact row lists of the earlier step tests are extended, not loosened.** CONTRIBUTING.md, "Changing
-  behaviour", says: "Extend a check rather than loosen it." That the row lists are pinned by `test_s4.py`,
-  `test_s5.py` and `test_s6.py`, and that the pull request says so, is practice
-  ([adding-a-step.md](adding-a-step.md), section 2.1).
-- [ ] **The findings note labels are honest.** Practice, from the README and [adding-a-step.md](adding-a-step.md),
-  section 2.6. A result that only CI can produce is **Open** with the job named,
-  until it is recorded with its revision as **Recorded**. The step's row in the README table says `not run` in
-  the board column until a board run is recorded in a finding (README and `docs/adding-a-step.md`).
+- [ ] **The exact row lists of the other capability tests are extended, not loosened.** CONTRIBUTING.md, "Changing
+  behaviour", says: "Extend a check rather than loosen it." That the row lists are pinned by `test_system.py`,
+  `test_sntp.py` and `test_management.py`, and that the pull request says so, is practice
+  ([adding-a-capability.md](adding-a-capability.md), section 2.1).
+- [ ] **The findings note labels are honest.** Practice, from [adding-a-capability.md](adding-a-capability.md), section 2.6. A result that only CI can produce is **Open** with the job named,
+  until it is recorded with its revision as **Recorded**. The configuration's row in the roadmap table says `not
+  run` in the board column until a board run is recorded in a finding (`docs/adding-a-capability.md`).
 - [ ] **A pin move is its own pull request.** It follows the three steps of CONTRIBUTING.md, "The pin and the
   manifest": the revision and the approved commit in the test change together, the places that quote the
-  commit are updated, and the pull request carries the SHA-256 of the S2 `zephyr.bin`, its `firmware_identity` and
+  commit are updated, and the pull request carries the SHA-256 of the `net` `zephyr.bin`, its `firmware_identity` and
   the budget tables. A limit does not change in the same pull request.
 - [ ] **A driver or HAL question is raised, not settled in passing.** A change that adds GPIO, I2C or SPI use, or a
-  Zephyr driver header in `app/src`, meets the rules in [adding-a-step.md](adding-a-step.md), section 5. The
+  Zephyr driver header in `app/src`, meets the rules in [adding-a-capability.md](adding-a-capability.md), section 5. The
   roadmap records GPIO, I2C and SPI as out of scope. CONTRIBUTING.md does not rule on them.
 
 ## 6. Evidence in the pull request
@@ -152,7 +151,7 @@ the recipe and the mechanical checklist; the points below are what a reviewer ve
 ## 7. Files that need a reviewed change
 
 When the change touches one of the files in the list
-[Files that need a reviewed change](adding-a-step.md#files-that-need-a-reviewed-change), say so in the review and
+[Files that need a reviewed change](adding-a-capability.md#files-that-need-a-reviewed-change), say so in the review and
 check the rule that stands next to it in that list. List the files of the change with:
 
 ```bash

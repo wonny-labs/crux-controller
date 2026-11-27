@@ -1,5 +1,5 @@
-/* Step S1: Crux Logging writes to LPUART1, and nothing else owns it. This is the
- * composition that crux-pilot documents for its Logging provider on this board. */
+/* The workload capability: Crux Logging writes to LPUART1, and nothing else owns it. This is the
+ * composition that Crux documents for its Logging provider on this board. */
 / {
     chosen { zephyr,log-uart = &logging_uarts; };
     logging_uarts: logging-uarts {
@@ -9,6 +9,23 @@
 };
 
 &lpuart1 {
+    status = "okay";
+    current-speed = <115200>;
+    parity = "none";
+};
+
+/* The serial command line of the base image: the Crux console owns LPUART3, through the alias
+ * crux-serial0, and nothing else opens it. Logging keeps LPUART1, so the two never share a UART;
+ * a shared console and log UART needs a Crux option that does not exist yet. A configuration
+ * without the console still initialises the UART driver for it, and nothing opens it. The wiring of LPUART3 to a terminal on this board
+ * has not been checked on a board. */
+/ {
+    aliases {
+        crux-serial0 = &lpuart3;
+    };
+};
+
+&lpuart3 {
     status = "okay";
     current-speed = <115200>;
     parity = "none";

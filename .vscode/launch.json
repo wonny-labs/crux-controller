@@ -1,0 +1,43 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Board: Debug",
+      "type": "cortex-debug",
+      "request": "launch",
+      "servertype": "jlink",
+      "cwd": "${workspaceFolder}",
+      "executable": "${workspaceFolder}/build/current/zephyr/zephyr.elf",
+      "device": "${config:crux.jlinkDevice}",
+      "interface": "swd",
+      "serverArgs": ["-speed", "auto"],
+      "gdbPath": "${env:ZEPHYR_SDK_INSTALL_DIR}/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gdb",
+      "preLaunchTask": "Board: Check probe and build",
+      "runToEntryPoint": "main"
+    },
+    {
+      "name": "Board: Attach",
+      "type": "cortex-debug",
+      "request": "attach",
+      "servertype": "jlink",
+      "cwd": "${workspaceFolder}",
+      "executable": "${workspaceFolder}/build/current/zephyr/zephyr.elf",
+      "device": "${config:crux.jlinkDevice}",
+      "interface": "swd",
+      "serverArgs": ["-speed", "auto"],
+      "gdbPath": "${env:ZEPHYR_SDK_INSTALL_DIR}/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gdb",
+      "preLaunchTask": "Board: Check probe"
+    },
+    {
+      "name": "Board: Attach (external)",
+      "type": "cortex-debug",
+      "request": "attach",
+      "servertype": "external",
+      "gdbTarget": "localhost:2331",
+      "cwd": "${workspaceFolder}",
+      "executable": "${workspaceFolder}/build/current/zephyr/zephyr.elf",
+      "device": "${config:crux.jlinkDevice}",
+      "gdbPath": "${env:ZEPHYR_SDK_INSTALL_DIR}/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gdb"
+    }
+  ]
+}

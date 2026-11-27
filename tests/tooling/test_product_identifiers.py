@@ -38,7 +38,7 @@ import unittest
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 CRUX_PREFIX = re.compile(r"^(?:crux_|CRUX_)")
-CRUX_TREES = ("app", "workload")
+CRUX_TREES = ("app", "workload", "framework", "include")
 CONFIG_PREFIX = re.compile(r"^CONFIG_")
 
 TOKEN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*|[0-9][A-Za-z0-9_.]*|\S")
@@ -403,7 +403,7 @@ class ProductTree(unittest.TestCase):
     def test_the_scan_covers_the_product_sources(self):
         files = [str(f.relative_to(ROOT)) for f in tracked(ROOT, CRUX_TREES)]
         self.assertIn("app/src/health.c", files)
-        self.assertIn("app/src/time_sync.c", files)
+        self.assertIn("framework/src/time_sync.c", files)
         self.assertIn("workload/include/workload.h", files)
 
     def test_the_product_defines_nothing_in_the_crux_namespace(self):
@@ -468,7 +468,7 @@ class ConfigNamespace(unittest.TestCase):
     def test_the_scan_covers_headers_sources_and_tests(self):
         files = [str(f.relative_to(ROOT)) for f in tracked(ROOT, (".",))]
         for expected in ("app/src/config_store.h", "app/src/config_store.c",
-                         "tests/host/test_net_client.c", "tests/native_sim/s3/src/test_s3.c"):
+                         "tests/host/test_net_client.c", "tests/native_sim/file/src/test_file.c"):
             self.assertIn(expected, files)
 
     def test_no_tracked_c_or_header_file_defines_a_config_identifier(self):

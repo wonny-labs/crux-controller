@@ -1,133 +1,69 @@
 name: devcontainer
 
-# Builds the dev container image from .devcontainer/Dockerfile and runs checks inside it, through
-# scripts/dev-shell.sh (the same image and setup script that VS Code uses). It shows that the
-# container can build and test what the CI jobs of ci.yml build and test, so a teammate on Windows
-# with WSL2 and Docker Engine gets the same result: the tooling tests, the format check, the static
-# analysis, the host tests, both boundary checks, the native_sim scenarios and the RT1060-EVKB
-# cross-build of step S1 with the Zephyr SDK that setup.sh installs. It does not replace those jobs, and
-# it is not a run in VS Code or in WSL2: only the Dev Containers extension runs devcontainer.json.
-# west.yml is a trigger because a move of the pin changes the Zephyr requirement files that
-# setup.sh installs, and main is a trigger so that such a change cannot break the container unseen.
+# A thin wrapper: scripts/ci/run-tier.sh runs the job devcontainer of scripts/ci/checks.toml, which
+# builds the dev container image from .devcontainer/Dockerfile and runs checks inside it through
+# scripts/dev-shell.sh (CONTRIBUTING.md, CI tiers). west.yml is a trigger because a move of the pin
+# changes the Zephyr requirement files that setup.sh installs, and main is a trigger so that such a
+# change cannot break the container unseen. scripts/ci/ holds the checks.
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - ".devcontainer/**"
       - "scripts/dev-shell.sh"
+      - "scripts/bootstrap.sh"
+      - ".vscode/**"
       - "west.yml"
       - ".github/workflows/devcontainer.yml"
+      - "scripts/ci/**"
   push:
     branches: [main]
     paths:
       - ".devcontainer/**"
       - "scripts/dev-shell.sh"
+      - "scripts/bootstrap.sh"
+      - ".vscode/**"
       - "west.yml"
       - ".github/workflows/devcontainer.yml"
+      - "scripts/ci/**"
+  schedule:
+    - cron: "17 2 * * *"
   workflow_dispatch:
+    inputs:
+      tier:
+        description: "Tier to run (CONTRIBUTING.md, CI tiers)"
+        type: choice
+        options: [full, fast, nightly]
+        default: full
+
+# Supersede only older runs of the same pull request. Runs on main and manual runs are unique.
+concurrency:
+  group: devcontainer-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || format('run-{0}', github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
 
-concurrency:
-  group: devcontainer-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   devcontainer:
-    name: Dev container (tooling tests, boundary check, S1 native_sim and RT1060-EVKB)
+    name: Dev container (tooling tests, boundary check, workload native_sim and RT1060-EVKB)
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     env:
       GH_TOKEN: ${{ github.token }}
+      TIER: ${{ inputs.tier || 'auto' }}
     steps:
-      # The clone sits in the workspace directory, as in the dev container layout.
       - uses: actions/checkout@v4
         with:
           path: crux-controller
-      - name: Build the image and set up the workspace
-        run: crux-controller/scripts/dev-shell.sh west --version
-      - name: Run the tooling tests
-        run: crux-controller/scripts/dev-shell.sh python -m unittest discover -s tests/tooling -v
-      - name: Check the format
-        run: crux-controller/scripts/dev-shell.sh ./scripts/check-format.sh
-      - name: Analyze the host-built sources
-        run: crux-controller/scripts/dev-shell.sh python scripts/analyze_host.py
-      - name: Run the host tests (sanitizers off, then on)
+          fetch-depth: 0
+      - name: Plan the checks of this tier
+        id: plan
+        working-directory: crux-controller
         run: |
-          crux-controller/scripts/dev-shell.sh bash -c '
-            set -euo pipefail
-            cmake -S tests/host -B build/host -G Ninja -DWORKLOAD_SANITIZE=OFF
-            cmake --build build/host
-            ctest --test-dir build/host --output-on-failure
-            cmake -S tests/host -B build/host-asan -G Ninja -DWORKLOAD_SANITIZE=ON
-            cmake --build build/host-asan
-            ctest --test-dir build/host-asan --output-on-failure
-          '
-      - name: Check the includes of app/src, app/compose and workload
-        run: |
-          crux-controller/scripts/dev-shell.sh bash -c '
-            cd /workspaces/ws
-            python crux-controller/scripts/check_boundary.py --repo crux-controller --crux-root crux-pilot
-          '
-      # The pinned crux-pilot contains this script. The "Boundary check" job of ci.yml downloads the
-      # same file from a commit URL and checks this hash; here the copy of the pin is checked
-      # against it and run. A test compares the hash with the one of ci.yml.
-      - name: Run the Crux Pilot product include check
-        env:
-          CHECK_SHA256: 1e19b0aa3e300cfe7a542a06fe348343ad0963883ca822d7d1355be1af6b1e37
-        run: |
-          set -euo pipefail
-          script="$GITHUB_WORKSPACE/crux-pilot/templates/product/check_domain_includes.py"
-          echo "${CHECK_SHA256}  ${script}" | sha256sum --check --strict -
-          crux-controller/scripts/dev-shell.sh bash -c '
-            cd /workspaces/ws/crux-controller
-            python3 /workspaces/ws/crux-pilot/templates/product/check_domain_includes.py --product .
-          '
-      - name: Run the S1 scenario on native_sim
-        run: |
-          crux-controller/scripts/dev-shell.sh bash -c '
-            cd /workspaces/ws
-            west twister -p native_sim/native/64 -T crux-controller/tests/native_sim \
-              --inline-logs --clobber-output -O twister-out
-          '
-      # The next three steps are the steps of the same names of the S1 job in ci.yml, run in the
-      # container with the Zephyr SDK and the arm-zephyr-eabi toolchain that setup.sh installed.
-      # The commands are the same, with the board name of that job written out. A test compares them.
-      - name: Cross-build S1 with the baseline gate required
-        run: |
-          crux-controller/scripts/dev-shell.sh bash -s <<'SH'
-          set -euo pipefail
-          cd /workspaces/ws
-          west build -p always -b 'mimxrt1060_evk@B//qspi' -d crux-controller/build/s1 \
-            crux-controller/app -- -DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON \
-            -DEXTRA_CONF_FILE=conf/s1.conf
-          SH
-      - name: Check the outputs exist
-        run: |
-          crux-controller/scripts/dev-shell.sh bash -s <<'SH'
-          set -euo pipefail
-          cd /workspaces/ws
-          for output in zephyr.bin zephyr.meta; do
-            test -f "crux-controller/build/s1/zephyr/$output" || {
-              echo "missing $output" >&2
-              exit 1
-            }
-          done
-          SH
-      - name: Check the resolved S1 configuration
-        run: |
-          crux-controller/scripts/dev-shell.sh bash -s <<'SH'
-          set -euo pipefail
-          cd /workspaces/ws
-          build=crux-controller/build/s1/zephyr
-          for option in CONFIG_CRUX_CONTROLLER_S1=y CONFIG_CRUX_LOGGING=y \
-              CONFIG_CRUX_CONTROLLER_WORKER_STACK=4096; do
-            grep -qx "$option" "$build/.config" || { echo "missing $option" >&2; exit 1; }
-          done
-          # The product does not call the Crux Thread provider, so no step selects it.
-          for option in CONFIG_CRUX_THREAD=y; do
-            ! grep -qx "$option" "$build/.config" || { echo "unexpected $option" >&2; exit 1; }
-          done
-          grep -q 'zephyr,log-uart' "$build/zephyr.dts" || { echo "no log UART selection" >&2; exit 1; }
-          ! grep -qx 'CONFIG_CRUX_CONTROLLER_S2=y' "$build/.config"
-          SH
+          scripts/ci/run-tier.sh "$TIER" --job devcontainer --plan
+          echo "checks=$(scripts/ci/run-tier.sh "$TIER" --job devcontainer --count)" >> "$GITHUB_OUTPUT"
+      - name: Run the checks of this tier
+        if: steps.plan.outputs.checks != '0'
+        working-directory: crux-controller
+        run: scripts/ci/run-tier.sh "$TIER" --job devcontainer

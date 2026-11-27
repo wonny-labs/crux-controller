@@ -2,9 +2,9 @@
 # SPDX-License-Identifier: Apache-2.0
 """Check a measurement against the limits that were declared before it was taken.
 
-``limits.json`` holds ``{"min_free_percent": {"<step>": {"<region>": number}}}``. Three things
+``limits.json`` holds ``{"min_free_percent": {"<configuration>": {"<region>": number}}}``. Three things
 fail, not just an excess: a region over its limit, a measured region that has no limit, and a
-limited region that was not measured. A step with no declared limits fails too.
+limited region that was not measured. A build configuration with no declared limits fails too.
 """
 
 import argparse
@@ -19,26 +19,26 @@ def free_percent(region):
 
 def check(measurement, limits):
     """Return one message per violation. An empty list means every region is within its limit."""
-    step = measurement["step"]
-    declared_steps = limits.get("min_free_percent", {})
-    if step not in declared_steps:
-        return [f"{step}: unknown step, no limits are declared for it"]
-    declared = declared_steps[step]
+    config = measurement["config"]
+    declared_configs = limits.get("min_free_percent", {})
+    if config not in declared_configs:
+        return [f"{config}: unknown build configuration, no limits are declared for it"]
+    declared = declared_configs[config]
     measured = measurement["regions"]
     messages = []
     for name in sorted(measured):
         if name not in declared:
-            messages.append(f"{step} {name}: measured but no limit is declared")
+            messages.append(f"{config} {name}: measured but no limit is declared")
     for name in sorted(declared):
         if name not in measured:
-            messages.append(f"{step} {name}: a limit is declared but the region was not measured")
+            messages.append(f"{config} {name}: a limit is declared but the region was not measured")
             continue
         region = measured[name]
         if region["size"] <= 0:
-            messages.append(f"{step} {name}: the region has size {region['size']}")
+            messages.append(f"{config} {name}: the region has size {region['size']}")
         elif free_percent(region) < declared[name]:
             messages.append(
-                f"{step} {name}: {free_percent(region):.1f}% free is below the declared "
+                f"{config} {name}: {free_percent(region):.1f}% free is below the declared "
                 f"minimum of {declared[name]}% ({region['used']} of {region['size']} bytes used)"
             )
     return messages
@@ -47,7 +47,7 @@ def check(measurement, limits):
 def table(measurement):
     """A markdown table of the measured regions, for a job summary."""
     rows = [
-        f"| {measurement['step']} region | Used (B) | Size (B) | Free (%) |",
+        f"| {measurement['config']} region | Used (B) | Size (B) | Free (%) |",
         "| --- | ---: | ---: | ---: |",
     ]
     for name in sorted(measurement["regions"]):
@@ -74,7 +74,7 @@ def main(argv=None):
     if messages:
         print(f"{len(messages)} budget violation(s)")
         return 1
-    print(f"{measurement['step']}: budget check passed")
+    print(f"{measurement['config']}: budget check passed")
     return 0
 
 

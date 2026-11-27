@@ -5,6 +5,10 @@
     "context": ".",
     "options": ["--platform=linux/amd64"],
     "args": {
+      "CRUX_JLINK": "auto",
+      "CRUX_JLINK_DEB": "",
+      "CRUX_JLINK_DEB_SHA256": "",
+      "CRUX_JLINK_URL": "",
       "HTTP_PROXY": "${localEnv:HTTP_PROXY}",
       "http_proxy": "${localEnv:http_proxy}",
       "HTTPS_PROXY": "${localEnv:HTTPS_PROXY}",
@@ -13,14 +17,21 @@
       "no_proxy": "${localEnv:no_proxy}"
     }
   },
-  "runArgs": ["--platform=linux/amd64"],
+  "runArgs": [
+    "--platform=linux/amd64",
+    "--device-cgroup-rule=c 189:* rmw",
+    "-v",
+    "/dev/bus/usb:/dev/bus/usb"
+  ],
   "workspaceMount": "source=${localWorkspaceFolder}/..,target=/workspaces/ws,type=bind",
   "workspaceFolder": "/workspaces/ws/crux-controller",
   "mounts": [
-    "source=crux-controller-dev-cache-${devcontainerId},target=/opt/crux-cache,type=volume"
+    "source=crux-controller-dev-cache-${devcontainerId},target=/opt/crux-cache,type=volume",
+    "source=crux-controller-vscode-extensions,target=/home/vscode/.vscode-server/extensions,type=volume"
   ],
   "initializeCommand": "bash .devcontainer/check-host.sh",
   "containerEnv": {
+    "CRUX_BOOTSTRAP": "${localEnv:CRUX_BOOTSTRAP:all}",
     "HTTP_PROXY": "${localEnv:HTTP_PROXY}",
     "http_proxy": "${localEnv:http_proxy}",
     "HTTPS_PROXY": "${localEnv:HTTPS_PROXY}",
@@ -33,17 +44,31 @@
   },
   "remoteUser": "vscode",
   "updateRemoteUserUID": true,
-  "postCreateCommand": "bash .devcontainer/setup.sh",
+  "postCreateCommand": "bash scripts/bootstrap.sh --keep-going",
+  "postAttachCommand": "bash scripts/bootstrap.sh status",
   "customizations": {
     "vscode": {
       "extensions": [
-        "ms-vscode.cpptools",
+        "llvm-vs-code-extensions.vscode-clangd",
         "ms-vscode.cmake-tools",
+        "ms-vscode.cpptools",
         "ms-python.python",
+        "mcu-debug.debug-tracker-vscode",
+        "mcu-debug.memory-view",
+        "mcu-debug.rtos-views",
+        "mcu-debug.peripheral-viewer",
+        "marus25.cortex-debug",
         "redhat.vscode-yaml"
       ],
       "settings": {
-        "python.defaultInterpreterPath": "/opt/crux-cache/venv/bin/python"
+        "python.defaultInterpreterPath": "/opt/crux-cache/venv/bin/python",
+        "C_Cpp.intelliSenseEngine": "disabled",
+        "clangd.arguments": [
+          "--query-driver=${env:ZEPHYR_SDK_INSTALL_DIR}/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gcc"
+        ],
+        "[c]": {
+          "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd"
+        }
       }
     }
   },

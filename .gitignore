@@ -4,3 +4,8 @@ __pycache__/
 *.pyc
 twister-out*/
 .pytest_cache/
+# Root certificates that a developer places for the Dev Container image (.devcontainer/certs/README.md).
+# Every developer places their own; none is committed.
+.devcontainer/certs/*
+!.devcontainer/certs/.gitkeep
+!.devcontainer/certs/README.md

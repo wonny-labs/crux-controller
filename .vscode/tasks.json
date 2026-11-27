@@ -1,0 +1,63 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Board: Build",
+      "type": "process",
+      "command": "bash",
+      "args": ["scripts/build-board.sh", "--board", "${config:crux.board}", "${input:configuration}"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": "build",
+      "problemMatcher": "$gcc"
+    },
+    {
+      "label": "Board: Flash",
+      "type": "process",
+      "command": "bash",
+      "args": [
+        "-c",
+        "grep -qsx 1366 /sys/bus/usb/devices/*/idVendor || { echo 'No J-Link probe found. Attach it to the Dev Container (on Windows with WSL2: usbipd attach --wsl --busid <BUSID>). See docs/board-bring-up.md, 2. Connect the probe.' >&2; exit 1; }; exec west flash -d build/current --runner jlink"
+      ],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "presentation": { "echo": false }
+    },
+    {
+      "label": "Board: Clean",
+      "type": "process",
+      "command": "bash",
+      "args": ["scripts/build-board.sh", "--board", "${config:crux.board}", "--clean"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": "clean",
+      "problemMatcher": []
+    },
+    {
+      "label": "Board: Check probe",
+      "hide": true,
+      "type": "process",
+      "command": "bash",
+      "args": [
+        "-c",
+        "grep -qsx 1366 /sys/bus/usb/devices/*/idVendor || { echo 'No J-Link probe found. Attach it to the Dev Container (on Windows with WSL2: usbipd attach --wsl --busid <BUSID>). See docs/board-bring-up.md, 2. Connect the probe.' >&2; exit 1; }"
+      ],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Board: Check probe and build",
+      "hide": true,
+      "dependsOn": ["Board: Check probe", "Board: Build"],
+      "dependsOrder": "sequence",
+      "problemMatcher": []
+    }
+  ],
+  "inputs": [
+    {
+      "id": "configuration",
+      "type": "pickString",
+      "description": "Build configuration of app/ to build",
+      "options": ["minimal", "workload", "net", "file", "system", "sntp", "management", "base"],
+      "default": "net"
+    }
+  ]
+}

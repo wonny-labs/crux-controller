@@ -3,10 +3,10 @@
 #define HEALTH_POLICY_H
 
 /*
- * The product's policy for step S4: what a reset cause means at boot, how long the watchdog
- * interval is, and what a refused feed leads to. Plain C with ISO C includes only, so the policy
- * builds and is tested on the host with no Crux or Zephyr header. health.c is the one file that
- * reads the cause, starts the watchdog and feeds it through <crux/system.h>, and it asks this
+ * The product's policy for the system capability: what a reset cause means at boot, how long the
+ * watchdog interval is, and what a refused feed leads to. Plain C with ISO C includes only, so the
+ * policy builds and is tested on the host with no Crux or Zephyr header. health.c is the one file
+ * that reads the cause, starts the watchdog and feeds it through <crux/system.h>, and it asks this
  * policy what to do.
  *
  * Crux System reports mechanisms only: it names no health verdict and no recovery. These rules are
@@ -89,7 +89,7 @@ health_status_t health_cause_text(uint32_t causes, char *buffer, size_t capacity
 
 /*
  * The watchdog interval that Crux System supports on the RT1060-EVKB: 500 ms to 64000 ms in steps
- * of 500 ms (crux-pilot components/system/ports/zephyr/system_zephyr.c at the pinned revision).
+ * of 500 ms (Crux components/system/ports/zephyr/system_zephyr.c at the pinned revision).
  * The product never goes below 2000 ms.
  */
 #define HEALTH_WATCHDOG_MIN_MS 2000u

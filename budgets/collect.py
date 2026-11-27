@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""Collect the static resource use of one build step into a measurement.
+"""Collect the static resource use of one build configuration into a measurement.
 
 Reads the logs that the workflow keeps in ``<build>/budget/``:
 
@@ -22,7 +22,7 @@ import sys
 
 TARGET = "mimxrt1060_evk@B//qspi"
 
-# Same definition as firmware_identity in crux-pilot's scripts/record-build-provenance.py and
+# Same definition as firmware_identity in Crux's scripts/record-build-provenance.py and
 # the guide's build-record section: the target, the hash of zephyr.bin and the hash of .config
 # without comments or blank lines, but with "# CONFIG_X is not set" lines.
 IDENTITY_ALGORITHM = "crux-firmware-identity-v1"
@@ -110,14 +110,14 @@ def configured_values(config_bytes):
     return values
 
 
-def collect(build_dir, step, target=TARGET):
+def collect(build_dir, config_name, target=TARGET):
     build = pathlib.Path(build_dir)
     logs = build / "budget"
     image = (build / "zephyr" / "zephyr.bin").read_bytes()
     config = (build / "zephyr" / ".config").read_bytes()
     image_sha256 = hashlib.sha256(image).hexdigest()
     return {
-        "step": step,
+        "config": config_name,
         "regions": parse_regions((logs / "build.log").read_text()),
         "rom_report": parse_report_total((logs / "rom_report.log").read_text()),
         "ram_report": parse_report_total((logs / "ram_report.log").read_text()),
@@ -131,12 +131,12 @@ def collect(build_dir, step, target=TARGET):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--build-dir", required=True)
-    parser.add_argument("--step", required=True)
+    parser.add_argument("--config", required=True)
     parser.add_argument("--target", default=TARGET)
     parser.add_argument("--out", help="write the measurement here instead of standard output")
     args = parser.parse_args(argv)
     try:
-        measurement = collect(args.build_dir, args.step, args.target)
+        measurement = collect(args.build_dir, args.config, args.target)
     except (OSError, ValueError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2

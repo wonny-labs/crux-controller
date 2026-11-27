@@ -1,0 +1,232 @@
+# SPDX-License-Identifier: Apache-2.0
+
+# The controller framework of this repository as a Zephyr module (zephyr/module.yml). One symbol
+# turns it on; each service under it is on by default when the Crux and Zephyr symbols it needs
+# are on, and a product leaves a service out by turning its symbol off. The services do not
+# exclude each other.
+
+menuconfig CRUX_CONTROLLER_FRAMEWORK
+	bool "Controller framework"
+	depends on CRUX_TIME && CRUX_LOGGING && MULTITHREADING
+	help
+	  Build the controller framework: controller_framework_start() in
+	  <controller/framework.h>, which a product's main() calls once to start the Crux
+	  services of a networked controller in a defined order, logging each phase through Crux
+	  Logging. This version takes no application and creates no application thread. The
+	  configurations of app/ that build on the workload (CRUX_CONTROLLER_WORKLOAD) do not combine
+	  with it.
+
+if CRUX_CONTROLLER_FRAMEWORK
+
+config CRUX_CONTROLLER_FRAMEWORK_MANAGEMENT
+	bool "Web management over HTTPS"
+	default y
+	depends on CRUX_ACCESS && CRUX_CONFIG_SERVICE && CRUX_MGMT_STATUS && CRUX_TLS_CERTIFICATE
+	depends on CRUX_WEB_SESSION && CRUX_WEB_MANAGEMENT && CRUX_SYSTEM
+	depends on FILE_SYSTEM && TLS_CREDENTIALS
+	help
+	  Mount the volume that the devicetree entry controller_storage describes, start the Crux
+	  credential store, Access, the configuration service, the status service and the TLS
+	  certificate, then sessions, web management and the HTTPS listener on
+	  CONFIG_CRUX_WEB_BIND_ADDRESS (framework/compose/management_start.c). The image calls
+	  controller_framework_image() from its CMakeLists.txt, which adds the route table and
+	  the packaged page to its target app. The volume is formatted when it does not mount, which
+	  suits only the RAM disk form, and the key and certificate are made at the first start.
+
+config CRUX_CONTROLLER_FRAMEWORK_CLI_SERIAL
+	bool "Serial command line"
+	default y
+	depends on CRUX_CONTROLLER_FRAMEWORK_MANAGEMENT && CRUX_CLI_CONSOLE
+	help
+	  Start the Crux serial console on the UART that the devicetree alias crux-serial0
+	  names, after web management has started Access (framework/compose/cli_start.c). The
+	  console prints a login prompt and nothing before it. With no account, the word !setup
+	  at the prompt creates the first account, with the administrator role of the management
+	  policy; once an account exists, setup is refused and every command needs a login. The
+	  command line has the built-in commands of Crux (help, logout, passwd and account list)
+	  and no command table of the framework yet. The console owns its UART: no Zephyr
+	  console, log backend or shell may use it. SSH is not offered.
+
+config CRUX_CONTROLLER_FRAMEWORK_TIME_SYNC
+	bool "Time synchronisation over SNTP"
+	default y
+	depends on SNTP && NET_UDP && NET_IPV4
+	help
+	  Query one SNTP server at a fixed interval from a low-priority thread and set the Crux Time
+	  realtime clock through the Crux Time authority, with the policy of
+	  framework/src/time_sync_policy.h. SNTP is unauthenticated. The server and the limits are the
+	  options below.
+
+config CRUX_CONTROLLER_FRAMEWORK_SUPERVISION
+	bool "Health supervision: watchdog, boot counter and safe mode"
+	default y
+	depends on CRUX_SYSTEM && TASK_WDT && !TASK_WDT_HW_FALLBACK
+	help
+	  The supervision of specification sections 4 and 5: startup step 1 reads the
+	  reset cause once and clears it, reads the retained region and decides normal
+	  boot or safe mode; step 2 starts the supervisor thread, which arms the Crux
+	  System watchdog with one timeout and feeds it only while every startup step is
+	  within its deadline and no task watchdog channel of a framework thread has
+	  expired. A hang latches the fault, writes the last-fault record to the retained
+	  region and ends in a reset; the framework's fatal error handler writes a minimal
+	  record and resets through Crux System in thread context, or halts so that the
+	  armed watchdog resets the device (a halt with no armed watchdog is final). After CRUX_CONTROLLER_SAFE_MODE_THRESHOLD consecutive fault
+	  resets the boot is in safe mode, with no time synchronisation and no
+	  application. The status service and the serial command line show the state.
+	  The retained region is the Zephyr retention area of the devicetree node label
+	  controller_retained, built without the retention and retained memory mutexes;
+	  without that node the boot counter lives in RAM for one boot. The framework
+	  defines k_sys_fatal_error_handler(), so the image defines none.
+
+config CRUX_CONTROLLER_FRAMEWORK_REBOOT
+	bool "Restart through Crux Reboot, with the operator reset marker"
+	default y
+	depends on CRUX_CONTROLLER_FRAMEWORK_SUPERVISION && CRUX_CONTROLLER_FRAMEWORK_MANAGEMENT
+	depends on CRUX_REBOOT
+	help
+	  Start Crux Reboot with the framework's callback policy and no Crux reboot
+	  worker; the framework's own reboot thread carries out the requests, so the
+	  policy check just before the reset writes the operator reset marker and the
+	  next boot is not counted as a fault reset. The serial command line gains
+	  reboot, recovery clear and recovery exit, which need system.reboot.
+
+if CRUX_CONTROLLER_FRAMEWORK_SUPERVISION
+
+config CRUX_CONTROLLER_WATCHDOG_TIMEOUT_MS
+	int "Watchdog timeout T in milliseconds"
+	default 8000
+	range 1000 64000
+	help
+	  The one timeout of the boot (gap C3), for startup and runtime. It must cover
+	  the supervisor's period with a margin (at least twice the period) and lie in
+	  the range of the watchdog provider: Crux System supports 500 to 64000 ms in
+	  steps of 500 ms on the RT1060-EVKB. A starting value, not measured.
+
+config CRUX_CONTROLLER_SUPERVISOR_PERIOD_MS
+	int "Supervisor period in milliseconds"
+	default 1000
+	range 100 10000
+	help
+	  How often the supervisor checks the steps and the channels and feeds the
+	  watchdog. A starting value, not measured.
+
+config CRUX_CONTROLLER_SAFE_MODE_THRESHOLD
+	int "Consecutive fault resets that lead to safe mode (N)"
+	default 3
+	range 1 10
+
+config CRUX_CONTROLLER_STABLE_PERIOD_S
+	int "Seconds of operation that make a successful boot"
+	default 300
+	range 1 86400
+	help
+	  The controller must be operational, and the application neither in fault nor
+	  held, without interruption for this long before the boot counter is cleared.
+
+config CRUX_CONTROLLER_DEADLINE_MANAGEMENT_MS
+	int "Deadline of the web management step in milliseconds"
+	default 60000
+	range 1000 600000
+	help
+	  The step mounts the volume, starts the credential store and Access, and makes
+	  the TLS key and certificate when none is stored, which can take long on a board.
+	  A starting value, not measured on a board.
+
+config CRUX_CONTROLLER_DEADLINE_COMMAND_LINE_MS
+	int "Deadline of the command line step in milliseconds"
+	default 5000
+	range 100 600000
+	help
+	  A starting value, not measured on a board.
+
+config CRUX_CONTROLLER_DEADLINE_TIME_SYNC_MS
+	int "Deadline of the time synchronisation step in milliseconds"
+	default 5000
+	range 100 600000
+	help
+	  A starting value, not measured on a board.
+
+config CRUX_CONTROLLER_DEADLINE_APPLICATION_MS
+	int "Deadline of the application step (step 12) in milliseconds"
+	default 5000
+	range 100 600000
+	help
+	  The step ends startup supervision; from delivery stage 3 on it bounds the
+	  activation of the application's channels and its start. A starting value, not
+	  measured on a board.
+
+config CRUX_CONTROLLER_START_WITHOUT_WATCHDOG
+	bool "Allow operation without a hardware watchdog (development, bench and native_sim builds)"
+	help
+	  Decision D14. Off, a watchdog that is not armed makes the controller degraded,
+	  and from delivery stage 3 on the application is held. On, the controller is
+	  operational without the watchdog and the application may start. In either case
+	  a hang that the supervisor sees ends in a software reset, and a hang of the
+	  supervisor itself is not detected, which is why a product build leaves this off.
+
+config CRUX_CONTROLLER_FRAMEWORK_FAULT_INJECTION
+	bool "Fault injection for the native_sim scenarios"
+	depends on BOARD_NATIVE_SIM
+	help
+	  Test only: <controller/framework_test.h> arms a stalled startup step, a stalled
+	  framework thread or a fatal error, for the scenarios under tests/framework.
+	  No board image can select it.
+
+endif # CRUX_CONTROLLER_FRAMEWORK_SUPERVISION
+
+# The options of time synchronisation. The configuration sntp of app/ defines the same symbols in
+# app/Kconfig for its own option; the values and ranges are the same.
+
+config CRUX_CONTROLLER_TIME_SERVER
+	string "IPv4 address of the SNTP server"
+	default "192.168.77.1"
+	depends on CRUX_CONTROLLER_FRAMEWORK_TIME_SYNC
+	help
+	  An IPv4 address in dotted form, optionally followed by a colon and a port (123
+	  otherwise). The image has no DNS resolver.
+
+config CRUX_CONTROLLER_TIME_INTERVAL_S
+	int "Seconds between two queries"
+	default 600
+	range 16 86400
+	depends on CRUX_CONTROLLER_FRAMEWORK_TIME_SYNC
+
+config CRUX_CONTROLLER_TIME_TIMEOUT_MS
+	int "Milliseconds to wait for the answer to one query"
+	default 3000
+	range 100 30000
+	depends on CRUX_CONTROLLER_FRAMEWORK_TIME_SYNC
+	help
+	  It must be shorter than the interval.
+
+config CRUX_CONTROLLER_TIME_STALE_AGE_S
+	int "Seconds after which an unconfirmed synchronised clock is marked not synchronised"
+	default 1800
+	range 60 604800
+	depends on CRUX_CONTROLLER_FRAMEWORK_TIME_SYNC
+	help
+	  It must be longer than the interval.
+
+config CRUX_CONTROLLER_TIME_THRESHOLD_MS
+	int "Milliseconds below which a difference from a synchronised clock is left alone"
+	default 100
+	range 1 10000
+	depends on CRUX_CONTROLLER_FRAMEWORK_TIME_SYNC
+	help
+	  It must not exceed the maximum step.
+
+config CRUX_CONTROLLER_TIME_MAX_STEP_MS
+	int "Milliseconds above which a difference from a synchronised clock is refused"
+	default 1000
+	range 1 3600000
+	depends on CRUX_CONTROLLER_FRAMEWORK_TIME_SYNC
+
+config CRUX_CONTROLLER_TIME_STACK
+	int "Stack bytes of the time synchronisation thread"
+	default 8192
+	range 2048 65536
+	depends on CRUX_CONTROLLER_FRAMEWORK_TIME_SYNC
+	help
+	  A starting value, not measured.
+
+endif # CRUX_CONTROLLER_FRAMEWORK

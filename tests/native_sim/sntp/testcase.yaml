@@ -1,0 +1,23 @@
+common:
+  platform_allow:
+    - native_sim/native/64
+  integration_platforms:
+    - native_sim/native/64
+  tags:
+    - controller
+    - sntp
+tests:
+  controller.sntp.native_sim.first_sync:
+    extra_args: SNTP_CASE=first_sync
+  controller.sntp.native_sim.kiss_of_death:
+    extra_args: SNTP_CASE=kiss_of_death
+  controller.sntp.native_sim.late_answer:
+    extra_args: SNTP_CASE=late_answer
+  controller.sntp.native_sim.out_of_range:
+    extra_args: SNTP_CASE=out_of_range
+  controller.sntp.native_sim.step_refused_then_resync:
+    extra_args: SNTP_CASE=step_refused_then_resync
+  controller.sntp.native_sim.correction_and_threshold:
+    extra_args: SNTP_CASE=correction_and_threshold
+  controller.sntp.native_sim.stale_after_silence:
+    extra_args: SNTP_CASE=stale_after_silence

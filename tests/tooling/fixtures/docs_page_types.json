@@ -1,0 +1,64 @@
+{
+  "comment": "Page types and marker allowlist for tests/tooling/test_docs_page_types.py. Lower a count when a page is fixed; never raise one.",
+  "types": {
+    "CONTRIBUTING.md": "reference",
+    "README.md": "entry",
+    "RELEASE.md": "reference",
+    "SECURITY.md": "reference",
+    "docs/README.md": "entry",
+    "docs/adding-a-capability.md": "how-to",
+    "docs/architecture.md": "explanation",
+    "docs/board-bring-up.md": "how-to",
+    "docs/capabilities.md": "reference",
+    "docs/composition-zone.md": "reference",
+    "docs/dependencies.md": "reference",
+    "docs/design/controller-framework-platform-gaps.md": "reference",
+    "docs/design/controller-framework-spec.md": "reference",
+    "docs/design/controller-framework-threat-model.md": "reference",
+    "docs/design/controller-framework.md": "explanation",
+    "docs/dev-container.md": "reference",
+    "docs/documentation-guidelines.md": "reference",
+    "docs/first-change.md": "tutorial",
+    "docs/getting-started.md": "entry",
+    "docs/glossary.md": "reference",
+    "docs/native-setup.md": "how-to",
+    "docs/reviewing.md": "explanation",
+    "docs/roadmap.md": "reference",
+    "docs/troubleshooting.md": "reference",
+    "docs/tutorial.md": "tutorial"
+  },
+  "allowlist": {
+    "CONTRIBUTING.md": {
+      "provenance": 1,
+      "verification": 1
+    },
+    "RELEASE.md": {
+      "status": 1
+    },
+    "docs/adding-a-capability.md": {
+      "history": 1,
+      "verification": 1
+    },
+    "docs/architecture.md": {
+      "verification": 3
+    },
+    "docs/dev-container.md": {
+      "verification": 6
+    },
+    "docs/glossary.md": {
+      "verification": 2
+    },
+    "docs/native-setup.md": {
+      "verification": 3
+    },
+    "docs/reviewing.md": {
+      "verification": 2
+    },
+    "docs/roadmap.md": {
+      "verification": 5
+    },
+    "docs/troubleshooting.md": {
+      "verification": 8
+    }
+  }
+}

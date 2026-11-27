@@ -20,9 +20,10 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 import analyze_host  # noqa: E402
 import check_spdx  # noqa: E402
+import ci_map  # noqa: E402
 
 PLATFORM_GUIDELINES = (
-    "https://github.com/wonny-labs/crux-pilot/blob/"
+    "https://github.com/wonny-labs/crux/blob/"
     "751e04aead779ac08e438ec1e2640e57fc50e9fe/docs/coding-guidelines.md"
 )
 HEADING = "## Static analysis and coding standard"
@@ -92,7 +93,18 @@ def product_sources_with_warning_flags():
     for args in statements(os_zone, "set_source_files_properties"):
         if 'COMPILE_OPTIONS "-Wall;-Wextra;-Werror"' in args:
             flagged |= c_names(args)
-    compose = (ROOT / "app/compose/CMakeLists.txt").read_text()
+    # The framework sources that the configurations of app/ compile into the target app.
+    configurations = (ROOT / "framework/configurations.cmake").read_text()
+    if f"target_compile_options(app PRIVATE {flags})" in app:
+        for args in statements(configurations, "target_sources"):
+            if args.startswith("app "):
+                flagged |= c_names(args)
+    # The framework library of the module, for the base image.
+    module = (ROOT / "zephyr/CMakeLists.txt").read_text()
+    if f"zephyr_library_compile_options({flags})" in module:
+        for args in statements(module, "zephyr_library_sources"):
+            flagged |= c_names(args)
+    compose = (ROOT / "framework/compose/CMakeLists.txt").read_text()
     if f"target_compile_options(compose PRIVATE {flags})" in compose:
         for command in ("add_library", "target_sources"):
             for args in statements(compose, command):
@@ -102,7 +114,9 @@ def product_sources_with_warning_flags():
 
 
 def scenario_cmake_files():
-    return sorted((ROOT / "tests").glob("native_sim*/*/CMakeLists.txt"))
+    return sorted([*(ROOT / "tests").glob("native_sim*/*/CMakeLists.txt"),
+                   *(ROOT / "tests").glob("framework/*/CMakeLists.txt"),
+                   ROOT / "tests" / "product_integration" / "CMakeLists.txt"])
 
 
 def sources_given_compile_options_by_scenarios():
@@ -168,15 +182,15 @@ class StaticAnalysisSection(unittest.TestCase):
         body = flat(section())
         analysed = host_built_sources()
         missing = set(not_analysed())
-        self.assertEqual(12, len(analysed))
-        self.assertEqual(16, len(missing))
+        self.assertEqual(22, len(analysed))
+        self.assertEqual(31, len(missing))
         self.assertIn("clang-tidy 18", body)
         for family in ("bugprone", "clang-analyzer", "performance", "portability"):
             self.assertIn(f"`{family}`", body)
         self.assertIn("warnings are errors", body)
-        self.assertIn("the 12 sources", body)
+        self.assertIn("the 22 sources", body)
         self.assertIn("`scripts/analyze_host.py`", body)
-        self.assertIn("16 today", body)
+        self.assertIn("31 today", body)
         self.assertIn("the sources that the host tests do not build", body)
         self.assertIn("Zephyr or Crux headers or Kconfig values", body)
         self.assertNotIn("because they need Zephyr headers", body)
@@ -185,12 +199,12 @@ class StaticAnalysisSection(unittest.TestCase):
     def test_ten_product_sources_get_warning_flags_and_six_scenario_sources_do_not(self):
         body = flat(section())
         names = {path.name: path for path in not_analysed()}
-        self.assertEqual(16, len(names), "a basename is not unique")
+        self.assertEqual(31, len(names), "a basename is not unique")
         flagged = product_sources_with_warning_flags()
         scenario = {n for n, p in names.items() if "/tests/" in p.as_posix()}
         product = set(names) - scenario
-        self.assertEqual(6, len(scenario))
-        self.assertEqual(10, len(product))
+        self.assertEqual(12, len(scenario))
+        self.assertEqual(19, len(product))
         # Each product source is built with the flags by the CMake files that name them.
         self.assertEqual(product, product & flagged, sorted(product - flagged))
         # No scenario source is in a COMPILE_OPTIONS list, and no scenario file sets the flags on
@@ -202,9 +216,9 @@ class StaticAnalysisSection(unittest.TestCase):
         for path in scenario_cmake_files():
             self.assertNotRegex(path.read_text(), r"target_compile_options\(app", path.name)
         # The text says exactly that.
-        self.assertIn("10 of those 16 are product sources", body)
+        self.assertIn("19 of those 31 are product sources", body)
         self.assertIn("`-Wall -Wextra -Werror`", body)
-        self.assertIn("The other 6 are the `native_sim` scenario sources", body)
+        self.assertIn("The other 12 are the `native_sim` scenario sources", body)
         self.assertIn("not on the scenario source", body)
         self.assertNotIn("Those 16 sources get compiler warnings only", body)
         self.assertNotRegex(body, r"(?i)twister")
@@ -228,15 +242,25 @@ class StaticAnalysisSection(unittest.TestCase):
         self.assertIn("`.github/workflows/budget.yml`", body)
         self.assertIn("`Static analysis`", body)
 
+    # Approved behaviour change (criterion 41, delivery stage 2): the host-test coverage is reported by
+    # gcovr in the check host-coverage, without a threshold. The text says so, and the other tools stay out.
     def test_what_is_not_measured_or_linted_is_stated_and_true(self):
         body = flat(section())
-        self.assertIn("no coverage measurement", body)
+        self.assertIn("no coverage threshold, no coverage measurement of the `native_sim` scenarios", body)
         self.assertIn("Python, shell, YAML and CMake", body)
         workflows = " ".join(
             p.read_text().lower() for p in (ROOT / ".github/workflows").glob("*.yml")
         )
-        for tool in ("gcov", "lcov", "ruff", "flake8", "pylint", "shellcheck", "yamllint"):
+        # The checks of the workflows are in the CI map file and the scripts of scripts/ci.
+        workflows += " ".join(p.read_text().lower() for p in ci_map.ci_sources())
+        for tool in ("lcov", "ruff", "flake8", "pylint", "shellcheck", "yamllint"):
             self.assertNotIn(tool, workflows)
+        coverage = ci_map.run("host-coverage")
+        self.assertIn("-DCRUX_HOST_COVERAGE=ON", coverage)
+        self.assertIn("gcovr==", coverage)
+        self.assertNotIn("--fail-under", coverage)
+        self.assertIn("`host-coverage`", body)
+        self.assertIn("does not gate", body)
 
     def test_compliance_statement_is_negative_and_links_the_platform_text(self):
         body = flat(section())
@@ -267,7 +291,7 @@ class CiJobTable(unittest.TestCase):
     def test_the_row_names_every_job_of_ci_yml(self):
         row = ci_row()
         for job_id, job in self.jobs.items():
-            # The row shortens a name to its first words: "S1 (native_sim and ...)" is `S1`.
+            # The row shortens a name to its first words: "workload (native_sim and ...)" is `workload`.
             short = job["name"].split(" (")[0]
             self.assertIn(f"`{short}`", row, job_id)
 
@@ -278,18 +302,19 @@ class CiJobTable(unittest.TestCase):
         self.assertIn("BRACES", row)
         self.assertIn("`scripts/check-patch.sh`", row)
 
+    @ci_map.needs_tomllib
     def test_the_spdx_step_is_in_the_tooling_job(self):
-        steps = [s.get("name") for s in self.jobs["tooling"]["steps"]]
-        self.assertIn("Check SPDX headers", steps)
+        self.assertIn("spdx", ci_map.ids("tooling"))
+        self.assertEqual("python scripts/check_spdx.py\n", ci_map.run("spdx"))
         row = ci_row()
-        self.assertIn("`Check SPDX headers`", row)
+        self.assertIn("`spdx`", row)
         self.assertIn("`scripts/check_spdx.py`", row)
 
+    @ci_map.needs_tomllib
     def test_the_kit_step_is_in_the_boundary_job(self):
-        steps = [s.get("name") for s in self.jobs["boundary"]["steps"]]
-        self.assertIn("Run the style kit include check script", steps)
+        self.assertIn("kit-include-check", ci_map.ids("boundary"))
         row = ci_row()
-        self.assertIn("style kit as a further step", row)
+        self.assertIn("style kit as a further check", row)
         self.assertNotIn("one more step", row)
 
 
@@ -310,8 +335,9 @@ class SpdxAndPatchStyleFacts(unittest.TestCase):
         script = (ROOT / "scripts/check-patch.sh").read_text()
         self.assertIn('types="${CHECKPATCH_TYPES:-BRACES}"', script)
         self.assertIn("'*.c' '*.h'", script)
-        workflow = (ROOT / ".github/workflows/ci.yml").read_text()
-        self.assertIn("scripts/check-patch.sh", workflow)
+        # The Patch style job runs scripts/ci/check-patch-range.sh, which runs the script.
+        self.assertIn("scripts/ci/check-patch-range.sh", (ROOT / "scripts/ci/checks.toml").read_text())
+        self.assertIn("exec scripts/check-patch.sh", (ROOT / "scripts/ci/check-patch-range.sh").read_text())
 
     def test_the_not_done_line_still_holds_for_python_shell_yaml_and_cmake(self):
         # Header and brace checks are not linting of the languages: no linter is configured.

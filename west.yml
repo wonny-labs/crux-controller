@@ -1,8 +1,8 @@
 # West manifest of crux-controller. This repository is the manifest repository
-# and Crux (crux-pilot) is imported at a pinned commit (west's T2 topology). No optional
-# group is enabled in Stage 1. The Crux import is narrowed by name (see the comment on the
+# and Crux (the project crux) is imported at a pinned commit (west's T2 topology). No optional
+# group is enabled here. The Crux import is narrowed by name (see the comment on the
 # project). The one other project is picolibc, a test-only libc for the native_sim scenario of
-# step S2 (see the comment on the project).
+# the net configuration (see the comment on the project).
 manifest:
   version: "1.2"
 
@@ -13,30 +13,28 @@ manifest:
       url-base: https://github.com/zephyrproject-rtos
 
   projects:
-    - name: crux-pilot
+    - name: crux
       remote: crux
-      # Commit of crux-pilot origin/main of 22 November 2026. It follows
-      # the commit the project owner approved on 16 November 2026 and adds the web header
-      # deadline (CONFIG_CRUX_WEB_HEADER_DEADLINE_MS, default 10000), the refusal of a second
-      # web start and of a bind text that is no address, and the File pool settings. It removes
-      # Crux Queue (<crux/queue.h>, CONFIG_CRUX_QUEUE), which this repository no longer uses. It also
-      # renames the module switch CONFIG_CRUX_PILOT_MODULE to CONFIG_CRUX_MODULE, without an alias,
-      # and names the Zephyr module crux, so Zephyr sets ZEPHYR_CRUX_MODULE_DIR
-      # and CONFIG_ZEPHYR_CRUX_MODULE whatever the folder is called; the names from the folder,
-      # ZEPHYR_CRUX_PILOT_MODULE_DIR and CONFIG_ZEPHYR_CRUX_PILOT_MODULE, are no longer set.
-      # It publishes the File composition interface <crux/file_zephyr.h>,
-      # the public management headers and the simulated native_sim System watchdog. It also
-      # contains the move of the crypto modules to the revisions of Zephyr's v4.4-branch:
-      # Mbed TLS 4.1.1 plus 8 commits and TF-PSA-Crypto 1.1.1 plus 24
-      # commits, as the dependency review of crux-pilot counts them. Both are in the optional
-      # group crux-secure-management, which stays off here. No Crux tag exists yet, so this
-      # is a commit, not a tag.
-      revision: 2c017f685e0215e0e269d4bc77272889d06a07d8
+      # Commit of Crux origin/main, the merge of its account-only credential erase and the
+      # require_existing_identity option of TLS certificate start. It follows 05a50475 and keeps
+      # Zephyr v4.5.0 (41d10b59) and the Crux manifest: every Zephyr module, MCUboot (2.5.0),
+      # Mbed TLS 4.1.1 and TF-PSA-Crypto 1.1.1 keep their revisions; the three are in the optional groups
+      # crux-boot and crux-secure-management, which stay off here. picolibc and cmsis keep their
+      # revisions. In every image with Zephyr's own TCP and the RFC 6528 initial sequence number (here
+      # management and base, which have PSA SHA-256), Crux builds a copy of tcp.c that refuses a
+      # connection when the key or the hash fails; net and sntp have no PSA SHA-256 and keep Zephyr's
+      # tcp.c. The range adds a byte limit for a File root, the account-only erase of the credential
+      # store, a new last member of the TLS certificate start options (false keeps the earlier
+      # behaviour) and a native PTY UART for Logging on native_sim, all unused unless a product
+      # selects them; this repository selects none. The deprecated RT1060 File aliases that
+      # app/conf/file.conf, app/conf/management.conf and app/conf/base.conf use are still defined.
+      # No Crux tag exists yet, so this is a commit, not a tag.
+      revision: 1330195487c34c8df6046d41ae030d3cdf8a5138
       # The Crux manifest puts Mbed TLS and TF-PSA-Crypto in the same optional group
       # (crux-secure-management) as wolfSSL, wolfSSH and wolfPSA, which are GPL or commercial.
       # Blocking the three wolf projects by name keeps them out of the resolved manifest, so
       # enabling that group would activate the Mbed modules and no GPL stack (checked at the
-      # project-list level; only the S6 build job and the Budget row of S6 switch the group on, in
+      # project-list level; only the management build job and the Budget row of management switch the group on, in
       # their own runner, and they run that check first). The group itself stays off here.
       # scripts/check_mbed_only.py checks this, and the West pins job runs it.
       import:
@@ -45,7 +43,7 @@ manifest:
           - wolfssh
           - wolfpsa
 
-    # Test-only. The native_sim scenario of S2 needs an embedded libc, because the native
+    # Test-only. The native_sim scenario of net needs an embedded libc, because the native
     # libc of native_sim would bypass Zephyr's socket providers, and Crux's manifest does not
     # import this module. The revision is the one in Zephyr's own manifest at the Zephyr
     # release that Crux pins, so west crux-pins reports it as OK. SDK builds of the target

@@ -191,13 +191,13 @@ class Reviewed(unittest.TestCase):
     """Cases that an independent review of the boundary check asked for."""
 
     def test_crux_private_path_fails(self):
-        files = {"app/src/main.c": '#include "../../crux-pilot/components/time/src/x.h"\n'}
-        self.assertEqual(["../../crux-pilot/components/time/src/x.h"], reasons(run(files)))
+        files = {"app/src/main.c": '#include "../../crux/components/time/src/x.h"\n'}
+        self.assertEqual(["../../crux/components/time/src/x.h"], reasons(run(files)))
 
     def test_private_path_fails_even_when_the_file_exists_outside_the_tree(self):
         files = {
-            "app/src/main.c": '#include "../../crux-pilot/components/time/src/x.h"\n',
-            "crux-pilot/components/time/src/x.h": "",
+            "app/src/main.c": '#include "../../crux/components/time/src/x.h"\n',
+            "crux/components/time/src/x.h": "",
         }
         self.assertEqual(1, len(run(files)))
 
@@ -373,15 +373,15 @@ class CompositionZone(unittest.TestCase):
             ('#include "file_native.h"\n', "file_native.h"),
             ("#include <file_native.h>\n", "file_native.h"),
             ("#include <crux/ports/zephyr/file_native.h>\n", "crux/ports/zephyr/file_native.h"),
-            ('#include "../../crux-pilot/components/file/ports/zephyr/file_native.h"\n',
-             "../../crux-pilot/components/file/ports/zephyr/file_native.h"),
+            ('#include "../../crux/components/file/ports/zephyr/file_native.h"\n',
+             "../../crux/components/file/ports/zephyr/file_native.h"),
         ):
             self.assertEqual([name], reasons(self.in_zone(text)), text)
 
     def test_a_private_header_fails_even_when_it_exists_outside_the_tree(self):
         files = {
-            "app/compose/mount.c": '#include "../../crux-pilot/components/file/src/file_port.h"\n',
-            "crux-pilot/components/file/src/file_port.h": "",
+            "app/compose/mount.c": '#include "../../crux/components/file/src/file_port.h"\n',
+            "crux/components/file/src/file_port.h": "",
         }
         self.assertEqual(1, len(run(files)))
 
@@ -456,9 +456,53 @@ class CompositionZone(unittest.TestCase):
 
     def test_the_composition_allow_list_is_the_reviewed_set(self):
         self.assertEqual(
-            {"crux/file_zephyr.h", "crux/web_zephyr.h"},
+            {"crux/file_zephyr.h", "crux/web_zephyr.h", "crux/cli_zephyr.h"},
             set(check_boundary.COMPOSITION_CRUX_HEADERS),
         )
+
+    # The serial command line: <crux/cli_zephyr.h>, which starts the Crux console on the UART of
+    # the devicetree alias crux-serial0. Crux publishes it under components/cli/ports/zephyr.
+
+    CLI_ZEPHYR = "crux/cli_zephyr.h"
+
+    def cli_root(self, composition=("file_zephyr.h", "web_zephyr.h", "cli_zephyr.h")):
+        return self.crux_root(composition=composition,
+                              public=("file.h", "time.h", "cli.h", "access.h"))
+
+    def test_the_zones_may_include_the_cli_composition_interface(self):
+        for tree in ("app/compose", "framework/compose"):
+            files = {f"{tree}/cli_start.c": f"#include <{self.CLI_ZEPHYR}>\n#include <crux/cli.h>\n"}
+            for root in (None, self.cli_root()):
+                self.assertEqual([], run(files, crux_root=root), (tree, root))
+
+    def test_the_cli_interface_fails_outside_the_composition_zones(self):
+        for root in (None, self.cli_root()):
+            for tree in ("app/src", "app/os", "workload", "include", "framework/src", "framework/os"):
+                files = {f"{tree}/x.c": f"#include <{self.CLI_ZEPHYR}>\n"}
+                self.assertEqual([self.CLI_ZEPHYR], reasons(run(files, crux_root=root)), (tree, root))
+
+    def test_the_cli_interface_fails_outside_the_zones_by_name_without_a_crux_root(self):
+        (violation,) = run({"framework/src/core.c": f"#include <{self.CLI_ZEPHYR}>\n"})
+        self.assertEqual("composition interface, for the composition zone only", violation.reason)
+
+    def test_the_zone_may_not_include_the_cli_interface_crux_does_not_publish(self):
+        root = self.cli_root(composition=("file_zephyr.h", "web_zephyr.h"))
+        files = {"framework/compose/cli_start.c": f"#include <{self.CLI_ZEPHYR}>\n"}
+        self.assertEqual([self.CLI_ZEPHYR], reasons(run(files, crux_root=root)))
+
+    def test_the_portable_cli_header_stays_an_ordinary_public_header(self):
+        root = self.cli_root()
+        for tree in ("app/src/a.c", "framework/src/a.c", "framework/compose/a.c"):
+            self.assertEqual([], run({tree: "#include <crux/cli.h>\n"}, crux_root=root), tree)
+
+    def test_the_cli_change_adds_no_zephyr_header_and_unfreezes_nothing(self):
+        self.assertEqual(
+            {"zephyr/fs/fs.h", "zephyr/devicetree.h", "zephyr/net/tls_credentials.h"},
+            set(check_boundary.COMPOSITION_ZEPHYR_HEADERS),
+        )
+        for name in sorted(check_boundary.FROZEN_CRUX_HEADERS):
+            for tree in ("framework/src/a.c", "framework/os/a.c", "app/src/a.c"):
+                self.assertEqual([name], reasons(run({tree: f"#include <{name}>\n"})), (name, tree))
 
     # The HTTPS management composition: <crux/web_zephyr.h> and <zephyr/net/tls_credentials.h>.
 
@@ -662,14 +706,20 @@ class CompositionZone(unittest.TestCase):
 
     def test_the_zone_is_listed_with_the_other_rules(self):
         directories = [rule.directory for rule in check_boundary.RULES]
-        self.assertEqual(["app/src", "workload", "app/compose", "app/os"], directories)
+        self.assertEqual(
+            ["app/src", "workload", "app/compose", "app/os",
+             "include", "framework/src", "framework/compose", "framework/os"],
+            directories,
+        )
 
     def test_the_rules_of_app_src_and_the_workload_are_unchanged(self):
+        # app/src gains the framework core as a root, so that the configurations built on the
+        # workload reach the framework services they compose.
         app, workload = check_boundary.RULES[:2]
         self.assertEqual(
-            (True, True, frozenset(), frozenset(), ("workload/include",)),
+            (True, True, frozenset(), frozenset(), ("workload/include", "framework/src"), False),
             (app.allow_sockets, app.allow_crux, app.zephyr_allow, app.composition_crux,
-             app.extra_roots),
+             app.extra_roots, app.extra_roots_headers_only),
         )
         self.assertEqual(
             (False, False, frozenset(), frozenset(), ()),
@@ -891,7 +941,8 @@ class OsAdapterZone(unittest.TestCase):
         )
         self.assertNotIn("zephyr/kernel.h", check_boundary.COMPOSITION_ZEPHYR_HEADERS)
         self.assertEqual(
-            frozenset({"crux/file_zephyr.h", "crux/web_zephyr.h"}), compose.composition_crux
+            frozenset({"crux/file_zephyr.h", "crux/web_zephyr.h", "crux/cli_zephyr.h"}),
+            compose.composition_crux,
         )
         self.assertEqual(
             ["zephyr/kernel.h"],
@@ -1248,6 +1299,255 @@ class RemovedCruxQueue(unittest.TestCase):
         )
         self.assertEqual(1, result.returncode, result.stderr)
         self.assertIn("app/src/main.c:1: crux/queue.h: not a public Crux header", result.stdout)
+
+
+class FrameworkTrees(unittest.TestCase):
+    """The trees of the controller framework module and of its interface header.
+
+    include/ holds the interface header that a product includes. framework/src is the portable
+    core: the rules of app/src without the Sockets profile and without the workload.
+    framework/compose and framework/os are the composition and adapter zones of the module, with
+    the same allow-lists as app/compose and app/os, and they reach the core through its header
+    files only. A source file of the module that no rule covers fails the check.
+    """
+
+    API = "include/controller/framework.h"
+
+    def test_the_framework_rules_are_the_reviewed_rules(self):
+        rules = {rule.directory: rule for rule in check_boundary.RULES}
+        frozen = check_boundary.FROZEN_CRUX_HEADERS
+        expected = {
+            "include": (False, True, frozenset(), frozenset(), (), False, frozen, True),
+            "framework/src": (False, True, frozenset(), frozenset(), (), False, frozen, True),
+            "framework/compose": (
+                False, True, check_boundary.COMPOSITION_ZEPHYR_HEADERS,
+                check_boundary.COMPOSITION_CRUX_HEADERS, ("framework/src",), True, frozenset(), False,
+            ),
+            "framework/os": (
+                False, True, check_boundary.FRAMEWORK_OS_ZEPHYR_HEADERS, frozenset(),
+                ("framework/src",), True, frozen, False,
+            ),
+        }
+        for directory, values in expected.items():
+            rule = rules[directory]
+            self.assertEqual(
+                values,
+                (rule.allow_sockets, rule.allow_crux, rule.zephyr_allow, rule.composition_crux,
+                 rule.extra_roots, rule.extra_roots_headers_only, rule.deny_crux,
+                 rule.framework_api),
+                directory,
+            )
+
+    def test_the_legacy_zones_keep_their_rules(self):
+        rules = {rule.directory: rule for rule in check_boundary.RULES}
+        self.assertFalse(rules["app/compose"].framework_api)
+        self.assertFalse(rules["app/os"].framework_api)
+        self.assertFalse(rules["workload"].framework_api)
+        self.assertTrue(rules["app/src"].framework_api)
+
+    # The portable core.
+
+    def test_the_core_may_include_iso_c_public_crux_headers_and_its_own_headers(self):
+        files = {
+            "framework/src/startup.c": '#include "startup.h"\n#include <crux/time.h>\n#include <stdint.h>\n',
+            "framework/src/startup.h": "#include <stddef.h>\n",
+        }
+        self.assertEqual([], run(files))
+
+    def test_the_core_may_include_no_zephyr_header(self):
+        for name in ("zephyr/kernel.h", "zephyr/fs/fs.h", "zephyr/net/sntp.h", "zephyr/devicetree.h"):
+            files = {"framework/src/core.c": f"#include <{name}>\n"}
+            self.assertEqual([name], reasons(run(files)), name)
+
+    def test_the_core_may_not_use_the_sockets_profile(self):
+        files = {"framework/src/core.c": "#include <sys/socket.h>\n"}
+        self.assertEqual(["sys/socket.h"], reasons(run(files)))
+
+    def test_the_core_may_not_include_a_composition_interface_or_a_frozen_header(self):
+        for name in ("crux/file_zephyr.h", "crux/web_zephyr.h", "crux/thread.h", "crux/sync.h"):
+            files = {"framework/src/core.c": f"#include <{name}>\n"}
+            self.assertEqual([name], reasons(run(files)), name)
+
+    def test_the_core_may_not_reach_the_workload_or_a_zone_header(self):
+        files = {
+            "framework/src/core.c": '#include "../../workload/include/workload.h"\n'
+                                    '#include "../compose/mount.h"\n#include "../os/thread.h"\n',
+            "workload/include/workload.h": "",
+            "framework/compose/mount.h": "",
+            "framework/os/thread.h": "",
+        }
+        self.assertEqual(
+            ["../../workload/include/workload.h", "../compose/mount.h", "../os/thread.h"],
+            reasons(run(files)),
+        )
+
+    # The zones of the module.
+
+    def test_the_module_composition_zone_has_the_composition_allow_list(self):
+        text = "".join(f"#include <{n}>\n" for n in sorted(check_boundary.COMPOSITION_ZEPHYR_HEADERS))
+        text += "#include <crux/file_zephyr.h>\n#include <crux/web_zephyr.h>\n"
+        files = {"framework/compose/mount.c": text + '#include "../src/storage_port.h"\n',
+                 "framework/src/storage_port.h": "#include <stdint.h>\n"}
+        self.assertEqual([], run(files))
+
+    def test_the_module_composition_zone_fails_on_other_zephyr_headers(self):
+        files = {"framework/compose/mount.c": "#include <zephyr/kernel.h>\n#include <zephyr/fs/littlefs.h>\n"}
+        self.assertEqual(["zephyr/kernel.h", "zephyr/fs/littlefs.h"], reasons(run(files)))
+
+    def test_the_module_adapter_zone_has_the_adapter_allow_list(self):
+        files = {"framework/os/sntp.c": "#include <zephyr/kernel.h>\n#include <zephyr/net/sntp.h>\n"
+                                        '#include "../src/time_sync_port.h"\n',
+                 "framework/src/time_sync_port.h": "#include <stdint.h>\n"}
+        self.assertEqual([], run(files))
+
+    def test_the_module_adapter_zone_fails_on_other_headers(self):
+        files = {"framework/os/sntp.c": "#include <zephyr/net/socket.h>\n#include <crux/file_zephyr.h>\n"
+                                        "#include <crux/thread.h>\n#include <sys/socket.h>\n"}
+        self.assertEqual(
+            ["zephyr/net/socket.h", "crux/file_zephyr.h", "crux/thread.h", "sys/socket.h"],
+            reasons(run(files)),
+        )
+
+    def test_the_module_adapter_zone_has_its_supervision_headers(self):
+        text = "".join(f"#include <{n}>\n" for n in sorted(check_boundary.FRAMEWORK_OS_ZEPHYR_HEADERS))
+        files = {"framework/os/supervisor.c": text + '#include "../src/supervisor_port.h"\n',
+                 "framework/src/supervisor_port.h": "#include <stdint.h>\n"}
+        self.assertEqual([], run(files))
+
+    def test_the_zones_of_the_module_reach_header_files_of_the_core_only(self):
+        for zone in ("framework/compose", "framework/os"):
+            files = {f"{zone}/x.c": '#include "../src/core.c"\n', "framework/src/core.c": ""}
+            self.assertEqual(["../src/core.c"], reasons(run(files)), zone)
+
+    def test_the_zones_of_the_module_may_not_reach_app_src(self):
+        for zone in ("framework/compose", "framework/os"):
+            files = {f"{zone}/x.c": '#include "../../app/src/port.h"\n', "app/src/port.h": ""}
+            self.assertEqual(["../../app/src/port.h"], reasons(run(files)), zone)
+
+    def test_the_two_zones_of_the_module_may_not_reach_each_other(self):
+        files = {
+            "framework/compose/a.c": '#include "../os/b.h"\n',
+            "framework/os/b.h": "",
+            "framework/os/c.c": '#include "../compose/d.h"\n',
+            "framework/compose/d.h": "",
+        }
+        self.assertEqual(["../os/b.h", "../compose/d.h"], reasons(run(files)))
+
+    # The interface header.
+
+    def test_the_interface_header_may_include_iso_c_and_public_crux_headers(self):
+        files = {self.API: "#include <stdint.h>\n#include <crux/time.h>\n"}
+        self.assertEqual([], run(files))
+
+    def test_the_interface_header_may_include_no_zephyr_header_and_no_core_header(self):
+        files = {self.API: '#include <zephyr/kernel.h>\n#include "../../framework/src/startup.h"\n',
+                 "framework/src/startup.h": ""}
+        self.assertEqual(["zephyr/kernel.h", "../../framework/src/startup.h"], reasons(run(files)))
+
+    def test_the_interface_header_passes_by_name_where_the_rule_allows_it(self):
+        text = "#include <controller/framework.h>\n"
+        files = {self.API: "", "app/src/main.c": text, "framework/src/framework.c": text}
+        self.assertEqual([], run(files))
+
+    def test_the_interface_header_fails_in_the_zones_and_the_workload(self):
+        text = "#include <controller/framework.h>\n"
+        for tree in ("app/compose", "app/os", "framework/compose", "framework/os", "workload"):
+            files = {self.API: "", f"{tree}/x.c": text}
+            self.assertEqual(["controller/framework.h"], reasons(run(files)), tree)
+
+    def test_an_interface_name_that_is_not_a_header_of_include_fails(self):
+        files = {self.API: "", "app/src/main.c": "#include <controller/missing.h>\n"
+                                                  "#include <controller/sub/framework.h>\n"}
+        self.assertEqual(
+            ["controller/missing.h", "controller/sub/framework.h"], reasons(run(files))
+        )
+
+    # Sources that no rule covers.
+
+    def test_a_source_of_the_module_outside_every_tree_fails(self):
+        for name in ("framework/extra/x.c", "framework/x.h", "app/extra/main.c",
+                     "framework/tools/y.cpp", "app/management/z.inc", "zephyr/x.c", "zephyr/sub/y.h"):
+            files = {"app/src/main.c": "", name: ""}
+            violations = run(files)
+            self.assertEqual([name], [v.path for v in violations], name)
+            self.assertIn("no rule", violations[0].reason)
+
+    def test_build_files_and_assets_outside_the_trees_pass(self):
+        files = {
+            "app/src/main.c": "",
+            "framework/management/management.cmake": "",
+            "framework/management/site/index.html": "",
+            "framework/sources.cmake": "",
+            "app/conf/base.conf": "",
+            "app/boards/base.overlay": "",
+            "zephyr/CMakeLists.txt": "",
+            "zephyr/module.yml": "",
+        }
+        self.assertEqual([], run(files))
+
+    def test_a_source_under_a_checked_tree_is_not_reported_twice(self):
+        files = {"framework/src/core.c": "#include <zephyr/kernel.h>\n"}
+        self.assertEqual(["zephyr/kernel.h"], reasons(run(files)))
+
+    def test_the_module_trees_alone_are_a_checked_layout(self):
+        self.assertEqual([], run({"framework/src/core.c": "#include <stdint.h>\n"}))
+
+
+class FrameworkAdapterSupervision(unittest.TestCase):
+    """The adapter zone of the module, framework/os, holds the health supervision of the framework.
+
+    Its list is the list of app/os plus the Zephyr headers that the supervisor thread, the task
+    watchdog, the retained region and the fatal error handler need (FRAMEWORK_OS_ZEPHYR_HEADERS).
+    app/os keeps its two headers, and no other tree gains any of the new ones.
+    """
+
+    SUPERVISION = {
+        "zephyr/task_wdt/task_wdt.h",
+        "zephyr/retention/retention.h",
+        "zephyr/fatal.h",
+        "zephyr/device.h",
+        "zephyr/devicetree.h",
+    }
+
+    def test_the_module_adapter_allow_list_is_the_reviewed_set(self):
+        # Changing this set changes what the boundary lets through: it is a reviewed change of
+        # this test, of docs/composition-zone.md and of the pull request that justifies it.
+        self.assertEqual(
+            {"zephyr/kernel.h", "zephyr/net/sntp.h"} | self.SUPERVISION,
+            set(check_boundary.FRAMEWORK_OS_ZEPHYR_HEADERS),
+        )
+        self.assertIsInstance(check_boundary.FRAMEWORK_OS_ZEPHYR_HEADERS, frozenset)
+
+    def test_the_list_of_app_os_is_unchanged(self):
+        self.assertEqual(
+            {"zephyr/kernel.h", "zephyr/net/sntp.h"}, set(check_boundary.OS_ADAPTER_ZEPHYR_HEADERS)
+        )
+        adapter = next(r for r in check_boundary.RULES if r.directory == "app/os")
+        self.assertEqual(check_boundary.OS_ADAPTER_ZEPHYR_HEADERS, adapter.zephyr_allow)
+
+    def test_each_supervision_header_passes_in_the_module_adapter_zone(self):
+        for name in sorted(self.SUPERVISION):
+            files = {"framework/os/supervisor.c": f"#include <{name}>\n"}
+            self.assertEqual([], run(files), name)
+
+    def test_each_supervision_header_fails_in_every_other_tree(self):
+        for name in sorted(self.SUPERVISION):
+            for tree in ("app/src", "app/os", "workload", "include", "framework/src"):
+                files = {f"{tree}/x.c": f"#include <{name}>\n"}
+                self.assertEqual([name], reasons(run(files)), (tree, name))
+
+    def test_the_composition_zones_gain_only_the_devicetree_header_they_already_had(self):
+        for name in sorted(self.SUPERVISION - {"zephyr/devicetree.h"}):
+            for tree in ("app/compose", "framework/compose"):
+                files = {f"{tree}/x.c": f"#include <{name}>\n"}
+                self.assertEqual([name], reasons(run(files)), (tree, name))
+
+    def test_the_retained_memory_driver_header_stays_out(self):
+        # The framework uses the retention API, not the retained memory driver underneath it.
+        for name in ("zephyr/drivers/retained_mem.h", "zephyr/drivers/watchdog.h",
+                     "zephyr/drivers/hwinfo.h", "zephyr/sys/reboot.h", "zephyr/logging/log.h"):
+            files = {"framework/os/supervisor.c": f"#include <{name}>\n"}
+            self.assertEqual([name], reasons(run(files)), name)
 
 
 class BuildFiles(unittest.TestCase):

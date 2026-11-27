@@ -10,11 +10,12 @@ import unittest
 import yaml
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
+# Approved behaviour change: the repository is the controller framework module that products import,
+# with one base image, and no longer the reference consumer firmware.
 ROLE = (
-    "Crux Controller is the official reference consumer firmware for ongoing integration, "
-    "evaluation and regression testing of Crux Platform capabilities through public and approved "
-    "composition interfaces. It may provide supporting evidence for relevant platform milestones, "
-    "but it is not a mandatory exit criterion for any of them."
+    "Crux Controller is a controller framework for products built on Crux: a Zephyr module that "
+    "composes the Crux services of a networked controller, with a base image that runs those services "
+    "and no application. Products import the module and add their application."
 )
 DOCS = (
     "README.md", "SECURITY.md", "RELEASE.md", "CHANGELOG.md", "docs/dependencies.md",
@@ -27,8 +28,12 @@ def text(name):
 
 
 class Role(unittest.TestCase):
-    def test_readme_states_the_role_sentence_verbatim(self):
-        self.assertIn(ROLE, text("README.md"))
+    # Approved behaviour change: the README is an entry page and leaves the milestone wording out; the
+    # role sentence has one home, the role section of CONTRIBUTING.md.
+    def test_contributing_states_the_role_sentence_verbatim_and_the_readme_does_not_repeat_it(self):
+        self.assertIn(ROLE, text("CONTRIBUTING.md"))
+        self.assertNotIn("milestone", text("README.md"))
+        self.assertNotIn("exit criterion", text("README.md"))
 
     def test_no_document_says_it_is_simply_not_an_exit_criterion(self):
         for name in DOCS:
@@ -61,7 +66,7 @@ class Promises(unittest.TestCase):
         body = text("RELEASE.md")
         self.assertIn("never published", body)
         self.assertIn("approval", body)
-        self.assertIn("2c017f68", body)
+        self.assertIn("13301954", body)
         self.assertIn("docs/product-composition.md", body)
 
 
@@ -81,7 +86,7 @@ class Dependencies(unittest.TestCase):
             if len(cells) == 5 and cells[0].startswith("`"):
                 match = re.search(r"`([0-9a-f]{40})`", cells[1])
                 rows[cells[0].strip("`")] = match.group(1) if match else None
-        for name in ("zephyr", "cmsis", "cmsis_6", "hal_nxp", "littlefs", "fatfs", "crux-pilot", "picolibc"):
+        for name in ("zephyr", "cmsis", "cmsis_6", "hal_nxp", "littlefs", "fatfs", "crux", "picolibc"):
             self.assertIn(name, rows)
             self.assertIsNotNone(rows[name], f"{name} has no 40-digit revision in its row")
 
@@ -101,9 +106,9 @@ class Dependencies(unittest.TestCase):
 
     def test_the_page_states_the_proof_level_and_why_a_blocklist(self):
         page = text("docs/dependencies.md")
-        # Step S6 added a job that fetches with the group on, so the sentence that no job does is
+        # The management capability added a job that fetches with the group on, so the sentence that no job does is
         # replaced by one that names the two places that do, and the proof level is still stated.
-        for phrase in ("project-list level", "The `S6 build` job and the `Budget` row of S6",
+        for phrase in ("project-list level", "The `management build` job and the `Budget` row of `management`",
                        "only active projects", "not run", "allowlist", "drops Zephyr"):
             self.assertIn(phrase, page, phrase)
         self.assertNotIn("no job fetches or builds with the group on", page)
@@ -112,24 +117,20 @@ class Dependencies(unittest.TestCase):
         page = text("docs/dependencies.md")
         self.assertIn("a project that the group would activate", page)
         self.assertNotIn("a project that Crux adds to the group later", page)
-        self.assertIn("a `west update` with the group on was not run before the S6 job existed", page)
-        self.assertIn("the first CI run of that job was the first fetch with the group on", page)
+        self.assertIn("the first CI run of the `management` job was the first fetch with the group on", page)
+        self.assertIn("records its result at `bb3ffefd`", page)
         self.assertNotIn("which was not run here", page)
 
     def test_the_pinned_crux_revision_matches_the_manifest(self):
         manifest = yaml.safe_load((ROOT / "west.yml").read_text())["manifest"]
-        pilot = next(p for p in manifest["projects"] if p["name"] == "crux-pilot")
-        short = pilot["revision"][:8]
+        crux = next(p for p in manifest["projects"] if p["name"] == "crux")
+        short = crux["revision"][:8]
         for name in ("RELEASE.md", "docs/dependencies.md", "CHANGELOG.md"):
             self.assertIn(short, text(name), name)
 
 
 class Tracking(unittest.TestCase):
-    """The pages say where the management finding is tracked, and do not promise a filing.
-
-    The tracking paragraph left the README for the history page, which keeps the README as it was."""
-
-    HISTORY = "docs/history/readme-before-entry-point.md"
+    """The pages say where the management finding is tracked, and do not promise a filing."""
 
     def test_the_finding_names_the_issues_that_track_it(self):
         body = text("docs/findings/management-has-no-public-composition.md")
@@ -138,37 +139,20 @@ class Tracking(unittest.TestCase):
         self.assertRegex(body, r"#44\b")
         self.assertIn("has not happened", body)
 
-    def test_the_readme_names_the_epic_and_its_steps_and_no_trial_issue(self):
-        body = text(self.HISTORY)
-        self.assertNotIn("trial issue", body)
-        for number in ("#44", "#40", "#41", "#42", "#43"):
-            self.assertRegex(body, re.escape(number) + r"\b", number)
-        self.assertIn("Nothing has been filed in `crux-pilot` yet", body)
-
-    def test_the_readme_claims_only_the_stage_2_steps_for_the_epic(self):
-        body = text(self.HISTORY)
-        self.assertIn(
-            "Stage 2 steps and their findings are tracked in this repository's own issues: "
-            "the epic #44 and its children #40 (the management finding), #41 (S4), #42 and #43. "
-            "Earlier findings are recorded in `docs/findings/`.",
-            body,
-        )
-        self.assertNotIn("The platform questions and findings are tracked", body)
-        self.assertNotIn("Implementation is tracked in this repository's own milestones", body)
-
     def test_the_main_documents_point_at_the_tracking_history(self):
         for name in ("docs/roadmap.md", "docs/README.md", "docs/glossary.md"):
             self.assertIn("history/board-runs-and-tracking.md", text(name), name)
-        self.assertIn("Nothing has been filed in `crux-pilot`", text("docs/roadmap.md"))
+        self.assertIn("Nothing has been filed in Crux", text("docs/roadmap.md"))
 
 
 class CiEvidenceRationale(unittest.TestCase):
-    """The try-on page explains why evidence comes from CI, in agreement with CONTRIBUTING.md."""
+    """The architecture page explains why evidence comes from CI, in agreement with CONTRIBUTING.md."""
 
     def section(self):
-        page = (ROOT / "docs" / "try-on-native-sim.md").read_text()
+        page = (ROOT / "docs" / "architecture.md").read_text()
         start = page.index("## Why the evidence comes from CI")
-        return " ".join(page[start:page.index("\n## ", start + 1)].split())
+        end = page.find("\n## ", start + 1)
+        return " ".join(page[start:end if end != -1 else len(page)].split())
 
     def test_the_section_reports_what_contributing_says_now(self):
         contributing = text("CONTRIBUTING.md")
@@ -184,27 +168,31 @@ class CiEvidenceRationale(unittest.TestCase):
         for phrase in ("describes no local Zephyr build", "predates this page", "separate reviewed change"):
             self.assertNotIn(phrase, section)
 
-    def test_the_section_agrees_with_the_dev_container_about_wsl2(self):
-        self.assertIn("nobody has run the dev container on WSL2", self.section())
-        self.assertIn("Nobody has run it on WSL2 yet", text("docs/try-on-native-sim.md"))
+    def test_the_section_agrees_with_getting_started_about_the_supported_route(self):
+        self.assertIn("nobody has run the Dev Container on WSL2", self.section())
+        # Getting started names one supported route and does not describe a route that was not run.
+        self.assertIn("x86_64 Linux machine with Docker Engine. This is the supported route",
+                      text("docs/getting-started.md"))
+        self.assertNotIn("WSL2", text("docs/getting-started.md"))
 
 
 class Contributing(unittest.TestCase):
-    """The guide names the CI jobs and the steps that the workflows actually define."""
+    """The guide names the CI jobs and the build configurations that the workflows actually define."""
 
     @staticmethod
     def workflow(name):
         return yaml.safe_load((ROOT / ".github" / "workflows" / name).read_text())
 
     def build_steps(self):
+        # Found in ci.yml alone, independently of the Budget matrix: every job named "<name> build (...)".
         names = [job["name"] for job in self.workflow("ci.yml")["jobs"].values()]
-        steps = [m.group(1) for m in (re.match(r"(S\d) build\b", n) for n in names) if m]
-        self.assertTrue(steps, "no step build job found in ci.yml")
+        steps = [m.group(1) for m in (re.match(r"(\S+) build \(", n) for n in names) if m]
+        self.assertTrue(steps, "no build job of a configuration found in ci.yml")
         return steps
 
     def budget_steps(self):
         matrix = self.workflow("budget.yml")["jobs"]["budget"]["strategy"]["matrix"]
-        return [entry["step"] for entry in matrix["include"]]
+        return list(matrix["config"])
 
     def other_job_names(self):
         return [job["name"] for job in self.workflow("ci.yml")["jobs"].values()]
@@ -216,9 +204,9 @@ class Contributing(unittest.TestCase):
 
     def test_the_budget_row_covers_the_steps_of_the_budget_matrix(self):
         steps = self.budget_steps()
-        self.assertEqual(steps[0], "S0", "the budget matrix must start at S0")
-        last = max(steps, key=lambda step: int(step[1:]))
-        self.assertIn(f"`Budget` for S0 to {last}:", text("CONTRIBUTING.md"))
+        self.assertEqual(steps[0], "minimal", "the budget matrix must start at minimal")
+        self.assertEqual(len(steps), len(set(steps)))
+        self.assertIn(f"`Budget` for `minimal` to `{steps[-1]}`:", text("CONTRIBUTING.md"))
 
     def test_the_ci_row_names_the_other_jobs_of_ci_yml(self):
         row = next(
@@ -227,7 +215,7 @@ class Contributing(unittest.TestCase):
         )
         names = self.other_job_names()
         for short in (
-            "Tooling tests", "West pins", "Host tests", "S1", "Boundary check", "Static analysis",
+            "Tooling tests", "West pins", "Host tests", "workload", "Boundary check", "Static analysis",
         ):
             self.assertIn(f"`{short}`", row, short)
             self.assertTrue(
@@ -250,8 +238,13 @@ class Contributing(unittest.TestCase):
         self.assertIn("not analysed", row)
 
     def test_the_role_section_names_the_steps_built_in_ci(self):
-        last = max(self.build_steps(), key=lambda step: int(step[1:]))
-        self.assertIn(f"Steps S0 to {last} are built in CI", text("CONTRIBUTING.md"))
+        # Every configuration that has a build job (all but workload, whose job runs native_sim too) is
+        # in the budget matrix, and the role section lists the whole matrix in its order.
+        steps = self.budget_steps()
+        # The workload job is named without "build" because it also runs the native_sim scenarios.
+        self.assertEqual(set(steps), set(self.build_steps()) | {"workload"})
+        listed = ", ".join(f"`{s}`" for s in steps[:-1]) + f" and `{steps[-1]}`"
+        self.assertIn(f"The build configurations {listed} are built in CI", text("CONTRIBUTING.md"))
 
 
 class GenericWording(unittest.TestCase):
@@ -261,11 +254,11 @@ class GenericWording(unittest.TestCase):
     is the glossary entry that explains what such numbers mean."""
 
     MAINTAINED = (
-        "CONTRIBUTING.md", "docs/adding-a-step.md", "docs/architecture.md", "docs/composition-zone.md",
+        "CONTRIBUTING.md", "docs/adding-a-capability.md", "docs/architecture.md", "docs/composition-zone.md",
         "docs/first-change.md", "docs/reviewing.md", "docs/roadmap.md",
     )
     NUMBER = re.compile(
-        r"pull request \d+|\bPR \d+|crux-pilot#\d+|crux-controller#\d+|/pull/\d+|/issues/\d+"
+        r"pull request \d+|\bPR \d+|crux(?:-pilot)?#\d+|crux-controller#\d+|/pull/\d+|/issues/\d+"
         r"|\bissue #?\d+|(?<![\w&])#\d{1,4}\b"
     )
 
@@ -297,6 +290,36 @@ class GenericWording(unittest.TestCase):
     def test_the_documents_say_the_ci_where_the_sentence_is_not_about_github(self):
         self.assertNotIn("GitHub Actions", text("docs/roadmap.md"))
         self.assertNotIn("GitHub Actions", text("docs/glossary.md"))
+
+
+class ParagraphRules(unittest.TestCase):
+    """The guidelines carry Crux's paragraph and blank-line rules, and no page has two blank lines in a row."""
+
+    def test_the_guidelines_state_the_paragraph_and_blank_line_rules(self):
+        body = text("docs/documentation-guidelines.md")
+        self.assertIn("\n## Paragraphs and line breaks\n", (ROOT / "docs/documentation-guidelines.md").read_text())
+        for rule in ("one sentence on each line", "Do not reflow text that a change does not otherwise touch",
+                     "one blank line between paragraphs and around every heading, list, table and fenced code block",
+                     "Never put two blank lines in a row", "https://sembr.org/",
+                     "https://spec.commonmark.org/0.31.2/#paragraphs"):
+            self.assertIn(rule, body, rule)
+
+    def test_no_page_has_two_blank_lines_in_a_row(self):
+        names = ["README.md", "CONTRIBUTING.md", "RELEASE.md", "SECURITY.md"]
+        names += [str(p.relative_to(ROOT)) for p in sorted((ROOT / "docs").glob("*.md"))]
+        for name in names:
+            self.assertNotIn("\n\n\n", (ROOT / name).read_text(), name)
+
+
+class EntryTable(unittest.TestCase):
+    def test_the_documentation_map_is_the_last_row_of_where_to_read_next(self):
+        # Reader order as in Crux: the task rows first, the map for any other page last.
+        body = (ROOT / "README.md").read_text()
+        part = body[body.index("## Where to read next"):]
+        part = part[:part.index("\n## ")]
+        rows = [line for line in part.splitlines() if line.startswith("| ") and not line.startswith("| You want")]
+        self.assertEqual("| Find any other page by task | [Documentation map](docs/README.md) |", rows[-1])
+        self.assertEqual(1, sum("docs/README.md" in row for row in rows))
 
 
 if __name__ == "__main__":

@@ -5,7 +5,7 @@
 The Crux manifest puts Mbed TLS and TF-PSA-Crypto in the same optional group as wolfSSL,
 wolfSSH and wolfPSA (``crux-secure-management``). The group is off by default. A product that
 enables it would activate (and so fetch) all five unless its manifest narrows the Crux import. This repository
-narrows the import with ``import: name-blocklist`` on the ``crux-pilot`` project, so the three
+narrows the import with ``import: name-blocklist`` on the ``crux`` project, so the three
 wolf projects are not in the resolved manifest at all. This script checks that on two inputs:
 
 * ``--mode default`` reads ``west list --all -f '{name} {active}'`` of the workspace as it is
@@ -32,7 +32,7 @@ MBED_PROJECTS = ("mbedtls", "tf-psa-crypto")
 RELIANCE_PROJECT = "reliance-edge"
 OPTIONAL_GROUPS = ("crux-secure-management", "crux-reliance")
 # A listing that lacks these did not resolve the Crux and Zephyr manifests, so it proves nothing.
-REQUIRED_ACTIVE = ("crux-pilot", "zephyr")
+REQUIRED_ACTIVE = ("crux", "zephyr")
 MODES = ("default", "mbed")
 
 
@@ -101,23 +101,23 @@ def check_manifest(manifest):
         entry = str(entry)
         if entry.startswith("+") and entry[1:] in OPTIONAL_GROUPS:
             problems.append(f"{entry[1:]} is enabled in the manifest: optional groups stay off")
-    pilot = next((p for p in manifest.get("projects", []) if p.get("name") == "crux-pilot"), None)
-    if pilot is None:
-        return problems + ["the manifest has no crux-pilot project"]
-    imported = pilot.get("import")
+    crux = next((p for p in manifest.get("projects", []) if p.get("name") == "crux"), None)
+    if crux is None:
+        return problems + ["the manifest has no crux project"]
+    imported = crux.get("import")
     if not isinstance(imported, dict):
-        return problems + ["the crux-pilot import is not narrowed: it has no name filter"]
+        return problems + ["the crux import is not narrowed: it has no name filter"]
     blocklist = imported.get("name-blocklist")
     allowlist = imported.get("name-allowlist")
     if blocklist is None and allowlist is None:
         return problems + [
-            "the crux-pilot import is not narrowed: it has no name-blocklist or name-allowlist"
+            "the crux import is not narrowed: it has no name-blocklist or name-allowlist"
         ]
     for name in WOLF_PROJECTS:
         if blocklist is not None and name not in blocklist:
-            problems.append(f"the crux-pilot import does not block {name}")
+            problems.append(f"the crux import does not block {name}")
         if allowlist is not None and name in allowlist:
-            problems.append(f"the crux-pilot import allows {name}")
+            problems.append(f"the crux import allows {name}")
     return problems
 
 
