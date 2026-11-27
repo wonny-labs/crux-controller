@@ -1,10 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
 """Checks of scripts/crux-pin-hook, the hook that the Crux pin tool runs after it has rewritten the
-crux-pilot revision in west.yml. The hook updates the other places that quote the pin (CONTRIBUTING.md,
+crux revision in west.yml. The hook updates the other places that quote the pin (CONTRIBUTING.md,
 "The pin and the manifest", steps 1 and 2). Every test works on a temporary copy."""
 
+import importlib.machinery
+import importlib.util
 import os
 import pathlib
+import re
 import shutil
 import stat
 import subprocess
@@ -20,13 +23,22 @@ NEW = "0123456789abcdef0123456789abcdef01234567"
 NOTE_PIN = "8e3737d25d048b14a00c01da00494f58a62958c6"
 
 
+def load_hook():
+    """scripts/crux-pin-hook as a module; it has no .py suffix to import by."""
+    loader = importlib.machinery.SourceFileLoader("crux_pin_hook", str(HOOK))
+    spec = importlib.util.spec_from_loader("crux_pin_hook", loader)
+    module = importlib.util.module_from_spec(spec)
+    loader.exec_module(module)
+    return module
+
+
 def west_yml(revision):
     return (
         "manifest:\n"
         "  projects:\n"
-        "    - name: crux-pilot\n"
+        "    - name: crux\n"
         "      remote: crux\n"
-        "      # Commit of crux-pilot origin/main.\n"
+        "      # Commit of crux origin/main.\n"
         f"      revision: {revision}\n"
         "    - name: picolibc\n"
         "      revision: 01254932e8e81085817ed61fd858648584ffe37c\n"
@@ -41,37 +53,48 @@ def fixture(pin):
             f'        revision = load_manifest()["projects"][0]["revision"]\n'
             f'        self.assertEqual(revision, "{pin}")\n',
         "docs/dependencies.md":
-            f'    CP["crux-pilot<br/>pinned commit {short}"]\n'
-            f"| `crux-pilot` | `{pin}` (a commit, no Crux tag exists) | The platform itself |\n"
+            f'    CP["crux<br/>pinned commit {short}"]\n'
+            f"| `crux` | `{pin}` (a commit, no Crux tag exists) | The platform itself |\n"
             "| `zephyr` | `dccb09599635bdff17633fa7e9dab014b91dce90` (v4.4.2) | Pinned via the Crux contract |\n",
         "RELEASE.md":
             f'"Release": [`docs/product-composition.md` at the pinned revision `{short}`]'
-            f"(https://github.com/wonny-labs/crux-pilot/blob/{pin}/docs/product-composition.md).\n",
+            f"(https://github.com/wonny-labs/crux/blob/{pin}/docs/product-composition.md).\n",
         "tests/tooling/test_docs.py":
             '        self.assertIn("approval", body)\n'
             f'        self.assertIn("{short}", body)\n',
-        "docs/adding-a-step.md":
+        "README.md":
+            f"- [Choosing an API](https://github.com/wonny-labs/crux/blob/{pin}/docs/choosing-an-api.md)\n"
+            f"- [Component readiness](https://github.com/wonny-labs/crux/blob/{pin}/docs/component-readiness.md)\n",
+        "docs/findings/README.md":
+            f"The current pin is `{pin}` (see `west.yml`). A note read at an earlier\n",
+        "docs/adding-a-capability.md":
             f"- In the platform repository, read at the pinned commit `{pin}`:\n"
-            f"  [`docs/choosing-an-api.md`](https://github.com/wonny-labs/crux-pilot/blob/{pin}/docs/choosing-an-api.md)\n"
-            f"  [`docs/composition-interfaces.md`](https://github.com/wonny-labs/crux-pilot/blob/{pin}/docs/composition-interfaces.md)\n",
+            f"  [`docs/choosing-an-api.md`](https://github.com/wonny-labs/crux/blob/{pin}/docs/choosing-an-api.md)\n"
+            f"  [`docs/composition-interfaces.md`](https://github.com/wonny-labs/crux/blob/{pin}/docs/composition-interfaces.md)\n",
+        "docs/architecture.md":
+            f"[Choosing an API](https://github.com/wonny-labs/crux/blob/{pin}/docs/choosing-an-api.md)\n",
+        "docs/board-bring-up.md":
+            f"[guide](https://github.com/wonny-labs/crux/blob/{pin}/docs/board-jlink-usbipd.md)\n"
+            f"[rules](https://github.com/wonny-labs/crux/blob/{pin}/.devcontainer/jlink/99-crux-jlink.rules),\n",
+        "docs/documentation-guidelines.md":
+            f"[Crux guidelines](https://github.com/wonny-labs/crux/blob/{pin}/docs/documentation-guidelines.md)\n"
+            "[older](https://github.com/wonny-labs/crux/blob/751e04aead779ac08e438ec1e2640e57fc50e9fe/docs/x.md)\n",
         "tests/tooling/test_docs_navigation.py":
-            f'                       "docs/choosing-an-api.md", "{pin}"):\n',
-        "tests/tooling/test_s4.py":
-            f'        self.assertIn("revision: {pin}", manifest)\n',
-        "tests/tooling/test_s5.py":
-            f'        self.assertIn("revision: {pin}", manifest)\n',
-        "tests/tooling/test_s6.py":
+            f'        for needle in ("GPIO, I2C and SPI", "{pin}", "roadmap.md",\n',
+        "tests/tooling/test_management.py":
             f'    NOTE_PIN = "{NOTE_PIN}"\n'
             f'    PIN = "{pin}"\n',
+        "tests/tooling/test_sntp.py":
+            f'        self.assertIn("revision: {pin}", manifest)\n',
+        "tests/tooling/test_system.py":
+            f'        self.assertIn("revision: {pin}", manifest)\n',
         "CHANGELOG.md":
-            f"- The west manifest imports `crux-pilot` at a pinned commit (`{short}`, which publishes the File\n"
-            "- The `crux-pilot` pin moved from `5fa99839` to `2c017f68`, the squash commit.\n",
+            f"- The west manifest imports `crux` at a pinned commit (`{short}`, which publishes the File\n"
+            "- The `crux` pin moved from `5fa99839` to `2c017f68`, the squash commit.\n",
     }
 
 
-# The index of the notes points at west.yml instead of quoting the pin; a dated note keeps the
-# commit it was written at, which can be the old pin.
-FINDINGS = "The current pin is in `west.yml`.\n"
+# A dated note keeps the commit it was written at, which can be the old pin.
 NOTE = f"Read at `{OLD}`.\n"
 
 
@@ -86,7 +109,6 @@ class Workspace:
                 continue
             self.write(name, body)
         self.write("west.yml", west_yml(revision))
-        self.write("docs/findings/README.md", FINDINGS)
         self.write("docs/findings/s9-note.md", NOTE)
 
     def write(self, name, body):
@@ -159,19 +181,26 @@ class HookMovesThePin(unittest.TestCase):
 
     def test_another_commit_in_the_same_file_is_kept(self):
         self.assertEqual(0, self.work.run().returncode)
-        text = self.work.read("tests/tooling/test_s6.py")
+        text = self.work.read("tests/tooling/test_management.py")
         self.assertIn(f'NOTE_PIN = "{NOTE_PIN}"', text)
         self.assertIn(f'    PIN = "{NEW}"', text)
         self.assertIn("dccb09599635bdff17633fa7e9dab014b91dce90", self.work.read("docs/dependencies.md"))
+        self.assertIn("751e04aead779ac08e438ec1e2640e57fc50e9fe", self.work.read("docs/documentation-guidelines.md"))
 
-    def test_findings_are_untouched(self):
+    def test_every_link_to_a_crux_page_at_the_pin_moves(self):
         self.assertEqual(0, self.work.run().returncode)
-        self.assertEqual(FINDINGS, self.work.read("docs/findings/README.md"))
+        for name in ("README.md", "docs/board-bring-up.md"):
+            text = self.work.read(name)
+            self.assertNotIn(OLD, text, name)
+            self.assertEqual(2, text.count(f"crux/blob/{NEW}/"), name)
+
+    def test_a_note_under_docs_findings_is_untouched(self):
+        self.assertEqual(0, self.work.run().returncode)
         self.assertEqual(NOTE, self.work.read("docs/findings/s9-note.md"))
 
-    def test_no_quote_is_under_docs_findings(self):
-        source = HOOK.read_text()
-        self.assertNotIn('"docs/findings/', source)
+    def test_the_only_quote_under_docs_findings_is_the_current_pin_line_of_the_index(self):
+        files = {name for name, _, _ in load_hook().QUOTES if name.startswith("docs/findings/")}
+        self.assertEqual({"docs/findings/README.md"}, files)
 
 
     def test_west_yml_is_not_written_by_the_hook(self):
@@ -195,7 +224,7 @@ class HookMovesThePin(unittest.TestCase):
 
     def test_the_optional_variables_of_the_crux_pin_tool_are_accepted(self):
         result = self.work.run(env={
-            "CRUX_PIN_PROJECT": "crux-pilot",
+            "CRUX_PIN_PROJECT": "crux",
             "CRUX_PIN_MANIFEST": str(self.work.root / "west.yml"),
             "CRUX_PIN_CHECKOUT": ""})
         self.assertEqual(0, result.returncode, result.stderr)
@@ -251,11 +280,11 @@ class HookRefuses(unittest.TestCase):
         self.assertEqual(before, self.work.snapshot())
 
     def test_a_missing_quote_fails_and_writes_nothing(self):
-        self.work.write("tests/tooling/test_s5.py", "        pass\n")
+        self.work.write("tests/tooling/test_sntp.py", "        pass\n")
         before = self.work.snapshot()
         result = self.work.run()
         self.assertEqual(1, result.returncode, result.stdout)
-        self.assertIn("tests/tooling/test_s5.py", result.stderr)
+        self.assertIn("tests/tooling/test_sntp.py", result.stderr)
         self.assertIn(f"revision: {OLD}", result.stderr)
         self.assertEqual(before, self.work.snapshot())
 
@@ -298,20 +327,22 @@ class HookOnTheRealFiles(unittest.TestCase):
         "test_manifest.ManifestIsOptionA",
         "test_docs.Promises",
         "test_docs.Dependencies",
-        "test_docs_navigation.AddingAStep",
-        "test_s4.S4Findings.test_the_manifest_pins_the_approved_commit",
-        "test_s5.S5Findings.test_the_manifest_pins_the_approved_commit",
-        "test_s6.S6StepNote.test_west_yml_changed_in_comments_only",
+        "test_docs_navigation.AddingACapability",
+        "test_management.ManagementStepNote.test_west_yml_changed_in_comments_only",
+        "test_sntp.SntpFindings.test_the_manifest_pins_the_approved_commit",
+        "test_system.SystemFindings.test_the_manifest_pins_the_approved_commit",
+        "test_one_container.JlinkFolder",
+        "test_tutorial_and_board.BoardPage",
     )
 
     @staticmethod
     def current_pin(text):
         lines = text.splitlines()
-        start = lines.index("    - name: crux-pilot")
+        start = lines.index("    - name: crux")
         for line in lines[start + 1:]:
             if line.strip().startswith("revision:"):
                 return line.split(":", 1)[1].strip()
-        raise AssertionError("west.yml has no crux-pilot revision")
+        raise AssertionError("west.yml has no crux revision")
 
     def test_the_real_files_move_and_the_pin_tests_pass_at_a_fake_new_commit(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -319,7 +350,8 @@ class HookOnTheRealFiles(unittest.TestCase):
             shutil.copytree(ROOT, copy, ignore=shutil.ignore_patterns(".git", "build", "__pycache__"))
             west = copy / "west.yml"
             old = self.current_pin(west.read_text())
-            notes = {p: p.read_bytes() for p in (copy / "docs" / "findings").rglob("*") if p.is_file()}
+            notes = {p: p.read_bytes() for p in (copy / "docs" / "findings").rglob("*")
+                     if p.is_file() and p.name != "README.md"}
 
             def pin_tests():
                 return subprocess.run([sys.executable, "-m", "unittest", *self.TESTS],
@@ -343,13 +375,44 @@ class HookOnTheRealFiles(unittest.TestCase):
             self.assertIn("already", again.stdout)
 
 
-class FindingsIndex(unittest.TestCase):
-    def test_the_index_of_the_notes_quotes_no_pin_and_points_at_west_yml(self):
-        import re
+class EveryQuoteIsCovered(unittest.TestCase):
+    """Every line of a tracked file that quotes the current pin is moved by the hook (QUOTES) or
+    left to the Crux tool or a person on purpose (KEPT). A new quote of the pin fails here until it
+    is put in one of the two."""
 
-        text = (ROOT / "docs" / "findings" / "README.md").read_text()
-        self.assertIsNone(re.search(r"\b[0-9a-f]{40}\b", text))
-        self.assertIn("The current pin is in `west.yml`.", text)
+    def test_every_quote_of_the_current_pin_is_in_quotes_or_kept(self):
+        hook = load_hook()
+        pin = HookOnTheRealFiles.current_pin((ROOT / "west.yml").read_text())
+        listing = subprocess.run(["git", "-C", str(ROOT), "ls-files", "-z"], capture_output=True,
+                                 text=True, check=False)
+        if listing.returncode != 0:
+            self.skipTest("not a Git checkout")
+        known = {}
+        for name, template, *_ in hook.QUOTES + hook.KEPT:
+            known.setdefault(name, []).append(hook.quote(template, pin))
+        uncovered = []
+        for name in filter(None, listing.stdout.split("\0")):
+            if name.startswith("docs/findings/") and name != "docs/findings/README.md":
+                continue  # Notes stay as recorded.
+            path = ROOT / name
+            try:
+                text = path.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                continue
+            for number, line in enumerate(text.splitlines(), 1):
+                if not re.search(rf"\b{pin[:8]}", line):
+                    continue
+                rest = line
+                for quote in known.get(name, []):
+                    rest = rest.replace(quote, "")
+                if re.search(rf"\b{pin[:8]}", rest):
+                    uncovered.append(f"{name}:{number}")
+        self.assertEqual([], uncovered)
+
+    def test_the_hook_and_the_kept_list_do_not_overlap(self):
+        hook = load_hook()
+        moved = {(name, template) for name, template, _ in hook.QUOTES}
+        self.assertFalse(moved & set(hook.KEPT))
 
 
 if __name__ == "__main__":

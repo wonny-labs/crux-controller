@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Write the review text of the pin pull request and put the CI evidence of step 3 into it.
 
-Step 3 of CONTRIBUTING.md, "The pin and the manifest", asks for the SHA-256 of the S2 zephyr.bin,
+Step 3 of CONTRIBUTING.md, "The pin and the manifest", asks for the SHA-256 of the net zephyr.bin,
 its firmware_identity and the budget tables. CI already prints them: the release dry run prints
 the release manifest, and each Budget job prints its table. This script reads those job logs as
 text and copies only values of a known shape (64-hex hashes, region rows of numbers) into a
@@ -30,7 +30,7 @@ SHA1 = re.compile(r"[0-9a-f]{40}")
 # A CI log line may carry a job and a step name (gh run view --log) and a timestamp.
 PREFIX = re.compile(r"^(?:[^\t\n]*\t){0,2}(?:\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z ?)?")
 RELEASE_VALUE = re.compile(r'^\s*"(zephyr_bin_sha256|firmware_identity)": "([0-9a-f]{64})",?\s*$')
-TABLE_HEAD = re.compile(r"^\| (S\d+) region \| Used \(B\) \| Size \(B\) \| Free \(%\) \|$")
+TABLE_HEAD = re.compile(r"^\| ([a-z][a-z0-9_-]*) region \| Used \(B\) \| Size \(B\) \| Free \(%\) \|$")
 TABLE_RULE = "| --- | ---: | ---: | ---: |"
 TABLE_ROW = re.compile(r"^\| ([A-Za-z0-9_]+) \| (\d+) \| (\d+) \| (-?\d+\.\d|nan) \|$")
 
@@ -41,7 +41,7 @@ def lines(text):
 
 
 def release_values(text):
-    """The S2 image hash and firmware identity that the release dry run printed."""
+    """The net image hash and firmware identity that the release dry run printed."""
     found = {}
     for line in lines(text):
         match = RELEASE_VALUE.match(line)
@@ -53,7 +53,7 @@ def release_values(text):
 
 
 def budget_tables(text):
-    """{step: [(region, used, size, free)]} from the tables that the Budget jobs printed."""
+    """{configuration: [(region, used, size, free)]} from the tables that the Budget jobs printed."""
     tables, step, rows = {}, None, None
     for line in lines(text):
         head = TABLE_HEAD.match(line)
@@ -76,8 +76,14 @@ def budget_tables(text):
     return tables
 
 
-def step_order(tables):
-    return sorted(tables, key=lambda step: int(step[1:]))
+# The rows of the budget.yml matrix, in its order (test_pin_update.py compares the two).
+CONFIG_ORDER = ("minimal", "workload", "net", "file", "system", "sntp", "management", "base")
+
+
+def config_order(tables):
+    """The configurations of the tables in the order of the budget matrix; an unknown one goes last."""
+    known = [name for name in CONFIG_ORDER if name in tables]
+    return known + sorted(name for name in tables if name not in CONFIG_ORDER)
 
 
 def section(head, release_log, budget_log):
@@ -87,19 +93,19 @@ def section(head, release_log, budget_log):
         out += [
             "From the `release` dry run:",
             "",
-            "| S2 | Value |",
+            "| `net` image | Value |",
             "| --- | --- |",
             f"| `zephyr.bin` SHA-256 | `{values.get('zephyr_bin_sha256', 'not found')}` |",
             f"| `firmware_identity` | `{values.get('firmware_identity', 'not found')}` |",
         ]
     else:
-        out.append("S2 hash and `firmware_identity`: not available (no finished `release` dry run "
+        out.append("`net` hash and `firmware_identity`: not available (no finished `release` dry run "
                    "at this commit, or it did not print the release manifest).")
     out.append("")
     tables = budget_tables(budget_log) if budget_log else {}
     if tables:
         out += ["From the `budget` run:", ""]
-        for step in step_order(tables):
+        for step in config_order(tables):
             out += [f"| {step} region | Used (B) | Size (B) | Free (%) |", TABLE_RULE]
             out += [f"| {name} | {used} | {size} | {free} |" for name, used, size, free in tables[step]]
             out.append("")
@@ -124,6 +130,8 @@ def review_body():
         "- reads the Crux changes above and writes the reason into the commit message, the comment\n"
         "  above the pin in `west.yml` and the `CHANGELOG.md` entry (a commit of a person stops the\n"
         "  bot from refreshing the branch);\n"
+        "- checks the quotes of the pin that the hook leaves alone (`KEPT` in `scripts/crux-pin-hook`,\n"
+        "  in `CONTRIBUTING.md`) and moves them when they still hold at the new pin;\n"
         "- checks that CI is green, the `West pins` job and the `release` dry run included;\n"
         "- compares the evidence below with the previous pin. A limit in `budgets/limits.json` is\n"
         "  not changed here to make a bump pass.\n\n"

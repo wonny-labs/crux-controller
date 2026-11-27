@@ -143,16 +143,21 @@ A pin moves in its own small pull request, with the reason in the commit message
 `crux-pin-update.yml` keeps one such pull request open, on the branch `bot/crux-pin`, and refreshes
 it when Crux main moves. It runs `scripts/crux-pin-bot.py` of the Crux that `west.yml` pins, never a
 script from Crux main. The bot rewrites the revision in `west.yml` and runs `scripts/crux-pin-hook`,
-which moves the commit where `tests/tooling/test_manifest.py`, `docs/dependencies.md`, `RELEASE.md`,
-`docs/adding-a-step.md`, the pin checks of `tests/tooling` and the current-pin line of `CHANGELOG.md`
-quote it, and fails when a quote it expects is missing. The comment above the pin and the
-`CHANGELOG.md` entry stay manual. Step 3 comes from CI: after each refresh and each `release` or
-`budget` run, `scripts/pin_evidence.py` copies the hash, the `firmware_identity` and the budget tables
-from their logs into the pull request body. Nothing merges itself. A person reads the Crux changes,
-adds a commit with the reason, the pin comment and the `CHANGELOG.md` entry (the bot then stops
-refreshing the branch), compares the evidence with the previous pin and approves the merge.
-`Jenkinsfile.example` runs the same bot for a copy built by Jenkins; that path has no evidence step yet.
-The first move to a Crux commit that has `scripts/crux-pin-bot.py` is made by hand.
+which moves the other quotes of steps 1 and 2 and the links to Crux pages at the pin (its `QUOTES`
+table), and fails when a quote it expects is missing. The comment above the pin, the `CHANGELOG.md`
+entry and the quotes in the hook's `KEPT` table stay manual. Step 3 comes from CI: after each refresh
+and each `release` or `budget` run, `scripts/pin_evidence.py` copies the hash, the `firmware_identity`
+and the budget tables from their logs into the pull request body. Nothing merges itself. A person
+reads the Crux changes, adds a commit with the reason, the pin comment and the `CHANGELOG.md` entry
+(the bot then stops refreshing the branch), compares the evidence with the previous pin and approves
+the merge. `Jenkinsfile.example` runs the same bot for a copy built by Jenkins; that path has no
+evidence step yet.
+
+The workflow needs the repository secret `CRUX_PIN_TOKEN`: a fine-grained personal access token, or a
+GitHub App token, with access to this repository only and the repository permissions Contents and Pull
+requests set to read and write. A pull request opened with the automatic `GITHUB_TOKEN` would start no
+workflow, so its checks would not run. The bot's pull request is not a draft and changes `west.yml`,
+so it runs the `full` tier. Without the secret the workflow changes nothing and ends with a warning.
 
 ## Changing behaviour
 

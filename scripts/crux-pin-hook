@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""Move the quotes of the crux-pilot pin after the Crux pin tool has moved the pin in west.yml.
+"""Move the quotes of the crux pin after the Crux pin tool has moved the pin in west.yml.
 
-Crux's update-crux-pin.py (run by crux-pin-bot.py) rewrites the crux-pilot `revision:` line of
+Crux's update-crux-pin.py (run by crux-pin-bot.py) rewrites the crux `revision:` line of
 west.yml and then runs this hook from the repository root, with the old and the new pin as
 40-character lower-case hex SHAs in CRUX_PIN_OLD and CRUX_PIN_NEW (required). CRUX_PIN_MANIFEST and
-CRUX_PIN_PROJECT name the manifest and the project to check (default west.yml and crux-pilot);
+CRUX_PIN_PROJECT name the manifest and the project to check (default west.yml and crux);
 CRUX_PIN_CHECKOUT is not used. The hook does the rest of steps 1 and 2 of CONTRIBUTING.md, "The pin
-and the manifest": it replaces each quote in QUOTES. Notes under docs/findings/ stay as recorded,
-west.yml is only read, and the prose (the comment above the pin, the CHANGELOG.md entry) is left to
-the person who reviews the pull request.
+and the manifest": it replaces each quote in QUOTES, the links to Crux pages at the pin included.
+Notes under docs/findings/ stay as recorded (only the index's current-pin line moves), west.yml is
+only read, and the prose (the comment above the pin, the CHANGELOG.md entry and the quotes in KEPT)
+is left to the person who reviews the pull request.
 
 Every quote is checked before any file is written. A quote that holds neither the old nor the new
 pin is an error, so a reworded document fails loudly instead of being skipped. Each file is replaced
@@ -29,24 +30,42 @@ import tempfile
 SHA = re.compile(r"[0-9a-f]{40}")
 
 # (file, quote, optional). In a quote, {full} stands for the 40-character pin and {short} for its
-# first 8 characters. An optional file that does not exist is skipped.
+# first 8 characters. Every occurrence of a quote in its file moves, so one link quote moves every
+# link to a Crux page at the pin. An optional file that does not exist is skipped.
 # The Crux pin bot commits only the paths given with --allow-path: a file added here goes into the
 # lists of the crux-pin-update workflow and Jenkinsfile.example too (test_pin_update.py).
+LINK = "github.com/wonny-labs/crux/blob/{full}/"
 QUOTES = (
     ("tests/tooling/test_manifest.py", 'self.assertEqual(revision, "{full}")', False),
     ("docs/dependencies.md", 'pinned commit {short}"', False),
-    ("docs/dependencies.md", "| `crux-pilot` | `{full}` ", False),
+    ("docs/dependencies.md", "| `crux` | `{full}` ", False),
     ("RELEASE.md", "at the pinned revision `{short}`", False),
-    ("RELEASE.md", "/{full}/docs/product-composition.md", False),
+    ("RELEASE.md", LINK, False),
     ("tests/tooling/test_docs.py", 'self.assertIn("{short}", body)', False),
-    ("docs/adding-a-step.md", "read at the pinned commit `{full}`", False),
-    ("docs/adding-a-step.md", "/{full}/docs/choosing-an-api.md", False),
-    ("docs/adding-a-step.md", "/{full}/docs/composition-interfaces.md", False),
-    ("tests/tooling/test_docs_navigation.py", '"docs/choosing-an-api.md", "{full}"', False),
-    ("tests/tooling/test_s4.py", '"revision: {full}"', False),
-    ("tests/tooling/test_s5.py", '"revision: {full}"', False),
-    ("tests/tooling/test_s6.py", '    PIN = "{full}"', False),
-    ("CHANGELOG.md", "imports `crux-pilot` at a pinned commit (`{short}`", True),
+    ("CHANGELOG.md", "imports `crux` at a pinned commit (`{short}`", True),
+    ("README.md", LINK, False),
+    ("docs/findings/README.md", "The current pin is `{full}`", False),
+    ("docs/adding-a-capability.md", "read at the pinned commit `{full}`", False),
+    ("docs/adding-a-capability.md", LINK, False),
+    ("docs/architecture.md", LINK, False),
+    ("docs/board-bring-up.md", LINK, False),
+    ("docs/documentation-guidelines.md", LINK, False),
+    ("tests/tooling/test_docs_navigation.py", '"GPIO, I2C and SPI", "{full}"', False),
+    ("tests/tooling/test_management.py", '    PIN = "{full}"', False),
+    ("tests/tooling/test_sntp.py", '"revision: {full}"', False),
+    ("tests/tooling/test_system.py", '"revision: {full}"', False),
+)
+
+# The other places that quote the current pin, which the hook leaves alone (test_crux_pin_hook.py
+# checks that every quote of the pin is in QUOTES or here). west.yml is the Crux tool's. In
+# CHANGELOG.md the entry that records a move is history. CONTRIBUTING.md is a person's: its link to
+# the Crux CI page stands for the copy of the selector in scripts/ci/tiers.py, and its sentence on
+# the include check records where the check was found; both move after that is checked again.
+KEPT = (
+    ("west.yml", "revision: {full}"),
+    ("CHANGELOG.md", "to `{short}`"),
+    ("CONTRIBUTING.md", LINK + "docs/ci.md"),
+    ("CONTRIBUTING.md", "and is at `{short}`"),
 )
 
 
@@ -58,7 +77,7 @@ def quote(template, pin):
     return template.format(full=pin, short=pin[:8])
 
 
-def pinned_revision(text, project="crux-pilot"):
+def pinned_revision(text, project="crux"):
     """The revision of the project in the text of a west manifest, or None."""
     inside = False
     for line in text.splitlines():
@@ -70,7 +89,7 @@ def pinned_revision(text, project="crux-pilot"):
     return None
 
 
-def plan(root, old, new, manifest=None, project="crux-pilot"):
+def plan(root, old, new, manifest=None, project="crux"):
     """The new text of each file that changes. Raises Mismatch before anything is written."""
     west = pathlib.Path(manifest) if manifest else root / "west.yml"
     try:
@@ -131,7 +150,7 @@ def main():
     root = pathlib.Path.cwd()
     try:
         changed = plan(root, old, new, os.environ.get("CRUX_PIN_MANIFEST") or None,
-                       os.environ.get("CRUX_PIN_PROJECT") or "crux-pilot")
+                       os.environ.get("CRUX_PIN_PROJECT") or "crux")
     except Mismatch as error:
         print(f"crux-pin-hook: nothing written:\n{error}", file=sys.stderr)
         return 1

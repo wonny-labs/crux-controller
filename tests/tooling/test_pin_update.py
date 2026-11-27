@@ -92,35 +92,40 @@ class ReleaseValues(unittest.TestCase):
 
 
 class BudgetTables(unittest.TestCase):
-    def test_the_tables_of_each_step_are_read(self):
-        tables = pin_evidence.budget_tables(budget_log("S0") + budget_log("S2"))
-        self.assertEqual(["S0", "S2"], sorted(tables))
+    def test_the_tables_of_each_configuration_are_read(self):
+        tables = pin_evidence.budget_tables(budget_log("minimal") + budget_log("net"))
+        self.assertEqual(["minimal", "net"], sorted(tables))
         self.assertEqual([("FLASH", 123456, 8388608, "98.5"), ("RAM", 65536, 524288, "87.5")],
-                         tables["S2"])
+                         tables["net"])
 
-    def test_steps_sort_by_number(self):
-        tables = pin_evidence.budget_tables(budget_log("S10") + budget_log("S2"))
-        self.assertEqual(["S2", "S10"], pin_evidence.step_order(tables))
+    def test_configurations_follow_the_budget_matrix_and_an_unknown_one_goes_last(self):
+        tables = pin_evidence.budget_tables(budget_log("zz-new") + budget_log("base") + budget_log("net")
+                                            + budget_log("minimal"))
+        self.assertEqual(["minimal", "net", "base", "zz-new"], pin_evidence.config_order(tables))
+
+    def test_the_order_is_the_matrix_of_budget_yml(self):
+        matrix = yaml.safe_load((WORKFLOWS / "budget.yml").read_text())["jobs"]["budget"]["strategy"]["matrix"]
+        self.assertEqual(list(matrix["config"]), list(pin_evidence.CONFIG_ORDER))
 
     def test_a_row_that_is_not_a_region_line_ends_the_table(self):
-        log = budget_log("S1").replace("| RAM | 65536 |", "| RAM; rm -rf / | 65536 |")
-        self.assertEqual([("FLASH", 123456, 8388608, "98.5")], pin_evidence.budget_tables(log)["S1"])
+        log = budget_log("file").replace("| RAM | 65536 |", "| RAM; rm -rf / | 65536 |")
+        self.assertEqual([("FLASH", 123456, 8388608, "98.5")], pin_evidence.budget_tables(log)["file"])
 
-    def test_the_last_table_of_a_step_wins(self):
-        tables = pin_evidence.budget_tables(budget_log("S2", "1") + budget_log("S2", "2"))
-        self.assertEqual(2, tables["S2"][0][1])
+    def test_the_last_table_of_a_configuration_wins(self):
+        tables = pin_evidence.budget_tables(budget_log("net", "1") + budget_log("net", "2"))
+        self.assertEqual(2, tables["net"][0][1])
 
     def test_the_table_that_budgets_check_prints_is_read_back(self):
         sys.path.insert(0, str(ROOT / "budgets"))
         import check
 
-        measurement = {"step": "S3", "regions": {
+        measurement = {"config": "file", "regions": {
             "FLASH": {"used": 900, "size": 1000}, "RAM": {"used": 1100, "size": 1000},
             "EMPTY": {"used": 0, "size": 0}}}
-        log = "".join(f"Budget S3\tCollect, check and summarise\t2026-11-22T03:20:00.0Z {line}\n"
+        log = "".join(f"Budget file\tCollect, check and summarise\t2026-11-22T03:20:00.0Z {line}\n"
                       for line in check.table(measurement).splitlines())
         self.assertEqual([("EMPTY", 0, 0, "nan"), ("FLASH", 900, 1000, "10.0"), ("RAM", 1100, 1000, "-10.0")],
-                         pin_evidence.budget_tables(log)["S3"])
+                         pin_evidence.budget_tables(log)["file"])
 
     def test_a_log_without_tables_gives_nothing(self):
         self.assertEqual({}, pin_evidence.budget_tables("no table here\n"))
@@ -129,7 +134,7 @@ class BudgetTables(unittest.TestCase):
 class Body(unittest.TestCase):
     def test_the_review_text_says_what_a_person_checks_and_holds_the_empty_section(self):
         body = pin_evidence.review_body()
-        for needle in ("CHANGELOG.md", "west.yml", "budgets/limits.json", "does not merge"):
+        for needle in ("CHANGELOG.md", "west.yml", "budgets/limits.json", "does not merge", "`KEPT`"):
             self.assertIn(needle, body)
         self.assertIn(pin_evidence.START, body)
         self.assertIn(pin_evidence.END, body)
@@ -144,11 +149,13 @@ class Body(unittest.TestCase):
 
 class Evidence(unittest.TestCase):
     def test_the_section_holds_the_hash_the_identity_the_tables_and_the_commit(self):
-        section = pin_evidence.section(HEAD, RELEASE_LOG, budget_log("S0") + budget_log("S2"))
+        section = pin_evidence.section(HEAD, RELEASE_LOG, budget_log("minimal") + budget_log("net"))
         self.assertIn(f"`{HEAD}`", section)
         self.assertIn(f"`{IMAGE}`", section)
         self.assertIn(f"`{IDENTITY}`", section)
-        self.assertIn("| S2 region | Used (B) | Size (B) | Free (%) |", section)
+        self.assertIn("| net region | Used (B) | Size (B) | Free (%) |", section)
+        self.assertIn("| `net` image | Value |", section)
+        self.assertNotIn("S2", section)
         self.assertIn("| FLASH | 123456 | 8388608 | 98.5 |", section)
         self.assertTrue(section.startswith(pin_evidence.START))
         self.assertTrue(section.rstrip().endswith(pin_evidence.END))
@@ -156,7 +163,7 @@ class Evidence(unittest.TestCase):
     def test_missing_logs_are_said_not_hidden(self):
         section = pin_evidence.section(HEAD, None, None)
         self.assertIn("not available", section)
-        self.assertNotIn("| S2 region", section)
+        self.assertNotIn("| net region", section)
 
     def test_the_section_replaces_the_old_one_and_keeps_the_rest(self):
         body = f"intro\n\n{pin_evidence.START}\nold evidence\n{pin_evidence.END}\n\nend\n"
@@ -172,7 +179,7 @@ class Evidence(unittest.TestCase):
         self.assertIn(pin_evidence.START, new)
 
     def test_splicing_twice_gives_the_same_body(self):
-        section = pin_evidence.section(HEAD, RELEASE_LOG, budget_log("S2"))
+        section = pin_evidence.section(HEAD, RELEASE_LOG, budget_log("net"))
         once = pin_evidence.splice("intro\n", section)
         self.assertEqual(once, pin_evidence.splice(once, section))
 
@@ -189,7 +196,7 @@ class CommandLine(unittest.TestCase):
             self.assertEqual(0, body.returncode, body.stderr)
             (work / "body.md").write_text(body.stdout)
             (work / "release.log").write_text(RELEASE_LOG)
-            (work / "budget.log").write_text(budget_log("S2"))
+            (work / "budget.log").write_text(budget_log("net"))
             done = self.run_script("evidence", "--body", str(work / "body.md"), "--head", HEAD,
                                    "--release-log", str(work / "release.log"),
                                    "--budget-log", str(work / "budget.log"))
@@ -251,6 +258,35 @@ class Workflow(unittest.TestCase):
         self.assertEqual(["Check that the token is set", "Move the pin and refresh the pull request"], holders)
         self.assertIn("--token-env CRUX_PIN_TOKEN", self.commands("update"))
 
+    def test_without_the_secret_no_other_step_runs_and_the_evidence_job_is_skipped(self):
+        update = self.jobs["update"]
+        check = update["steps"][0]
+        self.assertEqual(("Check that the token is set", "token"), (check["name"], check["id"]))
+        self.assertEqual("${{ steps.token.outputs.ready }}", update["outputs"]["ready"])
+        for step in update["steps"][1:]:
+            self.assertEqual("steps.token.outputs.ready == 'true'", step.get("if"), step.get("name") or step["uses"])
+        condition = " ".join(self.jobs["evidence"]["if"].split())
+        self.assertIn("needs.update.result == 'success' && needs.update.outputs.ready == 'true'", condition)
+
+    def test_without_the_secret_the_check_ends_green_with_a_warning_that_names_the_fix(self):
+        import os
+
+        run = self.jobs["update"]["steps"][0]["run"]
+        self.assertNotIn("exit 1", run)
+        with tempfile.TemporaryDirectory() as directory:
+            output = pathlib.Path(directory) / "output"
+            for token, ready in (("", "false"), ("x", "true")):
+                output.write_text("")
+                env = dict(os.environ, CRUX_PIN_TOKEN=token, GITHUB_OUTPUT=str(output))
+                result = subprocess.run(["bash", "-e", "-c", run], env=env, capture_output=True, text=True)
+                self.assertEqual(0, result.returncode, result.stderr)
+                self.assertEqual(f"ready={ready}\n", output.read_text())
+                if not token:
+                    self.assertIn("::warning title=CRUX_PIN_TOKEN is not set::Nothing was changed.", result.stdout)
+                    self.assertIn("CONTRIBUTING.md", result.stdout)
+                else:
+                    self.assertEqual("", result.stdout)
+
     def test_the_checkout_leaves_no_credential_in_the_git_config_for_pip_and_west(self):
         checkout = next(s for s in self.jobs["update"]["steps"] if s.get("uses", "").startswith("actions/checkout"))
         self.assertIs(False, checkout["with"]["persist-credentials"])
@@ -295,20 +331,20 @@ class Workflow(unittest.TestCase):
 
     def test_the_crux_scripts_come_from_the_pinned_crux_and_never_from_crux_main(self):
         update = self.commands("update")
-        self.assertIn("west update crux-pilot", update)
-        self.assertIn("crux-pilot/scripts/crux-pin-bot.py --host github", update)
+        self.assertIn("west update crux", update)
+        self.assertIn("crux/scripts/crux-pin-bot.py --host github", update)
         for word in ("update-crux-pin.py", "open-pin-pr.py"):
             self.assertNotIn(word, update)
         for step in self.jobs["update"]["steps"]:
             self.assertNotIn("repository", step.get("with", {}))
-        self.assertLess(update.index("west update crux-pilot"), update.index("crux-pin-bot.py"))
+        self.assertLess(update.index("west update crux"), update.index("crux-pin-bot.py"))
 
     def test_a_pinned_crux_without_the_bot_fails_with_a_short_message(self):
         update = self.commands("update")
-        self.assertIn("test -f crux-pilot/scripts/crux-pin-bot.py", update)
+        self.assertIn("test -f crux/scripts/crux-pin-bot.py", update)
         self.assertIn("CONTRIBUTING.md", update)
-        self.assertLess(update.index("test -f crux-pilot/scripts/crux-pin-bot.py"),
-                        update.index("crux-pilot/scripts/crux-pin-bot.py --host"))
+        self.assertLess(update.index("test -f crux/scripts/crux-pin-bot.py"),
+                        update.index("crux/scripts/crux-pin-bot.py --host"))
 
     def test_the_review_text_is_appended_and_the_branch_is_the_bot_branch(self):
         update = self.commands("update")
@@ -496,16 +532,20 @@ class AllowList(unittest.TestCase):
 
 
 class BudgetLogHasTheTables(unittest.TestCase):
-    def test_the_budget_job_prints_its_summary_to_the_log_as_well(self):
-        job = yaml.safe_load((WORKFLOWS / "budget.yml").read_text())["jobs"]["budget"]
-        step = next(s for s in job["steps"] if s.get("name") == "Collect, check and summarise")
-        self.assertIn('| tee -a "$GITHUB_STEP_SUMMARY"', step["run"])
-        self.assertIn("check.table", step["run"])
+    def test_the_budget_check_prints_its_summary_to_the_log_as_well(self):
+        # pin_evidence.py reads the budget tables from the job log; a job summary alone is not in it.
+        text = (ROOT / "scripts" / "ci" / "budget.sh").read_text()
+        self.assertIn('} | tee -a "${GITHUB_STEP_SUMMARY:-/dev/null}"', text)
+        self.assertNotIn('>> "${GITHUB_STEP_SUMMARY', text)
+        self.assertIn("check.table", text)
+        self.assertIn("set -eo pipefail", text)
 
     def test_the_release_dry_run_prints_the_manifest(self):
-        job = yaml.safe_load((WORKFLOWS / "release.yml").read_text())["jobs"]["dry-run"]
-        runs = [s.get("run", "") for s in job["steps"]]
-        self.assertIn("cat bundle/release-manifest.json", "\n".join(runs))
+        import tomllib
+
+        checks = tomllib.loads((ROOT / "scripts" / "ci" / "checks.toml").read_text())["check"]
+        runs = "\n".join(c["run"] for c in checks if c.get("job") == "release")
+        self.assertIn("cat bundle/release-manifest.json", runs)
 
 
 class JenkinsExample(unittest.TestCase):
@@ -536,28 +576,33 @@ class JenkinsExample(unittest.TestCase):
             self.assertNotIn(word, move)
         self.assertIn("Run no build in this stage", move)
 
-    def test_it_names_the_open_crux_side_items_and_what_the_hook_sees(self):
+    def test_it_names_what_the_crux_bot_still_leaves_open_and_what_the_hook_sees(self):
+        # Crux since #553 checks the commit's staged paths, ignores replace refs and refuses a
+        # changed .git/config; the hook still gets every variable but the token's.
         for name, text in (("workflow", WORKFLOW.read_text()), ("Jenkinsfile.example", self.text)):
-            self.assertIn("Still open on the Crux side", text, name)
-            for item in ("fresh index", "replace refs", "every variable except the token", "separate step",
-                         "after the hook"):
-                self.assertIn(item, " ".join(text.replace("#", " ").replace("//", " ").split()), f"{name}: {item}")
+            flat = " ".join(text.replace("#", " ").replace("//", " ").split())
+            self.assertIn("every variable except the token", flat, name)
+            self.assertIn("while the hook runs", flat, name)
+            self.assertIn("crux-pin-stage.py", flat, name)
+            self.assertNotIn("Still open on the Crux side", text, name)
         self.assertIn("GIT_USERNAME and GIT_PASSWORD", " ".join(self.text.replace("//", " ").split()))
+        self.assertIn("--push-url", self.text)
 
     def test_it_says_the_evidence_step_is_missing(self):
         self.assertIn("no evidence step", self.text)
 
-    def test_it_is_an_example_and_not_an_active_pipeline(self):
-        self.assertFalse((ROOT / "Jenkinsfile").exists())
+    def test_it_is_an_example_and_not_part_of_the_ci_pipeline(self):
         self.assertIn("Example only", "\n".join(self.text.splitlines()[:5]))
+        self.assertIn("`Jenkinsfile`", "\n".join(self.text.splitlines()[:10]))
+        self.assertNotIn("crux-pin", (ROOT / "Jenkinsfile").read_text())
 
     def test_it_runs_the_bot_of_the_pinned_crux_in_the_dev_container_image_on_a_schedule(self):
-        for needle in ("cron(", "dockerfile", ".devcontainer", '/venv/bin/west" update crux-pilot',
+        for needle in ("cron(", "dockerfile", ".devcontainer", '/venv/bin/west" update crux',
                        '"$T/scripts/crux-pin-bot.py" --host bitbucket-cloud',
                        "scripts/pin_evidence.py body", "--append-body", f"--branch {BRANCH}",
                        "CRUX_PIN_TOKEN"):
             self.assertIn(needle, self.text)
-        for word in ("git clone", "crux-pin/update", "crux-pilot/scripts/crux-pin-bot.py --host", "../.venv"):
+        for word in ("git clone", "crux-pin/update", "crux/scripts/crux-pin-bot.py --host", "../.venv"):
             self.assertNotIn(word, self.text)
 
     def test_it_starts_from_an_empty_workspace_on_an_agent_of_its_own(self):
@@ -582,21 +627,21 @@ class JenkinsExample(unittest.TestCase):
     def test_the_pin_scripts_are_copied_from_the_pinned_revision_after_the_checks(self):
         fetch = self.text[self.text.index("stage('Fetch the pinned Crux')"):
                           self.text.index("stage('Move the pin and refresh the pull request')")]
-        steps = ['T="$WORKSPACE_TMP/crux-pin"', 'python3 -m venv "$T/venv"', '/venv/bin/west" update crux-pilot',
+        steps = ['T="$WORKSPACE_TMP/crux-pin"', 'python3 -m venv "$T/venv"', '/venv/bin/west" update crux',
                  "export GIT_NO_REPLACE_OBJECTS=1",
-                 'test "$(git -C crux-pilot rev-parse HEAD)" = "$rev"',
-                 'status="$(git -C crux-pilot status --porcelain --ignored)"', 'test -z "$status"',
-                 'git -C crux-pilot cat-file -e "$rev:scripts/crux-pin-bot.py"',
-                 'git -C crux-pilot show "$rev:scripts/$script" > "$T/scripts/$script"']
+                 'test "$(git -C crux rev-parse HEAD)" = "$rev"',
+                 'status="$(git -C crux status --porcelain --ignored)"', 'test -z "$status"',
+                 'git -C crux cat-file -e "$rev:scripts/crux-pin-bot.py"',
+                 'git -C crux show "$rev:scripts/$script" > "$T/scripts/$script"']
         at = [fetch.index(step) for step in steps]
         self.assertEqual(sorted(at), at)
         self.assertIn(f"for script in {' '.join(PIN_SCRIPTS)}; do", fetch)
-        self.assertIn("""/venv/bin/west" list -f '{revision}' crux-pilot""", fetch)
+        self.assertIn("""/venv/bin/west" list -f '{revision}' crux""", fetch)
         self.assertIn("CONTRIBUTING.md", fetch)
         move = self.text.split("stage('Move the pin and refresh the pull request')", 1)[1]
         self.assertIn('T="$WORKSPACE_TMP/crux-pin"', move)
         self.assertIn('"$T/venv/bin/python" "$T/scripts/crux-pin-bot.py" --host', move)
-        self.assertNotIn("crux-pilot/", move)
+        self.assertNotIn("crux/", move)
 
     def test_credentials_come_from_jenkins_and_no_host_is_named(self):
         self.assertIn("withCredentials", self.text)
@@ -616,7 +661,7 @@ class JenkinsCopyBlock(unittest.TestCase):
         fetch = text[text.index("stage('Fetch the pinned Crux')"):]
         block = fetch[fetch.index("sh '''") + 6:fetch.index("'''", fetch.index("sh '''") + 6)]
         cls.block = 'set -eu\nT="$WORKSPACE_TMP/crux-pin"\nmkdir -p "$T/scripts"\n' + \
-            block.split('/venv/bin/west" update crux-pilot\n', 1)[1]
+            block.split('/venv/bin/west" update crux\n', 1)[1]
 
     def setUp(self):
         import os
@@ -624,7 +669,7 @@ class JenkinsCopyBlock(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         base = pathlib.Path(self.temp.name)
         self.work, self.tmp = base / "ws", base / "ws@tmp"
-        self.crux = self.work / "crux-pilot"
+        self.crux = self.work / "crux"
         (self.crux / "scripts").mkdir(parents=True)
         self.env = dict(os.environ, WORKSPACE_TMP=str(self.tmp), GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t.invalid",
                         GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t.invalid", GIT_CONFIG_GLOBAL="/dev/null",

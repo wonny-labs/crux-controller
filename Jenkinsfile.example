@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Example only. Jenkins does not run this file: a pipeline job reads a file named Jenkinsfile.
 // For a copy of this repository that Jenkins builds from Bitbucket Cloud. Put it in its own scheduled
-// Pipeline job on main, not in the Jenkinsfile of the pull request builds, and replace each
+// Pipeline job on main, not in the CI pipeline of the repository's `Jenkinsfile`, and replace each
 // <placeholder>. It does what .github/workflows/crux-pin-update.yml does: once a day it runs
 // crux-pin-bot.py of the Crux that west.yml pins (never a script from Crux main), which moves the pin
 // and opens or refreshes one pull request on bot/crux-pin. It never merges.
@@ -9,7 +9,7 @@
 // Crux nobody has reviewed yet. In a single-branch Pipeline job BRANCH_NAME is unset and the guard
 // never matches: use when { expression { env.BRANCH_NAME == null || env.BRANCH_NAME == 'main' } } there.
 // Known gap: the Jenkins path has no evidence step yet; the step 3 evidence is GitHub only.
-// The Crux interface is the one of crux-pilot pull request 537.
+// The Crux scripts and their interface are those of the pinned Crux (Crux pull requests 537 and 553).
 //
 // The last stage holds the push and pull request credentials, so nothing that an earlier run or
 // another job left behind may reach it:
@@ -30,12 +30,13 @@
 // - The containers run as the uid that owns the workspace, so that deleteDir and Git work.
 // - The Docker Pipeline plugin does not put the values of the bound credentials on the host's
 //   docker exec command line; if it does, hide other users' processes on the host (hidepid=2).
-// Still open on the Crux side (a later Crux release; this file changes when it lands): the bot does
-// not yet commit from a fresh index or refuse replace refs; it gives the hook every variable except
-// the token's, so the hook and every Git process the bot starts receive GIT_USERNAME and GIT_PASSWORD
-// (the push credential) and GIT_ASKPASS from gitUsernamePassword; and the pin move and the hook do not
-// yet run in a separate step from the push and the pull request, so the push credential is bound
-// before the bot starts and not only after the hook.
+// What the Crux bot still leaves to this file: it gives the hook every variable except the token's,
+// so the hook and every Git process the bot starts receive GIT_USERNAME and GIT_PASSWORD (the push
+// credential) and GIT_ASKPASS from gitUsernamePassword while the hook runs. That is accepted only
+// because the hook is this repository's reviewed script and runs nothing else; Crux's
+// docs/product-composition.md ("Keeping the token from the build") asks for its two-stage
+// crux-pin-stage.py instead when a hook builds. The same page says that a Jenkins checkout over
+// HTTPS needs --push-url with the product's own URL; check that before going live.
 
 pipeline {
   agent none
@@ -82,22 +83,22 @@ pipeline {
               "$T/venv/bin/pip" install -q --require-hashes -r crux-controller/scripts/crux-pin-build-requirements.txt
               "$T/venv/bin/pip" install -q --require-hashes --no-build-isolation --only-binary :all: --no-binary docopt -r crux-controller/scripts/crux-pin-requirements.txt
               "$T/venv/bin/west" init -l crux-controller
-              "$T/venv/bin/west" update crux-pilot
+              "$T/venv/bin/west" update crux
               export GIT_NO_REPLACE_OBJECTS=1
-              rev="$("$T/venv/bin/west" list -f '{revision}' crux-pilot)"
+              rev="$("$T/venv/bin/west" list -f '{revision}' crux)"
               case "$rev" in
                 *[!0-9a-f]*|'') echo "The pin is not a full commit SHA: $rev" >&2; exit 1 ;;
               esac
               test "${#rev}" -eq 40 || { echo "The pin is not a full commit SHA: $rev" >&2; exit 1; }
-              test "$(git -C crux-pilot rev-parse HEAD)" = "$rev"
-              status="$(git -C crux-pilot status --porcelain --ignored)"
+              test "$(git -C crux rev-parse HEAD)" = "$rev"
+              status="$(git -C crux status --porcelain --ignored)"
               test -z "$status"
-              git -C crux-pilot cat-file -e "$rev:scripts/crux-pin-bot.py" 2>/dev/null || {
+              git -C crux cat-file -e "$rev:scripts/crux-pin-bot.py" 2>/dev/null || {
                 echo "The pinned Crux has no scripts/crux-pin-bot.py. Move the pin by hand once (CONTRIBUTING.md)." >&2
                 exit 1
               }
               for script in crux-pin-bot.py update-crux-pin.py open-pin-pr.py; do
-                git -C crux-pilot show "$rev:scripts/$script" > "$T/scripts/$script"
+                git -C crux show "$rev:scripts/$script" > "$T/scripts/$script"
               done
             '''
           }
@@ -129,19 +130,24 @@ pipeline {
                   T="$WORKSPACE_TMP/crux-pin"
                   "$T/venv/bin/python" scripts/pin_evidence.py body > "$T/review.md"
                   "$T/venv/bin/python" "$T/scripts/crux-pin-bot.py" --host bitbucket-cloud \
-                    --repo "$BITBUCKET_REPOSITORY" --manifest west.yml --project crux-pilot \
+                    --repo "$BITBUCKET_REPOSITORY" --manifest west.yml --project crux \
                     --base main --branch bot/crux-pin --token-env CRUX_PIN_TOKEN --append-body "$T/review.md" \
                     --allow-path west.yml \
                     --allow-path tests/tooling/test_manifest.py \
                     --allow-path docs/dependencies.md \
                     --allow-path RELEASE.md \
                     --allow-path tests/tooling/test_docs.py \
-                    --allow-path docs/adding-a-step.md \
+                    --allow-path CHANGELOG.md \
+                    --allow-path README.md \
+                    --allow-path docs/findings/README.md \
+                    --allow-path docs/adding-a-capability.md \
+                    --allow-path docs/architecture.md \
+                    --allow-path docs/board-bring-up.md \
+                    --allow-path docs/documentation-guidelines.md \
                     --allow-path tests/tooling/test_docs_navigation.py \
-                    --allow-path tests/tooling/test_s4.py \
-                    --allow-path tests/tooling/test_s5.py \
-                    --allow-path tests/tooling/test_s6.py \
-                    --allow-path CHANGELOG.md
+                    --allow-path tests/tooling/test_management.py \
+                    --allow-path tests/tooling/test_sntp.py \
+                    --allow-path tests/tooling/test_system.py
                 '''
               }
             }

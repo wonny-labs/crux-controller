@@ -2,9 +2,9 @@
 # SPDX-License-Identifier: Apache-2.0
 # The Budget check of one build configuration: build it with the Zephyr baseline gate required,
 # check that the configuration is what was built, then collect its static resource use, check it
-# against budgets/limits.json and summarise it. It publishes the numbers as a job summary only (on
-# GitHub; elsewhere in the log). No image, ELF or map file is uploaded, because the repository
-# publishes hashes only.
+# against budgets/limits.json and summarise it. It prints the numbers to the log, and on GitHub also
+# to the job summary (scripts/pin_evidence.py reads the table from the log for the pin pull request).
+# No image, ELF or map file is uploaded, because the repository publishes hashes only.
 #
 # The job env of the Budget jobs in scripts/ci/checks.toml gives BOARD, CONFIG (the configuration
 # name), CONF (the fragments), OVERLAY (the overlays) and REQUIRE (the options that the build must
@@ -49,6 +49,6 @@ PY
   cat measurement.json
   echo '```'
   echo "Run-time values (stack use, heap peaks, timing) are not measured."
-} >> "${GITHUB_STEP_SUMMARY:-/dev/stdout}"
+} | tee -a "${GITHUB_STEP_SUMMARY:-/dev/null}"
 python crux-controller/budgets/check.py --measurement measurement.json \
   --limits crux-controller/budgets/limits.json
