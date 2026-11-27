@@ -8,6 +8,7 @@ The source labels follow [specification section 1](controller-framework-spec.md#
 ## 1. Scope and assumptions
 
 - The scope is the framework module and the base image at the Crux pin, on the reference board configuration.
+- The application template (specification section 7.5) is outside the scope: a copy of it is product code, which the product's extension covers (section 6).
 - The network that reaches device management is untrusted.
 - Physical access to the serial port, the medium and the debug port is part of the trust model: a person with it is treated as a possible attacker, and the product decides the physical protection (D16, S9).
 - The application runs in the same image with no memory isolation from the framework (specification section 7.4), so it is trusted code.
@@ -109,4 +110,4 @@ A product copies this page's structure and adds:
 - its records for S9, D16 and the debug port, and its update default under Part I (2)(c);
 - the risk sign-off, which is an organisational duty (specification section 6.6).
 
-The product template for this extension is a deliverable of delivery stage 5 (specification section 6.3).
+The product threat model template for this extension is a deliverable of delivery stage 5 (specification section 6.3).

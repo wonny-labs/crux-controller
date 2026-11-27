@@ -3,6 +3,7 @@
 A product developer who builds a networked controller on Crux gets from the controller framework a controller that starts its platform services in one defined order, offers device management, supervises its own health and recovers from faults.
 The product keeps its application, the application's threads and their timing, its output safe state and its board files, and the framework imposes no execution model on the application.
 The framework is a Zephyr module of this repository, which the product imports with west.
+This repository is not a product: it holds the framework, and as a real downstream consumer of Crux it also shows where Crux's interfaces fall short (D12).
 This page explains what the framework gives, who does what and how a product joins it.
 The [specification](controller-framework-spec.md) holds the requirements, the application interface, the operating model and the decisions, and the [platform gaps](controller-framework-platform-gaps.md) hold the Crux constraints at the pin and the Crux interface of each service.
 The [threat model](controller-framework-threat-model.md) holds the assets, interfaces and threats that the security requirements answer.
@@ -12,6 +13,7 @@ The [threat model](controller-framework-threat-model.md) holds the assets, inter
 - A **product** is a firmware repository outside this repository that imports Crux and the framework and adds an application.
 - An **application** is the product code that joins the framework: the product's own control software or a third-party application runtime.
 - The **base image** is the one image that this repository builds: every framework service and no application.
+- The **application template** is a folder of this repository that a product team copies once to start a product repository: `main()`, configuration, board files, a west manifest and tests, with no framework logic ([specification section 7.5](controller-framework-spec.md#75-application-template-d20)).
 - The application creates its own threads with Zephyr and calls Crux's public APIs directly.
 
 ```mermaid
@@ -52,13 +54,14 @@ The [startup sequence](controller-framework-spec.md#41-startup-steps) shows how 
 | Health monitoring | Controller state, application state, service health, reset cause, last-fault record and watchdog state in the status service | Specified; Crux service threads supervised indirectly ([C8](controller-framework-platform-gaps.md#c8-crux-service-threads-and-supervision)) | Every Crux service thread supervised by its progress |
 | Fault recovery | A watchdog reset on a hang, a retained fault record, a boot counter, safe mode and health-gated image confirmation | Specified; images prepared for MCUboot with no confirmation ([C10](controller-framework-platform-gaps.md#c10-image-state)) | Health-gated confirmation through Crux's image state contract |
 | Application integration | A descriptor with four entries, watchdog channels, status items, parameters and a data root | Specified; delivered in delivery stage 3 | Validated by a first real runtime consumer |
+| Project start | An application template to copy, whose copy imports the framework at a pinned revision | Specified; delivered in delivery stage 4, after the application interface | Built and tested in CI from the same commit as the framework |
 | Platform integration | The Crux services for time, logging, network, storage, sockets and system, composed in one start order, with per-board values in board files | Specified; the reference board is the RT1060-EVKB | Further boards when one enters the scope ([C12](controller-framework-platform-gaps.md#c12-soc-gates)) |
 
 The [service mapping](controller-framework-platform-gaps.md#service-mapping) names the Crux interface behind each capability.
 
 ## How a product joins
 
-A product is a workspace application whose repository is the west manifest repository (west's T2 topology), the shape that Crux's `templates/product` also uses:
+A product is a workspace application whose repository is the west manifest repository (west's T2 topology), the shape that Crux's `templates/product` also uses and that the application template provides:
 
 ```text
 product/                 the west manifest repository
@@ -118,19 +121,19 @@ The [tutorial](../tutorial.md) runs the Twister command through `bash scripts/de
 
 Integration order:
 
-1. Create the product workspace from the manifest and turn the module on.
+1. Copy the application template (from delivery stage 4 on), or create the product workspace from the manifest, and turn the module on.
 2. Add the board files with the devicetree roles.
 3. Build the product with no descriptor: every framework service runs, as in the base image, and device management answers.
 4. Add the application's descriptor and its entries (after delivery stage 3).
 5. Select the start prerequisites, the runtime dependencies, the safe-mode threshold and the deadlines.
 6. Prepare the device: the volume and the device identity ([specification section 5.5](controller-framework-spec.md#55-device-preparation-d11)).
 
-A code example of the application interface follows delivery stage 3, taken from the fixture application so that it matches a tested build.
+From delivery stage 4 on, the application template's `main()` is the code example of the application interface; CI builds it, so it matches a tested build.
 
 ## Base image
 
 The base image is the framework with no application: the base image's `main()` calls the start function with no descriptor, and every framework service runs.
-A test-only fixture application under `tests/` exercises the application interface in a contract test and is the code reference for a product; it is not a product template.
+A test-only fixture application under `tests/` exercises the application interface in a contract test; a product starts from the application template instead.
 
 ## Application states
 

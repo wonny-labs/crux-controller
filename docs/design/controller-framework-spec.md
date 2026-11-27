@@ -1,6 +1,6 @@
 # Controller framework specification
 
-This page specifies the controller framework: its requirements, application interface, operating model, recovery, build options, verification and decisions.
+This page specifies the controller framework: its requirements, application interface, operating model, recovery, build options, application template, verification and decisions.
 The [overview](controller-framework.md) explains what the framework is, who does what and how a product joins it.
 The [platform gaps](controller-framework-platform-gaps.md) hold the Crux and Zephyr constraints C1 to C19 and the Crux interface behind each service.
 The [threat model](controller-framework-threat-model.md) holds the assets, interfaces, threats and Annex I applicability.
@@ -34,7 +34,7 @@ Each rule carries one label:
 A heading's label applies to every rule under it that carries no label of its own.
 Where a decision lets a product choose differently, the text says so.
 Requirements use the indicative mood throughout instead of the "shall" of ISO/IEC/IEEE 29148 (not read), and each traces to verifiable criteria.
-Each security, vulnerability handling and quality requirement carries a practice label in [section 6.4](#64-practice-basis):
+Each security, vulnerability handling and quality requirement carries a practice label in [section 6.4](#64-practice-basis), and each rule of the application template carries a practice label or its decision in [section 7.5](#75-application-template-d20):
 
 | Practice label | Meaning |
 |---|---|
@@ -65,6 +65,7 @@ The criteria are in [section 8.4](#84-criteria).
 | F4 | Device management offers HTTPS web management and a serial command line, and SSH in builds that carry its licensed stack. | 26 |
 | F5 | The framework and the application register configuration parameters and status items, which device management shows. | 4 |
 | F6 | The product selects the build options of section 7.1 with Kconfig. | 27 |
+| F7 | The repository holds an application template that a product team copies to start a product repository; the template holds no framework logic, and its copy imports the framework as a module at a pinned revision (section 7.5). | 47, 48, 49 |
 
 | # | Reliability requirement | Criteria |
 |---|---|---|
@@ -171,7 +172,7 @@ IEC 61508-4 defines "safe state" for functional safety; these pages use the word
 ### 3.4 Stability
 
 - The interface starts at the lowest stability tier, because no consumer exists to confirm its shape.
-- It is validated against a first real runtime consumer (a product's control software or a third-party application runtime, not the fixture application) before its tier is raised.
+- It is validated against a first real runtime consumer (a product's control software or a third-party application runtime, not the fixture application or the application template) before its tier is raised.
 - This repository defines no stability tiers; the tiers are open, decided at implementation, modelled on Crux ADR-0001 Decision 4.
 - A framework-owned periodic task that calls an application entry point is not part of the first version; if a consumer needs one, it can be added later as an optional helper on top of this interface.
 
@@ -605,7 +606,7 @@ The article texts are unofficial text of the same regulation, not checked agains
 | The CRA role of this repository | D18 | Legal | Section 6.5 |
 | Custody of the release signing key | V4 | Release management | Signed manifest (V4) |
 
-## 7. Build options, boards, source zones and priority bands
+## 7. Build options, boards, source zones, priority bands and the application template
 
 ### 7.1 Build options
 
@@ -655,14 +656,14 @@ The 25 percent free margin of `budgets/limits.json` is a budget of the reference
 | Debug form | Stack and thread analysis | `FILE_SUFFIX=debug` or one snippet |
 | Per board | Different nodes and drivers | The board's own `.conf` and `.overlay` only |
 
-The fixture application is a test, not an image or variant: it has no board build and no `Budget` row, and it is not a product template.
+The fixture application is a test, not an image or variant: it has no board build and no `Budget` row; a product starts from the application template of section 7.5.
 
 ### 7.3 Source zones and OS neutrality
 
 This section serves requirements P1 and P2.
 The split follows the ports-and-adapters pattern (A. Cockburn, "Hexagonal architecture"): the portable core defines its ports, and the adapter and composition zones implement them for Zephyr.
 `scripts/check_boundary.py` checks only the trees in its `RULES` (`app/src`, `workload`, `app/compose`, `app/os`; lines 125-162), and `check()` scans only those trees (lines 308-313).
-A framework source outside them would escape the check, so every source of the module, the base image and the fixture application lives in a checked zone; the paths are open, decided at implementation.
+A framework source outside them would escape the check, so every source of the module, the base image, the fixture application and the application template lives in a checked zone; the paths are open, decided at implementation.
 
 | Tree | Holds | May include |
 |---|---|---|
@@ -672,6 +673,7 @@ A framework source outside them would escape the check, so every source of the m
 | `framework/os` (adapter zone) | Supervisor thread, task watchdog, retained record access, fatal error handler, SNTP adapter | The current rules of `app/os`, plus `zephyr/task_wdt/task_wdt.h`, `zephyr/retention/retention.h`, `zephyr/fatal.h`, `zephyr/devicetree.h` and `zephyr/device.h` |
 | `app/` (base image) | `main()` | ISO C and the header of `include/` |
 | `tests/` fixture application | The contract test application (section 8.1) | ISO C, the header of `include/`, public `<crux/NAME.h>` headers and the Zephyr headers that its threads need |
+| Application template (section 7.5) | `main()` and the template's tests | For `main()`, the rules of `app/`; the rules for the template's tests are open |
 
 - `RULES` gains one rule per tree, and a source file of the module that no rule covers fails the check.
 - Each new header is a separate reviewed boundary change under CONTRIBUTING "The boundary", with its reason in [composition-zone.md](../composition-zone.md) and a case in `tests/tooling/test_boundary.py`.
@@ -702,6 +704,32 @@ Zephyr priorities, where a lower number is a higher priority; a product tunes th
 - Verification checks the bands against the priorities of Zephyr's network threads and measures jitter under network and TLS load on the board (section 8.1).
 - A Zephyr userspace or MPU partition for the application is later work.
 
+### 7.5 Application template (D20)
+
+The application template is a folder of this repository that a product team copies once to start a product repository.
+The framework stays a Zephyr module that the copy imports with west at a pinned revision, so framework fixes reach a product when it moves its pin.
+The template is delivered in delivery stage 4, because it needs the application interface of delivery stage 3.
+Its builds are CI checks, not images that this repository releases.
+
+| Rule | Content | Practice label or decision, and source read |
+|---|---|---|
+| Contents | `main()`, which passes a descriptor to the start function; `prj.conf` with the framework's Kconfig symbol; board files for `native_sim` and the reference board; a `west.yml` that imports the framework and, through the framework's manifest, Crux; and tests as a starting point for the product's own tests | Standard: Zephyr "Application Development" recommends starting from the `example-application` workspace application, which has the same parts |
+| No framework logic | The template holds no framework source and reaches the framework only through the header of `include/`, the start function (section 3), the Kconfig symbol and the build options (section 7.1) | Decision (D20); no external source read |
+| Framework at a pinned revision | The copy's `west.yml` names the framework at a full commit or a tag and imports its manifest, as in the [overview](controller-framework.md#how-a-product-joins) | Standard: west "Workspaces", topology T2 with a manifest import; `example-application` pins Zephyr in its `west.yml` |
+| Built from the same commit | A manifest cannot name the commit that holds it, so CI copies the folder into a new workspace and writes the commit under test as the framework revision, as `tests/product_integration/run.sh` does for its fixture product | Project-specific workaround: Crux's `templates/product/west.yml` follows `main` for the same reason, and its README tells a copy to pin a SHA once |
+| What a copy does not receive | A copy has no Git link to this repository, so later changes to the template folder never reach it; only the framework module reaches it, when the product moves its framework pin | Standard: GitHub "Creating a repository from a template": the new repository starts with one commit and an unrelated history, so no merge from the template is possible |
+| Version compatibility | A copy starts at the framework revision that it was copied from, at which the template and the framework come from one commit; afterwards the copy depends on the framework only through the items of the "No framework logic" row, whose changes follow the stability tiers of section 3.4 | Decision (D20); no external source read |
+| Relation to Crux `templates/product` | The same shape: a T2 manifest repository with `app/` and per-board `app/boards/<board>.conf` and `.overlay`, copied once and then pinned (Crux `templates/product/README.md` at `05a50475`); the application template adds the framework import and the descriptor | Decision (D20); the shape follows the Crux README read at `05a50475` |
+
+Open points, decided at implementation unless stated:
+
+- The folder path, the file names and the documented joining steps.
+- The CI tier of the template builds (every pull request or nightly), and whether the reference-board build gets a `Budget` row.
+- Whether the template replaces the fixture product of `tests/product_integration` or both stay.
+- Whether the template's `prj.conf` is a product build configuration under criteria 19 and 38 or a development one.
+- Whether the template also carries the other parts of Crux's `templates/product` (the domain zone and its include check, the driver kit, the style checks, the release record and the contribution guide) or links them.
+- How a framework change that needs a change in existing copies is announced to products, and whether a copy records the framework revision that it was copied from.
+
 ## 8. Verification
 
 ### 8.1 Layers (D8)
@@ -712,6 +740,7 @@ Zephyr priorities, where a lower number is a higher priority; a product tunes th
 | Framework unit | The portable core: the states and lifecycles of section 4, policies, boot counter and retained record rules, startup step table, health verdict and trial deadline | Host tests, every pull request |
 | Framework integration | Composition, startup order, startup and runtime supervision, safe mode, the application contract through the fixture application, the scenarios of section 8.4 | `native_sim`, every pull request |
 | Reference image | The base image builds for the board within its budget and runs on `native_sim`, with image-level regression tests | CI, every pull request |
+| Application template | A copy of the template, with the framework at the commit under test, builds for `native_sim` and the reference board, runs on `native_sim`, and its joining steps work (section 7.5) | CI; the tier is open (section 7.5) |
 | Product integration | An independent west workspace imports the framework as a product would (T2), builds and runs on `native_sim` | The nightly tier of a tiered CI as Crux documents it (Crux at the pin, `docs/ci.md`, "Use in a product repository") |
 | Release and quality gates | SBOM, vulnerability matching, coverage, fuzzing and secret scan (section 6.3) | CI: every pull request, the nightly tier and the release dry run |
 | Hardware | The board facts of section 5.6 (early in delivery stage 2); power cut on the medium, timing and jitter of application threads, TLS sessions under application load, output state during a reset | The board, in approved runs only |
@@ -730,7 +759,7 @@ Zephyr priorities, where a lower number is a higher priority; a product tunes th
 | 1. Foundation | The Zephyr module, the repository role (D12), service composition, the base image, the boundary check of section 7.3 and the consumer integration job; it shows that a product imports the module and that the base services compose | Criteria 1 to 3, 13, 26, 28 to 30, 37 and 39, the part of criterion 14 with no descriptor, and the stage 1 parts of criteria 34, 35 and 38 |
 | 2. Reliability | First, the board check of section 5.6; then the startup and runtime watchdog, the channel lifecycle, the supervisor, boot counter, safe mode, retained record and diagnostics | Criteria 7, 10, 11, 16 to 18, the base image parts of criteria 6 and 19, and the stage 2 parts of criteria 35, 36, 38 and 41 |
 | 3. Application integration | The application contract of sections 3 and 4, shown through the fixture application | Criteria 4, 5, 8, 9, 20 to 23, the application parts of criteria 6, 14 and 19, and the stage 3 parts of criteria 34 and 41 |
-| 4. Framework completion | Persistence on LittleFS and the interim states of section 8.5 | Criteria 12 and 24 on LittleFS, criteria 25, 32, 33, 42 to 44 and 46, the stage 4 parts of criteria 35, 36 and 41, and the end of every interim state that section 8.5 does not accept for Framework Complete |
+| 4. Framework completion | Persistence on LittleFS, the interim states of section 8.5 and the application template of section 7.5 | Criteria 12 and 24 on LittleFS, criteria 25, 32, 33, 42 to 44 and 46 to 49, the stage 4 parts of criteria 35, 36 and 41, and the end of every interim state that section 8.5 does not accept for Framework Complete |
 | 5. Product readiness | Per product: secure boot and update, factory reset, hardware validation, security hardening, release integrity, product security documentation, and validation of the application interface with a first real runtime consumer | PR1 to PR9 and criteria 31 and 45 |
 | 6. Linux functions (later) | A Linux adapter over Crux's Linux providers, coordinated with Crux | A later specification |
 
@@ -747,14 +776,14 @@ Later items:
 | Core dump and log persistence | Zephyr core dump to a partition and log persistence need a partition decision; the retained last-fault record covers the reset evidence |
 | Stack high-water reporting | Part of the diagnostics of delivery stage 2, shown in the status service |
 | Turning services on and off at runtime | Through configuration, once configuration saving exists; build-time removal is in section 7.1 |
-| Integration guide | A page that explains how a product joins the framework and links the fixture application under `tests/` as the code reference; no separate example code or example image |
+| Integration guide | A page that explains how a product joins the framework, links the application template (section 7.5) as the starting point and the fixture application under `tests/` as the contract test; no example image |
 
 ### 8.3 Milestones
 
 | Milestone | Reached when | Interim states |
 |---|---|---|
 | Framework MVP | Delivery stages 1 to 3 end: criteria 1 to 11, 13 to 23, 26 to 30, 34 and 37 to 40, the stage 1 to 3 parts of criteria 35, 36 and 41, with criterion 27 for the options that these stages add | Every interim state of section 8.5 is accepted |
-| Framework Complete | Delivery stage 4 ends: every mandatory function and platform dependency, including persistence on LittleFS; criteria 1 to 30, 32 to 44 and 46 | Only the interim states that section 8.5 accepts for Framework Complete |
+| Framework Complete | Delivery stage 4 ends: every mandatory function and platform dependency, including persistence on LittleFS; criteria 1 to 30, 32 to 44 and 46 to 49 | Only the interim states that section 8.5 accepts for Framework Complete |
 | Product Ready | Delivery stage 5 ends, per product on its board: PR1 to PR9 and criteria 31 and 45 | None of section 8.5 for the functions the product uses, except those that section 8.5 accepts for Product Ready |
 
 ### 8.4 Criteria
@@ -812,6 +841,9 @@ Framework Complete adds:
 | 43 | S5 | Failed logins: a `native_sim` scenario sends wrong passwords through web management and the serial command line; after the free attempts, a further attempt is answered "retry later" without verification, and the security events `access.login_failed` and `access.delayed` are recorded. |
 | 44 | L1 | Security events: a `native_sim` scenario performs each action of the event list of section 6.2 and finds its event; with persistence on, the events survive a reset and the oldest rotate out at the size limit; with persistence off, no event is written to storage. |
 | 46 | M1 | Data and traffic inventory: the threat model lists every data item that the framework stores and every outbound connection of the base image, and a `native_sim` capture of the base image shows no outbound traffic outside that list. |
+| 47 | F7 | Template build: CI copies the application template into a new west workspace with the framework at the commit under test; the copy builds and runs on `native_sim`, and its log shows `init` and `start` of the template's descriptor; the copy also builds for the reference board with `-DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON`. |
+| 48 | F7 | No framework logic: the boundary check of section 7.3 covers the template folder; a check fails when a template source includes a header from the framework's source trees or a Crux composition interface (`<crux/NAME_zephyr.h>`), or when the template's build files add a source from outside the template folder. |
+| 49 | F7 | Joining steps: a test copies the template folder to a new directory and follows the joining steps that the template documents, with local repositories in place of the remotes; it checks that `west update` resolves the framework at the full commit that the steps pin, and that no file of the copy names a path of this repository. |
 
 Product Ready adds, per product on its board:
 
@@ -851,7 +883,7 @@ Each interim state is accepted until its Crux change is at the pin; the [platfor
 
 ## 9. Decision register
 
-D1 to D19 are decided, except D9, which is deferred, D16, which is a product decision whose direction is decided and whose details each product settles at product readiness, and D17, which is open.
+D1 to D20 are decided, except D9, which is deferred, D16, which is a product decision whose direction is decided and whose details each product settles at product readiness, and D17, which is open.
 
 | # | Decision | State | Chosen | Not chosen | Source |
 |---|---|---|---|---|---|
@@ -862,11 +894,11 @@ D1 to D19 are decided, except D9, which is deferred, D16, which is a product dec
 | D5 | Console UART | Decided | Both as a build option, separate by default; shared needs Crux's shared console mode (Crux `main`, C6) | — | Zephyr shell log backend; Crux Logging binding and console contract |
 | D6 | SSH command line and SFTP | Decided | A command line transport option that allows SSH only with the Wolf profile under a commercial or GPL-3.0-or-later licence, Crux Access on the Wolf profile (Crux change needed) and Crux's deferred SSH composition interface | An SSH server on Mbed TLS, because it means writing a security-critical protocol implementation | Licences of wolfSSL and wolfSSH ([dependencies](../dependencies.md)); C7 |
 | D7 | Firmware update | Decided | Partition layout, image format and confirmation from Crux's secure boot work; the framework gives the health verdict, the update component confirms or requests a reset at the trial deadline, and the boot loader reverts an unconfirmed image at that reset; the watchdog policy from the boot loader to the application and the final recovery path are decided with the same work (sections 4.2, 5.2 and 6.1) | A framework-owned update design | MCUboot test, confirm and revert |
-| D8 | Verification | Decided | The layers of section 8.1; this repository builds one image, the base image, and a test-only fixture application under `tests/` exercises the interface | Keep every per-capability scenario and board build | Zephyr's split of applications, samples and tests |
+| D8 | Verification | Decided | The layers of section 8.1; this repository builds one image, the base image, and a test-only fixture application under `tests/` exercises the interface; the application template's builds are CI checks, not images (section 7.5) | Keep every per-capability scenario and board build | Zephyr's split of applications, samples and tests |
 | D9 | Second board | Deferred | The framework stays board-neutral (section 7.2) | — | C12 |
 | D10 | Crux gaps | Decided | Crux changes in the priority order of the [platform gaps](controller-framework-platform-gaps.md): they are platform gaps | Workarounds in this repository | — |
 | D11 | Device preparation | Decided | A preparation image or host tool writes the volume, and the TLS key and certificate are made during preparation; a normal boot never formats a medium and makes a key only in a development or reference build with an explicit option; a prepared device without its identity boots in safe mode (section 5.5) | The image formats an empty medium and makes the key at first boot: formatting destroys data, a removable medium may hold someone else's data, and a long first-boot step weakens startup supervision | Crux File providers refuse auto-format |
-| D12 | Repository role | Decided | The role sentence of CONTRIBUTING changes to a controller framework module with a base image that products import, as a reviewed change of the files that state the role; the glossary entry "Product" then takes Crux's sense; with D2 | Keep "reference consumer firmware" | CONTRIBUTING role section; [glossary](../glossary.md) |
+| D12 | Repository role | Decided | The role sentence of CONTRIBUTING changes to a controller framework module with a base image that products import, as a reviewed change of the files that state the role; the repository is not a product and also checks Crux as a real downstream consumer; the glossary entry "Product" then takes Crux's sense; with D2 | Keep "reference consumer firmware" | CONTRIBUTING role section; [glossary](../glossary.md) |
 | D13 | Names | Decided | "Controller framework" for the module and "base image" for the one image, with no example image; Crux is the platform, and the documents reserve "the reference controller" for Crux's sample; the build configuration `base` (`prj.conf` alone) takes another name, for example `minimal`, as a reviewed change of the files that name it | Names with "platform" or "reference controller" | `tests/tooling/test_docs.py` |
 | D14 | Application start without a hardware watchdog | Decided | In product builds the application does not start; development, bench and `native_sim` builds may allow it by an explicit build option, and in them a hang ends in a software reset (section 4.3) | Start the application and report "watchdog not armed" | Crux System reports an unavailable watchdog as not supported |
 | D15 | Recovery and factory reset authority | Decided | Factory reset by an authorised operator through Crux's credential store erase (Crux `main`, C9), with an optional product-defined physical-presence input, and device preparation as the recovery when Access is unusable; it erases credentials, configuration, application data and persisted security events and keeps the device identity (section 5.3) | An unauthenticated serial wipe | IEC 62443-4-2 CR 4.2 (not read), as direction |
@@ -874,6 +906,7 @@ D1 to D19 are decided, except D9, which is deferred, D16, which is a product dec
 | D17 | Update transport | Open | Decided with Crux's secure boot work at product readiness (section 6.1) | — | MCUboot design; C10 |
 | D18 | Role under the EU Cyber Resilience Act | Decided, legal confirmation needed | A component that products integrate, designed to the product-level requirements of Annex I; organisational duties are listed with their holder and not implemented (sections 6.5 and 6.6) | This repository as a product placed on the market | Regulation (EU) 2024/2847, unofficial text |
 | D19 | Support period | Decided | A field that each product supplies (H2); this repository fixes none | A support period fixed by this repository | Regulation (EU) 2024/2847 Article 13(8), unofficial text |
+| D20 | Application template | Decided | A folder of this repository that a product team copies once (`main()`, configuration, board files, west manifest and tests), with no framework logic; the copy imports the framework as a module at a pinned revision; CI builds the template from the same commit as the framework; delivered in delivery stage 4, after the application interface (section 7.5) | The fixture application as the only code reference, so that each product writes the same starting files by hand; a separate template repository, whose builds would not run from the framework's commit | Zephyr "Application Development" and `example-application`; west "Workspaces" (T2); GitHub template repositories; Crux `templates/product` |
 
 ## 10. Terms
 
@@ -885,6 +918,7 @@ D1 to D19 are decided, except D9, which is deferred, D16, which is a product dec
 | Application | Product code that joins the framework: the product's control software or a third-party application runtime | These pages |
 | Third-party application runtime | Software from another vendor that runs user programs with its own scheduling and execution model | Common usage |
 | Fixture application | A test-only application under `tests/` that exercises the interface in a contract test | Common test usage |
+| Application template | A folder of this repository that a product team copies once to start a product repository; the copy imports the framework at a pinned revision and receives no later change of the folder (section 7.5) | Zephyr "Application Development" (`example-application`); GitHub template repositories |
 | Descriptor | The one structure an application defines, with its entry points, passed to the framework's start function | These pages |
 | Startup step, step deadline | One of the twelve steps of the start function (section 4.1); the software time limit of one step | These pages |
 | Supervision period | One of the periods of section 4.2, which say what the supervisor feeds the hardware watchdog by | These pages |
@@ -918,7 +952,7 @@ D1 to D19 are decided, except D9, which is deferred, D16, which is a product dec
 These sources cover this page, the [overview](controller-framework.md) and the [platform gaps](controller-framework-platform-gaps.md).
 
 - Zephyr documentation at the release that the Crux pin names, under `doc/`: "Application Development" (application types, board files, `EXTRA_CONF_FILE`, `FILE_SUFFIX`), west "Workspaces" (topologies), "Modules (External projects)", "Shell" (logger backend), "Task Watchdog" with `subsys/task_wdt/Kconfig`, "Retention System" (boot mode), "Retained Memory", "Mutexes" (priority inheritance), "Core Dump", "Settings" and snippets.
-- The Zephyr `example-application` repository README; nRF Connect SDK "Creating an application" (workspace application recommended, `ncs-example-application`) and "Common Application Framework overview" (module states).
+- The Zephyr `example-application` repository README (purpose, contents, tags that follow Zephyr's); nRF Connect SDK "Creating an application" (workspace application recommended, `ncs-example-application`) and "Common Application Framework overview" (module states).
 - systemd documentation, `systemd.unit` and `systemctl` (unit active states).
 - MCUboot design documentation (image test, confirm and revert) and its Zephyr port's `CONFIG_BOOT_WATCHDOG_FEED`.
 - U-Boot documentation, "Boot Count Limit" (`CONFIG_BOOTCOUNT_LIMIT`, `bootlimit`, `altbootcmd`).
@@ -928,14 +962,14 @@ These sources cover this page, the [overview](controller-framework.md) and the [
 - Crux at the pin: `zephyr/Kconfig`, `zephyr/CMakeLists.txt`, `components/logging/ports/zephyr/`, `components/cli/ports/zephyr/include/crux/cli_zephyr.h`, `components/system/`, `components/access/include/crux/access.h`, `components/mgmt_status/include/crux/management_status.h`, `components/file/ports/zephyr/CMakeLists.txt`, `components/image_state/`, `components/*/ports/linux`, `docs/decisions/0001-application-boundary-and-api-stability.md` (Decision 4), `docs/decisions/0003-p9-result-services-keep-narrow-thread-sync.md` (R2, R5), `docs/management-in-a-product.md`, `tests/native/configuration_settings_littlefs`, `tests/native/file_littlefs`, `templates/product/README.md`, `docs/ci.md` ("Use in a product repository").
 - Crux at the pin and on `main` at `05a50475`: `components/reboot/include/crux/reboot.h`, `components/reboot/src/reboot.c`, `components/tls_certificate/include/crux/tls_certificate_start.h`, `components/tls_certificate/src/tls_certificate.c`, `components/credential/adapter/crux_credential_adapter.h`, `components/credential/include/crux/credential_store.h`.
 - Crux `main`: `docs/superpowers/specs/2026-10-24-system-health-design.md`, section "Supervising several activities".
-- Crux `main` at `05a50475`: `west.yml` (Zephyr v4.5.0), `zephyr/Kconfig` (`CRUX_FILE_LITTLEFS_BLK_DEV`, `CRUX_CONFIGURATION_SETTINGS_FILE_ANY_FS`, `CRUX_CLI_CONSOLE_UART_SHARED`), `zephyr/CMakeLists.txt`, `zephyr/settings_file.cmake`, `patches/zephyr/README.md`, `components/credential/ports/zephyr/include/crux/credential_store_zephyr.h`, `components/service_priority/ports/zephyr/include/crux/service_priority_zephyr.h`, `components/reboot/include/crux/reboot.h`, `docs/configuration-contract.md`, `docs/file-contract.md`, `docs/management-in-a-product.md`.
+- Crux `main` at `05a50475`: `templates/product/README.md` and `templates/product/west.yml` (copy once, then pin a SHA; the manifest follows `main`), `docs/product-composition.md` (template tests), `west.yml` (Zephyr v4.5.0), `zephyr/Kconfig` (`CRUX_FILE_LITTLEFS_BLK_DEV`, `CRUX_CONFIGURATION_SETTINGS_FILE_ANY_FS`, `CRUX_CLI_CONSOLE_UART_SHARED`), `zephyr/CMakeLists.txt`, `zephyr/settings_file.cmake`, `patches/zephyr/README.md`, `components/credential/ports/zephyr/include/crux/credential_store_zephyr.h`, `components/service_priority/ports/zephyr/include/crux/service_priority_zephyr.h`, `components/reboot/include/crux/reboot.h`, `docs/configuration-contract.md`, `docs/file-contract.md`, `docs/management-in-a-product.md`.
 - Crux issues #188 and #297.
-- This repository: `scripts/check_boundary.py`, `scripts/build-board.sh`, `budgets/limits.json`, `docs/dependencies.md`, `docs/glossary.md`, `docs/roadmap.md`.
+- This repository: `tests/product_integration/run.sh` and `west.yml` (commit under test written into a copy), `scripts/check_boundary.py`, `scripts/build-board.sh`, `budgets/limits.json`, `docs/dependencies.md`, `docs/glossary.md`, `docs/roadmap.md`.
 - Zephyr v4.4.2: `scripts/west_commands/zspdx/` (`walker.py`, `writer.py`, `version.py`), `kernel/Kconfig`, `arch/Kconfig`, `subsys/random/Kconfig`; Zephyr v4.4.0: `subsys/settings/src/settings_file.c`.
 - Crux at the pin, security: `docs/access-contract.md`, `docs/credential-store.md`, `docs/product-composition.md` (SBOM), `components/access/include/crux/access.h`, `components/access/src/access_delay.c`, `components/web/include/crux/web.h`, `components/cli/include/crux/cli.h`, `components/web/ports/zephyr/web_http_server.c`, `components/security_event/include/crux/security_event.h`, `components/security_event/src/security_event_ids.inc`, `components/image_state/include/crux/image_state.h`.
 - Crux `main` at `06813519`: `docs/boot-update-investigation.md`, `docs/evidence/boot-update/stage1-pinned-source-findings.md` (B13).
 - European Commission, Cyber Resilience Act policy page (dates of application).
 - Regulation (EU) 2024/2847, Annex I, Annex II, Articles 13 and 14: unofficial text, not checked against the Official Journal.
 - RFC 9325, "Recommendations for Secure Use of Transport Layer Security (TLS) and Datagram Transport Layer Security (DTLS)", sections 3.1.1, 4.1 and 4.2.
-- GitHub documentation on artifact attestations and on secret scanning; LLVM documentation, "libFuzzer"; Zephyr documentation on test coverage.
+- GitHub documentation on artifact attestations, on secret scanning, and "Creating a template repository" and "Creating a repository from a template" (one first commit, unrelated history); LLVM documentation, "libFuzzer"; Zephyr documentation on test coverage.
 - IEC 61508-4 (definition of safe state); IEC 62443-4-2 by clause number (CR 1.1, 1.5, 1.11, 2.8 to 2.11, 4.2, 7.3, 7.4, 7.7); IEC 62443-4-1 (SR-2, SVV-3); ETSI EN 303 645 (provisions 5.1 and 5.9); NIST SP 800-218; NTIA minimum elements for an SBOM; ISO/IEC/IEEE 29148; ISO/IEC 29147; RFC 8446; all not read, as direction and not as compliance claims; a secondary mapping of IEC 62443-4-2 (CIP Security Requirements) was read.
