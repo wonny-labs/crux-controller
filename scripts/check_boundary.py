@@ -2,8 +2,9 @@
 # SPDX-License-Identifier: Apache-2.0
 """Fail when product source includes a header outside the public boundary.
 
-Eight trees are checked: the four trees of the configurations built on the workload, and the
-four trees of the controller framework module and its interface header.
+Ten trees are checked: the four trees of the configurations built on the workload, the four trees
+of the controller framework module and its interface header, the fixture application of the
+scenarios and the application template.
 
 * ``app/src`` may include ISO C headers, the standard headers of the Crux Sockets
   profile, public ``<crux/NAME.h>`` headers, and headers of its own tree.
@@ -47,11 +48,21 @@ four trees of the controller framework module and its interface header.
   ``zephyr/task_wdt/task_wdt.h``, ``zephyr/retention/retention.h``, ``zephyr/fatal.h``,
   ``zephyr/device.h`` and ``zephyr/devicetree.h``.
 
+* ``tests/framework/fixture`` is the fixture application of the scenarios. It may include ISO C
+  headers, the interface headers, public ``<crux/NAME.h>`` headers and ``zephyr/kernel.h``.
+* ``template`` is the application template that a product copies (specification section 7.5). It
+  may include ISO C headers, the interface headers, public ``<crux/NAME.h>`` headers and headers of
+  its own tree, and nothing else: no Zephyr header, no Sockets profile, no frozen Crux header and no
+  Crux composition interface. A ``<crux/NAME_zephyr.h>`` or ``<crux/NAME_linux.h>`` header fails
+  by its name (``COMPOSITION_NAME``), listed in ``COMPOSITION_CRUX_HEADERS`` or not, so the rule
+  holds without ``--crux-root``. ``scripts/check_template.py`` checks the template's build files.
+
 ``app/src`` may include the interface headers and the headers of ``framework/src``, because
 the configurations built on the workload compose the framework services that moved into the
 module. The other trees of ``app`` and the workload may include neither.
 
-A C or C++ source or header file under ``app``, ``framework``, ``include`` or ``zephyr`` that no rule covers
+A C or C++ source or header file under ``app``, ``framework``, ``include``, ``zephyr``, the fixture
+application or the template that no rule covers
 fails, so a source of the module cannot escape the check by its place (``MODULE_TREES``).
 
 ``app/src`` and ``app/os`` also fail on the three frozen Crux headers, ``crux/thread.h``,
@@ -141,6 +152,12 @@ COMPOSITION_CRUX_HEADERS = frozenset(
 
 CRUX_PUBLIC = re.compile(r"^crux/[A-Za-z0-9_]+\.h$")
 
+# A Crux composition interface by its name: <crux/NAME_zephyr.h> or <crux/NAME_linux.h>, the names of
+# the composition interfaces of Crux's providers (Crux templates/product/README.md at the pin, "Zones
+# and the domain include check"). A rule with deny_composition_names fails on any of them, whether
+# COMPOSITION_CRUX_HEADERS lists it or not.
+COMPOSITION_NAME = re.compile(r"^crux/[A-Za-z0-9_]+_(?:zephyr|linux)\.h$")
+
 # The interface headers of the framework: <controller/NAME.h>, one level, each a file of
 # include/controller in this repository. A rule names whether its tree may include them.
 FRAMEWORK_API_ROOT = "include"
@@ -152,7 +169,10 @@ FRAMEWORK_API = re.compile(r"^controller/[A-Za-z0-9_]+\.h$")
 # it may include for its threads.
 FIXTURE_ROOT = "tests/framework/fixture"
 FIXTURE_ZEPHYR_HEADERS = frozenset({"zephyr/kernel.h"})
-MODULE_TREES = ("app", "framework", FRAMEWORK_API_ROOT, "zephyr", FIXTURE_ROOT)
+# The application template (specification section 7.5): every file of the folder is a template
+# source, its tests included.
+TEMPLATE_ROOT = "template"
+MODULE_TREES = ("app", "framework", FRAMEWORK_API_ROOT, "zephyr", FIXTURE_ROOT, TEMPLATE_ROOT)
 SOURCE_SUFFIXES = frozenset(
     ".c .h .inc .cc .cpp .cxx .hh .hpp .hxx .s .S".split()
 )
@@ -177,6 +197,8 @@ class Rule:
     deny_crux: frozenset = frozenset()
     # True: the tree may include the interface headers of the framework, <controller/NAME.h>.
     framework_api: bool = False
+    # True: every <crux/NAME_zephyr.h> and <crux/NAME_linux.h> fails by its name (COMPOSITION_NAME).
+    deny_composition_names: bool = False
 
 
 RULES = (
@@ -270,6 +292,18 @@ RULES = (
         zephyr_allow=FIXTURE_ZEPHYR_HEADERS,
         deny_crux=FROZEN_CRUX_HEADERS,
         framework_api=True,
+    ),
+    # The application template (specification sections 7.3 and 7.5, criterion 48): the rules of a
+    # product's main(), ISO C, the interface headers and public Crux headers, and nothing that holds
+    # framework or composition logic. No Zephyr header, so a copy starts with no OS call in its
+    # sources; a product that adds threads changes its own rules.
+    Rule(
+        TEMPLATE_ROOT,
+        allow_sockets=False,
+        allow_crux=True,
+        deny_crux=FROZEN_CRUX_HEADERS,
+        framework_api=True,
+        deny_composition_names=True,
     ),
 )
 
@@ -398,6 +432,8 @@ def classify(
                 "frozen Crux header (Thread, Sync and Serial are not used by the product): "
                 "use Zephyr directly in app/os behind a port header of app/src"
             )
+        if rule.deny_composition_names and COMPOSITION_NAME.match(include):
+            return "Crux composition interface (<crux/NAME_zephyr.h> or <crux/NAME_linux.h>), not for this tree"
         known_composition = COMPOSITION_CRUX_HEADERS | (composition_headers or set())
         if include in known_composition:
             if include not in rule.composition_crux:

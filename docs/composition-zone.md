@@ -220,7 +220,8 @@ passes the shape test, as any unknown `<crux/NAME.h>` does (see [Running the che
 ## The trees of the framework module
 
 The controller framework is a Zephyr module of this repository (`zephyr/module.yml`). Its sources live in four
-checked trees, each with a rule of its own in `RULES`, and the fixture application of its scenarios has a fifth:
+checked trees, each with a rule of its own in `RULES`. The fixture application of its scenarios has a fifth and the
+application template a sixth (both below):
 
 | Tree | Holds | May include |
 |---|---|---|
@@ -245,7 +246,18 @@ A header of the framework's source trees, a composition interface, the Sockets p
 fail. The scenarios' own sources beside it (`tests/framework/<scenario>/src`) are tests and have no rule.
 `tests/tooling/test_boundary.py` (`FixtureApplication`) checks both sides.
 
-A C or C++ source or header under `app/`, `framework/`, `include/`, `zephyr/` or `tests/framework/fixture/` that lies in none of the checked trees fails
+### The application template
+
+The application template (`template/`, specification section 7.5) has a rule of its own, because criterion 48 asks
+that the boundary check cover the template folder and that a copy start with no framework logic. Every file of the
+folder is a template source, its tests included. It may include ISO C headers, `<controller/NAME.h>`, public
+`<crux/NAME.h>` headers except the frozen three and its own tree. Every Zephyr header, the Sockets profile, a header of
+another tree of this repository and every Crux composition interface fail. A `<crux/NAME_zephyr.h>` or
+`<crux/NAME_linux.h>` header fails by its name (`COMPOSITION_NAME`), so the rule holds without `--crux-root`.
+`tests/tooling/test_boundary.py` (`TemplateApplication`) checks it. `scripts/check_template.py` checks the template's
+build files: they add no source or include path from outside the folder.
+
+A C or C++ source or header under `app/`, `framework/`, `include/`, `zephyr/`, `tests/framework/fixture/` or `template/` that lies in none of the checked trees fails
 the check (`MODULE_TREES` in `scripts/check_boundary.py`), so a source cannot escape the rules by its place. Build
 files, the web assets of `framework/management/` and the data files of `app/conf/` and `app/boards/` are not
 sources. The allow-lists of the zones are those above, and the module's adapter zone adds the headers of the next section.
