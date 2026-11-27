@@ -53,7 +53,7 @@ class ManifestIsOptionA(unittest.TestCase):
     def test_every_pinned_crux_link_of_the_readme_uses_the_manifest_revision(self):
         revision = load_manifest()["projects"][0]["revision"]
         text = (ROOT / "README.md").read_text()
-        links = re.findall(r"github\.com/wonny-labs/crux-pilot/blob/([0-9a-f]{40})/", text)
+        links = re.findall(r"github\.com/wonny-labs/crux/blob/([0-9a-f]{40})/", text)
         self.assertTrue(links, "README.md has no pinned Crux link")
         self.assertEqual({revision}, set(links))
 
