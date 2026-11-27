@@ -39,6 +39,12 @@ build configurations by their earlier step ids, S0 to S6.
   development only: web management on the host's `127.0.0.1` port 8443, the serial command line on a
   pseudo-terminal, and the store in a host file (`docs/native-sim-interactive.md`). The `base` job runs it as the
   Twister scenario `controller.framework.native_sim.interactive`.
+- The framework has a version, `0.1.0-dev`: the next planned release with `-dev`, as Crux's `main` carries.
+  `<controller/version.h>` is the only place it is kept, with Semantic Versioning macros
+  (`CONTROLLER_VERSION_MAJOR` to `CONTROLLER_VERSION_STRING`), and `tests/tooling/test_version.py` fails when
+  the parts and the string disagree. It is not an image version; no tag exists.
+- The versioning and release rules are in [CONTRIBUTING.md](CONTRIBUTING.md#versions-releases-and-tags) and
+  [RELEASE.md](RELEASE.md#versions). No compatibility effect.
 
 ### Capability names
 

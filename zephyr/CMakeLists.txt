@@ -1,14 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # The controller framework as a Zephyr module. With CONFIG_CRUX_CONTROLLER_FRAMEWORK on it builds:
-#   - controller::framework, an interface target that gives the interface header of
-#     include/ (<controller/framework.h>), and that an image links to its target app;
+#   - controller::framework, an interface target that gives the interface headers of
+#     include/ (<controller/framework.h>, <controller/version.h>), and that an image links to its
+#     target app;
 #   - the library controller_framework, with the portable core (framework/src) and the
 #     sources of the adapter zone (framework/os) of the services the build turns on;
 #   - the library compose of the composition zone (framework/compose), linked by the framework
 #     library only, so that no other target gets the composition interfaces of Crux.
 # The boundary check (scripts/check_boundary.py) reads the includes of these trees; this file adds
-# no include path to them beyond the interface header, and a source includes the headers of the
+# no include path to them beyond the interface headers, and a source includes the headers of the
 # core with a relative quoted path.
 #
 # controller_framework_image() is defined whatever the configuration, and an image calls it

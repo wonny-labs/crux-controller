@@ -224,7 +224,7 @@ checked trees, each with a rule of its own in `RULES`:
 
 | Tree | Holds | May include |
 |---|---|---|
-| `include` | The interface header `<controller/framework.h>`, which a product includes | ISO C, public `<crux/NAME.h>` headers except the frozen three, its own tree |
+| `include` | The interface headers `<controller/framework.h>` and `<controller/version.h>`, which a product includes | ISO C, public `<crux/NAME.h>` headers except the frozen three, its own tree |
 | `framework/src` | The portable core: the startup sequence and the start function, the time synchronisation glue and policy, the management policy and the port headers | ISO C, public `<crux/NAME.h>` headers except the frozen three, its own tree, `<controller/NAME.h>`; no Zephyr header and no Sockets profile |
 | `framework/compose` | The composition zone of the module: the storage mount, the start of web management and the start of the serial command line | the rule of `app/compose`, with header files (`.h`) of `framework/src` in place of those of `app/src` |
 | `framework/os` | The adapter zone of the module: the SNTP query and its thread | the rule of `app/os`, with header files (`.h`) of `framework/src` in place of those of `app/src` |
