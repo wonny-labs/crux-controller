@@ -191,13 +191,13 @@ class Reviewed(unittest.TestCase):
     """Cases that an independent review of the boundary check asked for."""
 
     def test_crux_private_path_fails(self):
-        files = {"app/src/main.c": '#include "../../crux-pilot/components/time/src/x.h"\n'}
-        self.assertEqual(["../../crux-pilot/components/time/src/x.h"], reasons(run(files)))
+        files = {"app/src/main.c": '#include "../../crux/components/time/src/x.h"\n'}
+        self.assertEqual(["../../crux/components/time/src/x.h"], reasons(run(files)))
 
     def test_private_path_fails_even_when_the_file_exists_outside_the_tree(self):
         files = {
-            "app/src/main.c": '#include "../../crux-pilot/components/time/src/x.h"\n',
-            "crux-pilot/components/time/src/x.h": "",
+            "app/src/main.c": '#include "../../crux/components/time/src/x.h"\n',
+            "crux/components/time/src/x.h": "",
         }
         self.assertEqual(1, len(run(files)))
 
@@ -373,15 +373,15 @@ class CompositionZone(unittest.TestCase):
             ('#include "file_native.h"\n', "file_native.h"),
             ("#include <file_native.h>\n", "file_native.h"),
             ("#include <crux/ports/zephyr/file_native.h>\n", "crux/ports/zephyr/file_native.h"),
-            ('#include "../../crux-pilot/components/file/ports/zephyr/file_native.h"\n',
-             "../../crux-pilot/components/file/ports/zephyr/file_native.h"),
+            ('#include "../../crux/components/file/ports/zephyr/file_native.h"\n',
+             "../../crux/components/file/ports/zephyr/file_native.h"),
         ):
             self.assertEqual([name], reasons(self.in_zone(text)), text)
 
     def test_a_private_header_fails_even_when_it_exists_outside_the_tree(self):
         files = {
-            "app/compose/mount.c": '#include "../../crux-pilot/components/file/src/file_port.h"\n',
-            "crux-pilot/components/file/src/file_port.h": "",
+            "app/compose/mount.c": '#include "../../crux/components/file/src/file_port.h"\n',
+            "crux/components/file/src/file_port.h": "",
         }
         self.assertEqual(1, len(run(files)))
 

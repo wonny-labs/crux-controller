@@ -1856,10 +1856,10 @@ class ManagementStepNote(unittest.TestCase):
 
     def test_west_yml_changed_in_comments_only(self):
         data = yaml.safe_load((ROOT / "west.yml").read_text())["manifest"]
-        crux = next(p for p in data["projects"] if p["name"] == "crux-pilot")
+        crux = next(p for p in data["projects"] if p["name"] == "crux")
         self.assertEqual(self.PIN, crux["revision"])
         self.assertEqual({"name-blocklist": ["wolfssl", "wolfssh", "wolfpsa"]}, crux["import"])
-        self.assertEqual(["crux-pilot", "picolibc"], [p["name"] for p in data["projects"]])
+        self.assertEqual(["crux", "picolibc"], [p["name"] for p in data["projects"]])
 
 
 class ManagementFindings(unittest.TestCase):

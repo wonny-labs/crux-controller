@@ -13,7 +13,7 @@ there and file modes can differ. Clone with `git clone -c core.autocrlf=false` i
 could reach the clone, because CRLF line ends break the shell scripts (see
 [troubleshooting.md](troubleshooting.md)). CI runs on x86_64 only.
 
-- A west workspace. The repository is the west manifest repository: it imports `crux-pilot` at a pinned
+- A west workspace. The repository is the west manifest repository: it imports `crux` at a pinned
   commit, which brings Zephyr and the Zephyr modules, and adds the test-only project `picolibc` for the `net`
   scenario (the `sntp` scenario's `prj.conf` also selects it). `docs/dependencies.md` explains the manifest and
   the pin, and the pin section of [CONTRIBUTING.md](../CONTRIBUTING.md) explains how it moves.
@@ -141,7 +141,7 @@ entropy is a fake source) or a browser.
 Case 4 connects a control client with a TLS 1.3 suite first, and then a client with only a TLS 1.2 suite, which must fail
 with an errno that is neither a refused connection nor a timeout. A refusal on the client side cannot be fully excluded in one
 process, because the client and the server share the TLS library, the credentials and the clock. Crux's own check of the
-version refusal uses `openssl s_client` against its listener (`docs/https-composition.md` in `crux-pilot`, "Checked on the
+version refusal uses `openssl s_client` against its listener (`docs/https-composition.md` in Crux, "Checked on the
 wire"), and this case does not replace it.
 
 The scenarios that this command finds, by their ids in the `testcase.yaml` files:
@@ -209,13 +209,13 @@ python scripts/check_boundary.py
 
 A pass ends the test run with `Ran <n> tests` and `OK`, and the check prints `boundary check passed`.
 
-CI runs a stronger form of the boundary check, against the headers of the pinned `crux-pilot`, and a second
-check from `crux-pilot`. From the workspace directory:
+CI runs a stronger form of the boundary check, against the headers of the pinned Crux, and a second
+check from Crux. From the workspace directory:
 
 ```bash
 cd ~/crux-ws
-python crux-controller/scripts/check_boundary.py --repo crux-controller --crux-root crux-pilot
-python crux-pilot/templates/product/check_domain_includes.py --product crux-controller
+python crux-controller/scripts/check_boundary.py --repo crux-controller --crux-root crux
+python crux/templates/product/check_domain_includes.py --product crux-controller
 ```
 
 Run from the wrong directory, `check_boundary.py` finds none of its trees and fails with status 2 and a message;

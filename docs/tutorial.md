@@ -43,11 +43,11 @@ bash scripts/dev-shell.sh bash -c 'cmake -S tests/host -B build/host-asan -G Nin
 ### 2. Tooling tests and the boundary check
 
 The tooling tests read the repository's scripts, workflows, build files and documents. The boundary check
-checks the include rules of the source trees against the headers of the pinned `crux-pilot`:
+checks the include rules of the source trees against the headers of the pinned Crux:
 
 ```bash
 bash scripts/dev-shell.sh python -m unittest discover -s tests/tooling
-bash scripts/dev-shell.sh python scripts/check_boundary.py --crux-root ../crux-pilot
+bash scripts/dev-shell.sh python scripts/check_boundary.py --crux-root ../crux
 ```
 
 The tests end with `Ran <n> tests in <t>s` and `OK` (or `OK (skipped=<m>)`), and the check prints

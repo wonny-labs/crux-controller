@@ -160,10 +160,10 @@ env = { BOARD = "mimxrt1060_evk@B//qspi" }
 [jobs.release]
 description = "Release dry run (publishes nothing)"
 env = { BOARD = "mimxrt1060_evk@B//qspi", PRODUCT_VERSION = "0.1.0+1", SECURITY_COUNTER = "0", RELEASE_TAG = "v0.1.0" }
-# Information only: the net build against the current main of crux-pilot. It rewrites the crux-pilot
+# Information only: the net build against the current main of Crux. It rewrites the crux
 # revision in the working copy of west.yml, commits nothing and publishes nothing.
 [jobs.scheduled-main]
-description = "net build against crux-pilot main"
+description = "net build against Crux main"
 env = { BOARD = "mimxrt1060_evk@B//qspi" }
 # The product integration check: the fixture product of tests/product_integration imports this
 # repository at the commit under test into a west workspace of its own, builds on native_sim and
@@ -214,7 +214,7 @@ run = '''
 cd ..
 set -o pipefail
 west crux-pins | tee pins.txt
-grep -q '^CONTRACT crux-pilot ' pins.txt
+grep -q '^CONTRACT crux ' pins.txt
 if grep -q '^MISMATCH' pins.txt; then
   echo "unexpected MISMATCH" >&2
   exit 1
@@ -266,7 +266,7 @@ import yaml
 path = "crux-controller/west.yml"
 data = yaml.safe_load(open(path))
 for project in data["manifest"]["projects"]:
-    if project["name"] == "crux-pilot":
+    if project["name"] == "crux":
         project["import"] = True
 yaml.safe_dump(data, open(path, "w"), sort_keys=False)
 PY
@@ -922,7 +922,7 @@ done
 scope = "always"
 
 # --- boundary ------------------------------------------------------------------------------------
-# scripts/ci/prepare-job.sh fetches crux-pilot at the pinned commit. The job env of the workflow
+# scripts/ci/prepare-job.sh fetches Crux at the pinned commit. The job env of the workflow
 # (or, without it, scripts/include-check-pins.json) gives CHECK_COMMIT, CHECK_SHA256, KIT_COMMIT,
 # CHECKER_SHA256 and WRAPPER_SHA256.
 
@@ -931,12 +931,12 @@ id = "boundary-check"
 job = "boundary"
 run = '''
 cd ..
-python crux-controller/scripts/check_boundary.py --repo crux-controller --crux-root crux-pilot
+python crux-controller/scripts/check_boundary.py --repo crux-controller --crux-root crux
 '''
 scope = "always"
 fast = ["product", "management"]
 
-# The crux-pilot revision pinned in west.yml contains the same script with the same hash.
+# The Crux revision pinned in west.yml contains the same script with the same hash.
 # This check downloads it from an immutable commit and checks it against that hash; the Dev
 # container job checks and runs the pinned copy, and a test compares the two hashes.
 [[check]]
@@ -946,17 +946,17 @@ run = '''
 set -euo pipefail
 script="$(mktemp -d)/check_domain_includes.py"
 curl --fail --silent --show-error --location --retry 3 --output "$script" \
-  "https://raw.githubusercontent.com/wonny-labs/crux-pilot/${CHECK_COMMIT}/templates/product/check_domain_includes.py"
+  "https://raw.githubusercontent.com/wonny-labs/crux/${CHECK_COMMIT}/templates/product/check_domain_includes.py"
 echo "${CHECK_SHA256}  ${script}" | sha256sum --check --strict -
 python3 "$script" --product .
 '''
 scope = "always"
 fast = ["product", "management"]
 
-# The style kit of crux-pilot (templates/product/style) wraps the same checker. This check
+# The style kit of Crux (templates/product/style) wraps the same checker. This check
 # runs the kit's own wrapper, so that a change of the wrapper or of the layout it expects
 # shows up here. Both files come from an immutable commit and are checked against their
-# hashes, laid out as in crux-pilot: the wrapper in style/, the checker beside that folder.
+# hashes, laid out as in Crux: the wrapper in style/, the checker beside that folder.
 [[check]]
 id = "kit-include-check"
 job = "boundary"
@@ -964,7 +964,7 @@ run = '''
 set -euo pipefail
 kit="$(mktemp -d)/style-kit"
 mkdir -p "$kit/style"
-base="https://raw.githubusercontent.com/wonny-labs/crux-pilot/${KIT_COMMIT}/templates/product"
+base="https://raw.githubusercontent.com/wonny-labs/crux/${KIT_COMMIT}/templates/product"
 curl --fail --silent --show-error --location --retry 3 \
   --output "$kit/check_domain_includes.py" "$base/check_domain_includes.py"
 curl --fail --silent --show-error --location --retry 3 \
@@ -1162,7 +1162,7 @@ done
 # channel has a callback in framework/os/supervisor_zephyr.c, which also refuses the fallback at build
 # time), no start without a watchdog, no fault injection, no retention mutex that the fatal error
 # handler would take, and a timeout T inside the range of Crux System on this board: 500 to 64000 ms
-# in steps of 500 ms (crux-pilot components/system/ports/zephyr/system_zephyr.c at the pin). The TLS
+# in steps of 500 ms (Crux components/system/ports/zephyr/system_zephyr.c at the pin). The TLS
 # identity option of section 7.1 does not exist yet.
 for option in CONFIG_TASK_WDT_HW_FALLBACK=y CONFIG_CRUX_CONTROLLER_START_WITHOUT_WATCHDOG=y \
     CONFIG_CRUX_CONTROLLER_FRAMEWORK_FAULT_INJECTION=y CONFIG_RETENTION_MUTEXES=y \
@@ -1271,9 +1271,9 @@ fast = ["product", "management", "host-tests", "scenarios"]
 
 # --- patch-style ---------------------------------------------------------------------------------
 # Zephyr's checkpatch.pl (rule BRACES) on the C lines that the change adds, as the style kit of
-# crux-pilot does for a product repository (scripts/check-patch.sh is its copy). Zephyr is not a
-# project of this manifest: it comes through the crux-pilot import, and west refuses to update
-# it by name. The first check lets west update crux-pilot, reads the Zephyr commit that the Crux
+# Crux does for a product repository (scripts/check-patch.sh is its copy). Zephyr is not a
+# project of this manifest: it comes through the crux import, and west refuses to update
+# it by name. The first check lets west update crux, reads the Zephyr commit that the Crux
 # manifest names, and fetches only that commit. The second check runs the script with that
 # checkout on the lines changed since the commit that scripts/ci/run-tier.sh compared the change
 # with (scripts/ci/check-patch-range.sh).
@@ -1286,7 +1286,7 @@ set -euo pipefail
 cd ..
 workspace="$PWD"
 west init -l crux-controller
-west update crux-pilot
+west update crux
 # The Crux import of Zephyr may not resolve until a full update has run. Then the plain
 # update of the other jobs is the fallback: heavier, and known to work here.
 if ! rev=$(west list -f '{revision}' zephyr 2>/dev/null); then
@@ -1523,12 +1523,12 @@ run = '''
 cd ..
 crux-controller/scripts/dev-shell.sh bash -c '
   cd /workspaces/ws
-  python crux-controller/scripts/check_boundary.py --repo crux-controller --crux-root crux-pilot
+  python crux-controller/scripts/check_boundary.py --repo crux-controller --crux-root crux
 '
 '''
 scope = "devcontainer"
 
-# The pinned crux-pilot contains this script. The product-include-check of the Boundary job
+# The pinned Crux contains this script. The product-include-check of the Boundary job
 # downloads the same file from a commit URL and checks this hash; here the copy of the pin is
 # checked against it and run. A test compares the hash with the one of ci.yml.
 [[check]]
@@ -1537,11 +1537,11 @@ job = "devcontainer"
 run = '''
 cd ..
 set -euo pipefail
-script="$PWD/crux-pilot/templates/product/check_domain_includes.py"
+script="$PWD/crux/templates/product/check_domain_includes.py"
 echo "${CHECK_SHA256}  ${script}" | sha256sum --check --strict -
 crux-controller/scripts/dev-shell.sh bash -c '
   cd /workspaces/ws/crux-controller
-  python3 /workspaces/ws/crux-pilot/templates/product/check_domain_includes.py --product .
+  python3 /workspaces/ws/crux/templates/product/check_domain_includes.py --product .
 '
 '''
 scope = "devcontainer"
@@ -1734,7 +1734,7 @@ west init -l crux-controller
 west update
 set -o pipefail
 west crux-pins | tee pins-report.txt
-grep -q '^CONTRACT crux-pilot ' pins-report.txt
+grep -q '^CONTRACT crux ' pins-report.txt
 if grep -q '^MISMATCH' pins-report.txt; then
   echo "unexpected MISMATCH" >&2
   exit 1
@@ -1789,7 +1789,7 @@ run = '''
 FRESH="${RUNNER_TEMP:-/tmp}/release-workspace"
 cd "$FRESH"
 export ZEPHYR_BASE="$FRESH/zephyr"
-python crux-pilot/scripts/record-build-provenance.py --repo crux-controller \
+python crux/scripts/record-build-provenance.py --repo crux-controller \
   --workspace . --capture-inputs crux-controller/build/inputs.json
 west spdx --init -d crux-controller/build/net
 west build -p always -b "$BOARD" -d crux-controller/build/net \
@@ -1798,7 +1798,7 @@ west build -p always -b "$BOARD" -d crux-controller/build/net \
   "-DEXTRA_DTC_OVERLAY_FILE=boards/net.overlay"
 west build -d crux-controller/build/net -t rom_report
 west build -d crux-controller/build/net -t ram_report
-python crux-pilot/scripts/record-build-provenance.py --repo crux-controller \
+python crux/scripts/record-build-provenance.py --repo crux-controller \
   --workspace . --build-dir crux-controller/build/net --target "$BOARD" \
   --inputs crux-controller/build/inputs.json
 west spdx -d crux-controller/build/net
@@ -1882,9 +1882,9 @@ echo "No tag, no GitHub Release, no uploaded artefact, no flash or hardware comm
 scope = "release"
 
 # --- scheduled-main ------------------------------------------------------------------------------
-# A daily build against the current main of crux-pilot. It answers one question: does this
+# A daily build against the current main of Crux. It answers one question: does this
 # product still build and still satisfy the contract when Crux moves on? The pinned build stays
-# the gate for pull requests; this job is information only. It rewrites the crux-pilot revision in
+# the gate for pull requests; this job is information only. It rewrites the crux revision in
 # a working copy of west.yml, commits nothing, publishes nothing and uploads no artefact. A pin
 # mismatch caused by Crux moving its own pins is reported in the job summary. A build failure fails
 # the job.
@@ -1901,12 +1901,12 @@ import yaml
 path = "crux-controller/west.yml"
 data = yaml.safe_load(open(path))
 for project in data["manifest"]["projects"]:
-    if project["name"] == "crux-pilot":
+    if project["name"] == "crux":
         print("pinned revision was", project["revision"])
         project["revision"] = "main"
         break
 else:
-    raise SystemExit("west.yml has no crux-pilot project")
+    raise SystemExit("west.yml has no crux project")
 yaml.safe_dump(data, open(path, "w"), sort_keys=False)
 PY
 '''
@@ -1921,9 +1921,9 @@ west init -l crux-controller
 west update
 python -m pip install -r zephyr/scripts/requirements-base.txt
 {
-  echo "## Scheduled build against crux-pilot main"
+  echo "## Scheduled build against Crux main"
   echo
-  echo "crux-pilot resolved to \`$(git -C crux-pilot rev-parse HEAD)\`."
+  echo "crux resolved to \`$(git -C crux rev-parse HEAD)\`."
   echo "The pinned build in ci.yml is the pull request gate. This run is information."
   echo
 } >> "${GITHUB_STEP_SUMMARY:-/dev/stdout}"
@@ -1943,7 +1943,7 @@ west crux-pins > pins.txt 2>&1
 status=$?
 set -e
 cat pins.txt
-grep -q '^CONTRACT crux-pilot ' pins.txt || {
+grep -q '^CONTRACT crux ' pins.txt || {
   echo "no CONTRACT line in the west crux-pins output" >&2
   exit 1
 }
@@ -1956,7 +1956,7 @@ grep -q '^CONTRACT crux-pilot ' pins.txt || {
   echo
 } >> "${GITHUB_STEP_SUMMARY:-/dev/stdout}"
 if grep -q '^MISMATCH' pins.txt; then
-  echo "::warning::west crux-pins reports MISMATCH against crux-pilot main. See the job summary."
+  echo "::warning::west crux-pins reports MISMATCH against Crux main. See the job summary."
   echo "**MISMATCH reported.** Crux main moved a pin that this product does not follow yet." >> "${GITHUB_STEP_SUMMARY:-/dev/stdout}"
 fi
 '''

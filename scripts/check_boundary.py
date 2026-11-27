@@ -87,7 +87,7 @@ ISO_C = frozenset(
     "time.h uchar.h wchar.h wctype.h".split()
 )
 
-# The headers that docs/networking-contract.md of crux-pilot lists for the profile,
+# The headers that docs/networking-contract.md of Crux lists for the profile,
 # besides ISO C.
 SOCKET_PROFILE = frozenset(
     "sys/socket.h netinet/in.h arpa/inet.h poll.h fcntl.h unistd.h errno.h time.h".split()
@@ -121,7 +121,7 @@ FRAMEWORK_OS_ZEPHYR_HEADERS = OS_ADAPTER_ZEPHYR_HEADERS | frozenset(
 )
 
 # The public Crux headers that the product no longer uses. Threads and queues come from Zephyr
-# directly, in app/os behind a port header of app/src (ADR-0002 of crux-pilot), so app/src and
+# directly, in app/os behind a port header of app/src (ADR-0002 of Crux), so app/src and
 # app/os fail on these headers and the migration cannot be undone silently. Crux removed
 # crux/queue.h, so it is not listed: --crux-root refuses it as a name that Crux does not publish.
 # Adding or removing a name is a reviewed change of this file and of tests/tooling/test_boundary.py.
@@ -476,7 +476,7 @@ def main(argv=None):
     parser.add_argument("--repo", default=".", help="repository root (default: current directory)")
     parser.add_argument(
         "--crux-root",
-        help="crux-pilot checkout; when given, <crux/NAME.h> must be one of its public headers",
+        help="Crux checkout; when given, <crux/NAME.h> must be one of its public headers",
     )
     args = parser.parse_args(argv)
     repo = pathlib.Path(args.repo)

@@ -56,7 +56,7 @@ class FixtureProduct(unittest.TestCase):
         self.assertIs(True, projects["crux-controller"]["import"])
         self.assertEqual("product", manifest["self"]["path"])
         # Crux comes through the import, at the pin of this repository, with its narrowed import.
-        self.assertNotIn("crux-pilot", projects)
+        self.assertNotIn("crux", projects)
         self.assertNotIn("group-filter", manifest)
 
     def test_the_remote_of_the_project_is_the_one_of_this_repository(self):

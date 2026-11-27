@@ -405,7 +405,7 @@ jobs:
     runs-on: ubuntu-24.04
     env:
       # The pins of the Crux product include check and of the style kit wrapper, from an immutable
-      # commit of crux-pilot. scripts/check_include_domains.py reads them here, and
+      # commit of Crux. scripts/check_include_domains.py reads them here, and
       # scripts/include-check-pins.json is their copy for a checkout without .github/.
       CHECK_COMMIT: cd66b9e5a2f90009e7f4b5de9f6f3bb4efc5b3ea
       CHECK_SHA256: 1e19b0aa3e300cfe7a542a06fe348343ad0963883ca822d7d1355be1af6b1e37

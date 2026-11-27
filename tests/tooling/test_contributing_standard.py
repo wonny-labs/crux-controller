@@ -23,7 +23,7 @@ import check_spdx  # noqa: E402
 import ci_map  # noqa: E402
 
 PLATFORM_GUIDELINES = (
-    "https://github.com/wonny-labs/crux-pilot/blob/"
+    "https://github.com/wonny-labs/crux/blob/"
     "751e04aead779ac08e438ec1e2640e57fc50e9fe/docs/coding-guidelines.md"
 )
 HEADING = "## Static analysis and coding standard"

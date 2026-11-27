@@ -106,10 +106,10 @@ class PatchStyleJob(CannotBeSilenced):
         runs = "\n".join(s.get("run", "") for s in job["steps"]) + "\n" + ci_map.commands("patch-style")
         self.assertIn("west init -l crux-controller", runs)
         # west refuses to update a project that comes through an import, so Zephyr is not
-        # updated by name: west updates crux-pilot, and the job fetches only the commit that the
+        # updated by name: west updates crux, and the job fetches only the commit that the
         # Crux manifest names for Zephyr.
         self.assertNotRegex(runs, r"west update zephyr\b")
-        self.assertRegex(runs, r"west update crux-pilot\b")
+        self.assertRegex(runs, r"west update crux(?![-\w])")
         self.assertIn("west==1.4.0", runs)
 
     def fetch_step(self):
@@ -251,7 +251,7 @@ class PatchStyleJob(CannotBeSilenced):
         result, zephyr, log = self.run_fetch()
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
         self.assertTrue((zephyr / "scripts" / "checkpatch.pl").is_file())
-        self.assertIn("west update crux-pilot", log)
+        self.assertRegex(log, r"west update crux(?![-\w])")
         self.assertNotIn("west update zephyr", log)
         self.assertNotRegex(log, r"(?m)^west update$")
 
@@ -359,7 +359,7 @@ class PatchStyleJob(CannotBeSilenced):
 
 @ci_map.needs_tomllib
 class KitIncludeStep(CannotBeSilenced):
-    """The include check as the crux-pilot style kit wraps it, from an immutable commit."""
+    """The include check as the Crux style kit wraps it, from an immutable commit."""
 
     NAME = "kit-include-check"
 
@@ -371,7 +371,7 @@ class KitIncludeStep(CannotBeSilenced):
         self.assertRegex(step["env"]["KIT_COMMIT"], r"^[0-9a-f]{40}$")
         run = step["run"]
         self.assertIn(
-            "https://raw.githubusercontent.com/wonny-labs/crux-pilot/${KIT_COMMIT}/templates/product",
+            "https://raw.githubusercontent.com/wonny-labs/crux/${KIT_COMMIT}/templates/product",
             run,
         )
         self.assertIn("/check_domain_includes.py", run)
@@ -406,7 +406,7 @@ class KitIncludeStep(CannotBeSilenced):
 
     def test_the_existing_boundary_steps_are_still_there(self):
         runs = ci_map.commands("boundary")
-        self.assertIn("check_boundary.py --repo crux-controller --crux-root crux-pilot", runs)
+        self.assertRegex(runs, r"check_boundary\.py --repo crux-controller --crux-root crux(?![-\w])")
         self.assertIn('python3 "$script" --product .', runs)
 
     # The step text runs for real with a curl that serves local stand-ins.

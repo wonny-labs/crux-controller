@@ -89,7 +89,7 @@ health_status_t health_cause_text(uint32_t causes, char *buffer, size_t capacity
 
 /*
  * The watchdog interval that Crux System supports on the RT1060-EVKB: 500 ms to 64000 ms in steps
- * of 500 ms (crux-pilot components/system/ports/zephyr/system_zephyr.c at the pinned revision).
+ * of 500 ms (Crux components/system/ports/zephyr/system_zephyr.c at the pinned revision).
  * The product never goes below 2000 ms.
  */
 #define HEALTH_WATCHDOG_MIN_MS 2000u
