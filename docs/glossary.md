@@ -249,6 +249,7 @@ that list, and it states a rule for some of the files and none for the others. O
 
 **Operator.** The person who runs a board procedure on a bench, under the owner's approval for that task. The
 `net` board-run note uses the word for the person who ran the reviewed driver.
+The [controller framework specification](design/controller-framework-spec.md#10-terms) uses the word in another sense: a person who uses device management after an Access login.
 
 **Bench.** The physical setup of a board run: the board, its probe and UART adapter, the Ethernet cable and the
 host peer. "Two runs on one bench" means the same board and the same setup both times.

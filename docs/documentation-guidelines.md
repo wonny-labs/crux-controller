@@ -42,8 +42,8 @@ In [CommonMark](https://spec.commonmark.org/0.31.2/#paragraphs) a blank line end
 | Entry | [README](../README.md), [documentation map](README.md), [Getting started](getting-started.md) |
 | Tutorial | [Tutorial](tutorial.md), [First change](first-change.md) |
 | How-to guide | [Set up without the Dev Container](native-setup.md), [Adding a capability](adding-a-capability.md), [Board bring-up](board-bring-up.md) |
-| Reference | [Troubleshooting](troubleshooting.md), [Dev Container](dev-container.md), [Dependencies](dependencies.md), [Composition zone](composition-zone.md), [Roadmap](roadmap.md), [Glossary](glossary.md), [CONTRIBUTING](../CONTRIBUTING.md), [RELEASE](../RELEASE.md), [SECURITY](../SECURITY.md) |
-| Explanation | [Architecture](architecture.md), [Reviewing](reviewing.md) |
+| Reference | [Troubleshooting](troubleshooting.md), [Dev Container](dev-container.md), [Dependencies](dependencies.md), [Composition zone](composition-zone.md), [Roadmap](roadmap.md), [Glossary](glossary.md), [CONTRIBUTING](../CONTRIBUTING.md), [RELEASE](../RELEASE.md), [SECURITY](../SECURITY.md), [Controller framework specification](design/controller-framework-spec.md), [Controller framework platform gaps](design/controller-framework-platform-gaps.md), [Controller framework threat model](design/controller-framework-threat-model.md) |
+| Explanation | [Architecture](architecture.md), [Reviewing](reviewing.md), [Controller framework](design/controller-framework.md) |
 | Dated | [Findings](findings/README.md), [history](history/README.md), [CHANGELOG](../CHANGELOG.md): one activity with its date, revision and limits, never the only home of a current fact |
 
 Each fact has one home; other pages link to it.
