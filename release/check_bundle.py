@@ -7,6 +7,8 @@ The check stops publication when the bundle
 * has no valid ``release-manifest.json`` (schema in release-manifest.schema.json);
 * holds an image, ``.elf``, ``.map`` or similar file, or any file that starts like an ELF;
 * lists hashes that do not match its items, or holds an item the manifest does not list;
+* lists SPDX hashes (``spdx_hashes``) that do not match the ``.spdx`` files of the folder given
+  with ``--spdx-dir``, or misses one of those files (specification criterion 35);
 * has an item that is not plain UTF-8 text, that holds the image's own bytes, an Intel HEX or
   S-record dump, or an archive (every bundle item is text, so anything else is refused);
 * has an item with an absolute path of a build machine or one of the private strings.
@@ -58,6 +60,12 @@ def validate(value, schema, where, problems):
                 problems.append(f"{where}: {name} is required")
         properties = schema.get("properties", {})
         extra = schema.get("additionalProperties", True)
+        if "minProperties" in schema and len(value) < schema["minProperties"]:
+            problems.append(f"{where}: needs at least {schema['minProperties']} entries")
+        names = schema.get("propertyNames")
+        for name in value:
+            if names and "pattern" in names and not re.search(names["pattern"], name):
+                problems.append(f"{where}: name {name!r} does not match {names['pattern']}")
         for name, item in value.items():
             if name in properties:
                 validate(item, properties[name], f"{where}.{name}", problems)
@@ -86,8 +94,28 @@ def path_matches(text):
     return found
 
 
-def check(bundle_dir, private_strings=()):
-    """Return one message per problem, or an empty list when the bundle may be published."""
+def check_spdx(manifest, spdx_dir, problems):
+    """Compare ``spdx_hashes`` with the ``.spdx`` files of ``spdx_dir``."""
+    listed = manifest.get("spdx_hashes")
+    if not isinstance(listed, dict):
+        return
+    folder = pathlib.Path(spdx_dir)
+    names = {path.name for path in folder.glob("*.spdx")}
+    for name in sorted(names - set(listed)):
+        problems.append(f"{name}: not listed in spdx_hashes")
+    for name in sorted(set(listed) - names):
+        problems.append(f"{name}: listed in spdx_hashes but not in the SPDX folder")
+    for name in sorted(names & set(listed)):
+        if hashlib.sha256((folder / name).read_bytes()).hexdigest() != listed[name]:
+            problems.append(f"{name}: hash differs from spdx_hashes")
+
+
+def check(bundle_dir, private_strings=(), spdx_dir=None):
+    """Return one message per problem, or an empty list when the bundle may be published.
+
+    With ``spdx_dir``, also recompute the hash of each ``.spdx`` file and compare it with
+    ``spdx_hashes``.
+    """
     bundle = pathlib.Path(bundle_dir)
     problems = []
     items = sorted(path for path in bundle.rglob("*") if path.is_file())
@@ -143,6 +171,8 @@ def check(bundle_dir, private_strings=()):
             actual = hashlib.sha256((bundle / name).read_bytes()).hexdigest()
             if actual != listed[name]:
                 problems.append(f"{name}: hash differs from bundle_hashes")
+    if spdx_dir is not None and isinstance(manifest, dict):
+        check_spdx(manifest, spdx_dir, problems)
     return problems
 
 
@@ -155,6 +185,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("bundle")
     parser.add_argument("--private-strings", help="file with one private string per line")
+    parser.add_argument("--spdx-dir", help="folder with the .spdx files that spdx_hashes lists")
     args = parser.parse_args(argv)
     if args.private_strings:
         private = read_private_strings(args.private_strings)
@@ -164,7 +195,9 @@ def main(argv=None):
             "warning: no private-string list given, so private strings were not checked",
             file=sys.stderr,
         )
-    problems = check(args.bundle, private)
+    if not args.spdx_dir:
+        print("warning: no SPDX folder given, so the SPDX files were not checked", file=sys.stderr)
+    problems = check(args.bundle, private, args.spdx_dir)
     for problem in problems:
         print(problem, file=sys.stderr)
     if problems:

@@ -42,8 +42,10 @@ flowchart TD
     F --> G["west spdx"]
     G --> H["Parse the SPDX files<br/>release/parse_spdx.py"]
     H --> I["Assemble the bundle<br/>release/assemble_bundle.py"]
-    I --> J["Check the bundle<br/>release/check_bundle.py"]
-    J --> K["Print the release manifest<br/>scan the SPDX files, informational<br/>nothing is published"]
+    I --> J["Check the bundle and the SPDX hashes<br/>release/check_bundle.py"]
+    J --> K["Print the release manifest"]
+    K --> L["Match known vulnerabilities<br/>check the triage records<br/>release/check_triage.py"]
+    L --> M["Scan the SPDX files, informational<br/>nothing is published"]
 ```
 
 | Step | Tool | What fails the run |
@@ -54,6 +56,7 @@ flowchart TD
 | Build | `west build` with `-DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON` | a Zephyr that is not the verified baseline, or a build error |
 | SPDX | `west spdx`, then `release/parse_spdx.py` | a file that does not parse as tag-value SPDX 2.3, or lacks a document header field |
 | Bundle | `release/assemble_bundle.py`, `release/check_bundle.py` | see below |
+| Known vulnerabilities | `scripts/ci/match-vulnerabilities.sh --json`, `release/check_triage.py` | see "Triage of known vulnerabilities" |
 
 A second workflow, `.github/workflows/rebuild.yml`, builds the same image twice in two fresh
 workspaces at different paths and compares `zephyr.bin` and the `firmware_identity` of the build.
@@ -63,8 +66,8 @@ workspaces at different paths and compares `zephyr.bin` and the `firmware_identi
 The bundle holds hashes and identities and nothing else: `release-manifest.json` (schema in
 `release/release-manifest.schema.json`), the frozen manifest `west.lock.yml` and the pin report
 `pins-report.txt`. The manifest records the product version, the security counter, the release tag,
-the SDK version, the runner image, the target, the hash of each bundle item, the SHA-256 of
-`zephyr.bin` and the `firmware_identity`.
+the SDK version, the runner image, the target, the hash of each bundle item, the SHA-256 of each SPDX
+file (`spdx_hashes`), the SHA-256 of `zephyr.bin` and the `firmware_identity`.
 
 **The firmware image, `.elf` and `.map` files are never published**: not in the bundle, not as a
 CI artefact, not on a release page. `release/check_bundle.py` refuses a bundle that holds an image, an
@@ -72,8 +75,38 @@ CI artefact, not on a release page. `release/check_bundle.py` refuses a bundle t
 and an item with an absolute path of a build machine. No workflow in this repository uploads an
 artefact, and a test (`tests/tooling/test_base_build.py`) fails if one starts to.
 
-The full SBOM from `west spdx` is parsed in the dry run but is not in the bundle yet. Whether it can go
-out as it is has not been decided.
+The SPDX files from `west spdx` stay outside the bundle, because they hold absolute build paths.
+`release/check_bundle.py --spdx-dir` recomputes the hash of each `.spdx` file and fails when a file
+differs from `spdx_hashes`, or when a file is missing on either side. How the SPDX files are kept with
+the internal release record is not decided, because no workflow uploads an artefact.
+
+## Triage of known vulnerabilities
+
+`release/triage.openvex.json` holds one triage record for each known vulnerability that matches the
+release SBOM. It is an [OpenVEX](https://github.com/openvex/spec/blob/main/OPENVEX-SPEC.md) document.
+The release check `release/check_triage.py` reads it with the Grype reports of the build. The nightly
+check `base-vulnerabilities` only reports and does not read it.
+
+A record covers a match when both of these hold:
+
+- its vulnerability `name`, or one of its `aliases`, is the id of the match or one of Grype's related ids;
+- one of its products, or a subcomponent of one, has an `@id` or a `purl`, `cpe23` or `cpe22`
+  identifier that equals the purl or a CPE of the matched package. The comparison is exact.
+
+When several records cover a match, the one with the latest `timestamp` wins. A statement without a
+timestamp takes the document timestamp.
+
+| Status of the latest record | Release check |
+|---|---|
+| no record | fails |
+| `under_investigation` | fails |
+| `affected` (the release carries it with no fix) | fails |
+| two latest records with different statuses | fails |
+| `not_affected`, with an OpenVEX `justification` label or an `impact_statement` | passes |
+| `fixed` | passes |
+
+An `affected` record still needs an `action_statement`, as OpenVEX requires. Raise the document
+`version` with every change.
 
 ## Tags
 

@@ -1794,9 +1794,12 @@ FIRST="${RUNNER_TEMP:-/tmp}/first"
 SECOND="${RUNNER_TEMP:-/tmp}/second/another/depth"
 printf 'manifest:\n  projects: []\n' > lock-placeholder.yml
 printf 'rebuild comparison\n' > pins-placeholder.txt
+mkdir -p spdx-placeholder
+printf 'SPDXVersion: SPDX-2.3\n' > spdx-placeholder/placeholder.spdx
 python crux-controller/release/assemble_bundle.py \
   --build-dir "$FIRST/crux-controller/build/net" \
   --lock lock-placeholder.yml --pins-report pins-placeholder.txt \
+  --spdx-dir spdx-placeholder \
   --out-dir record-bundle \
   --product-version 0.1.0+1 --security-counter 0 --release-tag v0.1.0 \
   --sdk-version "$SDK_VERSION" --runner-image ubuntu-24.04 --target "$BOARD"
@@ -1827,6 +1830,8 @@ run = '''
 cd ..
 python -m unittest discover -s crux-controller/tests/tooling -p 'test_bundle.py' -v
 python -m unittest discover -s crux-controller/tests/tooling -p 'test_spdx.py' -v
+python -m unittest discover -s crux-controller/tests/tooling -p 'test_check_triage.py' -v
+python -m unittest discover -s crux-controller/tests/tooling -p 'test_match_vulnerabilities.py' -v
 '''
 scope = "release"
 
@@ -1934,6 +1939,7 @@ FRESH="${RUNNER_TEMP:-/tmp}/release-workspace"
 python crux-controller/release/assemble_bundle.py \
   --build-dir "$FRESH/crux-controller/build/net" \
   --lock west.frozen.yml --pins-report pins-report.txt \
+  --spdx-dir "$FRESH/crux-controller/build/net/spdx" \
   --out-dir bundle \
   --product-version "$PRODUCT_VERSION" --security-counter "$SECURITY_COUNTER" \
   --release-tag "$RELEASE_TAG" --sdk-version "$SDK_VERSION" \
@@ -1946,7 +1952,9 @@ id = "release-check-bundle"
 job = "release"
 run = '''
 cd ..
-python crux-controller/release/check_bundle.py bundle
+FRESH="${RUNNER_TEMP:-/tmp}/release-workspace"
+python crux-controller/release/check_bundle.py bundle \
+  --spdx-dir "$FRESH/crux-controller/build/net/spdx"
 '''
 scope = "release"
 
@@ -1956,6 +1964,24 @@ job = "release"
 run = '''
 cd ..
 cat bundle/release-manifest.json
+'''
+scope = "release"
+
+# Known vulnerabilities of the release image (criterion 36, delivery stage 4): Grype matches the SPDX
+# files of the build, and release/check_triage.py fails on a match with no triage record in
+# release/triage.openvex.json, or with the status affected or under investigation. The nightly
+# check base-vulnerabilities only reports.
+[[check]]
+id = "release-vulnerabilities"
+job = "release"
+run = '''
+cd ..
+FRESH="${RUNNER_TEMP:-/tmp}/release-workspace"
+REPORTS="$(mktemp -d)"
+crux-controller/scripts/ci/match-vulnerabilities.sh --json "$REPORTS" \
+  "$FRESH/crux-controller/build/net/spdx"
+python crux-controller/release/check_triage.py --matches "$REPORTS" \
+  --triage crux-controller/release/triage.openvex.json | tee -a "${GITHUB_STEP_SUMMARY:-/dev/stdout}"
 '''
 scope = "release"
 

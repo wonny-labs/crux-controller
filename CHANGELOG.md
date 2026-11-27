@@ -323,6 +323,13 @@ build configurations by their earlier step ids, S0 to S6.
   publishes nothing and a rebuild comparison at another path (`release/`).
 - The release dry run parses the SPDX files that `west spdx` writes (`release/parse_spdx.py`) and
   prints the package count of each document.
+- The release manifest records the SHA-256 of each SPDX file (`spdx_hashes`, now required), and the
+  bundle check recomputes the hashes with `--spdx-dir`. `release/assemble_bundle.py` now needs
+  `--spdx-dir`.
+- The release dry run fails on a known vulnerability of the release SBOM that has no triage record in
+  `release/triage.openvex.json` (OpenVEX), or whose record has the status `affected` or
+  `under_investigation` (`release/check_triage.py`, check `release-vulnerabilities`).
+  `scripts/ci/match-vulnerabilities.sh --json` writes the Grype reports it reads.
 
 ### Documents
 
