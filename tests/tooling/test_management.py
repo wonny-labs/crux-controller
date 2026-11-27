@@ -1073,7 +1073,9 @@ class ManagementSources(unittest.TestCase):
         self.assertEqual([], check_boundary.check(ROOT))
 
     def test_the_boundary_allow_lists_are_unchanged_by_this_step(self):
-        self.assertEqual(frozenset({"crux/file_zephyr.h", "crux/web_zephyr.h"}),
+        # The composition list later grew by crux/cli_zephyr.h, for the serial command line of the
+        # base image, in its own reviewed boundary change. This pin follows it.
+        self.assertEqual(frozenset({"crux/file_zephyr.h", "crux/web_zephyr.h", "crux/cli_zephyr.h"}),
                          check_boundary.COMPOSITION_CRUX_HEADERS)
         self.assertEqual(
             frozenset({"zephyr/fs/fs.h", "zephyr/devicetree.h", "zephyr/net/tls_credentials.h"}),

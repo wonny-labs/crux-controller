@@ -456,9 +456,53 @@ class CompositionZone(unittest.TestCase):
 
     def test_the_composition_allow_list_is_the_reviewed_set(self):
         self.assertEqual(
-            {"crux/file_zephyr.h", "crux/web_zephyr.h"},
+            {"crux/file_zephyr.h", "crux/web_zephyr.h", "crux/cli_zephyr.h"},
             set(check_boundary.COMPOSITION_CRUX_HEADERS),
         )
+
+    # The serial command line: <crux/cli_zephyr.h>, which starts the Crux console on the UART of
+    # the devicetree alias crux-serial0. Crux publishes it under components/cli/ports/zephyr.
+
+    CLI_ZEPHYR = "crux/cli_zephyr.h"
+
+    def cli_root(self, composition=("file_zephyr.h", "web_zephyr.h", "cli_zephyr.h")):
+        return self.crux_root(composition=composition,
+                              public=("file.h", "time.h", "cli.h", "access.h"))
+
+    def test_the_zones_may_include_the_cli_composition_interface(self):
+        for tree in ("app/compose", "framework/compose"):
+            files = {f"{tree}/cli_start.c": f"#include <{self.CLI_ZEPHYR}>\n#include <crux/cli.h>\n"}
+            for root in (None, self.cli_root()):
+                self.assertEqual([], run(files, crux_root=root), (tree, root))
+
+    def test_the_cli_interface_fails_outside_the_composition_zones(self):
+        for root in (None, self.cli_root()):
+            for tree in ("app/src", "app/os", "workload", "include", "framework/src", "framework/os"):
+                files = {f"{tree}/x.c": f"#include <{self.CLI_ZEPHYR}>\n"}
+                self.assertEqual([self.CLI_ZEPHYR], reasons(run(files, crux_root=root)), (tree, root))
+
+    def test_the_cli_interface_fails_outside_the_zones_by_name_without_a_crux_root(self):
+        (violation,) = run({"framework/src/core.c": f"#include <{self.CLI_ZEPHYR}>\n"})
+        self.assertEqual("composition interface, for the composition zone only", violation.reason)
+
+    def test_the_zone_may_not_include_the_cli_interface_crux_does_not_publish(self):
+        root = self.cli_root(composition=("file_zephyr.h", "web_zephyr.h"))
+        files = {"framework/compose/cli_start.c": f"#include <{self.CLI_ZEPHYR}>\n"}
+        self.assertEqual([self.CLI_ZEPHYR], reasons(run(files, crux_root=root)))
+
+    def test_the_portable_cli_header_stays_an_ordinary_public_header(self):
+        root = self.cli_root()
+        for tree in ("app/src/a.c", "framework/src/a.c", "framework/compose/a.c"):
+            self.assertEqual([], run({tree: "#include <crux/cli.h>\n"}, crux_root=root), tree)
+
+    def test_the_cli_change_adds_no_zephyr_header_and_unfreezes_nothing(self):
+        self.assertEqual(
+            {"zephyr/fs/fs.h", "zephyr/devicetree.h", "zephyr/net/tls_credentials.h"},
+            set(check_boundary.COMPOSITION_ZEPHYR_HEADERS),
+        )
+        for name in sorted(check_boundary.FROZEN_CRUX_HEADERS):
+            for tree in ("framework/src/a.c", "framework/os/a.c", "app/src/a.c"):
+                self.assertEqual([name], reasons(run({tree: f"#include <{name}>\n"})), (name, tree))
 
     # The HTTPS management composition: <crux/web_zephyr.h> and <zephyr/net/tls_credentials.h>.
 
@@ -897,7 +941,8 @@ class OsAdapterZone(unittest.TestCase):
         )
         self.assertNotIn("zephyr/kernel.h", check_boundary.COMPOSITION_ZEPHYR_HEADERS)
         self.assertEqual(
-            frozenset({"crux/file_zephyr.h", "crux/web_zephyr.h"}), compose.composition_crux
+            frozenset({"crux/file_zephyr.h", "crux/web_zephyr.h", "crux/cli_zephyr.h"}),
+            compose.composition_crux,
         )
         self.assertEqual(
             ["zephyr/kernel.h"],

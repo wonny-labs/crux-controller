@@ -11,7 +11,7 @@ four trees of the controller framework module and its interface header.
   own tree, and nothing else.
 * ``app/compose/`` is the composition zone of the configurations of ``app/``, which mounts a file
   system and binds it to Crux. Its sources now live in ``framework/compose``, which has the same rule. It may include ISO C headers, public ``<crux/NAME.h>`` headers, the
-  composition interfaces ``<crux/file_zephyr.h>`` and ``<crux/web_zephyr.h>`` (``COMPOSITION_CRUX_HEADERS``),
+  composition interfaces ``<crux/file_zephyr.h>``, ``<crux/web_zephyr.h>`` and ``<crux/cli_zephyr.h>`` (``COMPOSITION_CRUX_HEADERS``),
   the explicit allow-list of Zephyr headers in ``COMPOSITION_ZEPHYR_HEADERS``, headers of its own tree and the headers of ``app/src``
   (header files only: the product-owned header that ``app/src`` declares and the zone
   implements). Such a header is scanned under the ``app/src`` rules, so a Sockets profile header
@@ -114,9 +114,12 @@ FROZEN_CRUX_HEADERS = frozenset({"crux/thread.h", "crux/sync.h", "crux/serial.h"
 # beside the public headers under components/*/include/crux. Any header of that kind is out of
 # reach of app/src and of the workload, whether or not it is listed here. A name listed here is
 # denied outside the zone by name even without --crux-root, when the check cannot see which
-# headers Crux publishes as composition interfaces: file_zephyr.h binds the File root and
-# web_zephyr.h binds the Web server for the HTTPS management composition.
-COMPOSITION_CRUX_HEADERS = frozenset({"crux/file_zephyr.h", "crux/web_zephyr.h"})
+# headers Crux publishes as composition interfaces: file_zephyr.h binds the File root,
+# web_zephyr.h binds the Web server for the HTTPS management composition, and cli_zephyr.h starts
+# the serial console with its first-account setup on the UART of the alias crux-serial0.
+COMPOSITION_CRUX_HEADERS = frozenset(
+    {"crux/file_zephyr.h", "crux/web_zephyr.h", "crux/cli_zephyr.h"}
+)
 
 CRUX_PUBLIC = re.compile(r"^crux/[A-Za-z0-9_]+\.h$")
 

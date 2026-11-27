@@ -3,7 +3,8 @@
 This page is the reference for the include rules of the source trees: what each tree may include and why. "Composition"
 has four meanings; see the [glossary](glossary.md#product-platform-and-composition). `file` (Crux File) uses the
 composition zone: `framework/compose/storage_mount.c` implements the port `framework/src/storage_port.h`. The zone also admits the
-headers that the HTTPS management interface (Mbed profile) needs, see [The web composition](#the-web-composition).
+headers that the HTTPS management interface (Mbed profile) needs, see [The web composition](#the-web-composition), and the
+start of the serial command line, see [The serial command line](#the-serial-command-line).
 
 ## Running the check
 
@@ -42,7 +43,8 @@ CMake target `crux::file_zephyr` (`docs/file-composition-interface.md` in `crux-
 system. Application code stays on `<crux/file.h>`. A boundary that lets `app/src` include the
 interface would let the application name a provider, and a boundary without any way to include it
 would leave File unusable. So the include is allowed in one directory and nowhere else. The Web
-composition interface `<crux/web_zephyr.h>` follows the same rule.
+composition interface `<crux/web_zephyr.h>` and the console composition interface `<crux/cli_zephyr.h>` follow the
+same rule.
 
 The application declares the port header and calls it. The zone implements it. The link joins them;
 no include does. The port header lives in `app/src`, so the rules of `app/src` scan it, and it cannot
@@ -50,11 +52,11 @@ carry a Zephyr or composition include back into the application.
 
 ## The rules
 
-| Tree | ISO C | Sockets profile | Public `<crux/NAME.h>` | Composition interfaces (`<crux/file_zephyr.h>`, `<crux/web_zephyr.h>`) | Zephyr headers | Own tree | Other trees |
+| Tree | ISO C | Sockets profile | Public `<crux/NAME.h>` | Composition interfaces (`<crux/file_zephyr.h>`, `<crux/web_zephyr.h>`, `<crux/cli_zephyr.h>`) | Zephyr headers | Own tree | Other trees |
 |---|---|---|---|---|---|---|---|
 | `app/src` | yes | yes | yes | no | none | yes | `workload/include` |
 | `workload` | yes | no | no | no | none | yes | none |
-| `app/compose` | yes | no | yes | exactly those two (`COMPOSITION_CRUX_HEADERS`) | the allow-list below, nothing else | yes | header files (`.h`) of `app/src` (the port header) |
+| `app/compose` | yes | no | yes | exactly those three (`COMPOSITION_CRUX_HEADERS`) | the allow-list below, nothing else | yes | header files (`.h`) of `app/src` (the port header) |
 | `app/os` (the adapter zone) | yes | no | yes | no | `zephyr/kernel.h` and `zephyr/net/sntp.h`, nothing else | yes | header files (`.h`) of `app/src` (the port header) |
 
 The zone fails on a Crux private or port header (`file_native.h`, a nested `<crux/ports/...>` path),
@@ -65,10 +67,10 @@ whatever its suffix, `#include`, `#include_next` and `#import`, continued lines,
 trigraph, comments removed, and a macro operand is a violation.
 
 Without `--crux-root` any `<crux/NAME.h>` passes the shape test, as it does for `app/src`, and the
-two composition interfaces are denied outside the zone by name (`COMPOSITION_CRUX_HEADERS`); with
+three composition interfaces are denied outside the zone by name (`COMPOSITION_CRUX_HEADERS`); with
 it (CI always passes it), a `<crux/NAME.h>` that is not a header Crux publishes fails, including
-`<crux/file_native.h>`. Against a `crux-pilot` checkout, `<crux/file_zephyr.h>` and
-`<crux/web_zephyr.h>` must be headers that Crux publishes under
+`<crux/file_native.h>`. Against a `crux-pilot` checkout, `<crux/file_zephyr.h>`,
+`<crux/web_zephyr.h>` and `<crux/cli_zephyr.h>` must be headers that Crux publishes under
 `components/*/ports/*/include/crux/`, and any header found there is a composition interface that
 `app/src` and the workload cannot include, whether or not this file names it. Any other composition
 interface that Crux publishes stays out of the zone until a reviewed change lists it. The other Web
@@ -127,6 +129,22 @@ composition headers named above, and no other entry is needed for it. The route 
 page and the route table are not in the zone: they belong to the target `app` and are named by
 `framework/management/management.cmake`, which Crux's route function equips with the private include directories of
 Crux's own sources one source at a time, so no build file here adds an include path.
+
+## The serial command line
+
+The serial command line is composed in `framework/compose`, by `cli_start.c` (`base`). Crux publishes the start of
+its console as a composition interface: `<crux/cli_zephyr.h>` with the CMake target `crux::cli_zephyr`
+(built under `CONFIG_CRUX_CLI_CONSOLE`). It declares `crux_cli_serial_start()`, which binds the Crux console,
+with its login and its first-account setup, to the UART that the devicetree alias `crux-serial0` names, so only the
+platform composition of a product calls it. That is the same reason as for `<crux/file_zephyr.h>` and
+`<crux/web_zephyr.h>`, and the same rule follows: the include is allowed in `framework/compose` (and `app/compose`,
+which shares the list) and fails in `app/src`, `app/os`, `workload`, `include`, `framework/src` and `framework/os`,
+with or without `--crux-root`.
+
+The command tables go to `crux_cli_init()` of `<crux/cli.h>`, an ordinary public header. The zone needs no Zephyr
+header for the console: the UART is chosen by the alias in the devicetree, and Crux opens it. The Zephyr allow-list
+and the frozen headers do not change. `framework/compose/CMakeLists.txt` links `crux::cli_zephyr` to the zone's
+library only, as it links `crux::file_zephyr` and `crux::web_zephyr`.
 
 ## The adapter zone
 
@@ -208,7 +226,7 @@ checked trees, each with a rule of its own in `RULES`:
 |---|---|---|
 | `include` | The interface header `<controller/framework.h>`, which a product includes | ISO C, public `<crux/NAME.h>` headers except the frozen three, its own tree |
 | `framework/src` | The portable core: the startup sequence and the start function, the time synchronisation glue and policy, the management policy and the port headers | ISO C, public `<crux/NAME.h>` headers except the frozen three, its own tree, `<controller/NAME.h>`; no Zephyr header and no Sockets profile |
-| `framework/compose` | The composition zone of the module: the storage mount and the start of web management | the rule of `app/compose`, with header files (`.h`) of `framework/src` in place of those of `app/src` |
+| `framework/compose` | The composition zone of the module: the storage mount, the start of web management and the start of the serial command line | the rule of `app/compose`, with header files (`.h`) of `framework/src` in place of those of `app/src` |
 | `framework/os` | The adapter zone of the module: the SNTP query and its thread | the rule of `app/os`, with header files (`.h`) of `framework/src` in place of those of `app/src` |
 
 `<controller/NAME.h>` must name a file of `include/controller/`, one level deep. `app/src` may include it and the
