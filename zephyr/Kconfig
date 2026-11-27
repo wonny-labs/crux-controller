@@ -190,9 +190,9 @@ config CRUX_CONTROLLER_APP_THREAD_STACK
 config CRUX_CONTROLLER_APP_STATUS_ITEMS
 	int "Most status items of the application"
 	default 8
-	range 0 16
+	range 0 15
 	help
-	  The status service holds at most 32 project items, and the framework uses 16.
+	  The status service holds at most 32 project items, and the framework uses 17.
 
 menu "Start prerequisites of the application"
 

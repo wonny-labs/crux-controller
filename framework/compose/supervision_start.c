@@ -31,6 +31,9 @@
 #include "../src/controller_state.h"
 #include "../src/framework_status.h"
 #include "../src/supervision_compose.h"
+#ifdef CONFIG_CRUX_WEB_MANAGEMENT
+#include "../src/management_port.h"
+#endif
 
 #include <crux/logging.h>
 #include <crux/management_status.h>
@@ -68,6 +71,9 @@ typedef void (*text_source_t)(char *text, size_t size);
 static const text_source_t sources[] = {
     framework_status_controller, framework_status_application, framework_status_boot,
     framework_status_watchdog,   framework_status_last_fault,  framework_status_stack,
+#ifdef CONFIG_CRUX_WEB_MANAGEMENT
+    management_port_certificate,
+#endif
 };
 
 static crux_status_t read_text(void *context, crux_mgmt_status_value_t *out)
@@ -132,6 +138,11 @@ static const crux_mgmt_status_item_t framework_items[] = {
     HEALTH_ITEM("controller.health.time", SERVICE_TIME),
     HEALTH_ITEM("controller.health.web", SERVICE_WEB),
     HEALTH_ITEM("controller.health.command-line", SERVICE_COMMAND_LINE),
+#ifdef CONFIG_CRUX_WEB_MANAGEMENT
+    /* How the TLS certificate started: stored, made at boot, refused or not started (section 5.5).
+     */
+    TEXT_ITEM("controller.certificate", 6),
+#endif
 };
 
 #define FRAMEWORK_ITEMS (sizeof framework_items / sizeof framework_items[0])

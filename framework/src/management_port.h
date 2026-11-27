@@ -14,17 +14,21 @@
  * framework start (framework/src/framework.c) calls it in the base image, and
  * app/src/composition.c calls it in the management configuration. The order below is a reading of
  * three Crux sources at the pinned revision, and it has not run on a board: the "Boot order"
- * section of docs/management-in-a-product.md, the start calls of the module test
- * tests/native/management_module/src/main.c (configuration service, management status and security
- * event start, and only then the TLS certificate start), and the header
+ * section of docs/management-in-a-product.md, the header
+ * components/tls_certificate/include/crux/tls_certificate_start.h (start the module once the
+ * credential store has started and before any TLS listener), and the header
  * components/web/ports/zephyr/include/crux/web_zephyr.h (services started, TLS material registered
  * under the security tag, then the session and management init with their workers, then start).
+ * The guide and Crux's module test start the TLS certificate module after the configuration and
+ * status services; this port starts it right after Access, so that its result is known before the
+ * application's init (specification sections 4.1 and 5.5; a project-specific workaround that the
+ * start header allows).
  *
  *   1. security event init, realtime init, mount the medium and bind the two store roots
  *   2. credential store start, then Access init with the policy below
- *   3. config service start, management status start, then security event start, then the
+ *   3. TLS certificate start; a refusal is kept and turns only web management off
+ *   4. config service start, management status start, then security event start, then the
  *      configuration's hook (the framework starts Crux Reboot there)
- *   4. TLS certificate start
  *   5. take the certificate material and register it under the web security tag, and fail the
  *      start if either registration fails (the web listener does not report a missing certificate)
  *   6. web session init and web management init, each with its worker
@@ -95,18 +99,25 @@ management_port_status_t management_port_start(const management_port_config_t *c
 /*
  * The two parts of the sequence, for the start function, whose application init (startup step 5)
  * runs between them:
- *   core      steps 1 and 2 above (the medium, the store roots and, with bind_app_root, the data
- *             root, the credential store and Access): startup steps 3 and 4;
- *   services  steps 3 to 7 (configuration with the parameter table, status with the items, the
- *             event thread and the hook, the TLS certificate, sessions, management and the
+ *   core      steps 1 to 3 above (the medium, the store roots and, with bind_app_root, the data
+ *             root, the credential store, Access and the TLS certificate): startup steps 3 and 4;
+ *   services  steps 4 to 7 (configuration with the parameter table, status with the items, the
+ *             event thread and the hook, the TLS material, sessions, management and the
  *             listener): startup steps 6, 7 and 10.
  * The core part checks the configuration and runs once; the services part runs once, after a
  * successful core part (MANAGEMENT_PORT_ERR_NOT_READY otherwise), and reads the status items and
  * the parameters of its own configuration, so they can be known only after init. A refused TLS
- * certificate start (MANAGEMENT_PORT_ERR_TLS_CERTIFICATE) leaves only web management off; any other
- * refusal leaves the services part off as a whole.
+ * certificate start does not fail the core part; the services part then answers
+ * MANAGEMENT_PORT_ERR_TLS_CERTIFICATE after it started configuration, status and the event thread,
+ * and only web management stays off. Any other refusal leaves the services part off as a whole.
  */
 management_port_status_t management_port_start_core(const management_port_config_t *config);
 management_port_status_t management_port_start_services(const management_port_config_t *config);
+
+/* What happened to the TLS certificate in the core part, as the status service shows it: "not
+ * started", "stored", "made at boot" (Crux made the key and a self-signed certificate in this boot,
+ * specification section 5.5) or "refused". It copies a value, does not block and touches no
+ * storage, as a status item source must. */
+void management_port_certificate(char *text, size_t size);
 
 #endif

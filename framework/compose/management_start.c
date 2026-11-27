@@ -45,6 +45,7 @@
 #include <crux/web_session.h>
 #include <crux/web_zephyr.h>
 
+#include <stdatomic.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -75,6 +76,19 @@ static bool services_started;
 
 static crux_access_role_t access_roles[ROLES_MAX];
 static crux_access_policy_t access_policy;
+
+/* The result of the TLS certificate start in the core part (startup step 4), which the services
+ * part reads in step 10 and the status service reads on its own threads afterwards. It is written
+ * once, on the start thread, before the status service starts; the atomic makes the later reads on
+ * other threads see that one write. */
+typedef enum {
+    CERTIFICATE_NOT_STARTED = 0,
+    CERTIFICATE_STORED,
+    CERTIFICATE_MADE_AT_BOOT,
+    CERTIFICATE_REFUSED,
+} certificate_state_t;
+
+static atomic_int certificate_state = CERTIFICATE_NOT_STARTED;
 
 static const char *const certificate_dns_names[] = {CERTIFICATE_DNS_NAME};
 static uint8_t certificate_ipv4[1][4];
@@ -237,13 +251,48 @@ management_port_status_t management_port_start_core(const management_port_config
         return failed("access");
     }
     core_done = true;
+
+    /* 3. The TLS certificate module, right after the credential store and Access (startup step 4,
+     * specification sections 4.1 and 5.5). The device key is made inside this call, from the
+     * hardware random source, when the store holds none, so the deadline of this step covers a
+     * key generation until Crux's setting that requires an existing identity is used (C9). A
+     * refusal, such as a stored certificate of another key, turns only web management off: the
+     * core part stays started, Access serves the command line, and the serial console is the
+     * operator's path to recover the certificate. */
+    crux_tls_certificate_start_t how = CRUX_TLS_CERTIFICATE_STARTED;
+    char text[CRUX_LOG_TEXT_MAX];
+
+    set_certificate_options(octets);
+    const crux_tls_certificate_result_t certificate =
+        crux_tls_certificate_start(&certificate_options, &how);
+    if (certificate != CRUX_TLS_CERTIFICATE_OK) {
+        atomic_store(&certificate_state, CERTIFICATE_REFUSED);
+        (void)snprintf(text, sizeof text,
+                       "tls certificate start refused result=%d: web management stays off",
+                       (int)certificate);
+        note(CRUX_LOG_ERROR, text);
+    } else {
+        atomic_store(&certificate_state, how == CRUX_TLS_CERTIFICATE_GENERATED
+                                             ? CERTIFICATE_MADE_AT_BOOT
+                                             : CERTIFICATE_STORED);
+    }
     return MANAGEMENT_PORT_OK;
+}
+
+void management_port_certificate(char *text, size_t size)
+{
+    static const char *const names[] = {"not started", "stored", "made at boot", "refused"};
+    const int state = atomic_load(&certificate_state);
+
+    if (text != NULL && size > 0u) {
+        (void)snprintf(text, size, "%s",
+                       state >= 0 && (size_t)state < sizeof names / sizeof names[0] ? names[state]
+                                                                                    : "unknown");
+    }
 }
 
 management_port_status_t management_port_start_services(const management_port_config_t *config)
 {
-    uint8_t octets[4];
-    crux_tls_certificate_start_t how = CRUX_TLS_CERTIFICATE_STARTED;
     crux_reset_cause_t cause = {0};
     char fingerprint[CRUX_TLS_CERTIFICATE_FINGERPRINT_TEXT_SIZE];
     char text[CRUX_LOG_TEXT_MAX];
@@ -256,11 +305,6 @@ management_port_status_t management_port_start_services(const management_port_co
     }
     if (!core_done) {
         return MANAGEMENT_PORT_ERR_NOT_READY;
-    }
-    /* The core part parsed the same text, so this parse succeeds; the octets name the address in
-     * the certificate. */
-    if (!management_address_parse(CONFIG_CRUX_WEB_BIND_ADDRESS, octets)) {
-        return failed("bind address");
     }
     services_started = true;
 
@@ -301,18 +345,11 @@ management_port_status_t management_port_start_services(const management_port_co
         return failed("services of the configuration");
     }
 
-    /* 4. The TLS certificate. The device key is made inside this call, from the hardware random
-     * source, when the store holds none. A refusal, such as a stored certificate of another key,
-     * turns only web management off: the services above stay started, and the serial console is
-     * the operator's path to recover the certificate (specification sections 4.1 and 5.5). */
-    set_certificate_options(octets);
-    const crux_tls_certificate_result_t certificate =
-        crux_tls_certificate_start(&certificate_options, &how);
-    if (certificate != CRUX_TLS_CERTIFICATE_OK) {
-        (void)snprintf(text, sizeof text,
-                       "tls certificate start refused result=%d: web management stays off",
-                       (int)certificate);
-        note(CRUX_LOG_ERROR, text);
+    /* 4. Web management needs the certificate that the core part started (startup step 4). After
+     * a refusal it stays off, and the services above stay started (startup step 10). */
+    const int certificate = atomic_load(&certificate_state);
+
+    if (certificate != CERTIFICATE_STORED && certificate != CERTIFICATE_MADE_AT_BOOT) {
         return MANAGEMENT_PORT_ERR_TLS_CERTIFICATE;
     }
 
@@ -325,7 +362,7 @@ management_port_status_t management_port_start_services(const management_port_co
         return failed("certificate fingerprint");
     }
     (void)snprintf(text, sizeof text, "certificate sha256=%s source=%s", fingerprint,
-                   how == CRUX_TLS_CERTIFICATE_GENERATED ? "generated" : "stored");
+                   certificate == CERTIFICATE_MADE_AT_BOOT ? "generated" : "stored");
     note(CRUX_LOG_INFO, text);
 
     /* 6. Sessions and management, each with its worker. HTTPS only, and the one accepted Origin is
