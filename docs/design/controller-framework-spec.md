@@ -206,13 +206,14 @@ The product's `main()`, or the base image's, calls the start function once; the 
 | 12 | Unless in safe mode, with an application fault, with a start prerequisite that is not healthy, without an armed watchdog in a build that refuses it, or with no application: activate the application's registered channels and call the application's `start` (section 4.4). | Application fault, with the clean-up of a partial start (section 3.3). |
 
 Known deviation (project-specific workaround; no external source), which delivery stage 4 removes: the code starts the TLS certificate module not in step 4 but after `init`, in the one step "web management" that runs steps 6, 7 and 10.
-The code also starts the command line (step 9) before time synchronisation (step 8) (`framework/src/framework.c`, table `steps`); the two steps do not depend on each other, and each keeps its own deadline and failure result.
 While the [C9](controller-framework-platform-gaps.md#c9-access-and-an-unusable-store) interim states apply, this position changes no decision of the framework: no identity result sets safe mode, and `init` runs either way.
 A key generation then counts against the deadline of that step, which has the same value as the deadline of step 4 (`CONFIG_CRUX_CONTROLLER_DEADLINE_MANAGEMENT_MS`), and a retained record names that step.
 A start of the module that fails, for example with `CRUX_TLS_CERTIFICATE_ERR_KEY_MISMATCH`, has only the effect that step 4 states: web management stays off and reports failed (section 4.7), and the boot does not enter safe mode (section 5.5).
 The configuration and status services, which the same step starts before the module, stay started and healthy, and the reboot thread, the command line and the start prerequisites behave as after a successful start.
 The controller state changes only when the product selects web management as a required service (section 4.6).
 The command line stays available because it is the operator's path to install or regenerate the certificate; documented but optional (Crux `components/tls_certificate/include/crux/tls_certificate_start.h`: after a refused start, only an install or a regeneration, for example from the serial console, makes a certificate active).
+
+Known deviation (project-specific workaround; no external source), which no delivery stage removes yet: the code starts the command line (step 9) before time synchronisation (step 8), each with its own deadline and failure result (`framework/src/framework.c`, table `steps`).
 
 ```mermaid
 sequenceDiagram
