@@ -162,10 +162,9 @@ Repeated fault resets lead to safe mode, a recovery-oriented service set from wh
 flowchart TD
     failure["Failure"] --> hang{"Hang?"}
     hang -->|no| degrade["Degrade and report"]
-    hang -->|yes| record["Write the retained record"]
-    record --> armed{"Hardware watchdog armed?"}
-    armed -->|yes| reset["Stop feeding: watchdog reset"]
-    armed -->|no| soft["Software reset"]
+    hang -->|yes| armed{"Hardware watchdog armed?"}
+    armed -->|yes| reset["Latch the fault and stop feeding, then write the retained record, best effort: watchdog reset"]
+    armed -->|no| soft["Write the retained record, then software reset"]
     reset --> classify["Next boot: classify the reset and update the boot counter"]
     soft --> classify
     classify --> limit{"Counter reaches N?"}
