@@ -35,6 +35,10 @@ build configurations by their earlier step ids, S0 to S6.
 - The nightly job `product-integration` builds a fixture product (`tests/product_integration`) in a west workspace
   of its own, which imports this repository at the commit under test, and runs it on `native_sim`
   (`tests/product_integration/run.sh`, a job of `scheduled-main.yml` and a Jenkins stage).
+- `bash scripts/run-native-sim.sh` builds and runs the base image on `native_sim` for use by hand, for
+  development only: web management on the host's `127.0.0.1` port 8443, the serial command line on a
+  pseudo-terminal, and the store in a host file (`docs/native-sim-interactive.md`). The `base` job runs it as the
+  Twister scenario `controller.framework.native_sim.interactive`.
 
 ### Capability names
 

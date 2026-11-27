@@ -74,7 +74,7 @@ EXPECTED_FULL = {
     "patch-style": ["patch-style-fetch-zephyr", "patch-style"],
     "minimal": ["minimal-build", "minimal-outputs"],
     "base": ["base-mbed-default", "base-mbed-group-on", "base-mbed-fetch", "base-sdk", "base-native-sim",
-             "base-native-sim-report", "base-build", "base-outputs", "base-config", "base-symbols"],
+             "base-native-sim-report", "base-native-sim-interactive-report", "base-build", "base-outputs", "base-config", "base-symbols"],
     "static": ["format", "static-analysis"],
     **BUDGET,
     "budget-management": ["budget-management-mbed", "budget-management-sdk", "budget-management"],

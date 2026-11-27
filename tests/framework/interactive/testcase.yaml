@@ -1,0 +1,15 @@
+common:
+  platform_allow:
+    - native_sim/native/64
+  integration_platforms:
+    - native_sim/native/64
+  tags:
+    - controller
+    - framework
+tests:
+  # Builds the interactive configuration and starts it as scripts/run-native-sim.sh does; the pytest
+  # file then answers on the web port, makes the first account through the console's pseudo-terminal
+  # and checks that the account and the certificate outlive a restart.
+  controller.framework.native_sim.interactive:
+    harness: pytest
+    timeout: 300

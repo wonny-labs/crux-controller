@@ -164,12 +164,12 @@ have changed since, they are the source of truth.
   `performance` and `portability`; warnings are errors) runs over the 14 sources that the host tests
   build: `scripts/analyze_host.py`, in the same job. `.clang-tidy` also lists
   `readability-identifier-naming` without options, so it checks no naming rule. The script prints the
-  tracked sources that it did not analyse, 20 today: the sources that the host tests do not build,
+  tracked sources that it did not analyse, 21 today: the sources that the host tests do not build,
   because they need Zephyr or Crux headers or Kconfig values. It does so without failing.
-- **The 20 not analysed.** 12 of those 20 are product sources (`app/`, `framework/`), built with
+- **The 21 not analysed.** 12 of those 21 are product sources (`app/`, `framework/`), built with
   `-Wall -Wextra -Werror` as `app/CMakeLists.txt`, `app/os/CMakeLists.txt`, `framework/configurations.cmake`,
-  `framework/compose/CMakeLists.txt` and `zephyr/CMakeLists.txt` set. The other 8 are the `native_sim` scenario
-  sources (`tests/{native_sim*,framework}/*/src/test_*.c`, `tests/product_integration/src/test_*.c`): the CMake
+  `framework/compose/CMakeLists.txt` and `zephyr/CMakeLists.txt` set. The other 9 are the `native_sim` scenario
+  sources (`tests/{native_sim*,framework}/*/src/*.c`, `tests/product_integration/src/test_*.c`): the CMake
   files of the scenarios set those flags on the product sources that they pull in, not on the scenario source.
 - **Other gates.** The include rules (`scripts/check_boundary.py` and the Crux product include check,
   both in the `Boundary check` job) and the resource limits (`.github/workflows/budget.yml`).

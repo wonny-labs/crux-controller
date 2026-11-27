@@ -10,7 +10,7 @@ the repository is and the quick start, the [Tutorial](tutorial.md). Each page ha
 ### I want to run it
 
 [Getting started](getting-started.md) first, then the [Tutorial](tutorial.md). The [Dev Container reference](dev-container.md) and [Set up without the Dev Container](native-setup.md) hold the setup details;
-[troubleshooting.md](troubleshooting.md) is for a failure, and [board-bring-up.md](board-bring-up.md) for a board.
+[native-sim-interactive.md](native-sim-interactive.md) runs the base image by hand without a board, [troubleshooting.md](troubleshooting.md) is for a failure, and [board-bring-up.md](board-bring-up.md) for a board.
 
 ### I want to change code
 
@@ -61,6 +61,7 @@ The [capabilities](capabilities.md), the [findings](findings/README.md), the [ro
 | [tutorial.md](tutorial.md) | Tutorial | The first build and run: the host tests, the `native_sim` scenarios and the board image. |
 | [getting-started.md](getting-started.md) | Entry | Prerequisites, the Dev Container set-up and a first command. |
 | [dev-container.md](dev-container.md) | Reference | The Dev Container in detail: requirements, hosts, proxies, layout, VS Code and commands. |
+| [native-sim-interactive.md](native-sim-interactive.md) | How-to guide | Run the base image on `native_sim` and operate it by hand: the serial command line in a terminal, web management in a browser. |
 | [native-setup.md](native-setup.md) | How-to guide | Set up on Ubuntu 24.04 without the Dev Container and run the scenarios and checks. |
 | [troubleshooting.md](troubleshooting.md) | Reference | A failure looked up by its message: cause, fix and the page that explains more. |
 | [first-change.md](first-change.md) | Tutorial | One small host-test change from branch to pull request. |

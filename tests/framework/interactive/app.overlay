@@ -1,0 +1,62 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* The devicetree of the interactive configuration (docs/native-sim-interactive.md).
+ *
+ * - Crux Logging writes to native_sim's console UART, uart0, which prj.conf connects to the
+ *   program's standard output (Crux's logging contract names this composition).
+ * - The Crux serial console owns an emulated UART through the alias crux-serial0, because Crux
+ *   Serial accepts only an emulated UART on native_sim. src/interactive.c bridges it to uart1, a PTY UART
+ *   that native_sim connects to a new pseudo-terminal of the host.
+ * - The store is a FAT volume on a flash disk of the flash simulator, which native_sim keeps in a
+ *   host file. The fstab entry is controller_storage, the name that the composition zone looks up.
+ *   The partition and the disk are those of Crux's management composition on native_sim
+ *   (tests/native/management_composition/app.overlay at the pinned Crux). */
+/delete-node/ &storage_partition;
+
+&flash0 {
+    partitions {
+        compatible = "fixed-partitions";
+        #address-cells = <1>;
+        #size-cells = <1>;
+
+        storage_partition: partition@100000 {
+            label = "storage";
+            reg = <0x00100000 DT_SIZE_K(512)>;
+        };
+    };
+};
+
+&uart0 { current-speed = <115200>; };
+&uart1 { status = "okay"; };
+
+/ {
+    aliases { crux-serial0 = &console_emul; };
+    chosen { zephyr,log-uart = &logging_uarts; };
+    logging_uarts: logging-uarts {
+        compatible = "zephyr,log-uart";
+        uarts = <&uart0>;
+    };
+    console_emul: console-emul {
+        compatible = "zephyr,uart-emul";
+        current-speed = <115200>;
+        rx-fifo-size = <1024>;
+        tx-fifo-size = <1024>;
+        status = "okay";
+    };
+
+    controller_disk: controller-disk {
+        compatible = "zephyr,flash-disk";
+        partition = <&storage_partition>;
+        disk-name = "SD";
+        cache-size = <4096>;
+        status = "okay";
+    };
+
+    fstab {
+        compatible = "zephyr,fstab";
+        controller_storage: controller-storage {
+            compatible = "zephyr,fstab,fatfs";
+            mount-point = "/SD:";
+            disk-access;
+        };
+    };
+};
