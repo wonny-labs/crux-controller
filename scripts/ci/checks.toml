@@ -1105,6 +1105,29 @@ PY
 scope = "always"
 fast = ["framework"]
 
+# The interactive configuration of docs/native-sim-interactive.md is in tests/framework too, so the
+# Twister run above builds and starts it; its pytest file answers on the web port, makes the first
+# account through the console's pseudo-terminal and restarts the program.
+[[check]]
+id = "base-native-sim-interactive-report"
+job = "base"
+run = '''
+cd ..
+python - <<'PY'
+import json
+
+report = json.load(open("twister-out-base/twister.json"))
+suites = [suite for suite in report["testsuites"]
+          if "controller.framework.native_sim.interactive" in suite["name"]]
+statuses = [suite["status"] for suite in suites]
+print([suite["name"] for suite in suites], statuses)
+assert len(suites) == 1, "the interactive configuration is not in the Twister report once"
+assert all(status == "passed" for status in statuses), statuses
+PY
+'''
+scope = "always"
+fast = ["framework"]
+
 [[check]]
 id = "base-build"
 job = "base"
