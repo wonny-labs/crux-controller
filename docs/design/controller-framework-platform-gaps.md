@@ -1,6 +1,6 @@
 # Controller framework: platform gaps
 
-This page lists the constraints that Crux and Zephyr put on the [controller framework](controller-framework.md) at the Crux revision that [`west.yml`](../../west.yml) pins, the Crux change that lifts each one, and the Crux interface behind each framework service.
+This page lists the constraints that Crux and Zephyr put on the [controller framework](controller-framework.md) at the Crux pin of [specification section 1](controller-framework-spec.md#1-scope-and-conventions), the Crux change that lifts each one, and the Crux interface behind each framework service.
 It is the appendix of the [specification](controller-framework-spec.md), which refers to the constraints as C1 to C19.
 A statement holds at the pin unless it carries a Crux status word of [specification section 1](controller-framework-spec.md#1-scope-and-conventions).
 Priority 1 is the most urgent Crux change, and the delivery dependency names the first delivery stage or milestone that needs the change; the two are independent.
@@ -28,11 +28,12 @@ When the pin moves, each gap is checked again; a gap whose Crux change is at the
 | [C15](#c15-size-limit-of-the-application-data-root) | A size limit per File root | Planned in Crux | 1 | Delivery stage 4 (criterion 24); Framework Complete |
 | [C16](#c16-security-counter) | A security counter in the image state contract and its storage | Crux change needed | 2 | Delivery stage 5 (PR7) |
 | [C17](#c17-security-event-persistence) | A composition-level reader of security events | Crux change needed | 2 | Delivery stage 4 (criterion 44); Framework Complete |
-| [C18](#c18-request-rate-limit) | A request rate limit in Crux Web | Crux change needed | 3 | Delivery stage 4 (criterion 45); Framework Complete |
+| [C18](#c18-request-rate-limit) | A request rate limit in Crux Web | Crux change needed | 3 | Delivery stage 5 (criterion 45); Product Ready |
 | [C19](#c19-credential-store-at-rest) | A hardware-bound key basis for the credential store | Crux change needed when a product's record (S9) asks for it | 3 | Product Ready of that product |
 | [Web adapter](#other-crux-changes) | A web adapter for the File service | Crux change needed | 3 | Product Ready of a product that offers HTTPS file transfer |
 
 The pin is Crux `62ed69f1`; the Crux `main` changes above are at `05a50475` and not at the pin.
+A pin at `05a50475` has no Wolf profile until a patch for Zephyr 4.5 exists ([C7](#c7-ssh-and-tls-profiles)), so the gap check of that pin also decides on the Wolf profile.
 
 ## Service mapping
 
@@ -47,7 +48,7 @@ The pin is Crux `62ed69f1`; the Crux `main` changes above are at `05a50475` and 
 | Configuration | Crux configuration service over the Crux Configuration Settings File provider | Framework and application parameters, shown in device management | Not persistent ([C4](#c4-configuration-saving-needs-a-power-cut-safe-file-system)) | Saved on LittleFS |
 | Network | Zephyr network configuration library, Crux Netif, Crux Sockets profile | Interface up before `main()`; link state for health and status | Available | Unchanged |
 | Storage | Crux File, one provider, one mount ([C1](#c1-one-storage-provider-per-image)) | Application data root, credential store roots, settings file | microSD FatFs provider (C4) | LittleFS on the reference board's microSD card |
-| Factory reset | Crux credential store erase (`<crux/credential_store_zephyr.h>`) | Erase of accounts, then the settings file, then a reset ([specification section 5.3](controller-framework-spec.md#53-storage-or-access-failure-and-factory-reset-d15)) | Device preparation only ([C9](#c9-access-and-an-unusable-store)) | An erase that keeps the device identity |
+| Factory reset | Crux credential store erase (`<crux/credential_store_zephyr.h>`) | Removal of the application data, the persisted events and the settings file, then the erase of accounts, then a reset ([specification section 5.3](controller-framework-spec.md#53-storage-or-access-failure-and-factory-reset-d15)) | Device preparation only ([C9](#c9-access-and-an-unusable-store)) | An erase that keeps the device identity |
 | Update | Crux image state contract | Health verdict for the confirmation of a test image | Images prepared for MCUboot, no confirmation ([C10](#c10-image-state)) | Health-gated confirmation with a security counter ([C16](#c16-security-counter)) |
 | Security events | Crux security events (`<crux/security_event.h>`) | The event list of [specification section 6.2](controller-framework-spec.md#62-security-items), with framework identifiers from 0x8000 | A RAM ring drained to the log ([C17](#c17-security-event-persistence)) | Persisted, with an opt-out |
 
@@ -210,6 +211,7 @@ Crux refuses every form of it, at the pin and on Crux `main`; the line reference
 - Evidence: Crux's image state contract has query, test request and confirm operations and no security counter (`components/image_state/include/crux/image_state.h`).
 - Evidence (Crux `main` at `06813519`): MCUboot's downgrade prevention is optional with no default, and the Zephyr port has no non-volatile counter backend; a trusted counter on RT1060 would need fuses (`docs/evidence/boot-update/stage1-pinned-source-findings.md` B13; `docs/boot-update-investigation.md:135`).
 - Crux change: a security counter in the image state contract and its storage, with the secure boot work. State: Crux change needed. Priority 2.
+- Contract items for that work: the stored minimum advances only when an image is confirmed, and a reverted trial image leaves the earlier image bootable; whether MCUboot already advances its counter only at confirmation: not read.
 - Interim state: nothing enforces the image security counter. Replacement criterion: none; PR7 needs the change.
 
 ## Security events and at-rest protection
@@ -218,6 +220,7 @@ Crux refuses every form of it, at the pin and on Crux `main`; the line reference
 
 - Evidence: Crux security events go to a RAM ring that a reset loses, and a low-priority thread hands the ring to Logging; the records are not tamper-proof (`components/security_event/include/crux/security_event.h:8-15`).
 - Evidence: the only reader, `crux_security_event_read()`, needs an Access session with `events.read` (`security_event.h:252-276`), and the framework has no session of its own.
+- Effect: persisted events share the volume with the credential store and the settings file, so they have a size limit and rotation that the product sets ([specification section 6.2](controller-framework-spec.md#62-security-items)).
 - Crux change: a composition-level reader or sink that the framework uses to persist events. State: Crux change needed. Priority 2.
 - Interim state: security events reach the log only. Replacement criterion: none; criterion 44 needs the change.
 

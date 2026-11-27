@@ -54,24 +54,27 @@ Criterion 46 checks this inventory.
 
 ## 4. Threats
 
-| # | Target | Threat | Category | Mitigation | Residual risk |
-|---|---|---|---|---|---|
-| 1 | Web, serial | Password guessing | Spoofing | Crux Access login delay per source and per name, with events (S5) | A flood from many sources can keep network login delayed up to the cap |
-| 2 | Web, serial | A route or command that skips authentication | Elevation | Mandatory access class per route, login on every command (S4) | None known |
-| 3 | Web | Session theft or cross-site request forgery | Spoofing | Crux web session CSRF and Origin rules; idle and absolute session limits; TLS (S7) | — |
-| 4 | Web | Eavesdropping or protocol downgrade | Disclosure, tampering | TLS 1.3 alone on the Crux listener at the pin (S7) | — |
-| 5 | Web | Certificate substitution at the first connection | Spoofing | Fingerprint check at first enrolment (specification section 6.2) | An operator who skips the check |
-| 6 | Medium | Card removed and read | Disclosure | Product record (S9) | The Crux store is not confidential against the medium and the chip ID ([C19](controller-framework-platform-gaps.md#c19-credential-store-at-rest)) |
-| 7 | Medium | Card blanked or replaced | Tampering, elevation | A store from another device reads unusable; first-account setup is offered only on the serial command line (S1) | A blanked store reopens first-account setup to a person who also reaches the serial port (C19) |
-| 8 | Update path | Malicious or older image | Tampering | Boot loader signature check (D7), security counter (U1), health-gated confirmation | No counter storage at the pin ([C16](controller-framework-platform-gaps.md#c16-security-counter)) |
-| 9 | Network | Connection or request flood | Denial of service | Network limits (A1); supervision in a higher priority band (specification section 7.4) | No request rate limit at the pin ([C18](controller-framework-platform-gaps.md#c18-request-rate-limit)) |
-| 10 | Wall time | Forged SNTP replies | Tampering | Every timing decision uses the monotonic clock | Audit timestamps can be falsified |
-| 11 | Console, debug port | Access in production | Elevation | Console choice (D16) and debug-port lockdown recorded by the product (H2) | Defined by the product |
-| 12 | Controller | Fault or reset loop | Denial of service | Watchdog, boot counter and safe mode (R1 to R3) | Safe mode cannot escape a fault in its own services |
-| 13 | Image | Memory corruption in the application or framework | Elevation | Stack canaries and hardware stack protection (S6) | No memory partition between application and framework |
-| 14 | Security events | Loss or forgery of records | Repudiation | Event list (L1); persistence with an opt-out | Records are not tamper-proof, and the RAM ring is lost at a reset unless persisted ([C17](controller-framework-platform-gaps.md#c17-security-event-persistence)) |
-| 15 | All | A component with a known vulnerability | All | SBOM and vulnerability matching (V1, V2) | Matching needs identifiers that `west spdx` does not always emit (specification section 6.3) |
-| 16 | Volume | Data left after a factory reset | Disclosure | Factory reset scope and the recorded erase method (S8) | File removal leaves old blocks on the medium unless the product erases them |
+Status says where each mitigation stands: at the pin (Crux provides it), Crux `main`, Crux change needed, specified (these pages specify it, not yet implemented) or product (the product provides it).
+
+| # | Target | Threat | Category | Mitigation | Residual risk | Status |
+|---|---|---|---|---|---|---|
+| 1 | Web, serial | Password guessing | Spoofing | Crux Access login delay per source and per name, with events (S5) | A flood from many sources can keep network login delayed up to the cap | At the pin |
+| 2 | Web, serial | A route or command that skips authentication or its permission | Elevation | Mandatory access class per route, login on every command, and the permission that a route or command names (S4) | Open until criterion 34 passes | At the pin |
+| 3 | Web | Session theft or cross-site request forgery | Spoofing | Crux web session CSRF and Origin rules; idle and absolute session limits; TLS (S7) | — | At the pin |
+| 4 | Web | Eavesdropping or protocol downgrade | Disclosure, tampering | TLS 1.3 alone on the Crux listener at the pin (S7) | — | At the pin |
+| 5 | Web | Certificate substitution at the first connection | Spoofing | Fingerprint check at first enrolment (specification section 6.2) | An operator who skips the check | Specified |
+| 6 | Medium | Card removed and read | Disclosure | Product record (S9) | The Crux store is not confidential against the medium and the chip ID ([C19](controller-framework-platform-gaps.md#c19-credential-store-at-rest)) | Product |
+| 7 | Medium | Card blanked, replaced or rolled back | Tampering, elevation | A store from another device reads unusable; first-account setup is offered only on the serial command line (S1) | A blanked store reopens first-account setup to a person who also reaches the serial port, and a rollback to an older copy of the store is not detected (C19) | At the pin |
+| 8 | Update path | Malicious or older image | Tampering | Boot loader signature check (D7), security counter (U1), health-gated confirmation | No counter storage at the pin ([C16](controller-framework-platform-gaps.md#c16-security-counter)) | Crux change needed |
+| 9 | Network | Connection or request flood | Denial of service | Network limits (A1); supervision in a higher priority band (specification section 7.4); a size limit and rotation of persisted events | No request rate limit at the pin ([C18](controller-framework-platform-gaps.md#c18-request-rate-limit)) | At the pin; Crux change needed |
+| 10 | Wall time | Forged SNTP replies | Tampering | Every timing decision uses the monotonic clock | Audit timestamps can be falsified | Specified |
+| 11 | Console, debug port | Access in production | Elevation | Console choice (D16) and debug-port lockdown recorded by the product (H2) | Defined by the product | Product |
+| 12 | Controller | Fault or reset loop | Denial of service | Watchdog, boot counter and safe mode (R1 to R3) | Safe mode cannot escape a fault in its own services | Specified |
+| 13 | Image | Memory corruption in the application or framework | Elevation | Stack canaries and hardware stack protection (S6) | No memory partition between application and framework | Specified |
+| 14 | Security events | Loss or forgery of records, or events that fill the volume | Repudiation, denial of service | Event list (L1); persistence with an opt-out, a size limit and rotation | Records are not tamper-proof, rotation drops the oldest, and the RAM ring is lost at a reset unless persisted ([C17](controller-framework-platform-gaps.md#c17-security-event-persistence)) | Crux change needed |
+| 15 | All | A component with a known vulnerability | All | SBOM and vulnerability matching (V1, V2) | Matching needs identifiers that `west spdx` does not always emit (specification section 6.3) | Specified |
+| 16 | Volume | Data left after a factory reset, or a reset cut by a power loss | Disclosure, tampering | Factory reset scope and the recorded erase method (S8); the credential erase runs last, so a cut reset leaves the accounts in place and is repeated (specification section 5.3) | File removal leaves old blocks on the medium unless the product erases them | Crux `main`; product |
+| 17 | Web, serial | Malformed input | Tampering, denial of service | Crux Web request body and time limits; fuzzing of the portable parsers (Q1) | Zephyr's HTTP parser is not fuzzed by this repository | At the pin; specified |
 
 ## 5. Annex I applicability
 
@@ -83,7 +86,7 @@ The point texts are unofficial text of Regulation (EU) 2024/2847, not checked ag
 | Part I (1) risk-based design | Yes | This page is the framework's part of the risk assessment |
 | Part I (2)(a) no known exploitable vulnerabilities | Yes | The image contains third-party components |
 | Part I (2)(b) secure by default, reset to the original state | Yes | The framework sets the default configuration and the factory reset |
-| Part I (2)(c) security updates | In part | Security updates apply; automatic installation by default suits a controller poorly, because an update interrupts its function, so the product records its default and the reason in its technical documentation (Article 13(4)) |
+| Part I (2)(c) security updates | In part | Security updates apply; the product decides its update default from its risk assessment and records the default and the reason in its technical documentation (Article 13(4)) |
 | Part I (2)(d) protection from unauthorised access | Yes | Device management is reachable from the network |
 | Part I (2)(e) confidentiality | Yes | In transit by TLS; at rest by a product record, because the protection depends on the medium and SoC |
 | Part I (2)(f) integrity | Yes | Configuration, retained record, credentials and image |
