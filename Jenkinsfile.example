@@ -9,7 +9,7 @@
 // Crux nobody has reviewed yet. In a single-branch Pipeline job BRANCH_NAME is unset and the guard
 // never matches: use when { expression { env.BRANCH_NAME == null || env.BRANCH_NAME == 'main' } } there.
 // Known gap: the Jenkins path has no evidence step yet; the step 3 evidence is GitHub only.
-// The Crux scripts and their interface are those of the pinned Crux (Crux pull requests 537 and 553).
+// The Crux scripts and their interface are those of the pinned Crux.
 //
 // The last stage holds the push and pull request credentials, so nothing that an earlier run or
 // another job left behind may reach it:

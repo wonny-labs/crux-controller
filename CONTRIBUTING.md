@@ -134,7 +134,7 @@ A pin moves in its own small pull request, with the reason in the commit message
    `tests/tooling/test_manifest.py`.
 2. Update the places that quote the commit as the current pin: `docs/dependencies.md`, `RELEASE.md`
    (its link and the short hash that `tests/tooling/test_docs.py` looks for) and `CHANGELOG.md`.
-   Notes under `docs/findings/` stay as they were recorded.
+   Notes under `docs/findings/` stay as they were recorded; only the current-pin line of its index moves.
 3. Put in the pull request the SHA-256 of the `net` `zephyr.bin` and its `firmware_identity` (the release
    manifest that the `release.yml` dry run prints has both), and the budget tables of the `Budget`
    jobs. If numbers move, say so. A limit in `budgets/limits.json` is not changed in the same pull
@@ -145,7 +145,7 @@ it when Crux main moves. It runs `scripts/crux-pin-bot.py` of the Crux that `wes
 script from Crux main. The bot rewrites the revision in `west.yml` and runs `scripts/crux-pin-hook`,
 which moves the other quotes of steps 1 and 2 and the links to Crux pages at the pin (its `QUOTES`
 table), and fails when a quote it expects is missing. The comment above the pin, the `CHANGELOG.md`
-entry and the quotes in the hook's `KEPT` table stay manual. Step 3 comes from CI: after each refresh
+entry and the quotes in the hook's `KEPT` table, other than the revision in `west.yml`, stay manual. Step 3 comes from CI: after each refresh
 and each `release` or `budget` run, `scripts/pin_evidence.py` copies the hash, the `firmware_identity`
 and the budget tables from their logs into the pull request body. Nothing merges itself. A person
 reads the Crux changes, adds a commit with the reason, the pin comment and the `CHANGELOG.md` entry
@@ -153,10 +153,12 @@ reads the Crux changes, adds a commit with the reason, the pin comment and the `
 the merge. `Jenkinsfile.example` runs the same bot for a copy built by Jenkins; that path has no
 evidence step yet.
 
-The workflow needs the repository secret `CRUX_PIN_TOKEN`: a fine-grained personal access token, or a
-GitHub App token, with access to this repository only and the repository permissions Contents and Pull
-requests set to read and write. A pull request opened with the automatic `GITHUB_TOKEN` would start no
-workflow, so its checks would not run. The bot's pull request is not a draft and changes `west.yml`,
+The workflow needs the repository secret `CRUX_PIN_TOKEN`: a fine-grained personal access token with
+access to this repository only and the repository permissions Contents and Pull requests set to read
+and write. A GitHub App installation token expires after one hour, so it would need a step that creates
+it in the job, and this workflow has none. A pull request opened with the automatic `GITHUB_TOKEN`
+would start no workflow, so its checks would not run. The bot's pull request is authored by the
+token's owner, and the token expires on the date set when it was created, so it needs renewing. The bot's pull request is not a draft and changes `west.yml`,
 so it runs the `full` tier. Without the secret the workflow changes nothing and ends with a warning.
 
 ## Changing behaviour

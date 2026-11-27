@@ -577,7 +577,7 @@ class JenkinsExample(unittest.TestCase):
         self.assertIn("Run no build in this stage", move)
 
     def test_it_names_what_the_crux_bot_still_leaves_open_and_what_the_hook_sees(self):
-        # Crux since #553 checks the commit's staged paths, ignores replace refs and refuses a
+        # The pinned Crux bot checks the commit's staged paths, ignores replace refs and refuses a
         # changed .git/config; the hook still gets every variable but the token's.
         for name, text in (("workflow", WORKFLOW.read_text()), ("Jenkinsfile.example", self.text)):
             flat = " ".join(text.replace("#", " ").replace("//", " ").split())

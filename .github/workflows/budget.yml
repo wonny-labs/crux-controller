@@ -2,9 +2,9 @@ name: budget
 
 # A thin wrapper: each row runs the job budget-<config> of scripts/ci/checks.toml through
 # scripts/ci/run-tier.sh. scripts/ci/budget.sh builds the configuration with the Zephyr baseline gate
-# required and checks its static resource use against budgets/limits.json. It publishes the numbers
-# as a job summary only. No image, ELF or map file is uploaded, because the repository publishes
-# hashes only (CONTRIBUTING.md, CI tiers).
+# required and checks its static resource use against budgets/limits.json. It prints the numbers to
+# the log and to the job summary. No image, ELF or map file is uploaded, because the repository
+# publishes hashes only (CONTRIBUTING.md, CI tiers).
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]

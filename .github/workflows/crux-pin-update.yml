@@ -25,11 +25,9 @@ name: crux-pin-update
 # What the Crux bot still leaves to this file: it gives the hook every variable except the token's,
 # and the push credential below is in .git/config while the hook runs. Only reviewed code runs then.
 #
-# The secret CRUX_PIN_TOKEN (a fine-grained personal access token or a GitHub App token with
-# Contents and Pull requests read and write on this repository only) pushes and opens the pull
-# request, so that its workflows start: a pull request opened with the automatic GITHUB_TOKEN starts
-# none. The pull request is not a draft, so ci.yml and budget.yml run the full tier on it. Without the
-# secret the update job changes nothing and ends with a warning. A copy that should not run the
+# The secret CRUX_PIN_TOKEN pushes and opens the pull request, so that its workflows start;
+# CONTRIBUTING.md ("The pin and the manifest") says which token it is and why the pull request runs
+# the full tier. Without the secret the update job changes nothing and ends with a warning. A copy that should not run the
 # schedule turns this workflow off in its CI settings.
 
 on:
