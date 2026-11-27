@@ -25,6 +25,10 @@ if(NOT CONFIG_CRUX_CONTROLLER_FRAMEWORK OR NOT CONFIG_CRUX_CONTROLLER_FRAMEWORK_
     message(FATAL_ERROR "The interactive configuration needs the framework with web management and the serial command line")
 endif()
 
+# Interim, development only: native_sim's offload reports a client's FIN so that a close without a TLS
+# close_notify does not spin the web server (nsos_rdhup.cmake, docs/native-sim-interactive.md).
+include(${CMAKE_CURRENT_LIST_DIR}/nsos_rdhup.cmake)
+
 target_sources(app PRIVATE src/interactive.c)
 target_link_libraries(app PRIVATE controller::framework)
 controller_framework_image()

@@ -155,8 +155,8 @@ page, one home per fact, current state only. `tests/tooling/test_docs_page_types
 
 ## Static analysis and coding standard
 
-Measured on `main` at merge `e11e971`, on 18 November 2026. If the scripts and workflows named here
-have changed since, they are the source of truth.
+Measured on `main` at merge `e11e971`, on 18 November 2026; the counts of sources that are not analysed
+follow the current tree. If the scripts and workflows named here have changed since, they are the source of truth.
 
 - **Format.** clang-format 18.1.8 over every tracked C file is a gate: `scripts/check-format.sh`, in the
   `Static analysis` job of `ci.yml`.
@@ -184,7 +184,7 @@ or functional-safety compliance. The Crux platform states its own position in it
 [coding guidelines](https://github.com/wonny-labs/crux/blob/751e04aead779ac08e438ec1e2640e57fc50e9fe/docs/coding-guidelines.md),
 read at that commit.
 
-Known gaps, not scheduled: the 20 sources above have no clang-tidy analysis, and nothing measures how much
+Known gaps, not scheduled: the 21 sources above have no clang-tidy analysis, and nothing measures how much
 of the code the tests run.
 
 The product's own Kconfig symbols use the prefix `CRUX_CONTROLLER_`; they are the product's names, not

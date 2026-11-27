@@ -13,6 +13,7 @@ builds for native_sim alone, with the simulator's test entropy source.
 import pathlib
 import re
 import stat
+import subprocess
 import unittest
 
 import ci_map
@@ -22,6 +23,9 @@ SCENARIO = "tests/framework/interactive"
 SCRIPT = "scripts/run-native-sim.sh"
 PAGE = "docs/native-sim-interactive.md"
 PORT = "8443"
+OFFLOAD_FIX = f"{SCENARIO}/nsos_rdhup.cmake"
+# Zephyr v4.5.0 drivers/net/nsos_adapt.c, the file that the interim copy edits.
+NSOS_V450_SHA256 = "75dabbeb67eccfded419b4e1a105e1d9838c431c985035459bf94af071bb70c0"
 
 
 def read(path):
@@ -132,6 +136,56 @@ class Build(unittest.TestCase):
                 self.assertNotIn("framework/interactive", text, path)
 
 
+class OffloadFix(unittest.TestCase):
+    """The interim copy of native_sim's offload driver is for the interactive configuration only."""
+
+    def setUp(self):
+        self.text = read(OFFLOAD_FIX)
+        self.code = code_of(self.text)
+
+    def test_only_the_interactive_configuration_includes_it(self):
+        tracked = subprocess.run(["git", "ls-files"], cwd=ROOT, check=True, capture_output=True,
+                                 text=True).stdout.split()
+        users = [path for path in tracked
+                 if (path.endswith((".cmake", "CMakeLists.txt", ".conf", ".yml", ".yaml", ".toml", ".sh"))
+                     and path != OFFLOAD_FIX and "nsos_rdhup" in read(path))]
+        self.assertEqual([f"{SCENARIO}/CMakeLists.txt"], users)
+
+    def test_no_product_build_file_names_the_driver_or_the_copy(self):
+        for tree in ("app", "framework", "zephyr", "cmake", "include", "release"):
+            for path in (ROOT / tree).rglob("*"):
+                if path.is_file():
+                    text = path.read_text(errors="replace")
+                    self.assertNotIn("nsos_rdhup", text, path)
+                    self.assertNotIn("nsos_adapt", text, path)
+
+    def test_it_is_included_after_the_native_sim_guard(self):
+        scenario = code_of(read(f"{SCENARIO}/CMakeLists.txt"))
+        guard = scenario.index("if(NOT CONFIG_BOARD_NATIVE_SIM OR NOT CONFIG_FAKE_ENTROPY_NATIVE_SIM)")
+        self.assertLess(guard, scenario.index("include(${CMAKE_CURRENT_LIST_DIR}/nsos_rdhup.cmake)"))
+
+    def test_it_refuses_every_build_but_native_sim_with_offloaded_sockets(self):
+        self.assertRegex(self.code, r"if\(NOT CONFIG_BOARD_NATIVE_SIM OR NOT CONFIG_NET_NATIVE_OFFLOADED_SOCKETS\)\s*"
+                                    r"message\(FATAL_ERROR")
+
+    def test_the_build_fails_when_zephyr_changes_the_driver(self):
+        self.assertIn(f"set(nsos_sha256 {NSOS_V450_SHA256})", self.code)
+        self.assertRegex(self.code, r'file\(SHA256 "\$\{nsos_source\}" nsos_actual\)\s*'
+                                    r"if\(NOT nsos_actual STREQUAL nsos_sha256\)\s*message\(FATAL_ERROR")
+        self.assertIn('set(nsos_source "${ZEPHYR_BASE}/drivers/net/nsos_adapt.c")', self.code)
+
+    def test_the_copy_keeps_the_licence_notice_and_goes_to_the_build_folder(self):
+        self.assertIn('"SPDX-License-Identifier: Apache-2.0"', self.code)
+        self.assertIn('set(nsos_copy "${CMAKE_CURRENT_BINARY_DIR}/nsos_adapt_rdhup.c")', self.code)
+
+    def test_it_states_its_label_provenance_and_removal(self):
+        self.assertTrue(self.text.startswith("# SPDX-License-Identifier: Apache-2.0\n"))
+        for words in ("project-specific workaround", "tests/native/web_https/nsos_rdhup.cmake at 1330195487c3",
+                      "Removal:"):
+            self.assertIn(words, self.text)
+        self.assertIn("1330195487c34c8df6046d41ae030d3cdf8a5138", read("west.yml"))
+
+
 class NoSecrets(unittest.TestCase):
     def test_no_key_certificate_or_password_is_in_the_configuration(self):
         paths = [p for p in (ROOT / SCENARIO).rglob("*") if p.is_file()] + [ROOT / SCRIPT]
@@ -205,6 +259,12 @@ class Page(unittest.TestCase):
         self.assertIn("bash scripts/run-native-sim.sh", page)
         self.assertIn(f"https://127.0.0.1:{PORT}", page)
         self.assertIn("(native-sim-interactive.md)", read("docs/README.md"))
+
+    def test_the_page_states_the_abrupt_close_limit_and_its_interim_fix(self):
+        page = " ".join(read(PAGE).split())
+        for words in ("only a restart of the image recovers it", OFFLOAD_FIX, "project-specific workaround",
+                      "Replace it with the version that Crux publishes"):
+            self.assertIn(words, page)
 
 
 if __name__ == "__main__":

@@ -54,8 +54,7 @@ Ctrl+] leaves miniterm. The image keeps running.
 
 ## Open web management in the browser
 
-1. In VS Code, open the **Ports** view. Port 8443 is usually forwarded on its own when the image starts listening.
-   If it is not listed, choose **Forward a Port** and enter `8443`.
+1. In VS Code, open the **Ports** view, choose **Forward a Port** and enter `8443`.
 2. Open `https://127.0.0.1:8443` on your machine, or the local address that the Ports view shows for 8443.
 3. The browser warns about the certificate, because it is self-signed. Compare its SHA-256 fingerprint with the
    `certificate sha256=` line of the log, then accept it.
@@ -77,27 +76,37 @@ start makes a new key and has no account. `west build -p always` or deleting `bu
 | Serial command line | The console stays on an emulated UART (`crux-serial0`). A thread of the image (`src/interactive.c`) copies bytes between it and `uart1`, a PTY UART on its own pseudo-terminal. The run command links that pseudo-terminal to `build/native-sim/console` with `--uart_1_attach_uart_cmd`. | Project-specific workaround | Crux Serial accepts only an emulated UART on `native_sim` (`components/serial/ports/zephyr/serial_binding.c` at the pinned Crux). The PTY UART and its options are standard (native_sim page, "PTY UART"). |
 | State | A `zephyr,flash-disk` on the flash simulator, kept in a host file with `--flash` | Standard | native_sim page, "Flash simulator"; Crux's `CRUX_FILE_FATFS_SIMULATOR` accepts a file-backed flash disk |
 | Entropy seed | The run command passes a new `--seed` from `/dev/urandom` each run, because the test source repeats for the same seed | Documented but optional | native_sim page, "Entropy device" |
-| Browser | VS Code forwards the container's port to the host | Documented but optional | VS Code documentation, "Forwarding a port" in Developing inside a Container (not read for this page: not verified) |
-| Production guard | The build refuses any board but `native_sim` with its test entropy, and any listener address but `127.0.0.1`. A board image of the framework includes `framework/management/entropy.cmake`, which refuses a test entropy source. | Project-specific | `tests/framework/interactive/CMakeLists.txt`, `zephyr/CMakeLists.txt` |
+| Browser | VS Code forwards the container's port to the host. A forwarded port looks like `localhost` to the image, so the `127.0.0.1` listener accepts it; a port that Docker publishes does not. | Documented but optional | VS Code documentation, [Developing inside a Container](https://code.visualstudio.com/docs/devcontainers/containers), "Forwarding or publishing a port" |
+| Abrupt close | The build makes a copy of native_sim's offload driver (`nsos_adapt.c`) that reports a client's FIN as `POLLHUP`, so a close without a TLS `close_notify` does not spin the web server. See [Limits](#limits). | Project-specific workaround | `tests/framework/interactive/nsos_rdhup.cmake`, adapted from Crux `tests/native/web_https/nsos_rdhup.cmake`; Crux `docs/https-composition.md`, "Abrupt close and the CPU spin", at the pinned Crux |
+| Production guard | The build refuses any board but `native_sim` with its test entropy, and any listener address but `127.0.0.1`. A board image of the framework includes `framework/management/entropy.cmake`, which refuses a test entropy source. The driver copy refuses any build but `native_sim` with offloaded sockets, and only this configuration includes it; `tests/tooling/test_native_sim_interactive.py` fails if a product build file names it. | Project-specific | `tests/framework/interactive/CMakeLists.txt`, `tests/framework/interactive/nsos_rdhup.cmake`, `zephyr/CMakeLists.txt` |
 
-CI builds and runs the same configuration in the `base` job: the Twister scenario
-`controller.framework.native_sim.interactive` answers on the web port with TLS 1.3, makes the first account through
-the pseudo-terminal, restarts the image and logs in again with the stored account.
+The `base` job of CI is set to build and run the same configuration as the Twister scenario
+`controller.framework.native_sim.interactive`. The scenario needs an answer on the web port with TLS 1.3, makes the
+first account through the pseudo-terminal, closes a kept-alive connection without `close_notify` and then needs the
+next connection and a console command to answer, and last restarts the image and logs in with the stored account.
+Its result is in the checks of the pull request that changes it.
 
 ## Limits
 
-- **Hosts.** The Dev Container is an x86_64 (amd64) Linux image, and CI runs this configuration on x86_64 Linux.
-  On an arm64 host (Apple silicon, arm64 Linux) Docker runs the container under emulation; that was not tried, so
-  it is not known to work there.
+- **What CI covers.** CI runs only the Twister scenario above, on x86_64 Linux, with Python's `ssl` module as the
+  client. No check runs `scripts/run-native-sim.sh` itself or its `--no-build` and `--reset` options, miniterm, a
+  browser, VS Code's port forwarding, an arm64 host, the route without VS Code, or a start with port 8443 in use.
+  Expect those routes to need fixes; report what you find in an issue.
+- **Hosts.** The Dev Container is an x86_64 (amd64) Linux image. On an arm64 host (Apple silicon, arm64 Linux)
+  Docker runs it under emulation.
 - **Without VS Code.** `bash scripts/dev-shell.sh bash scripts/run-native-sim.sh` builds and runs the image, and the
   serial command line needs a second shell in the same container (`docker exec`). The browser on the host cannot
   reach the listener: it binds `127.0.0.1` inside the container, which Docker's port publishing does not reach.
-  This route was not tried.
-- **A browser that closes TCP without a TLS `close_notify`** can keep a thread of the web server busy until the
-  connection ends. Crux records this limit of Mbed TLS over the offloaded sockets
-  (`docs/native-management-composition.md`, "Limits found", at the pinned Crux).
+- **A client that closes TCP without a TLS `close_notify`**, as Python's `ssl` module and many browsers do. Over the
+  offloaded sockets with Mbed TLS this spins the web server and stops the simulated clock: neither the web port nor
+  the console answers, and only a restart of the image recovers it (Crux `docs/https-composition.md`, "Abrupt close
+  and the CPU spin", at the pinned Crux). This configuration avoids it with an interim copy of the offload driver,
+  `tests/framework/interactive/nsos_rdhup.cmake`. It is a project-specific workaround outside the composition
+  interfaces that Crux publishes, used by this configuration only. Replace it with the version that Crux publishes
+  for products, or drop it when Zephyr's driver reports the close itself. The build stops if Zephyr's
+  `nsos_adapt.c` differs from the reviewed v4.5.0 file. A board is not affected: Zephyr's own TCP reports the close.
 - **The clock is not synchronised.** The time server is `127.0.0.1`, where no SNTP server answers, so nothing leaves
   the host.
-- **Port 8443 in use.** The listener cannot bind, so expect the web phase to fail in the log (not tried). Stop the
-  other program, then start again.
+- **Port 8443 in use.** The listener cannot bind, so expect the web phase to fail in the log. Stop the other
+  program, then start again.
 - Stack use, timing and memory here come from the simulator and the host, not from a device.

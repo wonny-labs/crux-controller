@@ -191,6 +191,7 @@ class StaticAnalysisSection(unittest.TestCase):
         self.assertIn("the 14 sources", body)
         self.assertIn("`scripts/analyze_host.py`", body)
         self.assertIn("21 today", body)
+        self.assertIn("the 21 sources above", body)
         self.assertIn("the sources that the host tests do not build", body)
         self.assertIn("Zephyr or Crux headers or Kconfig values", body)
         self.assertNotIn("because they need Zephyr headers", body)
