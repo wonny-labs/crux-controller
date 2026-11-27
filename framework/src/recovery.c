@@ -36,6 +36,8 @@ static void store(void)
     (void)retained_port_write(bytes, sizeof bytes);
 }
 
+/* The parameters keep the order of recovery.h, which callers and its host tests name. */
+// NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
 void recovery_boot(bool cause_captured, uint32_t causes, uint32_t image_id, uint8_t threshold,
                    recovery_boot_t *out)
 {

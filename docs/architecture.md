@@ -107,17 +107,35 @@ name and result of each:
 1. clock: the Crux monotonic clock answers; a failure stops startup. With health supervision, the reset cause is read
    once and cleared, the retained region is read, and the boot counter decides normal boot or safe mode.
 2. supervisor: the supervisor thread arms the Crux System watchdog with one timeout and supervises every later step.
-3. web management: the storage mount, the credential store, Access, the configuration and status services, Crux
-   Reboot, the TLS certificate, sessions, web management and the listener, in the order of
-   `framework/src/management_port.h`; then the framework's reboot thread.
-4. command line: the Crux serial console on the UART of the devicetree alias `crux-serial0`, with its login, its
-   first-account setup and the framework's commands (`framework/src/cli_port.h`). It needs Access, so it runs only
-   after step 3 succeeded.
-5. time synchronisation: the SNTP thread of `framework/src/time_sync.c`; left out in safe mode.
-6. application: no application is given yet, and startup supervision ends.
+3. storage access: the storage mount, the roots of the credential store and of the application's data, the
+   credential store and Access (the core part of `framework/src/management_port.h`).
+4. app init: the application's `init`, which registers its channel requirements, status items and parameter table;
+   left out with no application, and the application is held in safe mode.
+5. web management: Crux Reboot, the configuration service with the application's parameter table, the status service
+   with the framework's and the application's items, the TLS certificate, sessions, web management and the
+   listener (the services part of the port); then the framework's reboot thread. A refused TLS certificate turns
+   only web management off: the services before it and the reboot thread stay started.
+6. command line: the Crux serial console on the UART of the devicetree alias `crux-serial0`, with its login, its
+   first-account setup and the framework's commands (`framework/src/cli_port.h`). It needs Access and the
+   configuration and status services, so it runs only after step 5 started them, with or without web management.
+7. time synchronisation: the SNTP thread of `framework/src/time_sync.c`; left out in safe mode.
+8. start prerequisites: the health of the services that the build selects as start prerequisites; left out with no
+   application.
+9. application: unless the application is held, the activation of its task watchdog channels and its `start`; then
+   startup supervision ends.
 
-A failure of steps 3 to 5 is logged and the controller runs without that service. The framework creates no
-application thread and takes no application yet.
+A failure of steps 3 to 8 is logged and the controller runs without that service.
+
+The application interface (specification section 3) is a descriptor of four entries (`init`, `start`, `stop`,
+`safe_state`) that the product's `main()` passes to the start function; the base image passes none. One framework
+thread, "application", calls `init`, `start` and `stop`, and after startup carries out the operator stop and start
+(serial commands `application stop` and `application start`), the stop of a fault that the application reports,
+and the stop before a planned reset. The order of the calls and the clean-up of each failure are portable C with
+host tests (`framework/src/app_contract.c`), and so are the rules of the operator requests: the newest stop or start
+wins, and a planned reset waits for the startup steps, then refuses later requests (`framework/src/app_requests.c`).
+The thread is in `framework/os/app_zephyr.c`. The framework creates no
+thread for the application's own work. The fixture application of `tests/framework/fixture` and the scenarios
+`tests/framework/application` and `application_held` exercise the interface on `native_sim`.
 
 Health supervision follows specification sections 4 and 5 of the controller framework. The supervisor feeds the
 watchdog only while the current step is within its deadline and no task watchdog channel of a framework thread (time
@@ -285,7 +303,7 @@ Top-level directories and files:
 | `app/` | The Zephyr application, described below. |
 | `workload/` | The portable workload core (`include/workload.h`, `src/config_record.c`, `src/cycle.c`, `src/message.c`) and its `CMakeLists.txt`. |
 | `tests/` | `host/` (C tests that run on the build host), `native_sim/` (one Zephyr test application per configuration, `workload` to `sntp`), `native_sim_mbed/` (the `management` test application, which needs the Mbed TLS modules), `tooling/` (Python tests of the scripts, workflows, documents and build files). |
-| `scripts/` | `check_boundary.py` (the include check), `check_mbed_only.py` (checks that the Crux import cannot activate the GPL stacks), `check-format.sh` (clang-format over every C file), `analyze_host.py` (clang-tidy over the host-built sources, then the list of sources it did not analyse), `check_spdx.py` (checks that the first-party C, CMake, Kconfig, Python and shell files start with the licence identifier line), `check-patch.sh` (Zephyr's checkpatch, rule BRACES, on the C lines of a Git range; a copy of the checkpatch wrapper that Crux publishes for product repositories), `check_include_domains.py` (runs the product include check and its wrapper from a local Crux checkout after checking their pinned SHA-256, which it reads from `ci.yml` or, without it, from `include-check-pins.json`; see [dependencies.md](dependencies.md#include-check-from-a-local-crux-checkout)), `crux-pin-hook` and `pin_evidence.py` (the quotes of the pin and the CI evidence of a pin pull request, see `CONTRIBUTING.md`), `crux-pin-requirements.txt` and `crux-pin-build-requirements.txt` (the hashed Python packages of the pin job and the setuptools that builds one of them), `bootstrap.sh` (the one entry that prepares a clone: the layout check and the workspace setup, run by the Dev Container after it is created), `build-board.sh` (the board build of one build configuration for the VS Code tasks and debug profiles, see [the board route](board-bring-up.md#vs-code-tasks-and-debug-profiles)), `dev-shell.sh` (runs a shell or one command in the Dev Container, see the [Dev Container reference](dev-container.md#without-vs-code)), which also passes the USB bus of the host for a J-Link probe (what has been run is listed on [the board page](board-bring-up.md#board-route-for-the-rt1060-evkb-rev-b)), and `run-native-sim.sh` (builds and runs the base image on `native_sim` for use by hand, see [Run the base image on your PC](native-sim-interactive.md)). |
+| `scripts/` | `check_boundary.py` (the include check), `check_mbed_only.py` (checks that the Crux import cannot activate the GPL stacks), `check-format.sh` (clang-format over every C file), `analyze_host.py` (clang-tidy over the host-built sources, then the list of sources it did not analyse), `analyze_zephyr.py` (clang-tidy over this repository's sources in a `native_sim` compile database), `check_spdx.py` (checks that the first-party C, CMake, Kconfig, Python and shell files start with the licence identifier line), `check-patch.sh` (Zephyr's checkpatch, rule BRACES, on the C lines of a Git range; a copy of the checkpatch wrapper that Crux publishes for product repositories), `check_include_domains.py` (runs the product include check and its wrapper from a local Crux checkout after checking their pinned SHA-256, which it reads from `ci.yml` or, without it, from `include-check-pins.json`; see [dependencies.md](dependencies.md#include-check-from-a-local-crux-checkout)), `crux-pin-hook` and `pin_evidence.py` (the quotes of the pin and the CI evidence of a pin pull request, see `CONTRIBUTING.md`), `crux-pin-requirements.txt` and `crux-pin-build-requirements.txt` (the hashed Python packages of the pin job and the setuptools that builds one of them), `bootstrap.sh` (the one entry that prepares a clone: the layout check and the workspace setup, run by the Dev Container after it is created), `build-board.sh` (the board build of one build configuration for the VS Code tasks and debug profiles, see [the board route](board-bring-up.md#vs-code-tasks-and-debug-profiles)), `dev-shell.sh` (runs a shell or one command in the Dev Container, see the [Dev Container reference](dev-container.md#without-vs-code)), which also passes the USB bus of the host for a J-Link probe (what has been run is listed on [the board page](board-bring-up.md#board-route-for-the-rt1060-evkb-rev-b)), and `run-native-sim.sh` (builds and runs the base image on `native_sim` for use by hand, see [Run the base image on your PC](native-sim-interactive.md)). |
 | `budgets/` | `limits.json` (declared minimum free percent per memory region and configuration), `collect.py` (reads a build log into a measurement), `check.py` (compares a measurement with the limits). |
 | `release/` | The release bundle tools: `assemble_bundle.py`, `check_bundle.py`, `rebuild_compare.py`, `parse_spdx.py` and `release-manifest.schema.json`. Hashes and identities only; no image is ever published. |
 | `docs/` | This documentation: [architecture.md](architecture.md), [glossary.md](glossary.md), [adding-a-capability.md](adding-a-capability.md), [roadmap.md](roadmap.md), the [Tutorial](tutorial.md), [Getting started](getting-started.md), [board-bring-up.md](board-bring-up.md), [composition-zone.md](composition-zone.md), [dependencies.md](dependencies.md), `findings/` and `history/` (the project history). |

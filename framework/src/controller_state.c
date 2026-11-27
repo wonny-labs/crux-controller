@@ -61,6 +61,11 @@ static bool next_state(app_state_t from, app_event_t event, app_hold_t hold, app
             *to = APP_RUNNING;
             return true;
         }
+        /* That operator start's activation or start failed (section 3.3). */
+        if (event == APP_EVENT_START_FAILED && hold == APP_HOLD_PREREQUISITE) {
+            *to = APP_FAULT;
+            return true;
+        }
         return false;
     case APP_RUNNING:
         if (event == APP_EVENT_STOPPED) {
@@ -174,6 +179,31 @@ const char *service_health_name(service_health_t health)
         return "degraded";
     case SERVICE_FAILED:
         return "failed";
+    default:
+        return "unknown";
+    }
+}
+
+const char *service_id_name(service_id_t service)
+{
+    switch (service) {
+    case SERVICE_NETWORK:
+        return "network";
+    case SERVICE_STORAGE:
+        return "storage";
+    case SERVICE_ACCESS:
+        return "access";
+    case SERVICE_CONFIGURATION:
+        return "configuration";
+    case SERVICE_STATUS:
+        return "status";
+    case SERVICE_TIME:
+        return "time";
+    case SERVICE_WEB:
+        return "web";
+    case SERVICE_COMMAND_LINE:
+        return "command-line";
+    case SERVICE_COUNT:
     default:
         return "unknown";
     }

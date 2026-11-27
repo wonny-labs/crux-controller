@@ -506,8 +506,12 @@ class ManagementNotBuilt(unittest.TestCase):
     def test_only_the_composition_and_the_zone_include_the_management_headers(self):
         # The framework start (framework/src/framework.c) calls the port in the base image, and the
         # composition part of health supervision gives the status service the framework's items.
+        # Changed with the application interface (specification section 3.2): the application registers
+        # its status items and its parameter table with the Crux types, through the public header
+        # include/controller/framework_management.h.
         allowed = {"app/src/composition.c", "framework/compose/management_start.c",
-                   "framework/src/framework.c", "framework/compose/supervision_start.c"}
+                   "framework/src/framework.c", "framework/compose/supervision_start.c",
+                   "include/controller/framework_management.h"}
         paths = [p for tree in ("app", "framework", "include")
                  for p in (ROOT / tree).rglob("*") if p.suffix in (".c", ".h")]
         for path in sorted(paths):

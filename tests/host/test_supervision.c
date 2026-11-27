@@ -137,6 +137,31 @@ static void test_an_outside_latch_stops_feeding_once(void)
           SUPERVISION_STOPPED);
 }
 
+/* The supervisor learns of an outside latch once, so that it writes the record, calls safe_state
+ * and resets (specification section 4.8: a stop that returns an error). A latch that a poll found
+ * is reported by that poll, not again. */
+static void test_an_outside_latch_is_reported_once(void)
+{
+    supervision_t state;
+    boot_fault_reason_t reason = BOOT_FAULT_NONE;
+    char name[BOOT_NAME_SIZE] = "";
+
+    supervision_init(&state);
+    CHECK(!supervision_take_report(&state, &reason, name));
+    CHECK(supervision_latch(&state, BOOT_FAULT_STOP, "application"));
+    CHECK(supervision_take_report(&state, &reason, name));
+    CHECK(reason == BOOT_FAULT_STOP);
+    CHECK(strcmp(name, "application") == 0);
+    CHECK(!supervision_take_report(&state, &reason, name));
+
+    supervision_init(&state);
+    supervision_step_begin(&state, 0u, "application", 5u);
+    CHECK(supervision_poll(&state, 6u, &(supervision_channels_t){names, COUNT, 0u}) ==
+          SUPERVISION_LATCH);
+    CHECK(!supervision_take_report(&state, &reason, name));
+    CHECK(!supervision_take_report(NULL, &reason, name));
+}
+
 static void test_a_long_name_is_cut(void)
 {
     supervision_t state;
@@ -185,6 +210,7 @@ int main(void)
     test_an_expired_bit_without_a_name_still_latches();
     test_an_outside_latch_stops_feeding_once();
     test_a_long_name_is_cut();
+    test_an_outside_latch_is_reported_once();
     test_the_timing_rule();
     test_null_arguments_are_harmless();
     printf("%d checks, %d failures\n", checks, failures);

@@ -42,7 +42,7 @@ DRAIN_S = 0.5
 
 def start(dut: DeviceAdapter):
     """Wait for a complete start; return the console's pseudo-terminal and the logged fingerprint."""
-    lines = dut.readlines_until(regex=r"startup done phases=6 failed=0", timeout=START_TIMEOUT_S)
+    lines = dut.readlines_until(regex=r"startup done phases=7 failed=0", timeout=START_TIMEOUT_S)
     text = "\n".join(lines)
     pty = re.search(r"uart_1 connected to pseudotty: (\S+)", text)
     assert pty, text

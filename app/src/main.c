@@ -12,7 +12,7 @@
 int main(void)
 {
 #ifdef CONFIG_CRUX_CONTROLLER_FRAMEWORK
-    return controller_framework_start() == CONTROLLER_FRAMEWORK_OK ? 0 : -1;
+    return controller_framework_start(NULL) == CONTROLLER_FRAMEWORK_OK ? 0 : -1;
 #else
     return composition_start() == 0 ? 0 : -1;
 #endif

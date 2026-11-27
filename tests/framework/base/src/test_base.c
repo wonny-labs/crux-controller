@@ -128,16 +128,21 @@ ZTEST_SUITE(base, NULL, NULL, NULL, NULL, NULL);
 
 ZTEST(base, test_01_start_runs_every_phase)
 {
-    zassert_equal(controller_framework_start(), CONTROLLER_FRAMEWORK_OK);
+    zassert_equal(controller_framework_start(NULL), CONTROLLER_FRAMEWORK_OK);
     const char *log = drain_log();
 
     zassert_not_null(strstr(log, "phase clock ok"), "%s", log);
     zassert_not_null(strstr(log, "phase supervisor ok"), "%s", log);
+    zassert_not_null(strstr(log, "phase storage access ok"), "%s", log);
     zassert_not_null(strstr(log, "phase web management ok"), "%s", log);
     zassert_not_null(strstr(log, "phase command line ok"), "%s", log);
     zassert_not_null(strstr(log, "phase time synchronisation ok"), "%s", log);
     zassert_not_null(strstr(log, "phase application ok"), "%s", log);
-    zassert_not_null(strstr(log, "startup done phases=6 failed=0"), "%s", log);
+    /* With no application, the application's own steps (init and the start prerequisites) are
+     * left out and not counted. */
+    zassert_not_null(strstr(log, "phase app init left out: no application"), "%s", log);
+    zassert_not_null(strstr(log, "phase start prerequisites left out: no application"), "%s", log);
+    zassert_not_null(strstr(log, "startup done phases=7 failed=0"), "%s", log);
 }
 
 ZTEST(base, test_02_phases_run_in_order)
@@ -145,16 +150,17 @@ ZTEST(base, test_02_phases_run_in_order)
     const char *log = drain_log();
     const char *clock = strstr(log, "phase clock ok");
     const char *supervisor = strstr(log, "phase supervisor ok");
+    const char *storage = strstr(log, "phase storage access ok");
     const char *web = strstr(log, "phase web management ok");
     const char *cli = strstr(log, "phase command line ok");
     const char *time = strstr(log, "phase time synchronisation ok");
     const char *application = strstr(log, "phase application ok");
 
-    zassert_true(clock != NULL && supervisor != NULL && web != NULL && cli != NULL &&
-                     time != NULL && application != NULL,
+    zassert_true(clock != NULL && supervisor != NULL && storage != NULL && web != NULL &&
+                     cli != NULL && time != NULL && application != NULL,
                  "%s", log);
-    zassert_true(clock < supervisor && supervisor < web && web < cli && cli < time &&
-                     time < application,
+    zassert_true(clock < supervisor && supervisor < storage && storage < web && web < cli &&
+                     cli < time && time < application,
                  "%s", log);
     zassert_not_null(strstr(log, "https management started on 127.0.0.1 port 443"), "%s", log);
     zassert_not_null(strstr(log, "serial command line started on crux-serial0"), "%s", log);
@@ -162,7 +168,7 @@ ZTEST(base, test_02_phases_run_in_order)
 
 ZTEST(base, test_03_a_second_start_is_refused)
 {
-    zassert_equal(controller_framework_start(), CONTROLLER_FRAMEWORK_ERR_ALREADY_STARTED);
+    zassert_equal(controller_framework_start(NULL), CONTROLLER_FRAMEWORK_ERR_ALREADY_STARTED);
 }
 
 ZTEST(base, test_04_the_listener_accepts_a_connection)
@@ -259,14 +265,16 @@ ZTEST(base, test_09_the_start_order_of_supervision)
                                    "no retained region");
     const char *watchdog = strstr(log, "watchdog not armed");
     const char *supervisor = strstr(log, "phase supervisor ok");
+    /* The step "storage access" mounts the volume (startup step 3). */
+    const char *mount = strstr(log, "phase storage access ok");
     const char *web = strstr(log, "https management started");
     const char *ended = strstr(log, "startup supervision ended in step 12 with no application");
 
     zassert_true(capture != NULL && boot != NULL && watchdog != NULL && supervisor != NULL &&
-                     web != NULL && ended != NULL,
+                     mount != NULL && web != NULL && ended != NULL,
                  "%s", log);
-    zassert_true(capture < boot && boot < watchdog && watchdog < supervisor && supervisor < web &&
-                     web < ended,
+    zassert_true(capture < boot && boot < watchdog && watchdog < supervisor && supervisor < mount &&
+                     mount < web && web < ended,
                  "%s", log);
     /* Read once: no second capture line after the first. */
     zassert_is_null(strstr(capture + sizeof capture_line - 1u, "captured, flags"), "%s", log);

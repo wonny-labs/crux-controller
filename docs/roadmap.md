@@ -20,7 +20,8 @@ and the [changelog](../CHANGELOG.md) are the reference when this page and a comm
 - The controller framework is a Zephyr module of this repository, and the base image (`base`) runs it with web
   management, the serial command line with its first-account setup, time synchronisation and health supervision
   (watchdog, boot counter, safe mode, retained last-fault record), and no application. The application interface
-  is not in it yet.
+  (descriptor, channels, status items, parameters, data root, operator stop and start) is in the module at the lowest
+  stability tier; a fixture application exercises it in `native_sim` scenarios only, and no product uses it yet.
 - There is no release and no tag.
 
 ## What is built

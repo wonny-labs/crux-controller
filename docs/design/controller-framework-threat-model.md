@@ -7,7 +7,7 @@ The source labels follow [specification section 1](controller-framework-spec.md#
 
 ## 1. Scope and assumptions
 
-- The scope is the framework module and the base image at the Crux pin, on the reference board configuration.
+- The scope is the framework module, its application interface (specification section 3) and the base image at the Crux pin, on the reference board configuration.
 - The application template (specification section 7.5) is outside the scope: a copy of it is product code, which the product's extension covers (section 6).
 - The network that reaches device management is untrusted.
 - Physical access to the serial port, the medium and the debug port is part of the trust model: a person with it is treated as a possible attacker, and the product decides the physical protection (D16, S9).
@@ -46,7 +46,10 @@ The personal data among them are account names and the source network addresses 
 | Removable medium (reference board) | Physical | A person who removes the card | Crux credential store tag and device binding (S9) |
 | Debug port | Physical | A person at the board | Product lockdown, recorded in the product security documentation (H2) |
 | Update path | Inbound | Open (D17) | Image signature checked by the boot loader (D7); security counter (U1) |
-| Application interface | In the image | Application code | None: trusted code |
+| Application interface | In the image | Application code | None: trusted code; the framework accepts registrations only inside `init` and only through the context it gave |
+| Application control commands (`application stop`, `application start`) | Inbound | Serial command line | An Access login and the permission `system.reboot` (S4) |
+| Application status items and parameter table | Inbound, through web management and the serial command line | Sessions | The read and write permissions that the application names for each item and parameter, which Crux requires (S4) |
+| Application data root (File root 3, directory `app`) | In the image | Application code | Crux File confines access to the root; no size limit before delivery stage 4 ([C15](controller-framework-platform-gaps.md#c15-size-limit-of-the-application-data-root)) |
 
 Outbound traffic inventory (M1): in the reference configuration, the base image sends SNTP queries to the configured time server and ARP on the local network, and opens no other outbound connection.
 DHCP is off there, and a build that turns it on adds DHCP traffic.
@@ -55,12 +58,12 @@ Criterion 46 checks this inventory.
 
 ## 4. Threats
 
-Status says where each mitigation stands: at the pin (Crux provides it), Crux `main`, Crux change needed, specified (these pages specify it, not yet implemented) or product (the product provides it).
+Status says where each mitigation stands: at the pin (Crux provides it), Crux `main`, Crux change needed, specified (these pages specify it, not yet implemented), implemented (this repository implements it, with `native_sim` evidence and no board run) or product (the product provides it).
 
 | # | Target | Threat | Category | Mitigation | Residual risk | Status |
 |---|---|---|---|---|---|---|
 | 1 | Web, serial | Password guessing | Spoofing | Crux Access login delay per source and per name, with events (S5) | A flood from many sources can keep network login delayed up to the cap | At the pin |
-| 2 | Web, serial | A route or command that skips authentication or its permission | Elevation | Mandatory access class per route, login on every command, and the permission that a route or command names (S4) | Open until criterion 34 passes | At the pin |
+| 2 | Web, serial | A route or command that skips authentication or its permission | Elevation | Mandatory access class per route, login on every command, and the permission that a route or command names (S4) | The checks of a session without a route's or command's permission follow the delivery stage of that route or command (criterion 34) | At the pin |
 | 3 | Web | Session theft or cross-site request forgery | Spoofing | Crux web session CSRF and Origin rules; idle and absolute session limits; TLS (S7) | — | At the pin |
 | 4 | Web | Eavesdropping or protocol downgrade | Disclosure, tampering | TLS 1.3 alone on the Crux listener at the pin (S7) | — | At the pin |
 | 5 | Web | Certificate substitution at the first connection | Spoofing | Fingerprint check at first enrolment (specification section 6.2) | An operator who skips the check | Specified |
@@ -76,6 +79,10 @@ Status says where each mitigation stands: at the pin (Crux provides it), Crux `m
 | 15 | All | A component with a known vulnerability | All | SBOM and vulnerability matching (V1, V2) | Matching needs identifiers that `west spdx` does not always emit (specification section 6.3) | Specified |
 | 16 | Volume | Data left after a factory reset, or a reset cut by a power loss | Disclosure, tampering | Factory reset scope and the recorded erase method (S8); the credential erase runs last, and a cut reset is repeated until the erase completes (specification section 5.3) | File removal leaves old blocks on the medium unless the product erases them, and a cut during the erase can bring the accounts back until the repeat | Specified; product |
 | 17 | Web, serial | Malformed input | Tampering, denial of service | Crux Web request body and time limits; fuzzing of the portable parsers (Q1) | Zephyr's HTTP parser is not fuzzed by this repository | At the pin; specified |
+| 18 | Serial | An operator stop or start of the application by a session without the right | Elevation | Both commands need an Access login and the permission `system.reboot` (S4); the application scenario shows both refused to an account of the read-only role | Every session that may restart the controller may also stop the application; no permission of its own yet | Implemented |
+| 19 | Application status items and parameters | An item or parameter exposed with a weak permission | Disclosure, tampering | Crux requires a read permission for every item and parameter, and a write permission for a writable parameter; the product reviews its application's tables | The framework does not judge the permissions that the application names | Product |
+| 20 | Volume | Application data fills the volume and leaves no space for the credential store and the settings | Denial of service | A size limit of the application data root (specification section 5.4) | No limit before delivery stage 4 (C15) | Specified |
+| 21 | Controller | An application that hangs, stalls a thread or fails | Denial of service | A channel per application thread, deadlines on `init`, `start` and `stop`, `safe_state` before a reset, and a reset on a hang (specification sections 3 and 4) | Outputs keep a safe state across a reset only through the board's hardware default, and application threads can overwrite outputs after the supervisor's `safe_state` until the reset (specification section 3.3) | Implemented |
 
 ## 5. Annex I applicability
 

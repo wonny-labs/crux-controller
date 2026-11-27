@@ -131,6 +131,8 @@ void scenario_console_type(const char *text)
     if (length + 1u >= sizeof line) {
         return;
     }
+    /* The bytes go to the UART with a carriage return and no terminator. */
+    // NOLINTNEXTLINE(bugprone-not-null-terminated-result)
     memcpy(line, text, length);
     line[length] = '\r';
     (void)uart_emul_put_rx_data(CONSOLE_UART, (const uint8_t *)line, length + 1u);

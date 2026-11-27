@@ -79,7 +79,7 @@ The workflows in `.github/workflows/` and the [`Jenkinsfile`](Jenkinsfile) only 
 
 | Workflow | Jobs | When |
 |---|---|---|
-| `ci.yml` | `Tooling tests` (with the checks `secret-scan`: `scripts/ci/secret-scan.sh`, and `spdx`: `scripts/check_spdx.py`), `West pins`, `Host tests` (sanitizer off and on; with sanitizer off also the coverage report `host-coverage`), `workload` (Twister on `native_sim` for the scenarios in `tests/native_sim`, then the RT1060-EVKB build), `net build`, `file build`, `system build`, `sntp build`, `management build` (Twister on `native_sim` for the scenario in `tests/native_sim_mbed`, then the RT1060-EVKB build; it fetches the Mbed TLS modules, with the group switched on in its own runner), `minimal build` (`app/prj.conf` alone), `base build` (the base image: Twister on `native_sim` for the scenarios in `tests/framework`, which build the framework from the Zephyr module, then the RT1060-EVKB build and its SBOM with `release/check_sbom.py`, and every night its known vulnerabilities with `scripts/ci/match-vulnerabilities.sh`; it fetches the Mbed TLS modules as `management build` does), `Boundary check` (with the include check script of the Crux style kit as a further check), `Patch style` (Zephyr's checkpatch, rule BRACES, on the changed C lines, with `scripts/check-patch.sh`), `Static analysis` (clang-format 18.1.8 over every tracked C file with `scripts/check-format.sh`, then clang-tidy 18 over the host-built sources with `scripts/analyze_host.py`, which prints the list of tracked sources not analysed; any difference or finding fails the job) (names shortened) | pull requests, pushes to `main`, nightly |
+| `ci.yml` | `Tooling tests` (with the checks `secret-scan`: `scripts/ci/secret-scan.sh`, and `spdx`: `scripts/check_spdx.py`), `West pins`, `Host tests` (sanitizer off and on; with sanitizer off also the coverage report `host-coverage`), `workload` (Twister on `native_sim` for the scenarios in `tests/native_sim`, then the RT1060-EVKB build), `net build`, `file build`, `system build`, `sntp build`, `management build` (Twister on `native_sim` for the scenario in `tests/native_sim_mbed`, then the RT1060-EVKB build; it fetches the Mbed TLS modules, with the group switched on in its own runner), `minimal build` (`app/prj.conf` alone), `base build` (the base image: Twister on `native_sim` for the scenarios in `tests/framework`, which build the framework from the Zephyr module, clang-tidy over the application scenario's sources with `scripts/analyze_zephyr.py`, a configure that must refuse a start prerequisite on a left-out service, then the RT1060-EVKB build and its SBOM with `release/check_sbom.py`, and every night its known vulnerabilities with `scripts/ci/match-vulnerabilities.sh`; it fetches the Mbed TLS modules as `management build` does), `Boundary check` (with the include check script of the Crux style kit as a further check), `Patch style` (Zephyr's checkpatch, rule BRACES, on the changed C lines, with `scripts/check-patch.sh`), `Static analysis` (clang-format 18.1.8 over every tracked C file with `scripts/check-format.sh`, then clang-tidy 18 over the host-built sources with `scripts/analyze_host.py`, which prints the list of tracked sources not analysed; any difference or finding fails the job) (names shortened) | pull requests, pushes to `main`, nightly |
 | `budget.yml` | `Budget` for `minimal` to `base`: static resource use against `budgets/limits.json` (the `management` and `base` rows fetch the Mbed TLS modules in their own runners) | pull requests, pushes to `main`, nightly |
 | `devcontainer.yml` | `Dev container`: builds the image of `.devcontainer/` and runs in it, through `scripts/dev-shell.sh`, the tooling tests, the format check, the static analysis, the host tests (sanitizer off and on), both boundary checks, the `native_sim` scenarios and the RT1060-EVKB cross-build of `workload` with its output and configuration checks. Its pins are those of `ci.yml`, and `tests/tooling/test_devcontainer.py` compares them | pull requests and pushes to `main` that change `.devcontainer/`, `scripts/dev-shell.sh`, `scripts/bootstrap.sh`, `.vscode/`, `west.yml`, `scripts/ci/` or the workflow, nightly, and by hand |
 | `rebuild.yml` | builds `net` twice at different paths and compares `zephyr.bin` and `firmware_identity` | by hand, nightly, and pull requests that change the workflow, `release/` or `scripts/ci/` |
@@ -180,18 +180,18 @@ page, one home per fact, current state only. `tests/tooling/test_docs_page_types
 Measured on `main` at merge `e11e971`, on 18 November 2026; the counts of sources that are not analysed
 follow the current tree. If the scripts and workflows named here have changed since, they are the source of truth.
 
-- **Format.** clang-format 18.1.8 over every tracked C file is a gate: `scripts/check-format.sh`, in the
-  `Static analysis` job of `ci.yml`.
+- **Format.** clang-format 18.1.8 over every tracked C file is a gate: `scripts/check-format.sh`, in the `Static analysis` job of `ci.yml`.
 - **clang-tidy.** clang-tidy 18 with `.clang-tidy` (checks from `bugprone`, `clang-analyzer`,
-  `performance` and `portability`; warnings are errors) runs over the 22 sources that the host tests
+  `performance` and `portability`; warnings are errors) runs over the 26 sources that the host tests
   build: `scripts/analyze_host.py`, in the same job. `.clang-tidy` also lists
   `readability-identifier-naming` without options, so it checks no naming rule. The script prints the
-  tracked sources that it did not analyse, 32 today: the sources that the host tests do not build,
+  tracked sources that it did not analyse, 37 today: the sources that the host tests do not build,
   because they need Zephyr or Crux headers or Kconfig values. It does so without failing.
-- **The 32 not analysed.** 19 of those 32 are product sources (`app/`, `framework/`), built with
+- **clang-tidy on the Zephyr sources.** `scripts/analyze_zephyr.py` (check `static-analysis-zephyr`, `base build` job) runs the same analysis over this repository's sources in the compile database of the application scenario's `native_sim` build: the framework, the fixture application and the scenario. It drops the GCC options that clang refuses; any finding fails.
+- **The 37 not analysed by the host analysis.** 20 of those 37 are product sources (`app/`, `framework/`), built with
   `-Wall -Wextra -Werror` as `app/CMakeLists.txt`, `app/os/CMakeLists.txt`, `framework/configurations.cmake`,
-  `framework/compose/CMakeLists.txt` and `zephyr/CMakeLists.txt` set. The other 13 are the `native_sim` scenario
-  sources (`tests/{native_sim*,framework}/*/src/*.c`, the helpers `tests/framework/common/*.c`, `tests/product_integration/src/test_*.c`): the CMake
+  `framework/compose/CMakeLists.txt` and `zephyr/CMakeLists.txt` set. The other 17 are the `native_sim` scenario
+  sources (`tests/{native_sim*,framework}/*/src/*.c`, the helpers `tests/framework/common/*.c`, the fixture application `tests/framework/fixture/fixture.c`, `tests/product_integration/src/test_*.c`): the CMake
   files of the scenarios set those flags on the product sources that they pull in, not on the scenario source.
 - **Other gates.** The include rules (`scripts/check_boundary.py` and the Crux product include check,
   both in the `Boundary check` job) and the resource limits (`.github/workflows/budget.yml`).
@@ -207,7 +207,7 @@ or functional-safety compliance. The Crux platform states its own position in it
 [coding guidelines](https://github.com/wonny-labs/crux/blob/751e04aead779ac08e438ec1e2640e57fc50e9fe/docs/coding-guidelines.md),
 read at that commit.
 
-Known gaps, not scheduled: the 32 sources above have no clang-tidy analysis, and nothing measures how much of the code the `native_sim` scenarios run.
+Known gaps, not scheduled: of the 37 sources above, those of `app/` and of the scenarios other than the application scenario have no clang-tidy analysis, and nothing measures how much of the code the `native_sim` scenarios run.
 
 The product's own Kconfig symbols use the prefix `CRUX_CONTROLLER_`; they are the product's names, not
 Crux platform symbols.

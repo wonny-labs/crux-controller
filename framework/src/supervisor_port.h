@@ -20,6 +20,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "boot_record.h"
+
 /* Called once per period on the supervisor thread while no fault is latched. */
 typedef void (*supervisor_port_tick_t)(uint64_t now_ms);
 
@@ -27,6 +29,9 @@ typedef struct {
     uint32_t timeout_ms; /* T: the one watchdog timeout of the boot */
     uint32_t period_ms;  /* the supervisor's period; T is at least twice as long */
     supervisor_port_tick_t tick;
+    /* Called once on the supervisor thread after a latched fault's record is written and before a
+     * software reset: the application's safe_state (section 4.3). NULL for none. */
+    void (*latched)(void);
 } supervisor_port_config_t;
 
 typedef enum {
@@ -45,14 +50,25 @@ void supervisor_port_step_begin(const char *name, uint32_t deadline_ms);
 void supervisor_port_step_end(void);
 
 /*
- * Activate a task watchdog channel for the calling framework thread, fed now. The name is borrowed
- * for the program's life. Returns a handle of zero or more, or a negative value when the table or
- * the task watchdog is full.
+ * Activate a task watchdog channel, fed now. The name is borrowed for the program's life. Returns a
+ * handle of zero or more, or a negative value when the table or the task watchdog is full. A handle
+ * whose channel was deleted can be given again; a handle whose channel expired is never given
+ * again.
  */
 int supervisor_port_channel_add(const char *name, uint32_t reload_ms);
 
 /* Feed the channel of a handle. */
 void supervisor_port_channel_feed(int handle);
+
+/* Delete the channel of a handle (an application channel after a successful stop, section 4.4). */
+void supervisor_port_channel_delete(int handle);
+
+/*
+ * Latch a fault that the supervisor did not find itself (an application stop that returned an
+ * error): feeding stops at once, and the supervisor's next pass writes the record, calls the
+ * latched function and resets as for its own findings. A second latch changes nothing.
+ */
+void supervisor_port_latch(boot_fault_reason_t reason, const char *name);
 
 /*
  * The thread with the least unused stack, as the supervisor last measured it (about every ten

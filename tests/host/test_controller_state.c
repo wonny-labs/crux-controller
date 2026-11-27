@@ -117,6 +117,10 @@ static void test_the_application_transitions(void)
     CHECK(to == APP_RUNNING);
     CHECK(app_state_next(APP_HELD, APP_EVENT_OPERATOR_START, APP_HOLD_PREREQUISITE, &to));
     CHECK(to == APP_RUNNING);
+    /* An operator start from a hold for a start prerequisite whose activation or start fails enters
+     * fault (section 3.3). */
+    CHECK(app_state_next(APP_HELD, APP_EVENT_START_FAILED, APP_HOLD_PREREQUISITE, &to));
+    CHECK(to == APP_FAULT);
 
     to = APP_ABSENT;
     /* A hold for safe mode or the watchdog leaves only through a reset. */
@@ -223,6 +227,10 @@ static void test_the_names(void)
     CHECK(strcmp(app_state_name(APP_NOT_INITIALISED), "not-initialised") == 0);
     CHECK(strcmp(app_state_name(APP_HELD), "held") == 0);
     CHECK(strcmp(app_state_name(APP_FAULT), "fault") == 0);
+    CHECK(strcmp(service_id_name(SERVICE_NETWORK), "network") == 0);
+    CHECK(strcmp(service_id_name(SERVICE_CONFIGURATION), "configuration") == 0);
+    CHECK(strcmp(service_id_name(SERVICE_COMMAND_LINE), "command-line") == 0);
+    CHECK(strcmp(service_id_name(SERVICE_COUNT), "unknown") == 0);
     // NOLINTNEXTLINE(clang-analyzer-optin.core.EnumCastOutOfRange): deliberate out-of-range value
     CHECK(strcmp(app_state_name((app_state_t)99), "unknown") == 0);
     CHECK(strcmp(service_health_name(SERVICE_HEALTHY), "healthy") == 0);

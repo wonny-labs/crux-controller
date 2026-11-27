@@ -105,20 +105,28 @@ class PortAndZone(unittest.TestCase):
         table = table[:table.index("\n};")]
         names = re.findall(r'\{\{"([^"]+)",', table)
         # Health supervision adds the supervisor (step 2) after the clock and the application step
-        # (step 12) at the end; the command line stays after web management.
-        self.assertEqual(["clock", "supervisor", "web management", "command line", "time synchronisation",
-                          "application"], names)
+        # (step 12) at the end; the command line stays after web management. Changed with the
+        # application interface (specification section 4.1): the management step is split around the
+        # application's init (step 5), and the start prerequisites (step 11) come before step 12.
+        self.assertEqual(["clock", "supervisor", "storage access", "app init", "web management",
+                          "command line", "time synchronisation", "start prerequisites", "application"],
+                         names)
 
     def test_the_first_account_gets_the_role_that_manages_accounts(self):
         code = code_of(read("framework/src/framework.c"))
         self.assertIn("MANAGEMENT_ROLE_ADMINISTRATOR", code)
 
-    def test_the_command_line_needs_web_management_to_have_started(self):
-        # Access is started by the web management phase; the console must not start without it.
+    def test_the_command_line_needs_the_management_services_to_have_started(self):
+        # Access and the configuration and status services are started before the command line; the
+        # console must not start without them. A refused TLS certificate leaves them started and
+        # turns only web management off (specification section 4.1), so the console still starts.
         code = code_of(read("framework/src/framework.c"))
         phase = code[code.index("static int phase_command_line"):]
         phase = phase[:phase.index("\n}\n")]
-        self.assertIn("management_started", phase)
+        self.assertIn("management_services_started", phase)
+        management = code[code.index("static int phase_management"):]
+        management = management[:management.index("\n}\n")]
+        self.assertIn("MANAGEMENT_PORT_ERR_TLS_CERTIFICATE", management)
 
 
 class BaseImage(unittest.TestCase):
@@ -198,7 +206,7 @@ class NativeSimScenario(unittest.TestCase):
     def test_the_scenario_types_the_first_account_setup(self):
         code = code_of(read(f"{self.SCENARIO}/src/test_base.c"))
         for text in ('"!setup"', '"account created"', '"setup not available"', '"login failed"',
-                     '"logout"', "startup done phases=6 failed=0", "phase command line ok"):
+                     '"logout"', "startup done phases=7 failed=0", "phase command line ok"):
             self.assertIn(text, code)
 
     @ci_map.needs_tomllib

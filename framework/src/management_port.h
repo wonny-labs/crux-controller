@@ -47,6 +47,11 @@ typedef enum {
     MANAGEMENT_PORT_ERR_INVALID_ARGUMENT = -1,
     MANAGEMENT_PORT_ERR_ALREADY_STARTED = -2, /* A second start; nothing changed. */
     MANAGEMENT_PORT_ERR_STEP_FAILED = -3,     /* A step of the sequence refused; nothing serves. */
+    MANAGEMENT_PORT_ERR_STORAGE = -4,   /* The medium, a store root or the data root failed. */
+    MANAGEMENT_PORT_ERR_NOT_READY = -5, /* The services part before a successful core part. */
+    /* The TLS certificate start refused: steps 1 to 3 had started and stay started, and web
+     * management (steps 5 to 7) is off. */
+    MANAGEMENT_PORT_ERR_TLS_CERTIFICATE = -6,
 } management_port_status_t;
 
 typedef struct {
@@ -74,9 +79,34 @@ typedef struct {
     /* Called once the security events run, before the TLS certificate; a result other than zero
      * refuses the start. NULL for none. */
     int (*after_events)(void);
+    /* True: the core part also binds the application data root (storage_port_bind_app()). */
+    bool bind_app_root;
+    /* The parameter table of the configuration service: an array of crux_config_service_entry_t,
+     * borrowed for the program's life, or NULL with a count of zero. */
+    const void *parameters;
+    size_t parameter_count;
 } management_port_config_t;
 
-/* Start HTTPS management, or refuse and leave it off. Returns once, never serves a half start. */
+/* Start HTTPS management, or refuse and leave it off. Returns once, never serves a half start. It
+ * runs the core part and then the services part, with the same configuration, and returns the
+ * result of the part that refused. */
 management_port_status_t management_port_start(const management_port_config_t *config);
+
+/*
+ * The two parts of the sequence, for the start function, whose application init (startup step 5)
+ * runs between them:
+ *   core      steps 1 and 2 above (the medium, the store roots and, with bind_app_root, the data
+ *             root, the credential store and Access): startup steps 3 and 4;
+ *   services  steps 3 to 7 (configuration with the parameter table, status with the items, the
+ *             event thread and the hook, the TLS certificate, sessions, management and the
+ *             listener): startup steps 6, 7 and 10.
+ * The core part checks the configuration and runs once; the services part runs once, after a
+ * successful core part (MANAGEMENT_PORT_ERR_NOT_READY otherwise), and reads the status items and
+ * the parameters of its own configuration, so they can be known only after init. A refused TLS
+ * certificate start (MANAGEMENT_PORT_ERR_TLS_CERTIFICATE) leaves only web management off; any other
+ * refusal leaves the services part off as a whole.
+ */
+management_port_status_t management_port_start_core(const management_port_config_t *config);
+management_port_status_t management_port_start_services(const management_port_config_t *config);
 
 #endif

@@ -220,21 +220,32 @@ passes the shape test, as any unknown `<crux/NAME.h>` does (see [Running the che
 ## The trees of the framework module
 
 The controller framework is a Zephyr module of this repository (`zephyr/module.yml`). Its sources live in four
-checked trees, each with a rule of its own in `RULES`:
+checked trees, each with a rule of its own in `RULES`, and the fixture application of its scenarios has a fifth:
 
 | Tree | Holds | May include |
 |---|---|---|
-| `include` | The interface headers `<controller/framework.h>` and `<controller/version.h>`, which a product includes | ISO C, public `<crux/NAME.h>` headers except the frozen three, its own tree |
+| `include` | The interface headers `<controller/framework.h>`, `<controller/framework_management.h>` and `<controller/version.h>`, which a product includes | ISO C, public `<crux/NAME.h>` headers except the frozen three, its own tree |
 | `framework/src` | The portable core: the startup sequence and the start function, the time synchronisation glue and policy, the management policy and the port headers | ISO C, public `<crux/NAME.h>` headers except the frozen three, its own tree, `<controller/NAME.h>`; no Zephyr header and no Sockets profile |
 | `framework/compose` | The composition zone of the module: the storage mount, the start of web management and the start of the serial command line | the rule of `app/compose`, with header files (`.h`) of `framework/src` in place of those of `app/src` |
-| `framework/os` | The adapter zone of the module: the SNTP query and its thread, and the health supervision (supervisor thread, task watchdog, retained region, fatal error handler, reboot thread) | the rule of `app/os` with the supervision headers below, and header files (`.h`) of `framework/src` in place of those of `app/src` |
+| `framework/os` | The adapter zone of the module: the SNTP query and its thread, the health supervision (supervisor thread, task watchdog, retained region, fatal error handler, reboot thread) and the application thread | the rule of `app/os` with the supervision headers below, and header files (`.h`) of `framework/src` in place of those of `app/src` |
 
 `<controller/NAME.h>` must name a file of `include/controller/`, one level deep. `app/src` may include it and the
 headers of `framework/src`, because the base image's `main()` calls the start function and the configurations built
 on the workload compose the framework services that live in the module. No zone of `app/` or of the module may
 include it, and the two zones of the module reach neither `app/src` nor each other.
 
-A C or C++ source or header under `app/`, `framework/`, `include/` or `zephyr/` that lies in none of the checked trees fails
+### The fixture application
+
+The fixture application of the `native_sim` scenarios (`tests/framework/fixture`) has a rule of its own,
+because specification section 7.3 asks that every source of the fixture application lie in a checked tree, and
+because it shows that an application reaches the framework only as a product does. It may include ISO C headers,
+`<controller/NAME.h>`, public `<crux/NAME.h>` headers except the frozen three, its own tree and one Zephyr header,
+`zephyr/kernel.h`, for its threads (the application uses Zephyr directly for threads, specification section 3.2).
+A header of the framework's source trees, a composition interface, the Sockets profile and every other Zephyr header
+fail. The scenarios' own sources beside it (`tests/framework/<scenario>/src`) are tests and have no rule.
+`tests/tooling/test_boundary.py` (`FixtureApplication`) checks both sides.
+
+A C or C++ source or header under `app/`, `framework/`, `include/`, `zephyr/` or `tests/framework/fixture/` that lies in none of the checked trees fails
 the check (`MODULE_TREES` in `scripts/check_boundary.py`), so a source cannot escape the rules by its place. Build
 files, the web assets of `framework/management/` and the data files of `app/conf/` and `app/boards/` are not
 sources. The allow-lists of the zones are those above, and the module's adapter zone adds the headers of the next section.

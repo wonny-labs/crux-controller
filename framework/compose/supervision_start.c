@@ -6,6 +6,9 @@
  *
  *   - the framework's status items (framework_status.h) for the status service, read with the
  *     status read permission; each source copies a value and neither blocks nor touches storage;
+ *     after them the application's items, each behind a framework item of the same name and
+ *     permission that answers CRUX_ERR_NOT_READY once the registrations are released (specification
+ *     section 3.3);
  *   - Crux Reboot with the framework's callback policy (reboot_policy.h) and no Crux reboot worker,
  *     because the framework's reboot thread carries out requests (gap C14);
  *   - the framework's commands of the serial command line: status, which prints every status item
@@ -18,10 +21,14 @@
  *     docs/reboot-service.md (decision 16) adds no CLI reboot command, because the issue asked for
  *     none; its alternative column names a serial reboot command, which this project uses. The
  *     interface is components/reboot/include/crux/reboot.h.
+ *   - the operator stop and start of the application (framework_control.h): application stop and
+ *     application start, which need system.reboot (an open question of delivery stage 3: a
+ *     permission of their own) and are carried out on the framework's application thread.
  *
  * Status: built in CI for the board and run on native_sim; never run on a board.
  */
 
+#include "../src/controller_state.h"
 #include "../src/framework_status.h"
 #include "../src/supervision_compose.h"
 
@@ -35,6 +42,8 @@
 #include <string.h>
 
 #ifdef CONFIG_CRUX_CONTROLLER_FRAMEWORK_CLI_SERIAL
+#include "../src/framework_control.h"
+#include "../src/management_policy.h"
 #include "supervision_start.h"
 
 #include <crux/cli.h>
@@ -46,6 +55,8 @@
 #include "../src/recovery.h"
 
 #include <crux/reboot.h>
+
+#include <stdio.h>
 #endif
 
 #define LOG_TAG "recovery"
@@ -61,7 +72,7 @@ static const text_source_t sources[] = {
 
 static crux_status_t read_text(void *context, crux_mgmt_status_value_t *out)
 {
-    const text_source_t *source = context;
+    const text_source_t *source = (const text_source_t *)context;
 
     out->type = CRUX_MGMT_STATUS_TEXT;
     (*source)(out->data.text, sizeof out->data.text);
@@ -84,10 +95,27 @@ static crux_status_t read_boot_counter(void *context, crux_mgmt_status_value_t *
     return CRUX_OK;
 }
 
+/* The services, so that a health item's context is the address of its identifier. */
+static const int services[SERVICE_COUNT] = {
+    SERVICE_NETWORK, SERVICE_STORAGE, SERVICE_ACCESS, SERVICE_CONFIGURATION,
+    SERVICE_STATUS,  SERVICE_TIME,    SERVICE_WEB,    SERVICE_COMMAND_LINE,
+};
+
+static crux_status_t read_health(void *context, crux_mgmt_status_value_t *out)
+{
+    const int *service = context;
+
+    out->type = CRUX_MGMT_STATUS_TEXT;
+    framework_status_health(*service, out->data.text, sizeof out->data.text);
+    return CRUX_OK;
+}
+
 #define TEXT_ITEM(item_name, index)                                                                \
     {(item_name), CRUX_MGMT_STATUS_PERMISSION_READ, read_text, (void *)&sources[(index)]}
+#define HEALTH_ITEM(item_name, service)                                                            \
+    {(item_name), CRUX_MGMT_STATUS_PERMISSION_READ, read_health, (void *)&services[(service)]}
 
-static const crux_mgmt_status_item_t items[] = {
+static const crux_mgmt_status_item_t framework_items[] = {
     TEXT_ITEM("controller.state", 0),
     TEXT_ITEM("controller.application", 1),
     {"controller.safe_mode", CRUX_MGMT_STATUS_PERMISSION_READ, read_safe_mode, NULL},
@@ -96,12 +124,61 @@ static const crux_mgmt_status_item_t items[] = {
     TEXT_ITEM("controller.watchdog", 3),
     TEXT_ITEM("controller.last_fault", 4),
     TEXT_ITEM("controller.stack_min", 5),
+    HEALTH_ITEM("controller.health.network", SERVICE_NETWORK),
+    HEALTH_ITEM("controller.health.storage", SERVICE_STORAGE),
+    HEALTH_ITEM("controller.health.access", SERVICE_ACCESS),
+    HEALTH_ITEM("controller.health.configuration", SERVICE_CONFIGURATION),
+    HEALTH_ITEM("controller.health.status", SERVICE_STATUS),
+    HEALTH_ITEM("controller.health.time", SERVICE_TIME),
+    HEALTH_ITEM("controller.health.web", SERVICE_WEB),
+    HEALTH_ITEM("controller.health.command-line", SERVICE_COMMAND_LINE),
 };
 
-const void *supervision_compose_status_items(size_t *count)
+#define FRAMEWORK_ITEMS (sizeof framework_items / sizeof framework_items[0])
+
+_Static_assert(FRAMEWORK_ITEMS + CONFIG_CRUX_CONTROLLER_APP_STATUS_ITEMS <=
+                   CRUX_MGMT_STATUS_PROJECT_ITEMS_MAX,
+               "the framework's and the application's status items must fit the status service");
+
+/* The table that the status service gets: the framework's items, then one framework item per
+ * application item, whose context is the application's item. */
+static crux_mgmt_status_item_t items[FRAMEWORK_ITEMS + CONFIG_CRUX_CONTROLLER_APP_STATUS_ITEMS];
+
+/* An application item's source: unavailable once the registrations are released, otherwise the
+ * application's own source. */
+static crux_status_t read_application_item(void *context, crux_mgmt_status_value_t *out)
 {
+    const crux_mgmt_status_item_t *item = context;
+
+    if (!framework_status_application_items()) {
+        return CRUX_ERR_NOT_READY;
+    }
+    return item->read(item->context, out);
+}
+
+const void *supervision_compose_status_items(const void *app_items, size_t app_count, size_t *count)
+{
+    const crux_mgmt_status_item_t *given = app_items;
+
     if (count != NULL) {
-        *count = sizeof items / sizeof items[0];
+        *count = 0u;
+    }
+    if (app_count > CONFIG_CRUX_CONTROLLER_APP_STATUS_ITEMS || (given == NULL && app_count > 0u)) {
+        return NULL;
+    }
+    for (size_t index = 0; index < FRAMEWORK_ITEMS; index++) {
+        items[index] = framework_items[index];
+    }
+    for (size_t index = 0; index < app_count; index++) {
+        items[FRAMEWORK_ITEMS + index] = (crux_mgmt_status_item_t){
+            .name = given[index].name,
+            .permission = given[index].permission,
+            .read = read_application_item,
+            .context = (void *)&given[index],
+        };
+    }
+    if (count != NULL) {
+        *count = FRAMEWORK_ITEMS + app_count;
     }
     return items;
 }
@@ -109,12 +186,19 @@ const void *supervision_compose_status_items(size_t *count)
 #ifdef CONFIG_CRUX_CONTROLLER_FRAMEWORK_REBOOT
 /* The Crux Reboot policy callback: the framework's rule for the operator reset marker. Crux calls
  * it on the requesting thread and again on the framework's reboot thread just before the reset. The
- * framework does not refuse, so it writes no reason. */
+ * framework refuses only while the startup steps of an image with an application run
+ * (framework_control.h), and says so in the reason. */
 static bool reboot_policy(void *context, crux_reboot_refusal_t *refusal)
 {
     (void)context;
-    (void)refusal;
-    return reboot_policy_allow(reboot_policy_port());
+    if (reboot_policy_allow(reboot_policy_port())) {
+        return true;
+    }
+    if (refusal != NULL) {
+        (void)snprintf(refusal->reason, sizeof refusal->reason, "%s",
+                       "Application startup has not ended");
+    }
+    return false;
 }
 
 int supervision_compose_reboot_start(void)
@@ -228,10 +312,57 @@ static crux_cli_result_t recovery_exit_command(crux_cli_call_t *call, size_t arg
 }
 #endif
 
+/* Say what the framework did with an operator request. */
+static crux_cli_result_t control_reply(crux_cli_call_t *call, framework_control_t result,
+                                       const char *requested)
+{
+    const char *text = requested;
+
+    if (result == FRAMEWORK_CONTROL_NO_APPLICATION) {
+        text = "refused: no application\n";
+    } else if (result == FRAMEWORK_CONTROL_STARTING) {
+        text = "refused: startup has not ended\n";
+    } else if (result == FRAMEWORK_CONTROL_RESETTING) {
+        text = "refused: a reset is under way\n";
+    }
+    const crux_cli_result_t written = crux_cli_write(call, text, strlen(text));
+
+    if (written != CRUX_CLI_OK) {
+        return written;
+    }
+    return result == FRAMEWORK_CONTROL_REQUESTED ? CRUX_CLI_OK : CRUX_CLI_ERR_FAILED;
+}
+
+static crux_cli_result_t application_stop_command(crux_cli_call_t *call, size_t argc,
+                                                  const char *const *argv, void *context)
+{
+    (void)argc;
+    (void)argv;
+    (void)context;
+    return control_reply(call, framework_control_application_stop(),
+                         "application stop requested\n");
+}
+
+static crux_cli_result_t application_start_command(crux_cli_call_t *call, size_t argc,
+                                                   const char *const *argv, void *context)
+{
+    (void)argc;
+    (void)argv;
+    (void)context;
+    return control_reply(call, framework_control_application_start(),
+                         "application start requested\n");
+}
+
 static const crux_cli_command_t commands[] = {
     CRUX_CLI_COMMAND("status", "Show the status items",
                      CRUX_CLI_PERMISSION(CRUX_MGMT_STATUS_PERMISSION_READ), 0u, 0u,
                      CRUX_CLI_CHANNEL_SERIAL, status_command, NULL),
+    CRUX_CLI_COMMAND("application stop", "Stop the application",
+                     CRUX_CLI_PERMISSION(MANAGEMENT_PERMISSION_SYSTEM_REBOOT), 0u, 0u,
+                     CRUX_CLI_CHANNEL_SERIAL, application_stop_command, NULL),
+    CRUX_CLI_COMMAND("application start", "Start the stopped or held application",
+                     CRUX_CLI_PERMISSION(MANAGEMENT_PERMISSION_SYSTEM_REBOOT), 0u, 0u,
+                     CRUX_CLI_CHANNEL_SERIAL, application_start_command, NULL),
 #ifdef CONFIG_CRUX_CONTROLLER_FRAMEWORK_REBOOT
     CRUX_CLI_COMMAND("reboot", "Restart the controller",
                      CRUX_CLI_PERMISSION(CRUX_REBOOT_PERMISSION), 0u, 0u, CRUX_CLI_CHANNEL_SERIAL,

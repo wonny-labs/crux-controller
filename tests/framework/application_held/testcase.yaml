@@ -1,0 +1,22 @@
+common:
+  platform_allow:
+    - native_sim/native/64
+  integration_platforms:
+    - native_sim/native/64
+  tags:
+    - controller
+    - framework
+tests:
+  controller.framework.native_sim.application_held:
+    timeout: 300
+    harness: console
+    harness_config:
+      type: multi_line
+      ordered: true
+      regex:
+        - "held scenario start"
+        - "watchdog not armed"
+        - "application init result=0 channels=2 state=initialised"
+        - "application held reason=watchdog not armed"
+        - "startup supervision ended in step 12 application state=held"
+        - "held scenario: initialised, not started, controller degraded"

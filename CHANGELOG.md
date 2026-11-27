@@ -9,6 +9,28 @@ build configurations by their earlier step ids, S0 to S6.
 
 ### Controller framework
 
+- The application interface (delivery stage 3, specification sections 3 and 4). **Breaking:**
+  `controller_framework_start()` takes the product's descriptor, `const controller_app_t *`, or `NULL` for no
+  application (the base image passes `NULL`). The descriptor has four mandatory entries (`init`, `start`,
+  `stop`, `safe_state`); one framework thread calls them, and the supervisor calls `safe_state` before a
+  reset. The context registers task watchdog channels, status items and a parameter table
+  (`<controller/framework_management.h>`, with the Crux types), and gives the data root (File root 3), the
+  controller state, each service's health and the fault report. The management start is split around `init`,
+  so the base image logs seven phases. New options: start prerequisites and runtime dependencies per service
+  (none by default; one on a service that the build leaves out fails the build), the deadlines of `init` and
+  `stop`, the application thread's stack and the most status items. New serial commands: `application stop`
+  and `application start` (permission `system.reboot`). The status service shows each service's health. The
+  newest operator stop or start replaces an older one that has not run yet. A planned reset through Crux
+  Reboot stops a running application first and refuses later operator requests; while the startup steps of
+  an image with an application run, Crux Reboot refuses a restart with the reason "Application startup has
+  not ended". The interface is at the lowest stability tier.
+- A refused TLS certificate start, such as `CRUX_TLS_CERTIFICATE_ERR_KEY_MISMATCH`, turns only web management
+  off. The configuration and status services, the serial command line, the reboot thread and the start
+  prerequisites behave as after a successful start (specification section 4.1). Boot 11 of the scenario
+  `application` shows it on `native_sim`.
+- A fixture application (`tests/framework/fixture`) and the scenarios `application` and `application_held` show
+  the contract on `native_sim`; the boundary check covers the fixture tree, and clang-tidy also analyses the
+  sources of the application scenario's `native_sim` compile database (`scripts/analyze_zephyr.py`).
 - The repository is a controller framework for products built on Crux: a Zephyr module (`zephyr/module.yml`)
   that one Kconfig symbol, `CRUX_CONTROLLER_FRAMEWORK`, turns on, with a base image. The role section of
   `CONTRIBUTING.md` and the glossary entry "Product" say so; "product" now means a firmware repository outside

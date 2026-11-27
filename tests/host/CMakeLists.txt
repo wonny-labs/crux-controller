@@ -105,3 +105,18 @@ add_executable(test_reboot_policy test_reboot_policy.c ../../framework/src/reboo
 target_include_directories(test_reboot_policy PRIVATE ../../framework/src)
 target_compile_options(test_reboot_policy PRIVATE -Wall -Wextra -Wpedantic -Werror)
 add_test(NAME reboot_policy COMMAND test_reboot_policy)
+
+# The application contract of delivery stage 3: registrations, the channel lifecycle and the order
+# of the application's calls with the clean-up of each failure. ISO C only; the framework thread,
+# the task watchdog and the composition that carry it out are not built on the host.
+add_executable(test_app_contract test_app_contract.c ../../framework/src/app_contract.c
+    ../../framework/src/controller_state.c)
+target_include_directories(test_app_contract PRIVATE ../../framework/src)
+target_compile_options(test_app_contract PRIVATE -Wall -Wextra -Wpedantic -Werror)
+add_test(NAME app_contract COMMAND test_app_contract)
+
+# The operator requests of the application thread and the gate of a planned reset: ISO C only.
+add_executable(test_app_requests test_app_requests.c ../../framework/src/app_requests.c)
+target_include_directories(test_app_requests PRIVATE ../../framework/src)
+target_compile_options(test_app_requests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+add_test(NAME app_requests COMMAND test_app_requests)

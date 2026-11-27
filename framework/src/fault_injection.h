@@ -15,6 +15,10 @@ bool fault_injection_step_stalls(const char *step);
 bool fault_injection_thread_stalls(const char *thread);
 /* True once, when the fatal error is armed. */
 bool fault_injection_fatal_due(void);
+/* True while the service (service_id_t) is injected down. */
+bool fault_injection_service_down(int service);
+/* True when the application channel of that name is to be refused. */
+bool fault_injection_channel_refused(const char *name);
 #else
 static inline bool fault_injection_step_stalls(const char *step)
 {
@@ -28,6 +32,16 @@ static inline bool fault_injection_thread_stalls(const char *thread)
 }
 static inline bool fault_injection_fatal_due(void)
 {
+    return false;
+}
+static inline bool fault_injection_service_down(int service)
+{
+    (void)service;
+    return false;
+}
+static inline bool fault_injection_channel_refused(const char *name)
+{
+    (void)name;
     return false;
 }
 #endif

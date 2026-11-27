@@ -81,5 +81,5 @@ K_THREAD_DEFINE(console_bridge, BRIDGE_STACK, bridge_run, NULL, NULL, NULL, BRID
 
 int main(void)
 {
-    return controller_framework_start() == CONTROLLER_FRAMEWORK_OK ? 0 : -1;
+    return controller_framework_start(NULL) == CONTROLLER_FRAMEWORK_OK ? 0 : -1;
 }

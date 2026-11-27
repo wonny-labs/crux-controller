@@ -67,9 +67,11 @@ _Static_assert(sizeof(CONFIG_CRUX_WEB_BIND_ADDRESS) > 1u,
 #define CERTIFICATE_COMMON_NAME "crux-controller"
 #define CERTIFICATE_DNS_NAME "crux-controller"
 
-/* One start per program. Crux's init functions run once, so a start that began cannot be retried.
- */
+/* One start of each part per program. Crux's init functions run once, so a start that began cannot
+ * be retried. core_done is set when the core part succeeded, which the services part needs. */
 static bool started;
+static bool core_done;
+static bool services_started;
 
 static crux_access_role_t access_roles[ROLES_MAX];
 static crux_access_policy_t access_policy;
@@ -170,13 +172,23 @@ static void set_certificate_options(const uint8_t octets[4])
     };
 }
 
+/* The core part refused at a step of the medium or the roots. */
+static management_port_status_t failed_storage(const char *step)
+{
+    (void)failed(step);
+    return MANAGEMENT_PORT_ERR_STORAGE;
+}
+
 management_port_status_t management_port_start(const management_port_config_t *config)
 {
+    const management_port_status_t core = management_port_start_core(config);
+
+    return core != MANAGEMENT_PORT_OK ? core : management_port_start_services(config);
+}
+
+management_port_status_t management_port_start_core(const management_port_config_t *config)
+{
     uint8_t octets[4];
-    crux_tls_certificate_start_t how = CRUX_TLS_CERTIFICATE_STARTED;
-    crux_reset_cause_t cause = {0};
-    char fingerprint[CRUX_TLS_CERTIFICATE_FINGERPRINT_TEXT_SIZE];
-    char text[CRUX_LOG_TEXT_MAX];
 
     if (started) {
         return MANAGEMENT_PORT_ERR_ALREADY_STARTED;
@@ -205,10 +217,13 @@ management_port_status_t management_port_start(const management_port_config_t *c
         return failed("time");
     }
     if (storage_port_mount(STORAGE_PORT_FORMAT_ON_FAILED_MOUNT) != STORAGE_PORT_OK) {
-        return failed("medium");
+        return failed_storage("medium");
     }
     if (storage_port_bind_store() != STORAGE_PORT_OK) {
-        return failed("store roots");
+        return failed_storage("store roots");
+    }
+    if (config->bind_app_root && storage_port_bind_app() != STORAGE_PORT_OK) {
+        return failed_storage("application data root");
     }
 
     /* 2. The credential store, then Access with the product's roles. A store that is unusable
@@ -221,13 +236,43 @@ management_port_status_t management_port_start(const management_port_config_t *c
     if (crux_access_init(&access_policy) != CRUX_ACCESS_OK) {
         return failed("access");
     }
+    core_done = true;
+    return MANAGEMENT_PORT_OK;
+}
 
-    /* 3. The configuration service with no parameter of its own, the status service with the reset
-     * cause and the configuration's items, and the event thread, then the configuration's hook. The
-     * cause is the copy that the boot diagnostic owner gives (gap C2), or, without one, a read here
-     * that never clears the flags. It is set before the initialiser that holds it, because the
-     * members of an initialiser are not evaluated in a fixed order. */
-    if (crux_config_service_start(NULL, 0u) != CRUX_CONFIG_SERVICE_OK) {
+management_port_status_t management_port_start_services(const management_port_config_t *config)
+{
+    uint8_t octets[4];
+    crux_tls_certificate_start_t how = CRUX_TLS_CERTIFICATE_STARTED;
+    crux_reset_cause_t cause = {0};
+    char fingerprint[CRUX_TLS_CERTIFICATE_FINGERPRINT_TEXT_SIZE];
+    char text[CRUX_LOG_TEXT_MAX];
+
+    if (config == NULL) {
+        return MANAGEMENT_PORT_ERR_INVALID_ARGUMENT;
+    }
+    if (services_started) {
+        return MANAGEMENT_PORT_ERR_ALREADY_STARTED;
+    }
+    if (!core_done) {
+        return MANAGEMENT_PORT_ERR_NOT_READY;
+    }
+    /* The core part parsed the same text, so this parse succeeds; the octets name the address in
+     * the certificate. */
+    if (!management_address_parse(CONFIG_CRUX_WEB_BIND_ADDRESS, octets)) {
+        return failed("bind address");
+    }
+    services_started = true;
+
+    /* 3. The configuration service with the configuration's parameter table (the application's,
+     * registered in its init, or none), the status service with the reset cause and the
+     * configuration's items, and the event thread, then the configuration's hook. The cause is the
+     * copy that the boot diagnostic owner gives (gap C2), or, without one, a read here that never
+     * clears the flags. It is set before the initialiser that holds it, because the members of an
+     * initialiser are not evaluated in a fixed order. */
+    if (crux_config_service_start((const crux_config_service_entry_t *)config->parameters,
+                                  config->parameters != NULL ? config->parameter_count : 0u) !=
+        CRUX_CONFIG_SERVICE_OK) {
         return failed("configuration service");
     }
     crux_status_t cause_status = (crux_status_t)config->reset_cause_status;
@@ -257,10 +302,18 @@ management_port_status_t management_port_start(const management_port_config_t *c
     }
 
     /* 4. The TLS certificate. The device key is made inside this call, from the hardware random
-     * source, when the store holds none. */
+     * source, when the store holds none. A refusal, such as a stored certificate of another key,
+     * turns only web management off: the services above stay started, and the serial console is
+     * the operator's path to recover the certificate (specification sections 4.1 and 5.5). */
     set_certificate_options(octets);
-    if (crux_tls_certificate_start(&certificate_options, &how) != CRUX_TLS_CERTIFICATE_OK) {
-        return failed("tls certificate");
+    const crux_tls_certificate_result_t certificate =
+        crux_tls_certificate_start(&certificate_options, &how);
+    if (certificate != CRUX_TLS_CERTIFICATE_OK) {
+        (void)snprintf(text, sizeof text,
+                       "tls certificate start refused result=%d: web management stays off",
+                       (int)certificate);
+        note(CRUX_LOG_ERROR, text);
+        return MANAGEMENT_PORT_ERR_TLS_CERTIFICATE;
     }
 
     /* 5. The material to Zephyr's credentials, before the listener, and the fingerprint to the log

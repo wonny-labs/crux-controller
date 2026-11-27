@@ -47,7 +47,7 @@ static void persist(void)
         text[2 * index] = digits[area[index] >> 4];
         text[2 * index + 1] = digits[area[index] & 0x0f];
     }
-    text[2 * AREA_SIZE] = '\0';
+    text[(size_t)2 * AREA_SIZE] = '\0';
     (void)nsi_host_setenv(ENV_NAME, text, 1);
 }
 
@@ -58,7 +58,7 @@ static int env_init(const struct device *dev)
 
     /* A first start has no variable: the area holds zeros, which no retention prefix matches. */
     memset(area, 0, sizeof area);
-    if (stored == NULL || strlen(stored) != 2 * AREA_SIZE) {
+    if (stored == NULL || strlen(stored) != (size_t)2 * AREA_SIZE) {
         return 0;
     }
     for (size_t index = 0; index < AREA_SIZE; index++) {
