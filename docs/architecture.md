@@ -122,7 +122,9 @@ application thread and takes no application yet.
 Health supervision follows specification sections 4 and 5 of the controller framework. The supervisor feeds the
 watchdog only while the current step is within its deadline and no task watchdog channel of a framework thread (time
 synchronisation, reboot) has expired; a hang latches the fault, writes the last-fault record to the retained region
-and ends in a reset, and the framework's fatal error handler writes a minimal record and resets. Consecutive fault
+and ends in a reset. The framework's fatal error handler writes a minimal record and resets: in thread context
+through Crux System, and in the fault exception of a Cortex-M by halting, so that the armed hardware watchdog
+resets the device; with no armed watchdog the halt is final. Consecutive fault
 resets lead to safe mode, which leaves out time synchronisation and the application, and the serial command
 `recovery exit` leaves it through Crux Reboot with the operator reset marker. The rules are portable C with host
 tests (`framework/src/boot_record.c`, `supervision.c`, `controller_state.c`, `reboot_policy.c`), the threads, the

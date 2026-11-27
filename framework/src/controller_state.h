@@ -120,6 +120,13 @@ typedef struct {
  */
 app_start_t app_start_decide(const app_start_inputs_t *inputs, app_hold_t *hold);
 
+/*
+ * The conditions of a successful boot (section 5.2), which must hold for the stable period before
+ * the boot counter is cleared: the controller is operational and the application is neither in
+ * fault nor held. An absent application (the base image) does not stop it.
+ */
+bool controller_successful_boot_conditions(controller_state_t state, app_state_t application);
+
 /* Lower-case words for the log and the status service; "unknown" for a value out of range. */
 const char *controller_state_name(controller_state_t state);
 const char *app_state_name(app_state_t state);

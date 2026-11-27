@@ -4,7 +4,10 @@
  * OCRAM2. All RAM of this board configuration is the SDRAM, and OCRAM2 holds no section, so neither
  * Zephyr's startup nor the link touches the area; the OCRAM2 region shrinks by the 256 bytes of the
  * area so that the link never places anything there, and the area is no linker region of its own. The SDRAM is not used, because the boot ROM
- * initialises its controller again at every boot.
+ * initialises its controller again at every boot. Label: the retention area over retained RAM is
+ * Zephyr's documented mechanism (dts/bindings/retention/zephyr,retention.yaml, whose example uses a
+ * zephyr,memory-region node); this node has no zephyr,memory-region, and OCRAM2 shrinks instead, so
+ * that the budget gains no linker region: a project-specific workaround.
  *
  * Whether the area survives a WDOG1 reset and a pin reset, whether a power cycle leaves it invalid,
  * and whether the boot ROM leaves it alone are board facts that a board check shows (specification

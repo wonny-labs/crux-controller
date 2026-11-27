@@ -12,7 +12,10 @@
  *     that the session may read, and, with Crux Reboot, reboot, recovery clear and recovery exit,
  *     which need system.reboot. recovery clear sets the boot counter to zero; recovery exit sets it
  *     to zero and asks Crux Reboot for a restart, which carries the operator reset marker, so the
- *     next boot is a normal boot (safe-mode exit).
+ *     next boot is a normal boot (safe-mode exit). Label: the authorised operator command of
+ *     specification section 5.2 is a decision of the specification (D4); carrying it on the serial
+ *     command line through Crux Reboot is this repository's choice, with Crux's documented reboot
+ *     service (crux-pilot docs/reboot-service.md, components/reboot/include/crux/reboot.h).
  *
  * Status: built in CI for the board and run on native_sim; never run on a board.
  */

@@ -197,7 +197,9 @@ supervisor_port_status_t supervisor_port_start(const supervisor_port_config_t *c
     config = *configuration;
     supervision_init(&state);
     /* The task watchdog without hardware: each channel only reports to the supervisor. */
-    (void)task_wdt_init(NULL);
+    if (task_wdt_init(NULL) != 0) {
+        say(CRUX_LOG_ERROR, "task watchdog not started: framework threads are not supervised");
+    }
 
     const crux_status_t result = crux_watchdog_start(config.timeout_ms, &watchdog);
 

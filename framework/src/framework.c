@@ -117,17 +117,17 @@ static void say(crux_log_level_t level, const char *text)
 
 #ifdef CONFIG_CRUX_CONTROLLER_FRAMEWORK_SUPERVISION
 /* What the steps learn and the status service shows. The fields without atomics are written by the
- * start function before the status service and the threads that read them start, and the health
- * values once per step; the supervisor thread reads them. */
+ * start function in step 1, before the threads and the status service that read them start; the
+ * others are read by the supervisor thread and the status service while the steps run. */
 static struct {
     crux_status_t cause_status;
     crux_reset_cause_t cause;
     recovery_boot_t boot;
-    bool safe_mode;
-    bool armed;
+    atomic_bool safe_mode;
+    atomic_bool armed;
     atomic_bool startup_done;
     atomic_int state;
-    service_health_t health[SERVICE_COUNT];
+    atomic_int health[SERVICE_COUNT];
     boot_stability_t stability;
     controller_state_t logged;
 } fw;
@@ -163,13 +163,14 @@ static void decide_boot(void)
     recovery_boot(fw.cause_status == CRUX_OK, fw.cause.causes,
                   boot_image_id(CONTROLLER_IMAGE_ID_TEXT),
                   (uint8_t)CONFIG_CRUX_CONTROLLER_SAFE_MODE_THRESHOLD, &fw.boot);
-    fw.safe_mode = decision->safe_mode;
+    atomic_store(&fw.safe_mode, decision->safe_mode);
     (void)snprintf(text, sizeof text, "boot class=%s counter=%u threshold=%u safe mode=%s %s",
                    boot_class_name(decision->boot_class), (unsigned)decision->region.counter,
                    (unsigned)CONFIG_CRUX_CONTROLLER_SAFE_MODE_THRESHOLD,
-                   fw.safe_mode ? "yes" : "no",
+                   atomic_load(&fw.safe_mode) ? "yes" : "no",
                    fw.boot.retained ? "retained region" : "no retained region");
-    say(fw.safe_mode || decision->boot_class == BOOT_CLASS_FAULT ? CRUX_LOG_WARN : CRUX_LOG_INFO,
+    say(atomic_load(&fw.safe_mode) || decision->boot_class == BOOT_CLASS_FAULT ? CRUX_LOG_WARN
+                                                                               : CRUX_LOG_INFO,
         text);
     if (decision->fault_reported) {
         recovery_last_fault_text(fault, sizeof fault);
@@ -197,7 +198,7 @@ static int phase_clock(void)
 #ifdef CONFIG_CRUX_CONTROLLER_FRAMEWORK_SUPERVISION
 static void set_health(service_id_t service, service_health_t health)
 {
-    fw.health[service] = health;
+    atomic_store(&fw.health[service], (int)health);
 }
 
 /* Once per supervisor period, on the supervisor thread: the controller state and the successful
@@ -206,8 +207,8 @@ static void supervisor_tick(uint64_t now_ms)
 {
     controller_inputs_t inputs = {
         .startup_done = atomic_load(&fw.startup_done),
-        .safe_mode = fw.safe_mode,
-        .watchdog_armed = fw.armed,
+        .safe_mode = atomic_load(&fw.safe_mode),
+        .watchdog_armed = atomic_load(&fw.armed),
 #ifdef CONFIG_CRUX_CONTROLLER_START_WITHOUT_WATCHDOG
         .watchdog_optional = true,
 #else
@@ -217,7 +218,7 @@ static void supervisor_tick(uint64_t now_ms)
     };
 
     for (int service = 0; service < SERVICE_COUNT; service++) {
-        inputs.health[service] = fw.health[service];
+        inputs.health[service] = (service_health_t)atomic_load(&fw.health[service]);
     }
     const controller_state_t state = controller_state_decide(&inputs);
 
@@ -229,7 +230,8 @@ static void supervisor_tick(uint64_t now_ms)
         (void)snprintf(text, sizeof text, "controller state=%s", controller_state_name(state));
         say(state == CONTROLLER_OPERATIONAL ? CRUX_LOG_INFO : CRUX_LOG_WARN, text);
     }
-    if (boot_stability_update(&fw.stability, state == CONTROLLER_OPERATIONAL, now_ms,
+    if (boot_stability_update(&fw.stability,
+                              controller_successful_boot_conditions(state, APP_ABSENT), now_ms,
                               STABLE_PERIOD_MS)) {
         recovery_counter_clear();
         say(CRUX_LOG_INFO, "successful boot: boot counter cleared");
@@ -254,8 +256,8 @@ static int phase_supervisor(void)
     if (status == SUPERVISOR_PORT_ERR) {
         return (int)status;
     }
-    fw.armed = status == SUPERVISOR_PORT_ARMED;
-    if (fw.armed) {
+    atomic_store(&fw.armed, status == SUPERVISOR_PORT_ARMED);
+    if (status == SUPERVISOR_PORT_ARMED) {
         (void)snprintf(text, sizeof text, "watchdog armed timeout=%u ms",
                        (unsigned)CONFIG_CRUX_CONTROLLER_WATCHDOG_TIMEOUT_MS);
         say(CRUX_LOG_INFO, text);
@@ -269,13 +271,13 @@ static int phase_supervisor(void)
 #ifdef CONFIG_CRUX_CONTROLLER_FRAMEWORK_TIME_SYNC
 static bool skip_in_safe_mode(void)
 {
-    return fw.safe_mode;
+    return atomic_load(&fw.safe_mode);
 }
 #endif
 
 static int phase_application(void)
 {
-    say(CRUX_LOG_INFO, fw.safe_mode ? "no application: safe mode" : "no application");
+    say(CRUX_LOG_INFO, atomic_load(&fw.safe_mode) ? "no application: safe mode" : "no application");
     return 0;
 }
 
@@ -465,7 +467,7 @@ void framework_status_application(char *text, size_t size)
 
 bool framework_status_safe_mode(void)
 {
-    return fw.safe_mode;
+    return atomic_load(&fw.safe_mode);
 }
 
 uint32_t framework_status_boot_counter(void)
@@ -480,7 +482,7 @@ void framework_status_boot(char *text, size_t size)
 
 void framework_status_watchdog(char *text, size_t size)
 {
-    (void)snprintf(text, size, "%s", fw.armed ? "armed" : "not-armed");
+    (void)snprintf(text, size, "%s", atomic_load(&fw.armed) ? "armed" : "not-armed");
 }
 
 void framework_status_last_fault(char *text, size_t size)

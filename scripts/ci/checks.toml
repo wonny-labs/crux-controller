@@ -182,8 +182,6 @@ python -m unittest discover -s tests/tooling -v
 scope = "always"
 fast = "always"
 
-# Every covered first-party file starts with the licence identifier line. The list of the
-# files that predate the check is in the script and can only get shorter.
 # The secret scan of criterion 41, on every change: Gitleaks at a pinned release over the checkout.
 [[check]]
 id = "secret-scan"
@@ -194,6 +192,8 @@ scripts/ci/secret-scan.sh
 scope = "always"
 fast = "always"
 
+# Every covered first-party file starts with the licence identifier line. The list of the
+# files that predate the check is in the script and can only get shorter.
 [[check]]
 id = "spdx"
 job = "tooling"
@@ -339,9 +339,11 @@ scope = "always"
 fast = ["product", "host-tests"]
 
 # The host-test coverage of criterion 41: the host tests again, built with --coverage, and a gcovr
-# summary of the sources they build, per file and in total. Project policy sets no threshold yet,
-# so the check reports and does not gate; gcovr is pinned and runs in a virtual environment of the
-# runner's temporary folder.
+# summary of the sources they build, per file and in total. No threshold is set yet (an owner
+# decision), so the check reports and does not gate; gcovr is pinned and runs in a virtual
+# environment of the runner's temporary folder. Label: coverage reporting is documented but optional
+# (Zephyr documentation, test coverage; specification section 6.4, Q1); GCC's --coverage with gcovr
+# is the choice of this repository.
 [[check]]
 id = "host-coverage"
 job = "host-OFF"
@@ -355,7 +357,7 @@ python3 -m venv "$venv"
 "$venv/bin/gcovr" --root . --filter 'framework/src/' --filter 'app/src/' --filter 'workload/' \
   --exclude 'tests/' --txt-summary --print-summary build/host-coverage \
   | tee -a "${GITHUB_STEP_SUMMARY:-/dev/stdout}"
-echo "No coverage threshold is set by project policy yet: this check reports and does not gate."
+echo "No coverage threshold is set yet (an owner decision): this check reports and does not gate."
 '''
 scope = "always"
 fast = ["product", "host-tests"]

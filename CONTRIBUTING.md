@@ -177,7 +177,7 @@ have changed since, they are the source of truth.
   requires the licence identifier line in first-party C, CMake, Kconfig, Python and shell files, and
   keeps a list of two older scripts that lack it. `scripts/check-patch.sh` (the `Patch style` job) runs
   Zephyr's checkpatch with the rule BRACES on the changed C lines of a change.
-- **Coverage and secrets.** The check `host-coverage` of the `Host tests` job (sanitizer off) builds the host tests with GCC's `--coverage` and prints a gcovr summary; project policy sets no threshold, so it reports and does not gate. The check `secret-scan` of `Tooling tests` runs Gitleaks over the checkout and fails on a finding.
+- **Coverage and secrets.** The check `host-coverage` of the `Host tests` job (sanitizer off) builds the host tests with GCC's `--coverage` and prints a gcovr summary; no threshold is set yet (an owner decision), so it reports and does not gate. The check `secret-scan` of `Tooling tests` runs Gitleaks over the checkout and fails on a finding.
 - **Not done.** There is no coverage threshold, no coverage measurement of the `native_sim` scenarios and no linting of Python, shell, YAML and CMake. Parts of the Zephyr-side glue are not run by any test: the start order in `composition.c`, the `system` watchdog feed path and the `management` web page script.
 
 These are the configured automated checks of this repository, not a claim of MISRA C, CERT C, security

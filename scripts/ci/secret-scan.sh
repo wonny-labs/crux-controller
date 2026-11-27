@@ -9,7 +9,10 @@
 # default rules (private keys, API tokens, passwords in known formats) and prints each finding with
 # the secret redacted. A finding fails the check. Gitleaks reads the configuration .gitleaks.toml
 # of the repository root when one exists; there is none, so no rule is turned off. Run from the
-# repository root. Nothing is uploaded.
+# repository root. Nothing is uploaded. Label: a secret scan is documented but optional (GitHub
+# documentation, secret scanning; specification section 6.4, Q1), and the tool is the choice of this
+# repository, which the specification leaves open (section 6.3); Gitleaks documents the dir command
+# and its default rules in its README.
 set -euo pipefail
 
 GITLEAKS_VERSION=8.30.1

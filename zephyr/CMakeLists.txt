@@ -71,7 +71,10 @@ if(CONFIG_CRUX_CONTROLLER_FRAMEWORK)
     # Health supervision: the portable rules (boot record, supervision, states), the framework's
     # copy of the retained region, and the adapter zone's supervisor thread, retained region and
     # fatal error handler. The image identity is the commit of this repository and the hash of the
-    # resolved configuration, so another image or another configuration clears the boot counter.
+    # resolved configuration, so another image or another configuration clears the boot counter
+    # (project-specific workaround: the specification asks for an identifier of the image and names
+    # no source for it; a product whose update changes only its application code needs another
+    # source from delivery stage 3 on).
     if(CONFIG_CRUX_CONTROLLER_FRAMEWORK_SUPERVISION)
         zephyr_library_sources(
             "${controller_root}/framework/src/boot_record.c"

@@ -194,6 +194,23 @@ static void test_a_watchdog_that_does_not_arm_holds_the_application_in_a_product
     CHECK(app_start_decide(&inputs, &hold) == APP_START_GO);
 }
 
+/* Criterion 10: the counter does not clear while the application is in fault or held, nor while the
+ * controller is not operational. */
+static void test_the_successful_boot_conditions(void)
+{
+    CHECK(controller_successful_boot_conditions(CONTROLLER_OPERATIONAL, APP_ABSENT));
+    CHECK(controller_successful_boot_conditions(CONTROLLER_OPERATIONAL, APP_RUNNING));
+    CHECK(controller_successful_boot_conditions(CONTROLLER_OPERATIONAL, APP_STOPPED));
+    CHECK(!controller_successful_boot_conditions(CONTROLLER_OPERATIONAL, APP_FAULT));
+    CHECK(!controller_successful_boot_conditions(CONTROLLER_OPERATIONAL, APP_HELD));
+    for (int state = CONTROLLER_STARTING; state <= CONTROLLER_RECOVERY; state++) {
+        if (state != CONTROLLER_OPERATIONAL) {
+            CHECK(!controller_successful_boot_conditions((controller_state_t)state, APP_RUNNING));
+            CHECK(!controller_successful_boot_conditions((controller_state_t)state, APP_ABSENT));
+        }
+    }
+}
+
 static void test_the_names(void)
 {
     CHECK(strcmp(controller_state_name(CONTROLLER_STARTING), "starting") == 0);
@@ -220,6 +237,7 @@ int main(void)
     test_the_application_transitions();
     test_the_start_decision();
     test_a_watchdog_that_does_not_arm_holds_the_application_in_a_product_build();
+    test_the_successful_boot_conditions();
     test_the_names();
     printf("%d checks, %d failures\n", checks, failures);
     return failures == 0 ? 0 : 1;

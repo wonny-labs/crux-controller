@@ -8,10 +8,13 @@
  * The handler calls no application entry. It writes a minimal record, with the reason and the name
  * of the thread that failed, through the retained port, which takes no mutex. Then it resets:
  * crux_system_reset() where the handler runs in thread context (native_sim), otherwise
- * k_fatal_halt(), after which the unfed hardware watchdog resets the device within T. Crux refuses
- * its reset in interrupt context, and on a Cortex-M the handler runs in the fault exception. In a
- * build whose watchdog is not armed the halt is final; a product build does not run the application
- * in that case (D14).
+ * k_fatal_halt(), after which the armed, unfed hardware watchdog resets the device within T. Crux
+ * refuses its reset in interrupt context, and on a Cortex-M the handler runs in the fault
+ * exception. In a build whose watchdog is not armed the halt is final; a product build does not run
+ * the application in that case (D14). Label: the handler is an established mechanism; the halt that
+ * leaves the reset to the watchdog is a project-specific workaround, because zephyr/sys/reboot.h,
+ * which Zephyr's own default handler uses with CONFIG_RESET_ON_FATAL_ERROR (kernel/fatal.c), is not
+ * on the allow-list of the adapter zone.
  *
  * Status: built in CI for the board and run on native_sim; never run on a board.
  */

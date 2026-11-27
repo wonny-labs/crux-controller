@@ -120,6 +120,11 @@ app_start_t app_start_decide(const app_start_inputs_t *inputs, app_hold_t *hold)
     return decision;
 }
 
+bool controller_successful_boot_conditions(controller_state_t state, app_state_t application)
+{
+    return state == CONTROLLER_OPERATIONAL && application != APP_FAULT && application != APP_HELD;
+}
+
 const char *controller_state_name(controller_state_t state)
 {
     switch (state) {

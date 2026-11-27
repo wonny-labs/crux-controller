@@ -131,13 +131,27 @@ static void test_an_interrupted_write_counts_as_an_empty_region(void)
     memcpy(&torn[BOOT_REGION_SIZE - 4u], &old_bytes[BOOT_REGION_SIZE - 4u], 4u);
     CHECK(!boot_region_decode(torn, &decoded));
 
-    const boot_decision_t out = boot(NULL, false, BOOT_CAUSE_WATCHDOG, IMAGE_A);
+    /* A watchdog reset counts from an empty region: counter one, no record, no safe mode. */
+    const boot_decision_t watchdog = boot(NULL, false, BOOT_CAUSE_WATCHDOG, IMAGE_A);
 
-    CHECK(out.boot_class == BOOT_CLASS_POWER_CYCLE);
-    CHECK(out.region.counter == 0u);
-    CHECK(!out.safe_mode);
-    CHECK(!out.fault_reported);
-    CHECK(out.region.image_id == IMAGE_A);
+    CHECK(watchdog.boot_class == BOOT_CLASS_FAULT);
+    CHECK(watchdog.region.counter == 1u);
+    CHECK(!watchdog.safe_mode);
+    CHECK(!watchdog.fault_reported);
+    CHECK(watchdog.region.image_id == IMAGE_A);
+
+    /* The marker went with the region, so a software reset counts too. */
+    const boot_decision_t software = boot(NULL, false, BOOT_CAUSE_SOFTWARE, IMAGE_A);
+
+    CHECK(software.boot_class == BOOT_CLASS_FAULT);
+    CHECK(software.region.counter == 1u);
+
+    /* A pin reset with an invalid region is a region that did not survive: counter zero. */
+    const boot_decision_t pin = boot(NULL, false, BOOT_CAUSE_PIN, IMAGE_A);
+
+    CHECK(pin.boot_class == BOOT_CLASS_POWER_CYCLE);
+    CHECK(pin.region.counter == 0u);
+    CHECK(!pin.fault_reported);
 }
 
 static void test_n_consecutive_fault_resets_enter_safe_mode(void)

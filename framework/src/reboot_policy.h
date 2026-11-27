@@ -14,7 +14,9 @@
  *
  * The port is implemented in the adapter zone (framework/os/reboot_zephyr.c), which knows the
  * reboot thread and writes the retained region; the composition zone registers
- * reboot_policy_allow() as the Crux Reboot policy callback (framework/compose/management_start.c).
+ * reboot_policy_allow() as the Crux Reboot policy callback (framework/compose/supervision_start.c).
+ * Documented but optional: <crux/reboot.h> says that a composition with no worker thread calls
+ * crux_reboot_work_once() itself.
  */
 
 #include <stdbool.h>

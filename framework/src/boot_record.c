@@ -168,8 +168,19 @@ bool boot_decide(const boot_input_t *in, boot_decision_t *out)
 
     const bool por = in->cause_captured && (in->causes & BOOT_CAUSE_POR) != 0u;
 
-    if (!in->region_valid || por) {
+    if (por) {
         decision.boot_class = BOOT_CLASS_POWER_CYCLE;
+    } else if (!in->region_valid) {
+        /* An empty region: the captured cause alone classifies the reset. */
+        boot_input_t empty = *in;
+
+        boot_region_init(&empty.region, in->image_id);
+        if (is_fault_reset(&empty)) {
+            decision.boot_class = BOOT_CLASS_FAULT;
+            decision.region.counter = 1u;
+        } else {
+            decision.boot_class = BOOT_CLASS_POWER_CYCLE;
+        }
     } else {
         decision.region = in->region;
         decision.region.image_id = in->image_id;

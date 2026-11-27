@@ -19,6 +19,7 @@ tests:
         - "recovery scenario boot 1"
         - "boot class=power counter=0 threshold=3 safe mode=no retained region"
         - "watchdog armed timeout=2000 ms"
+        - "https management started"
         - "fault injection: step command line stalls"
         - "Crux simulated watchdog expired"
         - "recovery scenario boot 2"

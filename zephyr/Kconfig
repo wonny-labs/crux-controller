@@ -69,7 +69,8 @@ config CRUX_CONTROLLER_FRAMEWORK_SUPERVISION
 	  within its deadline and no task watchdog channel of a framework thread has
 	  expired. A hang latches the fault, writes the last-fault record to the retained
 	  region and ends in a reset; the framework's fatal error handler writes a minimal
-	  record and resets. After CRUX_CONTROLLER_SAFE_MODE_THRESHOLD consecutive fault
+	  record and resets through Crux System in thread context, or halts so that the
+	  armed watchdog resets the device (a halt with no armed watchdog is final). After CRUX_CONTROLLER_SAFE_MODE_THRESHOLD consecutive fault
 	  resets the boot is in safe mode, with no time synchronisation and no
 	  application. The status service and the serial command line show the state.
 	  The retained region is the Zephyr retention area of the devicetree node label

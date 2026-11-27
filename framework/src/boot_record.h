@@ -37,7 +37,9 @@ enum {
 #define BOOT_REGION_SIZE 40u
 /* Bytes of a name in a fault record, its terminator included. */
 #define BOOT_NAME_SIZE 16u
-/* The largest counter that the region can hold. The counter saturates at the threshold. */
+/* The largest counter that the region can hold. The counter saturates at the threshold N: section
+ * 5.2 says that it saturates and that in safe mode it "stays saturated", which holds only when the
+ * maximum is N (project-specific reading of the specification; no other source). */
 #define BOOT_COUNTER_MAX 255u
 
 /* Why the supervisor or the fatal error handler wrote the record. */
@@ -109,8 +111,13 @@ typedef struct {
  * Classify the reset and decide the boot (specification sections 5.1 and 5.2). False for a NULL
  * argument or a threshold of zero, with *out untouched.
  *
- * - The region did not survive when it is invalid or the captured cause includes POR, whatever
- *   other bits are latched: the counter starts at zero and no record is reported.
+ * - A captured POR means that the region did not survive, whatever other bits are latched: the
+ *   counter starts at zero and no record is reported.
+ * - An invalid region without POR (a write that a reset interrupted, or a region that did not
+ *   survive a reset that reads as PIN) counts as an empty region: no record and no marker, and the
+ *   captured cause alone decides whether the reset was a fault reset, so the counter is zero or
+ * one. Without the marker, SOFTWARE and CPU_LOCKUP count. Section 5.1 states both this rule and the
+ *   power-cycle rule; this reading keeps a watchdog reset counted when its region was torn.
  * - A region of another image clears the counter and reports that image's last record.
  * - Otherwise the reset is a fault reset when WATCHDOG is latched, when an unconsumed record names
  *   a deadline, a channel, a fatal error or a stop, or, without the operator reset marker, when

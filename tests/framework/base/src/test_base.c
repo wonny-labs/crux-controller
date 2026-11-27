@@ -247,7 +247,9 @@ ZTEST(base, test_08_the_first_account_logs_in_and_runs_a_command)
 
 /* Criterion 6, base image part: the reset cause is read once in step 1 and the flags cleared after
  * the capture; the supervisor step, which arms the watchdog, ends before the step that mounts the
- * volume begins; and startup supervision ends in step 12 with no application. */
+ * volume begins; and startup supervision ends in step 12 with no application. This scenario has no
+ * watchdog; the scenario recovery (testcase.yaml) shows "watchdog armed" before the management step
+ * with the simulated watchdog. */
 ZTEST(base, test_09_the_start_order_of_supervision)
 {
     const char *log = drain_log();
