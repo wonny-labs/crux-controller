@@ -16,7 +16,7 @@ release dry run are the record.
 ```mermaid
 flowchart TD
     CC["crux-controller<br/>west.yml, the manifest repository"]
-    CP["crux<br/>pinned commit 05a50475"]
+    CP["crux<br/>pinned commit 13301954"]
     ZP["zephyr v4.5.0<br/>pinned by Crux"]
     MOD["cmsis, cmsis_6, hal_nxp, littlefs, fatfs<br/>Zephyr modules Crux lets through"]
     PL["picolibc<br/>product-only, native_sim test"]
@@ -32,7 +32,7 @@ flowchart TD
 
 | Project | Revision | Route | Why it is here | Licence as the project states it |
 |---|---|---|---|---|
-| `crux` | `05a50475653becf7e4867686f4f88747173e1c21` (a commit, no Crux tag exists) | The platform itself: pinned in `west.yml`, its manifest is imported | The Crux components, the composition interface `<crux/file_zephyr.h>` and the public management headers, which `management` uses in `framework/compose/management_start.c`. At this pin the Mbed TLS modules of the optional group follow the revisions in Zephyr's own manifest at v4.5.0 (Mbed TLS 4.1.1 and TF-PSA-Crypto 1.1.1), which the `management` and `base` jobs, their `Budget` rows and the nightly `product-integration` job fetch, each in its own runner | Apache-2.0 |
+| `crux` | `1330195487c34c8df6046d41ae030d3cdf8a5138` (a commit, no Crux tag exists) | The platform itself: pinned in `west.yml`, its manifest is imported | The Crux components, the composition interface `<crux/file_zephyr.h>` and the public management headers, which `management` uses in `framework/compose/management_start.c`. At this pin the Mbed TLS modules of the optional group follow the revisions in Zephyr's own manifest at v4.5.0 (Mbed TLS 4.1.1 and TF-PSA-Crypto 1.1.1), which the `management` and `base` jobs, their `Budget` rows and the nightly `product-integration` job fetch, each in its own runner | Apache-2.0 |
 | `zephyr` | `41d10b59730406bbab4ca9f1fbbe9e96aafb4966` (v4.5.0) | Pinned via the Crux contract | The RTOS the image is built on | Apache-2.0 |
 | `cmsis` | `512cc7e895e8491696b61f7ba8066b4a182569b8` | Pinned via the Crux contract | Arm Cortex-M core headers that Zephyr's Cortex-M support uses | Apache-2.0 |
 | `cmsis_6` | `1c1840af7a7e757d6e2fec3ddb0e5ce0dfcc93c8` | Pinned via the Crux contract | Arm core headers of the newer CMSIS interface, which Zephyr's manifest also names | Apache-2.0 |

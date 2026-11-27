@@ -13,7 +13,7 @@ before touching the board.
 
 **What has been run**: the `net` image on the board, recorded in the
 [roadmap](roadmap.md#what-has-run-on-a-board).
-[Crux's J-Link and usbipd guide](https://github.com/wonny-labs/crux/blob/05a50475653becf7e4867686f4f88747173e1c21/docs/board-jlink-usbipd.md)
+[Crux's J-Link and usbipd guide](https://github.com/wonny-labs/crux/blob/1330195487c34c8df6046d41ae030d3cdf8a5138/docs/board-jlink-usbipd.md)
 records, on Windows with WSL2, a usbipd attach without `--auto-attach`, `west flash` and **Board: Debug** in Crux's Dev Container, and a connection check, `west flash` and `west debugserver` with an earlier, separate board Dev Container configuration.
 
 Not run: step 2 in the form of this page, with this repository's Dev Container, the J-Link software of this repository's image with a probe,
@@ -63,9 +63,9 @@ WSL2 restarts: run `attach` again. While the probe is attached, Windows tools ca
 `usbipd detach --busid <BUSID>` gives it back.
 
 On native Linux there is no attach. The board settings and the udev rule
-([99-crux-jlink.rules](https://github.com/wonny-labs/crux/blob/05a50475653becf7e4867686f4f88747173e1c21/.devcontainer/jlink/99-crux-jlink.rules),
+([99-crux-jlink.rules](https://github.com/wonny-labs/crux/blob/1330195487c34c8df6046d41ae030d3cdf8a5138/.devcontainer/jlink/99-crux-jlink.rules),
 in the Crux checkout, not copied here) are on the
-[Crux board page](https://github.com/wonny-labs/crux/blob/05a50475653becf7e4867686f4f88747173e1c21/docs/boards/mimxrt1060_evkb.md).
+[Crux board page](https://github.com/wonny-labs/crux/blob/1330195487c34c8df6046d41ae030d3cdf8a5138/docs/boards/mimxrt1060_evkb.md).
 
 ## 3. Open the Dev Container with the probe
 
@@ -120,7 +120,7 @@ Should show: `lsusb` lists the probe with ID `1366:<product>`, and `bash scripts
 ## 4. Flash, debug and restore
 
 Flashing with `west flash`, debugging, the read-only compare of the flash and the recovery of the board's previous
-image are on the [Crux board page](https://github.com/wonny-labs/crux/blob/05a50475653becf7e4867686f4f88747173e1c21/docs/boards/mimxrt1060_evkb.md). This repository adds its image (step 1), the network and log
+image are on the [Crux board page](https://github.com/wonny-labs/crux/blob/1330195487c34c8df6046d41ae030d3cdf8a5138/docs/boards/mimxrt1060_evkb.md). This repository adds its image (step 1), the network and log
 values below, and the VS Code tasks and profiles.
 
 ### VS Code tasks and debug profiles
