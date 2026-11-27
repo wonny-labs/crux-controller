@@ -58,6 +58,21 @@ class Configuration(unittest.TestCase):
                     "CONFIG_SNTP"):
             self.assertEqual("y", self.values.get(key), key)
 
+    def test_it_supervises_the_controller_as_the_base_image_does(self):
+        # An unmet Kconfig dependency only turns supervision off, so name what it needs.
+        for key in ("CONFIG_TASK_WDT", "CONFIG_CRUX_SYSTEM", "CONFIG_CRUX_REBOOT", "CONFIG_REBOOT"):
+            self.assertEqual("y", self.values.get(key), key)
+        self.assertEqual("n", self.values.get("CONFIG_TASK_WDT_HW_FALLBACK"))
+        # The start function runs below the supervisor's priority (<controller/framework.h>).
+        self.assertEqual("8", self.values.get("CONFIG_MAIN_THREAD_PRIORITY"))
+        self.assertNotEqual("y", self.values.get("CONFIG_CRUX_CONTROLLER_FRAMEWORK_FAULT_INJECTION"))
+        self.assertIn("startup done phases=6 failed=0", read(f"{SCENARIO}/pytest/test_interactive.py"))
+        self.assertIn("startup done phases=6 failed=0", read(PAGE))
+
+    def test_a_restart_request_restarts_the_program(self):
+        # Without it native_sim's reboot does nothing and the image stops answering.
+        self.assertEqual("y", self.values.get("CONFIG_NATIVE_SIM_REBOOT"))
+
     def test_the_network_is_the_hosts_through_offloaded_sockets(self):
         for key in ("CONFIG_NET_SOCKETS_OFFLOAD", "CONFIG_NET_NATIVE_OFFLOADED_SOCKETS", "CONFIG_NET_SOCKETS_SOCKOPT_TLS"):
             self.assertEqual("y", self.values.get(key), key)
