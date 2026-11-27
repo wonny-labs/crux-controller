@@ -22,6 +22,9 @@ function(controller_framework_image)
     endif()
     if(CONFIG_CRUX_CONTROLLER_FRAMEWORK_MANAGEMENT)
         include("${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../framework/management/management.cmake")
+        # The generated route table includes <crux/web.h>, so the target that compiles it links the
+        # public target of the web API, as the management configuration of app/ does.
+        target_link_libraries(app PRIVATE crux::web)
         # A key made from a test source means nothing, so a board image refuses one. The
         # native_sim simulator has only its test source, and only the tests run there.
         if(NOT CONFIG_FAKE_ENTROPY_NATIVE_SIM)
