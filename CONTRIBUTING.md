@@ -182,7 +182,7 @@ follow the current tree. If the scripts and workflows named here have changed si
 
 - **Format.** clang-format 18.1.8 over every tracked C file is a gate: `scripts/check-format.sh`, in the `Static analysis` job of `ci.yml`.
 - **clang-tidy.** clang-tidy 18 with `.clang-tidy` (checks from `bugprone`, `clang-analyzer`,
-  `performance` and `portability`; warnings are errors) runs over the 28 sources that the host tests
+  `performance` and `portability`; warnings are errors) runs over the 31 sources that the host tests
   build: `scripts/analyze_host.py`, in the same job. `.clang-tidy` also lists
   `readability-identifier-naming` without options, so it checks no naming rule. The script prints the
   tracked sources that it did not analyse, 37 today: the sources that the host tests do not build,
