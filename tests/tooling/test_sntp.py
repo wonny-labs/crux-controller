@@ -531,8 +531,9 @@ class SntpSources(unittest.TestCase):
             check_boundary.COMPOSITION_ZEPHYR_HEADERS)
         self.assertEqual(["app/src", "workload", "app/compose", "app/os", "include", "framework/src", "framework/compose", "framework/os",
                           # Added with the fixture application (delivery stage 3); the zone
-                          # allow-lists above stay as they were.
-                          "tests/framework/fixture"],
+                          # allow-lists above stay as they were. The application template
+                          # (delivery stage 4) adds a rule and no zone header.
+                          "tests/framework/fixture", "template"],
                          [rule.directory for rule in check_boundary.RULES])
 
     def test_the_sntp_header_still_fails_outside_the_adapter_zone(self):
