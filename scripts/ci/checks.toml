@@ -165,6 +165,11 @@ env = { BOARD = "mimxrt1060_evk@B//qspi", PRODUCT_VERSION = "0.1.0+1", SECURITY_
 [jobs.scheduled-main]
 description = "net build against crux-pilot main"
 env = { BOARD = "mimxrt1060_evk@B//qspi" }
+# The product integration check: the fixture product of tests/product_integration imports this
+# repository at the commit under test into a west workspace of its own, builds on native_sim and
+# runs. Its checks make that workspace in the runner's temporary folder.
+[jobs.product-integration]
+description = "Product integration: a fixture product imports the framework, native_sim"
 
 # --- tooling -------------------------------------------------------------------------------------
 
@@ -1920,5 +1925,36 @@ grep -Eq 'local-mac-address = \[ *02 *43 *52 *55 *58 *20 *\]' "$build/zephyr.dts
   echo "the net overlay did not delete green_led" >&2
   exit 1
 }
+'''
+tiers = ["nightly"]
+
+# --- product-integration -------------------------------------------------------------------------
+# A product imports the framework as a project of its own west workspace (west's T2 topology), at
+# the commit under test, with Crux at the pin of this repository through the import. The script
+# tests/product_integration/run.sh does each step and refuses a folder that it did not make. It
+# flashes nothing and operates no board. Locally, from the clone on a Linux host:
+#   scripts/ci/run-tier.sh nightly --job product-integration
+
+[[check]]
+id = "product-integration-workspace"
+job = "product-integration"
+run = '''
+tests/product_integration/run.sh workspace "${RUNNER_TEMP:-/tmp}/product-integration"
+'''
+tiers = ["nightly"]
+
+[[check]]
+id = "product-integration-build"
+job = "product-integration"
+run = '''
+tests/product_integration/run.sh build "${RUNNER_TEMP:-/tmp}/product-integration"
+'''
+tiers = ["nightly"]
+
+[[check]]
+id = "product-integration-run"
+job = "product-integration"
+run = '''
+tests/product_integration/run.sh run "${RUNNER_TEMP:-/tmp}/product-integration"
 '''
 tiers = ["nightly"]

@@ -127,6 +127,12 @@ that asks for both.
 
 The include rules of these trees are in [composition-zone.md](composition-zone.md#the-trees-of-the-framework-module).
 
+A product imports the framework as a project of its own west workspace. The nightly check `product-integration`
+shows that with a fixture product, `tests/product_integration`: its manifest lists `crux-controller` at the commit
+under test and imports its manifest, so Crux comes at the pin of this repository; its CMake file names no path of
+`crux-controller`, and west finds the module. `tests/product_integration/run.sh` makes the workspace, builds the
+fixture for `native_sim` and runs it.
+
 ## How Crux is consumed
 
 Crux states the general rules for a product in its own guides at the pinned revision:
@@ -257,7 +263,7 @@ Top-level directories and files:
 | `budgets/` | `limits.json` (declared minimum free percent per memory region and configuration), `collect.py` (reads a build log into a measurement), `check.py` (compares a measurement with the limits). |
 | `release/` | The release bundle tools: `assemble_bundle.py`, `check_bundle.py`, `rebuild_compare.py`, `parse_spdx.py` and `release-manifest.schema.json`. Hashes and identities only; no image is ever published. |
 | `docs/` | This documentation: [architecture.md](architecture.md), [glossary.md](glossary.md), [adding-a-capability.md](adding-a-capability.md), [roadmap.md](roadmap.md), the [Tutorial](tutorial.md), [Getting started](getting-started.md), [board-bring-up.md](board-bring-up.md), [composition-zone.md](composition-zone.md), [dependencies.md](dependencies.md), `findings/` and `history/` (the project history). |
-| `.github/workflows/` | `ci.yml` (tooling tests, west pins, host tests, the `minimal` to `base` builds, the boundary check and static analysis), `budget.yml`, `rebuild.yml`, `release.yml`, `scheduled-main.yml`. |
+| `.github/workflows/` | `ci.yml` (tooling tests, west pins, host tests, the `minimal` to `base` builds, the boundary check and static analysis), `budget.yml`, `rebuild.yml`, `release.yml`, `scheduled-main.yml` (the nightly jobs: the build against `crux-pilot` main and the product integration check). |
 | `west.yml` | The west manifest and the pin. |
 | `README.md`, `CONTRIBUTING.md`, `CHANGELOG.md`, `RELEASE.md`, `SECURITY.md`, `LICENSE`, `CODEOWNERS` | Role and status, contribution rules, changes, release flow, vulnerability reporting, licence, ownership. |
 

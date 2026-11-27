@@ -155,6 +155,10 @@ pipeline {
                     agent { dockerfile { filename 'Dockerfile'; dir '.devcontainer'; additionalBuildArgs '--build-arg CRUX_JLINK=0'; args '-v crux-controller-ci-cache:/opt/crux-cache'; customWorkspace "crux-ci/${env.BUILD_TAG}/scheduled-main/crux-controller" } }
                     steps { script { runJob('scheduled-main') } }
                 }
+                stage('product-integration') {
+                    agent { dockerfile { filename 'Dockerfile'; dir '.devcontainer'; additionalBuildArgs '--build-arg CRUX_JLINK=0'; args '-v crux-controller-ci-cache:/opt/crux-cache'; customWorkspace "crux-ci/${env.BUILD_TAG}/product-integration/crux-controller" } }
+                    steps { script { runJob('product-integration') } }
+                }
             }
         }
     }

@@ -32,6 +32,9 @@ build configurations by their earlier step ids, S0 to S6.
   setup, on LPUART3 of the RT1060-EVKB (alias `crux-serial0` in the board file), after web management. The
   service symbol is `CRUX_CONTROLLER_FRAMEWORK_CLI_SERIAL`, and `<crux/cli_zephyr.h>` joins the composition
   zone's allow-list. The `native_sim` scenario types the setup and a login into an emulated UART.
+- The nightly job `product-integration` builds a fixture product (`tests/product_integration`) in a west workspace
+  of its own, which imports this repository at the commit under test, and runs it on `native_sim`
+  (`tests/product_integration/run.sh`, a job of `scheduled-main.yml` and a Jenkins stage).
 
 ### Capability names
 

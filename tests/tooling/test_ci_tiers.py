@@ -93,6 +93,8 @@ EXPECTED_FULL = {
 EXPECTED_NIGHTLY_ONLY = {
     "scheduled-main": ["scheduled-pin-main", "scheduled-fetch", "scheduled-pins", "scheduled-sdk",
                        "scheduled-build", "scheduled-outputs", "scheduled-config"],
+    "product-integration": ["product-integration-workspace", "product-integration-build",
+                            "product-integration-run"],
 }
 # The jobs of ci.yml and budget.yml run for every change, documentation-only changes included. The
 # other three workflows run only for the paths of their filter.
@@ -107,7 +109,7 @@ WORKFLOW_JOBS = {
     "devcontainer.yml": ["devcontainer"],
     "rebuild.yml": ["rebuild"],
     "release.yml": ["release"],
-    "scheduled-main.yml": ["scheduled-main"],
+    "scheduled-main.yml": ["scheduled-main", "product-integration"],
 }
 DOCS_READERS = {"tooling-tests", "spdx"}
 C_CHECKS = {"format", "static-analysis", "patch-style-fetch-zephyr", "patch-style"}
@@ -149,7 +151,7 @@ class ManifestTest(unittest.TestCase):
     def test_the_full_tier_runs_every_recorded_check_in_order(self):
         self.assertEqual(EXPECTED_FULL, by_job(self.plan("full", None)))
 
-    def test_the_nightly_tier_adds_only_the_build_against_crux_main(self):
+    def test_the_nightly_tier_adds_only_the_nightly_jobs(self):
         self.assertEqual({**EXPECTED_FULL, **EXPECTED_NIGHTLY_ONLY}, by_job(self.plan("nightly", None)))
 
     def test_the_nightly_tier_ignores_the_change(self):
