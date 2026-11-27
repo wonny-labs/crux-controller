@@ -95,6 +95,13 @@ class FixtureProduct(unittest.TestCase):
                        "CONFIG_CRUX_CONTROLLER_FRAMEWORK_TIME_SYNC", "CONFIG_ZEPHYR_CRUX_CONTROLLER_MODULE"):
             self.assertIn(symbol, cmake)
 
+    def test_the_product_writes_the_build_metadata_that_west_spdx_needs(self):
+        # Zephyr deletes zephyr.meta when CONFIG_BUILD_OUTPUT_META is off, and west spdx then stops
+        # with "cannot find a valid zephyr.meta" (Zephyr v4.4.2, doc/develop/west/zephyr-cmds.rst).
+        self.assertIn("CONFIG_BUILD_OUTPUT_META=y", (FIXTURE / "prj.conf").read_text().splitlines())
+        # The build step checks it too, so a missing option fails before the SBOM step.
+        self.assertIn("CONFIG_BUILD_OUTPUT_META=y", RUN.read_text())
+
     def test_no_twister_run_of_crux_controller_picks_up_the_fixture(self):
         # It builds only in its own workspace, so it has no testcase.yaml for the in-repository runs.
         self.assertFalse((FIXTURE / "testcase.yaml").exists())

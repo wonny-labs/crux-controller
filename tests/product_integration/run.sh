@@ -123,9 +123,11 @@ build_image() {
     local config="$folder/build/zephyr/.config"
     for option in CONFIG_ZEPHYR_CRUX_CONTROLLER_MODULE=y CONFIG_CRUX_CONTROLLER_FRAMEWORK=y \
         CONFIG_CRUX_CONTROLLER_FRAMEWORK_MANAGEMENT=y CONFIG_CRUX_CONTROLLER_FRAMEWORK_CLI_SERIAL=y \
-        CONFIG_CRUX_CONTROLLER_FRAMEWORK_TIME_SYNC=y; do
+        CONFIG_CRUX_CONTROLLER_FRAMEWORK_TIME_SYNC=y CONFIG_BUILD_OUTPUT_META=y; do
         grep -qxF "$option" "$config" || fail "missing $option in the fixture's configuration"
     done
+    # The sbom step reads it (west spdx).
+    [[ -f "$folder/build/zephyr/zephyr.meta" ]] || fail "missing zephyr.meta, which west spdx needs"
     # The framework comes from the project of the workspace, not from the clone that ran this script.
     grep -qF "$folder/crux-controller" "$folder/build/zephyr_modules.txt" ||
         fail "the module crux-controller is not the project of the workspace"
