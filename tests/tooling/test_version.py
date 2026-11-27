@@ -18,7 +18,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 INCLUDE = ROOT / "include"
 HEADER = INCLUDE / "controller" / "version.h"
 PARTS = ("MAJOR", "MINOR", "PATCH", "PRERELEASE", "STRING")
-PRERELEASE = re.compile(r"(|dev|rc\.(0|[1-9][0-9]*))")
+PRERELEASE = re.compile(r"(dev|rc\.(0|[1-9][0-9]*))?")
 
 
 def macros():
@@ -68,7 +68,8 @@ class VersionHeaderTest(unittest.TestCase):
                 self.assertRegex(values[f"CONTROLLER_VERSION_{part}"], r"^(0|[1-9][0-9]*)$")
 
     def test_prerelease_is_empty_dev_or_a_release_candidate(self):
-        self.assertRegex(parts()[1], PRERELEASE)
+        prerelease = parts()[1]
+        self.assertIsNotNone(PRERELEASE.fullmatch(prerelease), prerelease)
 
     def test_string_equals_the_parts(self):
         self.assertEqual(f'"{expected_string()}"', macros()["CONTROLLER_VERSION_STRING"])
@@ -90,8 +91,9 @@ class VersionHeaderTest(unittest.TestCase):
             "_Static_assert(CONTROLLER_VERSION_MAJOR >= 0 && CONTROLLER_VERSION_MINOR >= 0 &&\n"
             "               CONTROLLER_VERSION_PATCH >= 0, \"numeric parts\");\n"
             "int main(void)\n{\n"
-            "    printf(\"%d.%d.%d|%s|%s\\n\", CONTROLLER_VERSION_MAJOR, CONTROLLER_VERSION_MINOR,\n"
-            "           CONTROLLER_VERSION_PATCH, CONTROLLER_VERSION_PRERELEASE,\n"
+            "    printf(\"%d.%d.%d|%s|%s\\n\", CONTROLLER_VERSION_MAJOR,\n"
+            "           CONTROLLER_VERSION_MINOR, CONTROLLER_VERSION_PATCH,\n"
+            "           CONTROLLER_VERSION_PRERELEASE,\n"
             "           CONTROLLER_VERSION_STRING);\n"
             "    return 0;\n}\n"
         )
