@@ -19,13 +19,13 @@ When the pin moves, each gap is checked again; a gap whose Crux change is at the
 | [C6](#c6-console-and-logging-uart) | A shared console and Logging UART | Crux `main` | 2 | None; a build option |
 | [C7](#c7-ssh-and-tls-profiles) | Access on the Wolf profile; an SSH composition interface; two TLS stacks | Crux change needed; deferred by Crux; deferred by Crux | 2; 3; — | Product Ready of a product that selects SSH or the Wolf profile |
 | [C8](#c8-crux-service-threads-and-supervision) | A progress hook in Crux service threads | Crux `main` | 1 | Delivery stage 4 (criterion 33); Framework Complete |
-| [C9](#c9-access-and-an-unusable-store) | A credential store erase; an erase that keeps the device identity | Crux `main`; Crux change needed | 2 | Delivery stage 4 (criterion 42) for the erase; delivery stage 5 (PR4) for keeping the device identity |
+| [C9](#c9-access-and-an-unusable-store) | A credential store erase; an erase that keeps the device identity; a TLS certificate start setting that requires an existing device identity | Crux `main`; Planned in Crux; Planned in Crux | 2 | Delivery stage 4 (criterion 42) for the erase; delivery stage 5 (PR4) for keeping the device identity and for requiring it at boot |
 | [C10](#c10-image-state) | An image state provider for the update path | Crux change needed | 2 | Delivery stage 5 (PR3) |
 | [C11](#c11-simulated-watchdog-on-native_sim) | None | — | — | None |
 | [C12](#c12-soc-gates) | Board-neutral driver gates | Crux change needed when a second board enters the scope (D9) | Deferred | A second board |
 | [C13](#c13-linux-providers) | Linux providers | Designed with Crux's first Linux product | — | Delivery stage 6 |
-| [C14](#c14-operator-reset-marker-and-crux-reboot) | A pre-reset hook in Crux Reboot | Crux change needed | 2 | None; the interim rule serves every delivery stage, including Product Ready |
-| [C15](#c15-size-limit-of-the-application-data-root) | A size limit per File root | Crux change needed | 1 | Delivery stage 4 (criterion 24); Framework Complete |
+| [C14](#c14-operator-reset-marker-and-crux-reboot) | None | — | — | None |
+| [C15](#c15-size-limit-of-the-application-data-root) | A size limit per File root | Planned in Crux | 1 | Delivery stage 4 (criterion 24); Framework Complete |
 | [C16](#c16-security-counter) | A security counter in the image state contract and its storage | Crux change needed | 2 | Delivery stage 5 (PR7) |
 | [C17](#c17-security-event-persistence) | A composition-level reader of security events | Crux change needed | 2 | Delivery stage 4 (criterion 44); Framework Complete |
 | [C18](#c18-request-rate-limit) | A request rate limit in Crux Web | Crux change needed | 3 | Delivery stage 4 (criterion 45); Framework Complete |
@@ -100,15 +100,21 @@ These Crux facts back [specification section 6.2](controller-framework-spec.md#6
 - Crux `main`: `crux_credential_erase()` (`components/credential/ports/zephyr/include/crux/credential_store_zephyr.h`, target `crux::credential_store_zephyr`) is a composition interface that erases the credential store for a factory reset; it checks no permission, so the caller's trigger is the protection, the store is unusable until the next reset, and the settings file and files are the product's to remove.
 - Evidence (Crux `main`): the erase removes the accounts, the TLS key and certificate and the SSH host key, and Crux makes the device keys again at the next start, while [specification section 5.3](controller-framework-spec.md#53-storage-or-access-failure-and-factory-reset-d15) keeps the device identity and section 5.5 puts a prepared device without its identity into safe mode.
 - Crux change: an erase for a factory reset. State: Crux `main`. Priority 2.
-- Crux change: an erase that keeps the TLS key and certificate. State: Crux change needed. Priority 2.
+- Crux change: an erase that keeps the TLS key and certificate. State: Planned in Crux. Priority 2.
+- Evidence: `crux_tls_certificate_start()` ensures the device's TLS key, which makes a key when none is stored, makes and stores a self-signed certificate when none is stored, and then returns `CRUX_TLS_CERTIFICATE_GENERATED`, with no option that refuses instead (`components/tls_certificate/include/crux/tls_certificate_start.h:72-80`, `components/tls_certificate/src/tls_certificate.c:291-294` and `:361-374`, at the pin and on Crux `main`).
+- Evidence: Crux reads the credential store records only through its private adapter (`components/credential/adapter/crux_credential_adapter.h`), so the framework cannot check for the device identity before that call.
+- Effect: a boot of a prepared volume without the device identity makes a new identity instead of entering the safe mode of [specification section 5.5](controller-framework-spec.md#55-device-preparation-d11).
+- Crux change: a setting of the TLS certificate start that refuses a missing key or certificate and writes nothing to the credential store. State: Planned in Crux. Priority 2.
 - Interim state: until the credential store erase is at the pin, factory reset is only by device preparation. Replacement criterion: none; criterion 42 needs the erase.
 - Interim state: with the erase at the pin and no identity-keeping erase, a factory reset also removes the device identity, and recovery of the identity is device preparation ([specification section 5.5](controller-framework-spec.md#55-device-preparation-d11)). Replacement criterion: none; PR4 needs the identity-keeping erase.
+- Interim state: until the setting is at the pin, Crux makes a missing device identity in step 10 of every build, and the framework reports a certificate made at boot instead of entering safe mode (specification section 5.5).
+- Replacement criterion: none; PR4 needs the setting, and criterion 42 shows the report while this interim state applies.
 
 ### C15. Size limit of the application data root
 
 - Evidence: Crux File reports a full volume as `CRUX_FILE_ERR_NO_SPACE` and offers no size limit per root, at the pin or on Crux `main` (Crux `docs/file-contract.md`); with one provider and one mount (C1), the application data, the credential store and the settings file share one volume.
 - Effect: the application calls Crux File directly (specification section 3.2), so the framework cannot enforce the size limit of [specification section 5.4](controller-framework-spec.md#54-storage-and-configuration) without a Crux mechanism; the framework owns the rule, and the product sets the limit.
-- Crux change: a size limit per File root, or a second mount for the application data. State: Crux change needed. Priority 1.
+- Crux change: a size limit per File root. State: Planned in Crux. Priority 1.
 - Interim state: the application data root has no size limit, and a full volume can stop a configuration save. Replacement criterion: none; criterion 24 needs the change.
 
 ## Supervision and reset
@@ -142,10 +148,16 @@ These Crux facts back [specification section 6.2](controller-framework-spec.md#6
 
 ### C14. Operator reset marker and Crux Reboot
 
-- Evidence: Crux Reboot asks the composition's policy callback when a request arrives and again on its worker just before the reset, and the callback "may be called more than once for one request" (`components/reboot/include/crux/reboot.h:20-21`, `:95`, at the pin and on Crux `main`); Crux Reboot offers no call that runs once immediately before the reset.
-- Effect: the framework cannot tell from the callback which call precedes the reset, so the operator reset marker of [specification section 5.1](controller-framework-spec.md#51-retained-region-and-reset-classification-d4) relies on the order of the calls.
-- Crux change: a pre-reset hook, distinct from the policy callback, that Crux Reboot calls once on its worker after the second policy check and immediately before the reset, or an equivalent. State: Crux change needed. Priority 2.
-- Interim state: the framework writes the marker from the policy callback, tracks the order of the calls, and consumes a marker left by a request that never reset. Replacement criterion: none.
+- Evidence: Crux Reboot asks the composition's policy callback when a request arrives, on the requesting thread, and again just before the reset, on the thread that carries out the request; the callback "may be called more than once for one request" and receives no argument that names the check (`components/reboot/include/crux/reboot.h:19-21`, `:92-102`, at the pin and on Crux `main`).
+- Evidence: Crux Reboot offers no call that runs once immediately before the reset.
+- Evidence: the order of the calls does not identify the last check, because a request that fails before the second check (`CRUX_REBOOT_FAILURE_NO_TIMER`, `CRUX_REBOOT_FAILURE_SAVE_IN_FLIGHT`) makes no second call, a request made while another is pending runs no policy, and the always-allow policy calls no callback (`components/reboot/src/reboot.c:227-228`, `:263` and `:393-403` at the pin).
+- Evidence: `crux_reboot_work_once()` carries out the accepted request on the calling thread: the delay, the bounded wait for events and saves, the second policy check, then the reset; a composition with no worker thread calls it itself (`reboot.h:178-185`, `:223-231`).
+- Evidence: after a second check that allows the restart, the next step is the reset, and the call returns only when no reset happened (`reboot.c:409-415` at the pin, `:413-419` on Crux `main`).
+- Evidence (Crux `main`): the settle wait inside `crux_reboot_work_once()` reports progress as `CRUX_SERVICE_THREAD_REBOOT_WORKER` on the calling thread (`reboot.c:348-351`), although `service_priority_zephyr.h` says that a thread that is not started never reports, so the framework's progress function ignores that identifier; project-specific workaround ([C8](#c8-crux-service-threads-and-supervision)).
+- Effect: the framework starts no Crux reboot worker, and its own reboot thread calls `crux_reboot_work_once()`, so a policy call on that thread is the last step before the reset ([specification section 5.1](controller-framework-spec.md#51-retained-region-and-reset-classification-d4)); documented but optional (`reboot.h:178-180`).
+- Effect: the delay and the settle wait of one call are 1 s and 15 s (`reboot.c:38-46`), so the reload period of the reboot thread's channel ([specification section 4.4](controller-framework-spec.md#44-task-watchdog-channel-lifecycle-established-mechanism-for-the-zephyr-calls-d1-for-the-rules)) covers them.
+- Crux change: none.
+- Interim state: none.
 
 ## Console and logging
 
