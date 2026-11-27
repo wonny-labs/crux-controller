@@ -27,7 +27,9 @@
         compatible = "zephyr,uart-emul";
         current-speed = <115200>;
         rx-fifo-size = <1024>;
-        tx-fifo-size = <1024>;
+        /* The status command writes more than 1 KiB at once, and the emulated UART drops the bytes
+         * that do not fit (uart_emul_poll_out in Zephyr's drivers/serial/uart_emul.c). */
+        tx-fifo-size = <8192>;
         status = "okay";
     };
 

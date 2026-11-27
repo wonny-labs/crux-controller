@@ -253,7 +253,8 @@ ZTEST(base, test_08_the_first_account_logs_in_and_runs_a_command)
 ZTEST(base, test_09_the_start_order_of_supervision)
 {
     const char *log = drain_log();
-    const char *capture = strstr(log, "reset cause=0x001 supported=0x005 captured, flags cleared");
+    static const char capture_line[] = "reset cause=0x001 supported=0x005 captured, flags cleared";
+    const char *capture = strstr(log, capture_line);
     const char *boot = strstr(log, "boot class=power counter=0 threshold=3 safe mode=no "
                                    "no retained region");
     const char *watchdog = strstr(log, "watchdog not armed");
@@ -267,8 +268,8 @@ ZTEST(base, test_09_the_start_order_of_supervision)
     zassert_true(capture < boot && boot < watchdog && watchdog < supervisor && supervisor < web &&
                      web < ended,
                  "%s", log);
-    /* Read once: one capture line. */
-    zassert_is_null(strstr(capture + 1, "captured, flags"), "%s", log);
+    /* Read once: no second capture line after the first. */
+    zassert_is_null(strstr(capture + sizeof capture_line - 1u, "captured, flags"), "%s", log);
 }
 
 /* Criterion 19, base image part: with the production watchdog configuration and no watchdog, the

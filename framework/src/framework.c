@@ -196,10 +196,15 @@ static int phase_clock(void)
 }
 
 #ifdef CONFIG_CRUX_CONTROLLER_FRAMEWORK_SUPERVISION
+/* Only the phases of web management, the command line and time synchronisation report a health. */
+#if defined(CONFIG_CRUX_CONTROLLER_FRAMEWORK_MANAGEMENT) ||                                        \
+    defined(CONFIG_CRUX_CONTROLLER_FRAMEWORK_CLI_SERIAL) ||                                        \
+    defined(CONFIG_CRUX_CONTROLLER_FRAMEWORK_TIME_SYNC)
 static void set_health(service_id_t service, service_health_t health)
 {
     atomic_store(&fw.health[service], (int)health);
 }
+#endif
 
 /* Once per supervisor period, on the supervisor thread: the controller state and the successful
  * boot (section 5.2). The base image has no application, so the application condition holds. */
