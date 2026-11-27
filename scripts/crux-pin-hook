@@ -1,0 +1,173 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+"""Move the quotes of the crux pin after the Crux pin tool has moved the pin in west.yml.
+
+Crux's update-crux-pin.py (run by crux-pin-bot.py) rewrites the crux `revision:` line of
+west.yml and then runs this hook from the repository root, with the old and the new pin as
+40-character lower-case hex SHAs in CRUX_PIN_OLD and CRUX_PIN_NEW (required). CRUX_PIN_MANIFEST and
+CRUX_PIN_PROJECT name the manifest and the project to check (default west.yml and crux);
+CRUX_PIN_CHECKOUT is not used. The hook does the rest of steps 1 and 2 of CONTRIBUTING.md, "The pin
+and the manifest": it replaces each quote in QUOTES, the links to Crux pages at the pin included.
+Notes under docs/findings/ stay as recorded (only the index's current-pin line moves), west.yml is
+only read, and the prose (the comment above the pin, the CHANGELOG.md entry and the quotes in KEPT)
+is left to the person who reviews the pull request.
+
+Every quote is checked before any file is written. A quote that holds neither the old nor the new
+pin is an error, so a reworded document fails loudly instead of being skipped. Each file is replaced
+in one rename.
+
+Exit status: 0 files changed or every quote already names the new pin, 1 a quote or the manifest
+does not match (nothing written), 2 bad or missing CRUX_PIN_OLD or CRUX_PIN_NEW. The Crux tool
+treats any status but 0 as a failure and opens no pull request.
+"""
+
+import os
+import pathlib
+import re
+import sys
+import tempfile
+
+SHA = re.compile(r"[0-9a-f]{40}")
+
+# (file, quote, optional). In a quote, {full} stands for the 40-character pin and {short} for its
+# first 8 characters ({short12}: 12). Every occurrence of a quote in its file moves, so one link quote moves every
+# link to a Crux page at the pin. An optional file that does not exist is skipped.
+# The Crux pin bot commits only the paths given with --allow-path: a file added here goes into the
+# lists of the crux-pin-update workflow and Jenkinsfile.example too (test_pin_update.py).
+LINK = "github.com/wonny-labs/crux/blob/{full}/"
+QUOTES = (
+    ("tests/tooling/test_manifest.py", 'self.assertEqual(revision, "{full}")', False),
+    ("docs/dependencies.md", 'pinned commit {short}"', False),
+    ("docs/dependencies.md", "| `crux` | `{full}` ", False),
+    ("RELEASE.md", "at the pinned revision `{short}`", False),
+    ("RELEASE.md", LINK, False),
+    ("tests/tooling/test_docs.py", 'self.assertIn("{short}", body)', False),
+    ("CHANGELOG.md", "imports `crux` at a pinned commit (`{short}`", True),
+    ("README.md", LINK, False),
+    ("docs/findings/README.md", "The current pin is `{full}`", False),
+    ("docs/adding-a-capability.md", "read at the pinned commit `{full}`", False),
+    ("docs/adding-a-capability.md", LINK, False),
+    ("docs/architecture.md", LINK, False),
+    ("docs/board-bring-up.md", LINK, False),
+    ("docs/documentation-guidelines.md", LINK, False),
+    ("tests/tooling/test_docs_navigation.py", '"GPIO, I2C and SPI", "{full}"', False),
+    ("tests/tooling/test_management.py", '    PIN = "{full}"', False),
+    ("tests/tooling/test_sntp.py", '"revision: {full}"', False),
+    ("tests/tooling/test_system.py", '"revision: {full}"', False),
+)
+
+# The other places that quote the current pin, which the hook leaves alone (test_crux_pin_hook.py
+# checks that every quote of the pin is in QUOTES or here). west.yml is the Crux tool's. In
+# CHANGELOG.md the entry that records a move is history. CONTRIBUTING.md is a person's: its link to
+# the Crux CI page stands for the copy of the selector in scripts/ci/tiers.py, and its sentence on
+# the include check records where the check was found; both move after that is checked again. The
+# copy tests/framework/interactive/nsos_rdhup.cmake records the Crux revision it was adapted from, and
+# test_native_sim_interactive.py ties that revision to west.yml on purpose: after a pin move that test
+# fails until a person has compared the copy with the new Crux and moved the three quotes.
+KEPT = (
+    ("west.yml", "revision: {full}"),
+    ("CHANGELOG.md", "to `{short}`"),
+    ("CONTRIBUTING.md", LINK + "docs/ci.md"),
+    ("CONTRIBUTING.md", "and is at `{short}`"),
+    ("tests/framework/interactive/nsos_rdhup.cmake", "nsos_rdhup.cmake at {short12}"),
+    ("tests/tooling/test_native_sim_interactive.py", "nsos_rdhup.cmake at {short12}"),
+    ("tests/tooling/test_native_sim_interactive.py", 'self.assertIn("{full}", read("west.yml"))'),
+)
+
+
+class Mismatch(Exception):
+    pass
+
+
+def quote(template, pin):
+    return template.format(full=pin, short=pin[:8], short12=pin[:12])
+
+
+def pinned_revision(text, project="crux"):
+    """The revision of the project in the text of a west manifest, or None."""
+    inside = False
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("- name:"):
+            inside = stripped == f"- name: {project}"
+        elif inside and stripped.startswith("revision:"):
+            return stripped.split(":", 1)[1].strip()
+    return None
+
+
+def plan(root, old, new, manifest=None, project="crux"):
+    """The new text of each file that changes. Raises Mismatch before anything is written."""
+    west = pathlib.Path(manifest) if manifest else root / "west.yml"
+    try:
+        revision = pinned_revision(west.read_text(encoding="utf-8"), project)
+    except OSError as error:
+        raise Mismatch(f"{west}: {error.strerror}") from None
+    if revision != new:
+        raise Mismatch(f"{west} pins {project} at {revision}, not at CRUX_PIN_NEW {new}; "
+                       "run the hook after the revision line is rewritten")
+    texts, problems = {}, []
+    for name, template, optional in QUOTES:
+        path = root / name
+        if name not in texts:
+            if not path.is_file():
+                if optional:
+                    continue
+                problems.append(f"{name}: the file does not exist")
+                continue
+            with open(path, encoding="utf-8", newline="") as handle:
+                texts[name] = handle.read()
+        text = texts[name]
+        if quote(template, old) in text:
+            texts[name] = text.replace(quote(template, old), quote(template, new))
+        elif quote(template, new) not in text:
+            problems.append(f"{name}: neither {quote(template, old)!r} nor the new pin was found")
+    if problems:
+        raise Mismatch("\n".join(problems))
+    changed = {}
+    for name, text in texts.items():
+        with open(root / name, encoding="utf-8", newline="") as handle:
+            if handle.read() != text:
+                changed[name] = text
+    return changed
+
+
+def write(path, text):
+    mode = path.stat().st_mode
+    handle, temporary = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.")
+    try:
+        with os.fdopen(handle, "w", encoding="utf-8", newline="") as out:
+            out.write(text)
+        os.chmod(temporary, mode & 0o7777)
+        os.replace(temporary, path)
+    except BaseException:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+        raise
+
+
+def main():
+    old = os.environ.get("CRUX_PIN_OLD")
+    new = os.environ.get("CRUX_PIN_NEW")
+    for name, value in (("CRUX_PIN_OLD", old), ("CRUX_PIN_NEW", new)):
+        if value is None or not SHA.fullmatch(value):
+            print(f"crux-pin-hook: {name} must be a 40-character lower-case hex SHA, got {value!r}",
+                  file=sys.stderr)
+            return 2
+    root = pathlib.Path.cwd()
+    try:
+        changed = plan(root, old, new, os.environ.get("CRUX_PIN_MANIFEST") or None,
+                       os.environ.get("CRUX_PIN_PROJECT") or "crux")
+    except Mismatch as error:
+        print(f"crux-pin-hook: nothing written:\n{error}", file=sys.stderr)
+        return 1
+    if not changed:
+        print(f"crux-pin-hook: every quote already names {new}")
+        return 0
+    for name, text in changed.items():
+        write(root / name, text)
+        print(f"updated {name}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -85,6 +85,7 @@ The workflows in `.github/workflows/` and the [`Jenkinsfile`](Jenkinsfile) only 
 | `rebuild.yml` | builds `net` twice at different paths and compares `zephyr.bin` and `firmware_identity` | by hand, nightly, and pull requests that change the workflow, `release/` or `scripts/ci/` |
 | `release.yml` | dry run of the release flow, publishes nothing | by hand, nightly, and pull requests that change the workflow, `release/`, `west.yml` or `scripts/ci/` |
 | `scheduled-main.yml` | `net build against Crux main` and `product integration (fixture product, native_sim)`, with the SBOM and the known vulnerabilities of the fixture image (checks of the `nightly` tier only) | daily, and by hand |
+| `crux-pin-update.yml` | `Refresh the Crux pin pull request` (see "The pin and the manifest"), `Put the CI evidence into the pin pull request` | daily and by hand; the evidence job also after each `release` or `budget` run of the pin pull request |
 
 The scheduled build is information only: it shows ahead of time that a Crux pin moved or that Crux
 broke the build, and the pinned build stays the gate for pull requests. Every RT1060-EVKB build requires
@@ -133,11 +134,32 @@ A pin moves in its own small pull request, with the reason in the commit message
    `tests/tooling/test_manifest.py`.
 2. Update the places that quote the commit as the current pin: `docs/dependencies.md`, `RELEASE.md`
    (its link and the short hash that `tests/tooling/test_docs.py` looks for) and `CHANGELOG.md`.
-   Notes under `docs/findings/` stay as they were recorded.
+   Notes under `docs/findings/` stay as they were recorded; only the current-pin line of its index moves.
 3. Put in the pull request the SHA-256 of the `net` `zephyr.bin` and its `firmware_identity` (the release
    manifest that the `release.yml` dry run prints has both), and the budget tables of the `Budget`
    jobs. If numbers move, say so. A limit in `budgets/limits.json` is not changed in the same pull
    request to make a bump pass.
+
+`crux-pin-update.yml` keeps one such pull request open, on the branch `bot/crux-pin`, and refreshes
+it when Crux main moves. It runs `scripts/crux-pin-bot.py` of the Crux that `west.yml` pins, never a
+script from Crux main. The bot rewrites the revision in `west.yml` and runs `scripts/crux-pin-hook`,
+which moves the other quotes of steps 1 and 2 and the links to Crux pages at the pin (its `QUOTES`
+table), and fails when a quote it expects is missing. The comment above the pin, the `CHANGELOG.md`
+entry and the quotes in the hook's `KEPT` table, other than the revision in `west.yml`, stay manual. Step 3 comes from CI: after each refresh
+and each `release` or `budget` run, `scripts/pin_evidence.py` copies the hash, the `firmware_identity`
+and the budget tables from their logs into the pull request body. Nothing merges itself. A person
+reads the Crux changes, adds a commit with the reason, the pin comment and the `CHANGELOG.md` entry
+(the bot then stops refreshing the branch), compares the evidence with the previous pin and approves
+the merge. `Jenkinsfile.example` runs the same bot for a copy built by Jenkins; that path has no
+evidence step yet.
+
+The workflow needs the repository secret `CRUX_PIN_TOKEN`: a fine-grained personal access token with
+access to this repository only and the repository permissions Contents and Pull requests set to read
+and write. A GitHub App installation token expires after one hour, so it would need a step that creates
+it in the job, and this workflow has none. A pull request opened with the automatic `GITHUB_TOKEN`
+would start no workflow, so its checks would not run. The bot's pull request is authored by the
+token's owner, and the token expires on the date set when it was created, so it needs renewing. The bot's pull request is not a draft and changes `west.yml`,
+so it runs the `full` tier. Without the secret the workflow changes nothing and ends with a warning.
 
 ## Changing behaviour
 
