@@ -73,11 +73,11 @@ class FileBuildFiles(unittest.TestCase):
 
     def test_the_application_target_links_the_zone_as_a_library(self):
         text = "\n".join(code_lines(ROOT / "app" / "CMakeLists.txt"))
-        self.assertRegex(text, r"add_subdirectory\(compose\)")
+        self.assertRegex(text, r"add_subdirectory\(\.\./framework/compose compose\)")
         self.assertRegex(text, r"target_link_libraries\(app PRIVATE[^)]*\bcompose\b")
 
     def test_the_zone_library_is_the_only_target_that_links_the_composition_interface(self):
-        zone = "\n".join(code_lines(ROOT / "app" / "compose" / "CMakeLists.txt"))
+        zone = "\n".join(code_lines(ROOT / "framework" / "compose" / "CMakeLists.txt"))
         self.assertRegex(zone, r"target_link_libraries\(compose PRIVATE[^)]*crux::file_zephyr")
         for path in sorted(ROOT.glob("app/**/CMakeLists.txt")):
             if path.parent.name == "compose":
@@ -85,12 +85,12 @@ class FileBuildFiles(unittest.TestCase):
             self.assertNotIn("crux::file_zephyr", "\n".join(code_lines(path)), str(path))
 
     def test_the_zone_adds_no_include_path(self):
-        for line in code_lines(ROOT / "app" / "compose" / "CMakeLists.txt"):
+        for line in code_lines(ROOT / "framework" / "compose" / "CMakeLists.txt"):
             for word in ("include_directories", "-include", "-I"):
                 self.assertNotIn(word, line, line.strip())
 
     def test_the_zone_takes_sources_from_its_own_directory_only(self):
-        for line in code_lines(ROOT / "app" / "compose" / "CMakeLists.txt"):
+        for line in code_lines(ROOT / "framework" / "compose" / "CMakeLists.txt"):
             if "add_library" in line or "target_sources" in line:
                 self.assertNotIn("..", line, line.strip())
 
@@ -190,7 +190,7 @@ class FileScenario(unittest.TestCase):
 
     def test_the_scenario_builds_the_zone_and_the_store_not_copies(self):
         text = (self.DIRECTORY / "CMakeLists.txt").read_text()
-        self.assertIn("app/compose", text)
+        self.assertIn("framework/compose", text)
         self.assertIn("app/src/config_store.c", text)
 
     def test_every_case_has_a_source_section(self):

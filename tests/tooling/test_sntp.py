@@ -26,6 +26,8 @@ BOARD = "mimxrt1060_evk@B//qspi"
 REGIONS = {"FLASH", "RAM", "ITCM", "DTCM", "OCRAM", "OCRAM2", "IDT_LIST"}
 APP_SRC = ROOT / "app" / "src"
 APP_OS = ROOT / "app" / "os"
+FRAMEWORK_SRC = ROOT / "framework" / "src"
+FRAMEWORK_OS = ROOT / "framework" / "os"
 
 
 def c_code(path):
@@ -73,8 +75,8 @@ class SntpLimits(unittest.TestCase):
     def test_the_sntp_row_equals_the_system_row_and_no_other_row_changed(self):
         rows = self.limits()["min_free_percent"]
         # The management capability later added its own row, which test_management.py pins.
-        self.assertEqual(["base", "workload", "net", "file", "system", "sntp", "management"], list(rows))
-        for step in ("base", "workload", "net", "file", "system"):
+        self.assertEqual(["minimal", "workload", "net", "file", "system", "sntp", "management", "base"], list(rows))
+        for step in ("minimal", "workload", "net", "file", "system"):
             self.assertEqual(rows["system"], rows[step], step)
         self.assertEqual(rows["system"], rows["sntp"])
 
@@ -98,23 +100,23 @@ class SntpPolicy(unittest.TestCase):
     ISO_C = {"<stdbool.h>", "<stddef.h>", "<stdint.h>"}
 
     def test_the_policy_files_exist(self):
-        self.assertTrue((APP_SRC / "time_sync_policy.h").is_file())
-        self.assertTrue((APP_SRC / "time_sync_policy.c").is_file())
+        self.assertTrue((FRAMEWORK_SRC / "time_sync_policy.h").is_file())
+        self.assertTrue((FRAMEWORK_SRC / "time_sync_policy.c").is_file())
 
     def test_the_policy_includes_iso_c_and_its_own_header_only(self):
         for name in ("time_sync_policy.h", "time_sync_policy.c"):
-            for include in includes(APP_SRC / name):
+            for include in includes(FRAMEWORK_SRC / name):
                 self.assertTrue(
                     include in self.ISO_C or include == '"time_sync_policy.h"', f"{name}: {include}"
                 )
 
     def test_the_policy_names_no_crux_or_zephyr_symbol(self):
         for name in ("time_sync_policy.h", "time_sync_policy.c"):
-            code = c_code(APP_SRC / name)
+            code = c_code(FRAMEWORK_SRC / name)
             self.assertNotRegex(code, r"\bcrux_|\bCRUX_|\bk_|\bCONFIG_|zephyr|\bsntp_", name)
 
     def test_the_policy_calls_no_clock_or_network_function(self):
-        code = c_code(APP_SRC / "time_sync_policy.c")
+        code = c_code(FRAMEWORK_SRC / "time_sync_policy.c")
         self.assertNotRegex(code, r"\b(time|clock_gettime|clock_settime|sys_clock_\w+|gettimeofday)\(")
 
     def test_the_host_build_runs_the_policy_test_with_the_strict_flags(self):
@@ -122,7 +124,7 @@ class SntpPolicy(unittest.TestCase):
         self.assertRegex(
             text,
             r"add_executable\(test_time_sync_policy test_time_sync_policy\.c "
-            r"\.\./\.\./app/src/time_sync_policy\.c\)",
+            r"\.\./\.\./framework/src/time_sync_policy\.c\)",
         )
         self.assertRegex(text, r"target_compile_options\(test_time_sync_policy PRIVATE[^)]*-Werror")
         self.assertRegex(text, r"add_test\(NAME time_sync_policy COMMAND test_time_sync_policy\)")
@@ -209,20 +211,25 @@ class SntpConfiguration(unittest.TestCase):
 
 
 class SntpBuildFiles(unittest.TestCase):
+    # The glue, the policy and the adapter are sources of the framework module's tree. For the sntp
+    # configuration of app/, framework/configurations.cmake adds them to the target app, and
+    # app/CMakeLists.txt includes that file inside its workload switch.
+    CONFIGURATIONS = ROOT / "framework" / "configurations.cmake"
+
     def text(self):
         return "\n".join(code_lines(ROOT / "app" / "CMakeLists.txt"))
 
     def block(self):
-        match = re.search(r"if\(CONFIG_CRUX_CONTROLLER_SNTP\)(.*?)endif\(\)", self.text(), re.S)
+        text = "\n".join(code_lines(self.CONFIGURATIONS))
+        match = re.search(r"if\(CONFIG_CRUX_CONTROLLER_SNTP\)(.*?)endif\(\)", text, re.S)
         self.assertIsNotNone(match, "no if(CONFIG_CRUX_CONTROLLER_SNTP) block")
         return match.group(1)
 
     def test_the_sntp_block_is_inside_the_workload_switch_after_system(self):
         text = self.text()
-        self.assertGreater(text.index("if(CONFIG_CRUX_CONTROLLER_SNTP)"),
-                           text.index("if(CONFIG_CRUX_CONTROLLER_SYSTEM)"))
-        self.assertGreater(text.index("if(CONFIG_CRUX_CONTROLLER_SNTP)"),
-                           text.index("if(CONFIG_CRUX_CONTROLLER_WORKLOAD)"))
+        include = text.index('include("${CMAKE_CURRENT_LIST_DIR}/../framework/configurations.cmake")')
+        self.assertGreater(include, text.index("if(CONFIG_CRUX_CONTROLLER_SYSTEM)"))
+        self.assertGreater(include, text.index("if(CONFIG_CRUX_CONTROLLER_WORKLOAD)"))
 
     def test_the_block_adds_the_glue_and_the_policy_and_no_new_target_link(self):
         block = self.block()
@@ -244,33 +251,32 @@ class SntpBuildFiles(unittest.TestCase):
         self.assertNotIn("time_sync_zephyr", self.text())
 
     def test_the_zone_adds_the_sntp_adapter_only_for_step_sntp_with_the_application_warnings(self):
-        text = "\n".join(code_lines(APP_OS / "CMakeLists.txt"))
-        match = re.search(r"if\(CONFIG_CRUX_CONTROLLER_SNTP\)(.*?)endif\(\)", text, re.S)
-        self.assertIsNotNone(match)
-        block = match.group(1)
-        self.assertRegex(
-            block, r"target_sources\(app PRIVATE \$\{CMAKE_CURRENT_LIST_DIR\}/time_sync_zephyr\.c\)"
-        )
+        block = self.block()
+        self.assertRegex(block, r'"\$\{CMAKE_CURRENT_LIST_DIR\}/os/time_sync_zephyr\.c"\)')
         self.assertRegex(
             block,
-            r"set_source_files_properties\(\$\{CMAKE_CURRENT_LIST_DIR\}/time_sync_zephyr\.c\s+"
-            r"TARGET_DIRECTORY app\s+PROPERTIES COMPILE_OPTIONS \"-Wall;-Wextra;-Werror\"\)",
+            r'set_source_files_properties\("\$\{CMAKE_CURRENT_LIST_DIR\}/os/time_sync_zephyr\.c"\s+'
+            r'TARGET_DIRECTORY app\s+PROPERTIES COMPILE_OPTIONS "-Wall;-Wextra;-Werror"\)',
         )
         for word in ("include_directories", "add_library", "target_link_libraries", "crux"):
+            self.assertNotIn(word, block, word)
+        text = "\n".join(code_lines(APP_OS / "CMakeLists.txt"))
+        for word in ("include_directories", "add_library", "target_link_libraries", "crux", "time_sync"):
             self.assertNotIn(word, text, word)
 
     def test_the_zone_has_exactly_the_two_sources_and_one_build_file(self):
-        names = sorted(p.name for p in APP_OS.iterdir())
-        self.assertEqual(["CMakeLists.txt", "time_sync_zephyr.c", "workload_os_zephyr.c"], names)
+        # The workload adapter in the zone of app/, the sntp adapter in the zone of the module.
+        self.assertEqual(["CMakeLists.txt", "workload_os_zephyr.c"], sorted(p.name for p in APP_OS.iterdir()))
+        self.assertEqual(["time_sync_zephyr.c"], sorted(p.name for p in FRAMEWORK_OS.iterdir()))
 
     def test_the_workload_adapter_is_still_added_for_every_step_unconditionally(self):
         text = "\n".join(code_lines(APP_OS / "CMakeLists.txt"))
-        before = text[: text.index("if(CONFIG_CRUX_CONTROLLER_SNTP)")]
-        self.assertIn("workload_os_zephyr.c", before)
+        self.assertIn("workload_os_zephyr.c", text)
+        self.assertNotIn("if(", text)
 
 
 class SntpPort(unittest.TestCase):
-    PORT = APP_SRC / "time_sync_port.h"
+    PORT = FRAMEWORK_SRC / "time_sync_port.h"
 
     def test_the_port_includes_iso_c_and_the_policy_header_only(self):
         for name in includes(self.PORT):
@@ -289,7 +295,7 @@ class SntpPort(unittest.TestCase):
 
 
 class SntpAdapter(unittest.TestCase):
-    ADAPTER = APP_OS / "time_sync_zephyr.c"
+    ADAPTER = FRAMEWORK_OS / "time_sync_zephyr.c"
 
     def test_it_includes_the_two_zephyr_headers_of_the_zone_and_the_port_by_relative_paths(self):
         found = includes(self.ADAPTER)
@@ -362,8 +368,8 @@ class SntpAdapter(unittest.TestCase):
 
 
 class SntpSources(unittest.TestCase):
-    GLUE = APP_SRC / "time_sync.c"
-    HEADER = APP_SRC / "time_sync.h"
+    GLUE = FRAMEWORK_SRC / "time_sync.c"
+    HEADER = FRAMEWORK_SRC / "time_sync.h"
     AUTHORITY_CALLS = (
         "crux_realtime_set", "crux_realtime_set_synchronized", "crux_realtime_adopt",
         "crux_realtime_invalidate",
@@ -395,7 +401,7 @@ class SntpSources(unittest.TestCase):
 
     def test_the_glue_is_the_only_caller_of_the_time_authority_in_the_image(self):
         callers = {name: [] for name in self.AUTHORITY_CALLS}
-        for tree in ("app", "workload"):
+        for tree in ("app", "workload", "framework", "include"):
             for path in sorted((ROOT / tree).rglob("*")):
                 if path.suffix not in (".c", ".h"):
                     continue
@@ -403,13 +409,13 @@ class SntpSources(unittest.TestCase):
                 for name in self.AUTHORITY_CALLS:
                     if re.search(rf"\b{name}\s*\(", code):
                         callers[name].append(path.relative_to(ROOT).as_posix())
-        self.assertEqual(["app/src/time_sync.c"], callers["crux_realtime_set"])
-        self.assertEqual(["app/src/time_sync.c"], callers["crux_realtime_set_synchronized"])
+        self.assertEqual(["framework/src/time_sync.c"], callers["crux_realtime_set"])
+        self.assertEqual(["framework/src/time_sync.c"], callers["crux_realtime_set_synchronized"])
         self.assertEqual([], callers["crux_realtime_adopt"])
         self.assertEqual([], callers["crux_realtime_invalidate"])
 
     def test_no_file_of_the_image_sets_the_native_clock(self):
-        for tree in ("app", "workload"):
+        for tree in ("app", "workload", "framework", "include"):
             for path in sorted((ROOT / tree).rglob("*")):
                 if path.suffix not in (".c", ".h"):
                     continue
@@ -500,7 +506,7 @@ class SntpSources(unittest.TestCase):
     def test_the_composition_starts_sntp_last_before_the_workload(self):
         source = c_code(APP_SRC / "composition.c")
         self.assertIn("#ifdef CONFIG_CRUX_CONTROLLER_SNTP", source)
-        self.assertIn('#include "time_sync.h"', source)
+        self.assertIn('#include "../../framework/src/time_sync.h"', source)
         start = source.index("time_sync_start()")
         run = source.index("return workload_thread_start(&config)")
         self.assertLess(source.index("workload_thread_set_sink(exchange_with_peer)"), start)
@@ -520,11 +526,11 @@ class SntpSources(unittest.TestCase):
         self.assertEqual(
             frozenset({"zephyr/fs/fs.h", "zephyr/devicetree.h", "zephyr/net/tls_credentials.h"}),
             check_boundary.COMPOSITION_ZEPHYR_HEADERS)
-        self.assertEqual(["app/src", "workload", "app/compose", "app/os"],
+        self.assertEqual(["app/src", "workload", "app/compose", "app/os", "include", "framework/src", "framework/compose", "framework/os"],
                          [rule.directory for rule in check_boundary.RULES])
 
     def test_the_sntp_header_still_fails_outside_the_adapter_zone(self):
-        for tree in ("app/src", "app/compose", "workload"):
+        for tree in ("app/src", "app/compose", "workload", "framework/src", "framework/compose", "include"):
             with tempfile.TemporaryDirectory() as directory:
                 path = pathlib.Path(directory) / tree / "x.c"
                 path.parent.mkdir(parents=True)
@@ -557,9 +563,9 @@ class SntpScenario(unittest.TestCase):
 
     def test_the_scenario_builds_the_applications_own_sources_and_the_real_adapter(self):
         text = (self.DIRECTORY / "CMakeLists.txt").read_text()
-        for needle in ("${controller_root}/app/src/time_sync.c",
-                       "${controller_root}/app/src/time_sync_policy.c",
-                       "${controller_root}/app/os/time_sync_zephyr.c", "crux::time", "crux::logging"):
+        for needle in ("${controller_root}/framework/src/time_sync.c",
+                       "${controller_root}/framework/src/time_sync_policy.c",
+                       "${controller_root}/framework/os/time_sync_zephyr.c", "crux::time", "crux::logging"):
             self.assertIn(needle, text, needle)
         self.assertNotIn("add_subdirectory(${controller_root}/app/os", text)
 
@@ -714,8 +720,8 @@ class SntpWorkflows(unittest.TestCase):
     def test_the_budget_rows_of_the_other_steps_are_unchanged(self):
         # The management capability later added its own row, which test_management.py pins, so the list ends at management.
         rows = self.budget_rows()
-        self.assertEqual(["base", "workload", "net", "file", "system", "sntp", "management"], list(rows))
-        self.assertEqual(("", "", ""), (rows["base"]["conf"], rows["base"]["overlay"], rows["base"]["require"]))
+        self.assertEqual(["minimal", "workload", "net", "file", "system", "sntp", "management", "base"], list(rows))
+        self.assertEqual(("", "", ""), (rows["minimal"]["conf"], rows["minimal"]["overlay"], rows["minimal"]["require"]))
         self.assertEqual("conf/workload.conf", rows["workload"]["conf"])
         self.assertEqual("conf/workload.conf;conf/net.conf", rows["net"]["conf"])
         self.assertEqual("conf/workload.conf;conf/file.conf", rows["file"]["conf"])
@@ -838,7 +844,7 @@ class SntpFindings(unittest.TestCase):
         self.assertIsNotNone(row)
         self.assertIn("not run", row.group(0))
         self.assertIn("s5-time-synchronisation.md", (ROOT / "docs" / "findings" / "README.md").read_text())
-        self.assertIn("No `base`, `workload`-only, `file`, `system`, `sntp` or `management` image has run on a board.",
+        self.assertIn("No `minimal`, `workload`-only, `file`, `system`, `sntp`, `management` or `base` image has run on a board.",
                       " ".join(roadmap.split()))
 
     def test_the_changelog_names_sntp_and_its_limits(self):
@@ -850,9 +856,9 @@ class SntpFindings(unittest.TestCase):
     def test_the_contributing_guide_lists_sntp_where_it_lists_the_steps_and_jobs(self):
         text = (ROOT / "CONTRIBUTING.md").read_text()
         words = " ".join(text.split())
-        self.assertIn("`file`, `system`, `sntp` and `management` are built in CI", words)
+        self.assertIn("`file`, `system`, `sntp`, `management` and `base` are built in CI", words)
         self.assertIn("`sntp build`", text)
-        self.assertIn("`Budget` for `base` to `management`:", text)
+        self.assertIn("`Budget` for `minimal` to `base`:", text)
 
     def test_the_zone_note_no_longer_says_that_no_sntp_code_exists(self):
         zone = " ".join((ROOT / "docs" / "composition-zone.md").read_text().split())

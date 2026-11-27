@@ -11,8 +11,8 @@
 #endif
 
 #ifdef CONFIG_CRUX_CONTROLLER_FILE
+#include "../../framework/src/storage_port.h"
 #include "config_store.h"
-#include "storage_port.h"
 #endif
 
 #ifdef CONFIG_CRUX_CONTROLLER_SYSTEM
@@ -20,22 +20,22 @@
 #endif
 
 #ifdef CONFIG_CRUX_CONTROLLER_SNTP
-#include "time_sync.h"
+#include "../../framework/src/time_sync.h"
 #endif
 
 #ifdef CONFIG_CRUX_CONTROLLER_MANAGEMENT
 #include <crux/logging.h>
 
-#include "management_port.h"
+#include "../../framework/src/management_port.h"
 
 /* The versions that the status service reports come from the build
- * (app/management/management.cmake), and a build without them stops here, because the port refuses
- * a start without a valid text. */
+ * (framework/management/management.cmake), and a build without them stops here, because the port
+ * refuses a start without a valid text. */
 #ifndef MANAGEMENT_PLATFORM_VERSION
-#error "management needs MANAGEMENT_PLATFORM_VERSION from app/management/management.cmake"
+#error "management needs MANAGEMENT_PLATFORM_VERSION from framework/management/management.cmake"
 #endif
 #ifndef MANAGEMENT_PROJECT_VERSION
-#error "management needs MANAGEMENT_PROJECT_VERSION from app/management/management.cmake"
+#error "management needs MANAGEMENT_PROJECT_VERSION from framework/management/management.cmake"
 #endif
 #endif
 

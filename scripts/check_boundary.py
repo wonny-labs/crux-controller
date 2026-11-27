@@ -2,15 +2,16 @@
 # SPDX-License-Identifier: Apache-2.0
 """Fail when product source includes a header outside the public boundary.
 
-Four trees are checked:
+Eight trees are checked: the four trees of the configurations built on the workload, and the
+four trees of the controller framework module and its interface header.
 
 * ``app/src`` may include ISO C headers, the standard headers of the Crux Sockets
   profile, public ``<crux/NAME.h>`` headers, and headers of its own tree.
 * ``workload/`` is portable code. It may include ISO C headers and headers of its
   own tree, and nothing else.
-* ``app/compose/`` is the composition zone, the one place that mounts a file system and
-  binds it to Crux. It may include ISO C headers, public ``<crux/NAME.h>`` headers, the
-  composition interfaces ``<crux/file_zephyr.h>`` and ``<crux/web_zephyr.h>`` (``COMPOSITION_CRUX_HEADERS``),
+* ``app/compose/`` is the composition zone of the configurations of ``app/``, which mounts a file
+  system and binds it to Crux. It holds no source; ``framework/compose`` has the same rule and holds the sources. It may include ISO C headers, public ``<crux/NAME.h>`` headers, the
+  composition interfaces ``<crux/file_zephyr.h>``, ``<crux/web_zephyr.h>`` and ``<crux/cli_zephyr.h>`` (``COMPOSITION_CRUX_HEADERS``),
   the explicit allow-list of Zephyr headers in ``COMPOSITION_ZEPHYR_HEADERS``, headers of its own tree and the headers of ``app/src``
   (header files only: the product-owned header that ``app/src`` declares and the zone
   implements). Such a header is scanned under the ``app/src`` rules, so a Sockets profile header
@@ -33,12 +34,29 @@ Four trees are checked:
   fails in all three. The composition zone's list gains neither header. See
   ``docs/composition-zone.md``.
 
+* ``include/`` holds the interface header of the framework, ``<controller/NAME.h>``, that a
+  product includes. It may include ISO C headers, public ``<crux/NAME.h>`` headers and the
+  interface headers of its own tree.
+* ``framework/src`` is the portable core of the framework. It has the rules of ``app/src``
+  without the Sockets profile and without the workload: ISO C headers, public ``<crux/NAME.h>``
+  headers, the interface headers and headers of its own tree, and no Zephyr header.
+* ``framework/compose`` and ``framework/os`` are the composition and adapter zones of the module.
+  They have the allow-lists of ``app/compose`` and ``app/os`` and reach the core through its header
+  files only. Neither reaches ``app/src``, the workload or the other zone.
+
+``app/src`` may include the interface headers and the headers of ``framework/src``, because
+the configurations built on the workload compose the framework services that moved into the
+module. The other trees of ``app`` and the workload may include neither.
+
+A C or C++ source or header file under ``app``, ``framework``, ``include`` or ``zephyr`` that no rule covers
+fails, so a source of the module cannot escape the check by its place (``MODULE_TREES``).
+
 ``app/src`` and ``app/os`` also fail on the three frozen Crux headers, ``crux/thread.h``,
 ``crux/sync.h`` and ``crux/serial.h`` (``FROZEN_CRUX_HEADERS``), although they are public headers.
 The product uses Zephyr directly for threads and queues, in ``app/os`` behind a port header of
 ``app/src``, so the check keeps a later change from bringing the Crux contracts back. The rule is a
 field of the tree's ``Rule`` and does not apply to ``workload`` (which has no Crux header at all) or
-to ``app/compose``. Crux no longer publishes ``crux/queue.h``, so it is not on the list: with
+to ``app/compose``; the trees of the module carry it except the composition zone. Crux no longer publishes ``crux/queue.h``, so it is not on the list: with
 ``--crux-root`` it fails in every tree as a name that is not a public Crux header.
 
 Anything else fails: Zephyr, vendor and POSIX headers outside the profile, nested
@@ -96,11 +114,26 @@ FROZEN_CRUX_HEADERS = frozenset({"crux/thread.h", "crux/sync.h", "crux/serial.h"
 # beside the public headers under components/*/include/crux. Any header of that kind is out of
 # reach of app/src and of the workload, whether or not it is listed here. A name listed here is
 # denied outside the zone by name even without --crux-root, when the check cannot see which
-# headers Crux publishes as composition interfaces: file_zephyr.h binds the File root and
-# web_zephyr.h binds the Web server for the HTTPS management composition.
-COMPOSITION_CRUX_HEADERS = frozenset({"crux/file_zephyr.h", "crux/web_zephyr.h"})
+# headers Crux publishes as composition interfaces: file_zephyr.h binds the File root,
+# web_zephyr.h binds the Web server for the HTTPS management composition, and cli_zephyr.h starts
+# the serial console with its first-account setup on the UART of the alias crux-serial0.
+COMPOSITION_CRUX_HEADERS = frozenset(
+    {"crux/file_zephyr.h", "crux/web_zephyr.h", "crux/cli_zephyr.h"}
+)
 
 CRUX_PUBLIC = re.compile(r"^crux/[A-Za-z0-9_]+\.h$")
+
+# The interface headers of the framework: <controller/NAME.h>, one level, each a file of
+# include/controller in this repository. A rule names whether its tree may include them.
+FRAMEWORK_API_ROOT = "include"
+FRAMEWORK_API = re.compile(r"^controller/[A-Za-z0-9_]+\.h$")
+
+# The top-level trees whose C and C++ sources and headers must each sit in a checked tree. A
+# source of the module, the base image or the configurations of app that no rule covers fails.
+MODULE_TREES = ("app", "framework", FRAMEWORK_API_ROOT, "zephyr")
+SOURCE_SUFFIXES = frozenset(
+    ".c .h .inc .cc .cpp .cxx .hh .hpp .hxx .s .S".split()
+)
 DIRECTIVE = re.compile(r"^[ \t\f\v]*#[ \t\f\v]*(include_next|include|import)\b(.*)$", re.DOTALL)
 OPERAND = re.compile(r'^\s*(?:<([^>\n]+)>|"([^"\n]+)")')
 
@@ -120,16 +153,21 @@ class Rule:
     extra_roots_headers_only: bool = False
     # Public <crux/NAME.h> headers this tree may not include, by exact name.
     deny_crux: frozenset = frozenset()
+    # True: the tree may include the interface headers of the framework, <controller/NAME.h>.
+    framework_api: bool = False
 
 
 RULES = (
-    # The application binds the workload, so its public headers are in reach.
+    # The application binds the workload, so its public headers are in reach. It also binds the
+    # framework services that its configurations compose, through the header files of the core
+    # and the interface header of the framework.
     Rule(
         "app/src",
         allow_sockets=True,
         allow_crux=True,
-        extra_roots=("workload/include",),
+        extra_roots=("workload/include", "framework/src"),
         deny_crux=FROZEN_CRUX_HEADERS,
+        framework_api=True,
     ),
     Rule("workload", allow_sockets=False, allow_crux=False),
     # The composition zone. Its headers of its own tree are scanned like the rest. app/src
@@ -155,6 +193,46 @@ RULES = (
         allow_sockets=False,
         allow_crux=True,
         extra_roots=("app/src",),
+        extra_roots_headers_only=True,
+        zephyr_allow=OS_ADAPTER_ZEPHYR_HEADERS,
+        deny_crux=FROZEN_CRUX_HEADERS,
+    ),
+    # The interface header of the framework, which a product includes: ISO C and public Crux
+    # headers, and no Zephyr, Sockets profile or framework source header.
+    Rule(
+        FRAMEWORK_API_ROOT,
+        allow_sockets=False,
+        allow_crux=True,
+        deny_crux=FROZEN_CRUX_HEADERS,
+        framework_api=True,
+    ),
+    # The portable core of the framework: the rules of app/src without the Sockets profile and
+    # without the workload. It implements the interface header.
+    Rule(
+        "framework/src",
+        allow_sockets=False,
+        allow_crux=True,
+        deny_crux=FROZEN_CRUX_HEADERS,
+        framework_api=True,
+    ),
+    # The composition zone of the module: the allow-lists of app/compose, and the header files of
+    # the core in place of those of app/src.
+    Rule(
+        "framework/compose",
+        allow_sockets=False,
+        allow_crux=True,
+        extra_roots=("framework/src",),
+        extra_roots_headers_only=True,
+        zephyr_allow=COMPOSITION_ZEPHYR_HEADERS,
+        composition_crux=COMPOSITION_CRUX_HEADERS,
+    ),
+    # The adapter zone of the module: the allow-list of app/os, and the header files of the core
+    # in place of those of app/src.
+    Rule(
+        "framework/os",
+        allow_sockets=False,
+        allow_crux=True,
+        extra_roots=("framework/src",),
         extra_roots_headers_only=True,
         zephyr_allow=OS_ADAPTER_ZEPHYR_HEADERS,
         deny_crux=FROZEN_CRUX_HEADERS,
@@ -253,7 +331,9 @@ def resolves_locally(include, source, tree, extra_roots, headers_only=False):
     return False
 
 
-def classify(include, angle, source, tree, extra_roots, rule, crux_headers, composition_headers=None):
+def classify(
+    include, angle, source, tree, extra_roots, rule, crux_headers, composition_headers=None, repo=None
+):
     """Return a reason when the include is not allowed, otherwise None."""
     if not angle:
         if resolves_locally(include, source, tree, extra_roots, rule.extra_roots_headers_only):
@@ -266,6 +346,15 @@ def classify(include, angle, source, tree, extra_roots, rule, crux_headers, comp
             return "Zephyr header that is not on this zone's allow-list"
         return "Zephyr header"
     if include in ISO_C:
+        return None
+    if include.startswith("controller/"):
+        if not rule.framework_api:
+            return "framework interface header, outside the trees that may include it"
+        if not FRAMEWORK_API.match(include):
+            return "nested framework path, not an interface header <controller/NAME.h>"
+        root = pathlib.Path(repo) if repo is not None else tree.parent
+        if not (root / FRAMEWORK_API_ROOT / include).is_file():
+            return "not an interface header of include/controller"
         return None
     if include.startswith("crux/"):
         if not rule.allow_crux:
@@ -331,11 +420,37 @@ def check(repo, crux_root=None):
                 angle = operand.group(1) is not None
                 include = operand.group(1) if angle else operand.group(2)
                 reason = classify(
-                    include, angle, source, tree, extra_roots, rule, crux_headers, composition_headers
+                    include, angle, source, tree, extra_roots, rule, crux_headers,
+                    composition_headers, repo,
                 )
                 if reason:
                     violations.append(Violation(relative, line, include, reason))
+    violations.extend(uncovered_sources(repo))
     return violations
+
+
+def uncovered_sources(repo):
+    """A violation for each C or C++ source or header of MODULE_TREES that no rule covers."""
+    checked = [repo / rule.directory for rule in RULES]
+    found = []
+    for name in MODULE_TREES:
+        top = repo / name
+        if not top.is_dir():
+            continue
+        for path in sorted(p for p in top.rglob("*") if p.is_file()):
+            if path.suffix not in SOURCE_SUFFIXES:
+                continue
+            if any(path.is_relative_to(tree) for tree in checked):
+                continue
+            found.append(
+                Violation(
+                    path.relative_to(repo).as_posix(),
+                    1,
+                    "(source file)",
+                    "source of the module in no checked tree: no rule covers it",
+                )
+            )
+    return found
 
 
 def main(argv=None):

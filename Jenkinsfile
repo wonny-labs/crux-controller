@@ -95,6 +95,10 @@ pipeline {
                     agent { dockerfile { filename 'Dockerfile'; dir '.devcontainer'; additionalBuildArgs '--build-arg CRUX_JLINK=0'; args '-v crux-controller-ci-cache:/opt/crux-cache'; customWorkspace "crux-ci/${env.BUILD_TAG}/patch-style/crux-controller" } }
                     steps { script { runJob('patch-style') } }
                 }
+                stage('minimal') {
+                    agent { dockerfile { filename 'Dockerfile'; dir '.devcontainer'; additionalBuildArgs '--build-arg CRUX_JLINK=0'; args '-v crux-controller-ci-cache:/opt/crux-cache'; customWorkspace "crux-ci/${env.BUILD_TAG}/minimal/crux-controller" } }
+                    steps { script { runJob('minimal') } }
+                }
                 stage('base') {
                     agent { dockerfile { filename 'Dockerfile'; dir '.devcontainer'; additionalBuildArgs '--build-arg CRUX_JLINK=0'; args '-v crux-controller-ci-cache:/opt/crux-cache'; customWorkspace "crux-ci/${env.BUILD_TAG}/base/crux-controller" } }
                     steps { script { runJob('base') } }
@@ -103,9 +107,9 @@ pipeline {
                     agent { dockerfile { filename 'Dockerfile'; dir '.devcontainer'; additionalBuildArgs '--build-arg CRUX_JLINK=0'; args '-v crux-controller-ci-cache:/opt/crux-cache'; customWorkspace "crux-ci/${env.BUILD_TAG}/static/crux-controller" } }
                     steps { script { runJob('static') } }
                 }
-                stage('budget-base') {
-                    agent { dockerfile { filename 'Dockerfile'; dir '.devcontainer'; additionalBuildArgs '--build-arg CRUX_JLINK=0'; args '-v crux-controller-ci-cache:/opt/crux-cache'; customWorkspace "crux-ci/${env.BUILD_TAG}/budget-base/crux-controller" } }
-                    steps { script { runJob('budget-base') } }
+                stage('budget-minimal') {
+                    agent { dockerfile { filename 'Dockerfile'; dir '.devcontainer'; additionalBuildArgs '--build-arg CRUX_JLINK=0'; args '-v crux-controller-ci-cache:/opt/crux-cache'; customWorkspace "crux-ci/${env.BUILD_TAG}/budget-minimal/crux-controller" } }
+                    steps { script { runJob('budget-minimal') } }
                 }
                 stage('budget-workload') {
                     agent { dockerfile { filename 'Dockerfile'; dir '.devcontainer'; additionalBuildArgs '--build-arg CRUX_JLINK=0'; args '-v crux-controller-ci-cache:/opt/crux-cache'; customWorkspace "crux-ci/${env.BUILD_TAG}/budget-workload/crux-controller" } }
@@ -131,6 +135,10 @@ pipeline {
                     agent { dockerfile { filename 'Dockerfile'; dir '.devcontainer'; additionalBuildArgs '--build-arg CRUX_JLINK=0'; args '-v crux-controller-ci-cache:/opt/crux-cache'; customWorkspace "crux-ci/${env.BUILD_TAG}/budget-management/crux-controller" } }
                     steps { script { runJob('budget-management') } }
                 }
+                stage('budget-base') {
+                    agent { dockerfile { filename 'Dockerfile'; dir '.devcontainer'; additionalBuildArgs '--build-arg CRUX_JLINK=0'; args '-v crux-controller-ci-cache:/opt/crux-cache'; customWorkspace "crux-ci/${env.BUILD_TAG}/budget-base/crux-controller" } }
+                    steps { script { runJob('budget-base') } }
+                }
                 stage('devcontainer') {
                     agent { node { label 'docker'; customWorkspace "crux-ci/${env.BUILD_TAG}/devcontainer/crux-controller" } }
                     steps { script { runJob('devcontainer') } }
@@ -146,6 +154,10 @@ pipeline {
                 stage('scheduled-main') {
                     agent { dockerfile { filename 'Dockerfile'; dir '.devcontainer'; additionalBuildArgs '--build-arg CRUX_JLINK=0'; args '-v crux-controller-ci-cache:/opt/crux-cache'; customWorkspace "crux-ci/${env.BUILD_TAG}/scheduled-main/crux-controller" } }
                     steps { script { runJob('scheduled-main') } }
+                }
+                stage('product-integration') {
+                    agent { dockerfile { filename 'Dockerfile'; dir '.devcontainer'; additionalBuildArgs '--build-arg CRUX_JLINK=0'; args '-v crux-controller-ci-cache:/opt/crux-cache'; customWorkspace "crux-ci/${env.BUILD_TAG}/product-integration/crux-controller" } }
+                    steps { script { runJob('product-integration') } }
                 }
             }
         }

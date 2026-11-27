@@ -10,11 +10,12 @@ import unittest
 import yaml
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
+# Approved behaviour change: the repository is the controller framework module that products import,
+# with one base image, and no longer the reference consumer firmware.
 ROLE = (
-    "Crux Controller is the official reference consumer firmware for ongoing integration, "
-    "evaluation and regression testing of Crux Platform capabilities through public and approved "
-    "composition interfaces. It may provide supporting evidence for relevant platform milestones, "
-    "but it is not a mandatory exit criterion for any of them."
+    "Crux Controller is a controller framework for products built on Crux: a Zephyr module that "
+    "composes the Crux services of a networked controller, with a base image that runs those services "
+    "and no application. Products import the module and add their application."
 )
 DOCS = (
     "README.md", "SECURITY.md", "RELEASE.md", "CHANGELOG.md", "docs/dependencies.md",
@@ -203,9 +204,9 @@ class Contributing(unittest.TestCase):
 
     def test_the_budget_row_covers_the_steps_of_the_budget_matrix(self):
         steps = self.budget_steps()
-        self.assertEqual(steps[0], "base", "the budget matrix must start at base")
+        self.assertEqual(steps[0], "minimal", "the budget matrix must start at minimal")
         self.assertEqual(len(steps), len(set(steps)))
-        self.assertIn(f"`Budget` for `base` to `{steps[-1]}`:", text("CONTRIBUTING.md"))
+        self.assertIn(f"`Budget` for `minimal` to `{steps[-1]}`:", text("CONTRIBUTING.md"))
 
     def test_the_ci_row_names_the_other_jobs_of_ci_yml(self):
         row = next(

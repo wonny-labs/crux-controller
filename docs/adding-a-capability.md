@@ -32,7 +32,7 @@ Answer these before writing any file. `system`'s answers are in brackets.
 2. Does the application need anything that `app/src` may not include? If the answer is a Zephyr header, a
    composition interface or a provider name, the capability needs a zone entry. (No: the driver, HWINFO and
    reboot calls are inside Crux's own binding. `file` did need the composition zone, `workload` the adapter zone.)
-3. Which configuration does it build on? Every configuration after `base` depends on `workload`, directly or through `net`. (`workload`; not `net` or `file`,
+3. Which configuration does it build on? Every configuration from `workload` to `management` depends on `workload`, directly or through `net`; a framework service goes into the module instead (`zephyr/`, `framework/`). (`workload`; not `net` or `file`,
    so the `system` image has no network and no file system.)
 4. Which Crux pieces does the image have to provide, as Kconfig and devicetree? (Three native
    facilities, `WATCHDOG`, `HWINFO` and `REBOOT`, and the devicetree alias `crux-watchdog0`.)
@@ -67,7 +67,7 @@ before the row exists.
 
 Known catch: the tooling tests of other capabilities pin the exact list of rows. `test_system.py`, `test_sntp.py`
 and `test_management.py` each compare the rows of `budgets/limits.json` and of the `Budget` matrix with the
-written-out list of all configurations, `["base", ..., "management"]`, in order. A new capability extends each
+written-out list of all configurations, `["minimal", ..., "management", "base"]`, in order. A new capability extends each
 of those lists and says so in its pull request. A comment in `test_system.py` explains why the list there is
 longer than `system`.
 
@@ -194,7 +194,7 @@ uploads an artifact. No job flashes, resets or runs anything on a board.
 - **`CHANGELOG.md`**: an entry under Unreleased.
 - **`CONTRIBUTING.md`**: three statements that `tests/tooling/test_docs.py` (class `Contributing`) checks
   against the workflows: the role section lists every build configuration of the `Budget` matrix in order, the
-  `ci.yml` row names `<name> build`, and the `budget.yml` row says `` `Budget` for `base` to `<last>`: ``. Its static analysis section also
+  `ci.yml` row names `<name> build`, and the `budget.yml` row says `` `Budget` for `minimal` to `<last>`: ``. Its static analysis section also
   states how many sources the host tests build and how many sources clang-tidy does not analyse, and
   `tests/tooling/test_contributing_standard.py` checks those counts against the repository. A capability that adds C
   sources changes them.
@@ -273,7 +273,7 @@ These three checks run in CI and, for the first two, on your machine
 A capability may seem to need a driver or a hardware abstraction layer (HAL). This section says what the repository
 records and where to read more. It adds no policy.
 
-**The rule.** `app/src` and `workload` include no Zephyr header. `app/os` and `app/compose` include only the
+**The rule.** `app/src` and `workload` include no Zephyr header. `app/os` and `framework/compose` include only the
 Zephyr headers on their exact allow-lists. Driver headers (`zephyr/drivers/*`), vendor headers (`fsl_*.h`) and every
 other header that is not on a list fail the boundary check, and there is no exception, waiver or per-file opt-out
 ([CONTRIBUTING.md](../CONTRIBUTING.md#the-boundary)).
@@ -321,7 +321,7 @@ three boundary files together.
 
 - `scripts/check_boundary.py`, `tests/tooling/test_boundary.py` and `docs/composition-zone.md`: change together
   in one reviewed pull request (CONTRIBUTING, "The boundary").
-- `app/CMakeLists.txt`, `app/management/management.cmake` and `app/management/entropy.cmake`: the boundary check
+- `app/CMakeLists.txt`, `framework/management/management.cmake` and `framework/management/entropy.cmake`: the boundary check
   reads them, and they may add no include path (CONTRIBUTING, "The boundary").
 - `west.yml` and `tests/tooling/test_manifest.py`: a pin moves in its own small pull request (CONTRIBUTING, "The
   pin and the manifest"). `docs/dependencies.md`, `RELEASE.md` and `CHANGELOG.md` are covered only where they
@@ -335,20 +335,20 @@ three boundary files together.
 ## Appendix: how `sntp` and `management` differ
 
 `system` is the model above. `sntp` and `management` follow the same order, with the differences below. They are facts about the
-current files, read from `app/Kconfig`, `app/CMakeLists.txt`, `app/os/CMakeLists.txt`, `app/management/`,
-`app/compose/` and `.github/workflows/`.
+current files, read from `app/Kconfig`, `app/CMakeLists.txt`, `app/os/CMakeLists.txt`, `framework/management/`,
+`framework/compose/` and `.github/workflows/`.
 
 **sntp (SNTP time synchronisation).**
 
 - **It builds on `net`, not only `workload`.** `CRUX_CONTROLLER_SNTP` depends on `CRUX_CONTROLLER_NET`, `CRUX_TIME`,
   `SNTP`, `NET_UDP` and `NET_IPV4`. Its CI build uses `conf/workload.conf;conf/net.conf;conf/sntp.conf` and
   `boards/net.overlay`, and the Budget row says the same.
-- **It uses a zone entry of its own.** `zephyr/net/sntp.h` is on the allow-list of `app/os`, a separate
-  reviewed change as the ground rules above ask. The adapter zone has a second source,
-  `app/os/time_sync_zephyr.c`, which `app/os/CMakeLists.txt` builds only when `sntp` is on.
-- **Three files instead of two for the logic.** The plain-C policy is `app/src/time_sync_policy.[ch]`, the
-  glue that calls the Crux Time authority is `app/src/time_sync.[ch]`, and the port that the glue calls is
-  `app/src/time_sync_port.h`, implemented by the adapter. The policy has a host test
+- **It uses a zone entry of its own.** `zephyr/net/sntp.h` is on the allow-list of the adapter zones, a
+  separate reviewed change as the ground rules above ask. Its adapter is `framework/os/time_sync_zephyr.c`, in the
+  adapter zone of the framework module, which `framework/configurations.cmake` builds only when `sntp` is on.
+- **Three files instead of two for the logic.** The plain-C policy is `framework/src/time_sync_policy.[ch]`, the
+  glue that calls the Crux Time authority is `framework/src/time_sync.[ch]`, and the port that the glue calls is
+  `framework/src/time_sync_port.h`, implemented by the adapter. The policy has a host test
   (`tests/host/test_time_sync_policy.c`).
 - **The scenario compiles the product's own glue, policy and adapter** against the real Crux Time provider
   and Zephyr's SNTP library, with a UDP responder on the loopback interface. It uses one image per case
@@ -372,12 +372,12 @@ the Crux manifest.
   `file` owns another file provider and `system` clears the reset cause that `management` reads once. `sntp` may be on, and that image is not
   built in CI.
 - **The route table belongs to the target `app`.** Crux's route function sets properties on the sources of `app`,
-  so `app/management/management.cmake` is included by `app/CMakeLists.txt` and is not a subdirectory. The tooling
+  so `framework/management/management.cmake` is included by `app/CMakeLists.txt` and is not a subdirectory. The tooling
   tests that forbid include paths and foreign sources read that file too: extend such a rule to a new build file, and
   never loosen it.
-- **One file starts the services.** `app/compose/management_start.c` implements `app/src/management_port.h` in the
-  order that the header documents. The policy, the address check and the version check are plain C in `app/src`
-  and have a host test.
+- **One file starts the services.** `framework/compose/management_start.c` implements `framework/src/management_port.h` in the
+  order that the header documents. The policy, the address check and the version check are plain C in
+  `framework/src` and have a host test.
 - **The scenario is one image with ordered cases**, because the start sequence runs once per program. Its Mbed
   profile is a copy of the fragment's, and a tooling test compares them.
 - **The CI job reads more of what the build resolved**, including the devicetree alias, the RAM disk and the symbols

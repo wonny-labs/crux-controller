@@ -107,8 +107,8 @@ the recipe and the mechanical checklist; the points below are what a reviewer ve
   `tests/tooling/test_boundary.py` and `docs/composition-zone.md` in one pull request that is reviewed as such, with
   the reason why the public interface is not enough (CONTRIBUTING.md, "The boundary"). There is no exception,
   waiver or per-file opt-out.
-- [ ] **No include path in CMake.** `app/CMakeLists.txt`, `app/management/management.cmake` and
-  `app/management/entropy.cmake` add none, because the check reads includes only (CONTRIBUTING.md, "The boundary").
+- [ ] **No include path in CMake.** `app/CMakeLists.txt`, `framework/management/management.cmake` and
+  `framework/management/entropy.cmake` add none, because the check reads includes only (CONTRIBUTING.md, "The boundary").
 - [ ] **Kconfig dependencies hold in the resolved configuration.** An unmet dependency only prints a warning, and the
   image builds without the capability. Look for the job's checks of the resolved `.config` and `zephyr.dts` (options that
   must be on, options that must be off, the devicetree alias) and for the `require` field of the `Budget` row. Practice:
@@ -118,7 +118,7 @@ the recipe and the mechanical checklist; the points below are what a reviewer ve
   command line.
 - [ ] **The three statements in CONTRIBUTING.md are updated.** Practice, from [adding-a-capability.md](adding-a-capability.md),
   section 2.6: the role section (every build configuration of the `Budget` matrix, in order),
-  the `ci.yml` row (`<name> build`) and the `budget.yml` row (`Budget` for `base` to the last configuration). `tests/tooling/test_docs.py`
+  the `ci.yml` row (`<name> build`) and the `budget.yml` row (`Budget` for `minimal` to the last configuration). `tests/tooling/test_docs.py`
   checks them against the workflows.
 - [ ] **The exact row lists of the other capability tests are extended, not loosened.** CONTRIBUTING.md, "Changing
   behaviour", says: "Extend a check rather than loosen it." That the row lists are pinned by `test_system.py`,

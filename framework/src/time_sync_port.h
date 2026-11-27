@@ -3,11 +3,11 @@
 #define TIME_SYNC_PORT_H
 
 /*
- * The product-owned port to the operating system for the sntp capability. The application declares
- * it and the adapter zone (app/os/time_sync_zephyr.c) implements it with Zephyr kernel calls and
- * the Zephyr SNTP library, so app/src includes no Zephyr, socket or SNTP header: the link joins the
- * two, no include does. This header includes only ISO C and the policy header, which owns the types
- * of an instant and of a query result.
+ * The product-owned port to the operating system for the sntp capability. The framework core
+ * declares it and the adapter zone (framework/os/time_sync_zephyr.c) implements it with Zephyr
+ * kernel calls and the Zephyr SNTP library, so framework/src includes no Zephyr, socket or SNTP
+ * header: the link joins the two, no include does. This header includes only ISO C and the policy
+ * header, which owns the types of an instant and of a query result.
  *
  * The port has one thread, one query at a time and no handle. Calls are made from thread context.
  */

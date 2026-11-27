@@ -28,7 +28,7 @@ set -euo pipefail
 
 default_board='mimxrt1060_evk@B/mimxrt1062/qspi'
 link='current'
-configurations=(base workload net file system sntp management)
+configurations=(minimal workload net file system sntp management base)
 
 usage() {
     printf 'Usage: %s [--board <board>] <configuration> | [--board <board>] --clean\n' "$0" >&2
@@ -80,7 +80,7 @@ fi
 conf=""
 overlay=""
 case "$1" in
-    base) ;;
+    minimal) ;;
     workload) conf="conf/workload.conf" ;;
     net)
         conf="conf/workload.conf;conf/net.conf"
@@ -100,6 +100,10 @@ case "$1" in
         ;;
     management)
         conf="conf/workload.conf;conf/net.conf;conf/management.conf"
+        overlay="boards/net.overlay;boards/management.overlay"
+        ;;
+    base)
+        conf="conf/base.conf"
         overlay="boards/net.overlay;boards/management.overlay"
         ;;
     *) usage ;;

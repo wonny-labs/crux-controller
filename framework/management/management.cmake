@@ -7,7 +7,7 @@
 #
 # What it does, in the order that Crux's functions need:
 #   - finds the Crux module by the variable that Zephyr sets for it, and includes three files of it;
-#   - packages the page of app/management/site (crux_web_assets), then names the route sources of
+#   - packages the page of framework/management/site (crux_web_assets), then names the route sources of
 #     the session and management services and generates the route table (crux_web_routes), checked
 #     against reviewed-routes.txt.
 #

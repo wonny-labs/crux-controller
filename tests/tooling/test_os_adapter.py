@@ -75,9 +75,10 @@ class ZoneBuildFiles(unittest.TestCase):
         )
 
     def test_the_zone_has_exactly_two_sources_and_one_build_file(self):
-        # The sntp capability added the SNTP adapter as the second source; test_sntp.py pins it.
+        # The SNTP adapter of the sntp capability is in the adapter zone of the framework module;
+        # test_sntp.py pins it.
         names = sorted(p.name for p in ZONE.iterdir())
-        self.assertEqual(["CMakeLists.txt", "time_sync_zephyr.c", "workload_os_zephyr.c"], names)
+        self.assertEqual(["CMakeLists.txt", "workload_os_zephyr.c"], names)
 
 
 class ApplicationBuildFiles(unittest.TestCase):

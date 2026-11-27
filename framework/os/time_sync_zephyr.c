@@ -2,12 +2,13 @@
 
 /*
  * The adapter zone of the sntp capability: the one place that queries an SNTP server and runs the
- * thread that does it. It implements the port that app/src declares (time_sync_port.h) with two
- * Zephyr headers of the allow-list of docs/composition-zone.md for this zone, <zephyr/kernel.h> and
- * <zephyr/net/sntp.h>. It includes no socket header, which the zone may not, so it calls the
+ * thread that does it. It implements the port that framework/src declares (time_sync_port.h) with
+ * two Zephyr headers of the allow-list of docs/composition-zone.md for this zone, <zephyr/kernel.h>
+ * and <zephyr/net/sntp.h>. It includes no socket header, which the zone may not, so it calls the
  * library's string-based one-shot query sntp_simple() and nothing else of it: sntp_init() and
  * sntp_query() need a socket address type. The adapter never sets a clock. The product's glue
- * app/src/time_sync.c does, through the Crux Time authority, and nothing else in the image does.
+ * framework/src/time_sync.c does, through the Crux Time authority, and nothing else in the image
+ * does.
  *
  * What the library does, read at Zephyr v4.4.0 (include/zephyr/net/sntp.h and
  * subsys/net/lib/sntp/sntp.c, sntp_simple.c); between v4.4.0 and v4.4.2 the only change under
