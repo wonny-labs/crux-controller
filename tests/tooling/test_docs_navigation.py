@@ -364,7 +364,7 @@ class AddingACapability(unittest.TestCase):
         self.assertEqual(1, len(found), titles)
         self.assertRegex(found[0], r"^\d+\. ")
         part = " ".join(section(self.PAGE, found[0]).split())
-        for needle in ("GPIO, I2C and SPI", "05a50475653becf7e4867686f4f88747173e1c21", "roadmap.md",
+        for needle in ("GPIO, I2C and SPI", "1330195487c34c8df6046d41ae030d3cdf8a5138", "roadmap.md",
                        "composition-zone.md", "architecture.md", "docs/choosing-an-api.md"):
             self.assertIn(needle, part, needle)
 
