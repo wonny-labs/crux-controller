@@ -365,7 +365,7 @@ class AddingACapability(unittest.TestCase):
         self.assertRegex(found[0], r"^\d+\. ")
         part = " ".join(section(self.PAGE, found[0]).split())
         for needle in ("GPIO, I2C and SPI", "roadmap.md", "composition-zone.md", "architecture.md",
-                       "docs/choosing-an-api.md", "05a50475653becf7e4867686f4f88747173e1c21"):
+                       "docs/choosing-an-api.md", "1330195487c34c8df6046d41ae030d3cdf8a5138"):
             self.assertIn(needle, part, needle)
 
     def test_the_list_of_files_that_need_a_reviewed_change_is_still_there(self):
