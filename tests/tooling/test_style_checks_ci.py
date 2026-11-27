@@ -71,7 +71,8 @@ class SpdxStep(CannotBeSilenced):
         runs = [s.get("run") for s in steps_of("tooling")]
         self.assertIn("python -m pip install pyyaml", runs)
         self.assertEqual("python -m unittest discover -s tests/tooling -v", ci_map.run("tooling-tests").strip())
-        self.assertEqual(["tooling-tests", "spdx"], ci_map.ids("tooling"))
+        # The secret scan of criterion 41 joined the job before the SPDX headers.
+        self.assertEqual(["tooling-tests", "secret-scan", "spdx"], ci_map.ids("tooling"))
 
 
 def git(repo, *args):
