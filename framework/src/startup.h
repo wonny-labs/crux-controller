@@ -15,6 +15,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 typedef int (*startup_phase_run_t)(void);
 
@@ -47,5 +48,34 @@ typedef enum {
  */
 startup_status_t startup_run(const startup_phase_t *phases, size_t count, startup_report_t report,
                              startup_summary_t *summary);
+
+/*
+ * A supervised step of the start function (specification section 4.1): a phase with the deadline
+ * that the supervisor enforces while it runs, and an optional function that leaves it out of this
+ * boot (time synchronisation in safe mode, for example).
+ */
+typedef struct {
+    startup_phase_t phase;
+    /* Milliseconds; zero means none (steps 1 and 2 are bounded by their content). */
+    uint32_t deadline_ms;
+    /* NULL, or true to leave the step out of this boot. */
+    bool (*skip)(void);
+} startup_step_t;
+
+/* What the supervisor learns of each step. All three are set, or the hooks are NULL. */
+typedef struct {
+    void (*begin)(const char *name, uint32_t deadline_ms); /* before the step runs */
+    void (*end)(const char *name);                         /* after it returns, before the report */
+    void (*skipped)(const char *name); /* instead of both, for a step left out */
+} startup_hooks_t;
+
+/*
+ * Run the steps as startup_run() runs phases, with the hooks around each step. A step left out is
+ * neither run, reported nor counted. The table and the hooks are checked before any step runs, as
+ * startup_run() checks its table. hooks may be NULL.
+ */
+startup_status_t startup_run_steps(const startup_step_t *steps, size_t count,
+                                   startup_report_t report, const startup_hooks_t *hooks,
+                                   startup_summary_t *summary);
 
 #endif
