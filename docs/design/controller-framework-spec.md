@@ -188,14 +188,14 @@ The product's `main()`, or the base image's, calls the start function once; the 
 |---|---|---|
 | 1 | Read the Crux monotonic clock; read the reset cause once, keep the copy and clear the flags ([C2](controller-framework-platform-gaps.md#c2-one-reset-cause-owner)); read and check the retained record; update the boot counter and decide normal boot or safe mode (section 5.2). | A missing clock stops startup; otherwise log, continue without the copy, and count a bad record as empty. |
 | 2 | Start the supervisor thread, which arms the hardware watchdog with the one timeout T ([C3](controller-framework-platform-gaps.md#c3-one-watchdog-activation-per-boot)) and supervises the startup steps. | The watchdog is "not armed"; startup continues, and the application does not start unless the build allows it (D14). |
-| 3 | Mount the volume once with the keep policy and bind the application data root and the credential store roots; on a volume that device preparation wrote, check that the device identity exists. | Storage failed, and step 4 fails with it. A missing device identity on a prepared volume sets safe mode for this boot, unless the build has the TLS identity option (section 5.5). |
-| 4 | Start security events, the realtime clock, the credential store and Access. | Access failed; device management that needs accounts stays off (section 5.3). |
+| 3 | Mount the volume once with the keep policy and bind the application data root and the credential store roots. | Storage failed, and step 4 fails with it. |
+| 4 | Start security events, the realtime clock, the credential store and Access, then start the TLS certificate module, which checks that the device identity exists (section 5.5). | Access failed; device management that needs accounts stays off (section 5.3). A missing device identity on a prepared volume sets safe mode for this boot, unless the build has the TLS identity option (section 5.5). |
 | 5 | Unless in safe mode or with no application: call the application's `init`, which registers the application's requirements (section 3.1). | Application fault, with the clean-up of a partial `init` (section 3.3). |
 | 6 | Start the configuration service with the framework and application parameter tables. | Configuration failed. |
 | 7 | Start the status service with the copy from step 1 and the framework and application items. | Status failed. |
 | 8 | Start time synchronisation, outside safe mode. | Time stays unsynchronised. |
 | 9 | Register the framework's command tables with `crux_cli_init()` and start the configured command line transports; `crux_cli_serial_start()` refuses a registry that is not ready (`components/cli/ports/zephyr/include/crux/cli_zephyr.h:36-40`). | Command line failed. |
-| 10 | Load and register the TLS key and certificate written by device preparation, then start sessions, web management and the listener. | Web management failed; without a device identity, web management stays off (step 3). |
+| 10 | Register the TLS key and certificate written by device preparation, from the TLS certificate module, then start sessions, web management and the listener. | Web management failed; without a device identity, web management stays off (step 4). |
 | 11 | Check the start prerequisites (section 4.7). | A start prerequisite is not healthy: the application is held, and the controller is degraded. |
 | 12 | Unless in safe mode, with an application fault, with a start prerequisite that is not healthy, without an armed watchdog in a build that refuses it, or with no application: activate the application's registered channels and call the application's `start` (section 4.4). | Application fault, with the clean-up of a partial start (section 3.3). |
 
@@ -232,8 +232,8 @@ Startup watchdog rules (established mechanism for the parts that Crux and Zephyr
 - Comparable practice: MCUboot's Zephyr port feeds the watchdog during long boot loader operations (`CONFIG_BOOT_WATCHDOG_FEED`).
 
 Key generation is part of device preparation (D11), so a normal boot has no long step.
-Only a development or reference build with the TLS identity option generates a missing key and certificate in step 10, with its own deadline set from a measurement on the board for the key type; the status service then reports that the certificate was made at boot.
-Interim (platform constraint or interim): Crux makes a missing key and certificate in step 10 of every build (section 5.5), so the step 10 deadline covers key generation in every build until Crux's setting that requires an existing identity is at the pin.
+Only a development or reference build with the TLS identity option generates a missing key and certificate in step 4, with its own deadline set from a measurement on the board for the key type; the status service then reports that the certificate was made at boot.
+Interim (platform constraint or interim): Crux makes a missing key and certificate in step 4 of every build (section 5.5), so the step 4 deadline covers key generation in every build until Crux's setting that requires an existing identity is at the pin.
 
 ### 4.2 Supervision periods (D4)
 
@@ -379,6 +379,7 @@ Outputs keep a safe state during and across a reset only through the board's har
   The framework states its Crux Reboot policy as a callback, because Crux calls no callback with the always-allow policy.
   The callback writes the marker only when it allows the restart on the reboot thread, because that call is the last step before the reset; when it allows a request on any other thread, it writes no marker.
   When `crux_reboot_work_once()` returns, no reset happened, so the reboot thread clears a marker that the call left.
+  The reboot thread feeds its channel before and after each call, and the channel's reload period is longer than the bound of one call: Crux Reboot's lock wait, delay and settle wait (1 s, 1 s and 15 s at their defaults), plus the time of its polls, the policy call and its event, with a margin.
   Practice label: documented but optional (Crux `components/reboot/include/crux/reboot.h`: a composition with no worker thread calls `crux_reboot_work_once()` itself).
 - **Power cycle**: a captured POR cause, or a region whose prefix or checksum is invalid, means that the region did not survive: the counter starts at zero and no record is reported, whatever other cause bits are latched.
   On the RT1062 a POR cause is expected never to be captured and a power-on to read as PIN, which the board check of section 5.6 shows, so detection of a power cycle there relies on the invalid-region rule.
@@ -438,10 +439,12 @@ FatFs stays a selectable Crux File provider for other products, and a build with
 - A normal boot makes no key, except in a development or reference build with the TLS identity option (section 7.1).
 - In any other build, a prepared volume without a device identity puts the boot into safe mode, the status service and the serial log report the missing identity, and the recovery is device preparation again.
 - These two rules need a Crux setting that makes the TLS certificate start refuse a missing key or certificate and write nothing to the credential store, which is planned in Crux ([C9](controller-framework-platform-gaps.md#c9-access-and-an-unusable-store)).
+- The framework starts the TLS certificate module in step 4, right after the credential store, so that a refusal sets safe mode before the application's `init` in step 5 (section 4.1); project-specific workaround (Crux `tls_certificate_start.h`: the start runs once the credential store has started and before any TLS listener).
 - Crux at the pin and on Crux `main`: `crux_tls_certificate_start()` makes a missing TLS key and a self-signed certificate, stores them and returns `CRUX_TLS_CERTIFICATE_GENERATED`, and no public Crux interface reads the credential store records before that call.
-- Interim state (platform constraint or interim): step 3 does not check the device identity, and step 10 lets Crux make a missing key and certificate in every build.
+- Interim state (platform constraint or interim): step 4 cannot check the device identity, and Crux makes a missing key and certificate there in every build.
   When the start returns `CRUX_TLS_CERTIFICATE_GENERATED` in a build without the TLS identity option, the status service and the serial log report that the certificate was made at boot, and the boot does not enter safe mode.
   The next boot finds the stored key and certificate, and clients see a new certificate fingerprint (section 6.2).
+  A stored certificate without its key ends in `CRUX_TLS_CERTIFICATE_ERR_KEY_MISMATCH` after Crux makes a new key, so no certificate is active and web management stays off until an operator installs or regenerates a certificate (Crux `components/tls_certificate/src/tls_certificate.c`).
   Practice label: project-specific workaround (Crux `components/tls_certificate/include/crux/tls_certificate_start.h`).
 
 ### 5.6 Board facts
@@ -918,7 +921,7 @@ These sources cover this page, the [overview](controller-framework.md) and the [
 - RFC 7435, "Opportunistic Security: Some Protection Most of the Time" (trust on first use).
 - littlefs design notes: copy-on-write and power-loss resilience.
 - Crux at the pin: `zephyr/Kconfig`, `zephyr/CMakeLists.txt`, `components/logging/ports/zephyr/`, `components/cli/ports/zephyr/include/crux/cli_zephyr.h`, `components/system/`, `components/access/include/crux/access.h`, `components/mgmt_status/include/crux/management_status.h`, `components/file/ports/zephyr/CMakeLists.txt`, `components/image_state/`, `components/*/ports/linux`, `docs/decisions/0001-application-boundary-and-api-stability.md` (Decision 4), `docs/decisions/0003-p9-result-services-keep-narrow-thread-sync.md` (R2, R5), `docs/management-in-a-product.md`, `tests/native/configuration_settings_littlefs`, `tests/native/file_littlefs`, `templates/product/README.md`, `docs/ci.md` ("Use in a product repository").
-- Crux at the pin and on `main` at `05a50475`: `components/reboot/include/crux/reboot.h`, `components/reboot/src/reboot.c`, `components/tls_certificate/include/crux/tls_certificate_start.h`, `components/tls_certificate/src/tls_certificate.c`.
+- Crux at the pin and on `main` at `05a50475`: `components/reboot/include/crux/reboot.h`, `components/reboot/src/reboot.c`, `components/tls_certificate/include/crux/tls_certificate_start.h`, `components/tls_certificate/src/tls_certificate.c`, `components/credential/adapter/crux_credential_adapter.h`, `components/credential/include/crux/credential_store.h`.
 - Crux `main`: `docs/superpowers/specs/2026-10-24-system-health-design.md`, section "Supervising several activities".
 - Crux `main` at `05a50475`: `west.yml` (Zephyr v4.5.0), `zephyr/Kconfig` (`CRUX_FILE_LITTLEFS_BLK_DEV`, `CRUX_CONFIGURATION_SETTINGS_FILE_ANY_FS`, `CRUX_CLI_CONSOLE_UART_SHARED`), `zephyr/CMakeLists.txt`, `zephyr/settings_file.cmake`, `patches/zephyr/README.md`, `components/credential/ports/zephyr/include/crux/credential_store_zephyr.h`, `components/service_priority/ports/zephyr/include/crux/service_priority_zephyr.h`, `components/reboot/include/crux/reboot.h`, `docs/configuration-contract.md`, `docs/file-contract.md`, `docs/management-in-a-product.md`.
 - Crux issues [#188](https://github.com/wonny-labs/crux-pilot/issues/188) and [#297](https://github.com/wonny-labs/crux-pilot/issues/297).

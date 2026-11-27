@@ -102,12 +102,12 @@ These Crux facts back [specification section 6.2](controller-framework-spec.md#6
 - Crux change: an erase for a factory reset. State: Crux `main`. Priority 2.
 - Crux change: an erase that keeps the TLS key and certificate. State: Planned in Crux. Priority 2.
 - Evidence: `crux_tls_certificate_start()` ensures the device's TLS key, which makes a key when none is stored, makes and stores a self-signed certificate when none is stored, and then returns `CRUX_TLS_CERTIFICATE_GENERATED`, with no option that refuses instead (`components/tls_certificate/include/crux/tls_certificate_start.h:72-80`, `components/tls_certificate/src/tls_certificate.c:291-294` and `:361-374`, at the pin and on Crux `main`).
-- Evidence: Crux reads the credential store records only through its private adapter (`components/credential/adapter/crux_credential_adapter.h`), so the framework cannot check for the device identity before that call.
+- Evidence: Crux reads the credential store records only through its private adapter (`components/credential/adapter/crux_credential_adapter.h`), so the framework cannot check the TLS key and certificate records before that call.
 - Effect: a boot of a prepared volume without the device identity makes a new identity instead of entering the safe mode of [specification section 5.5](controller-framework-spec.md#55-device-preparation-d11).
 - Crux change: a setting of the TLS certificate start that refuses a missing key or certificate and writes nothing to the credential store. State: Planned in Crux. Priority 2.
 - Interim state: until the credential store erase is at the pin, factory reset is only by device preparation. Replacement criterion: none; criterion 42 needs the erase.
-- Interim state: with the erase at the pin and no identity-keeping erase, a factory reset also removes the device identity, and recovery of the identity is device preparation ([specification section 5.5](controller-framework-spec.md#55-device-preparation-d11)). Replacement criterion: none; PR4 needs the identity-keeping erase.
-- Interim state: until the setting is at the pin, Crux makes a missing device identity in step 10 of every build, and the framework reports a certificate made at boot instead of entering safe mode (specification section 5.5).
+- Interim state: with the erase at the pin and no identity-keeping erase, a factory reset also removes the device identity, and recovery of the prepared identity is device preparation ([specification section 5.5](controller-framework-spec.md#55-device-preparation-d11)). Replacement criterion: none; PR4 needs the identity-keeping erase.
+- Interim state: until the setting is at the pin, Crux makes a missing device identity in step 4 of every build, and the framework reports a certificate made at boot instead of entering safe mode (specification section 5.5).
 - Replacement criterion: none; PR4 needs the setting, and criterion 42 shows the report while this interim state applies.
 
 ### C15. Size limit of the application data root
@@ -155,7 +155,7 @@ These Crux facts back [specification section 6.2](controller-framework-spec.md#6
 - Evidence: after a second check that allows the restart, the next step is the reset, and the call returns only when no reset happened (`reboot.c:409-415` at the pin, `:413-419` on Crux `main`).
 - Evidence (Crux `main`): the settle wait inside `crux_reboot_work_once()` reports progress as `CRUX_SERVICE_THREAD_REBOOT_WORKER` on the calling thread (`reboot.c:348-351`), although `service_priority_zephyr.h` says that a thread that is not started never reports, so the framework's progress function ignores that identifier; project-specific workaround ([C8](#c8-crux-service-threads-and-supervision)).
 - Effect: the framework starts no Crux reboot worker, and its own reboot thread calls `crux_reboot_work_once()`, so a policy call on that thread is the last step before the reset ([specification section 5.1](controller-framework-spec.md#51-retained-region-and-reset-classification-d4)); documented but optional (`reboot.h:178-180`).
-- Effect: the delay and the settle wait of one call are 1 s and 15 s (`reboot.c:38-46`), so the reload period of the reboot thread's channel ([specification section 4.4](controller-framework-spec.md#44-task-watchdog-channel-lifecycle-established-mechanism-for-the-zephyr-calls-d1-for-the-rules)) covers them.
+- Effect: one call can wait for its lock, the delay and the settle wait (1 s, 1 s and 15 s at their defaults, `reboot.c:34-46`), plus the time of its polls, the policy call and its event, so the reboot thread's channel follows the reload rule of [specification section 5.1](controller-framework-spec.md#51-retained-region-and-reset-classification-d4).
 - Crux change: none.
 - Interim state: none.
 
