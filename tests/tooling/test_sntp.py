@@ -358,6 +358,9 @@ class SntpAdapter(unittest.TestCase):
         self.assertIn("v4.4.0", text)
         self.assertIn("v4.4.2", text)
         self.assertIn("sntp_close_async", text)
+        # The pin moved to Zephyr v4.5.0, so the comment also says what it re-read there.
+        self.assertIn("v4.5.0", text)
+        self.assertIn("sntp_simple.c and the functions of sntp.h are unchanged", text)
 
     def test_the_adapter_zone_still_includes_nothing_outside_its_allow_list(self):
         violations = check_boundary.check(ROOT, None)
@@ -867,7 +870,7 @@ class SntpFindings(unittest.TestCase):
 
     def test_the_manifest_pins_the_approved_commit(self):
         manifest = (ROOT / "west.yml").read_text()
-        self.assertIn("revision: 62ed69f10791695c0350996411676b930a96ce71", manifest)
+        self.assertIn("revision: 05a50475653becf7e4867686f4f88747173e1c21", manifest)
 
 
 if __name__ == "__main__":

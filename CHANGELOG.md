@@ -74,7 +74,7 @@ build configurations by their earlier step ids, S0 to S6.
 
 ### Build and manifest
 
-- The west manifest imports `crux-pilot` at a pinned commit (`62ed69f1`, which contains the File
+- The west manifest imports `crux-pilot` at a pinned commit (`05a50475`, which contains the File
   composition interface `<crux/file_zephyr.h>`) and adds `picolibc` as a test-only project. A CI job
   checks the pins with `west crux-pins` and has a negative control that must fail.
 - The `crux-pilot` pin moved from `37c92b18` to `dfd3ad7d`, which adds the public management headers
@@ -164,6 +164,18 @@ build configurations by their earlier step ids, S0 to S6.
   and Zephyr's Kconfig prints a deprecation warning for them. Logging, Serial and System select their hardware by
   devicetree instead of by board or SoC name. The Crux manifest, the Zephyr revision, the public headers and the
   module name are as before. No controller code changes.
+- The `crux-pilot` pin moved from `62ed69f1` to `05a50475`, the head of Crux `main` after its move to Zephyr v4.5.0
+  (wonny-labs/crux-pilot#603), its CI sharding (#604), the fail-closed TCP initial sequence number (#605), LittleFS
+  storage for products (#607) and the service-thread progress hook and shared console (#606). Zephyr's manifest moves
+  `hal_nxp`, `cmsis_6`, `littlefs` and `fatfs`; `picolibc` keeps its revision. The `management` and `base` images,
+  which have Zephyr's TCP with the RFC 6528 sequence number, now build Crux's copy of `tcp.c` that refuses a
+  connection when the key or the hash fails. The new Crux features stay off here. The comment of
+  `framework/os/time_sync_zephyr.c` now says what changed in Zephyr's SNTP library up to v4.5.0. Zephyr v4.5.0
+  deprecates `CONFIG_MBEDTLS_SSL_MAX_CONTENT_LEN`, and the Twister build of the `management` scenario stops on that
+  warning, so `app/conf/management.conf`, `app/conf/base.conf`, the `management` and `tests/framework/base`
+  scenarios and the product-integration fixture set `CONFIG_MBEDTLS_SSL_IN_CONTENT_LEN` and
+  `CONFIG_MBEDTLS_SSL_OUT_CONTENT_LEN` to the same 16384 instead. The `West pins` negative control pinned `littlefs` at a newer commit that is now the contract, so it
+  pins the parent of the contract commit instead. No controller code or overlay changes.
 - The `crux-pilot` import blocks wolfSSL, wolfSSH and wolfPSA by name, so enabling the Mbed TLS group
   would activate Mbed TLS and TF-PSA-Crypto and no GPL stack (checked on the project list; no job
   enables the group or fetches with it on, and it stays off in every job).

@@ -136,9 +136,9 @@ fixture for `native_sim` and runs it.
 ## How Crux is consumed
 
 Crux states the general rules for a product in its own guides at the pinned revision:
-[Choosing an API](https://github.com/wonny-labs/crux-pilot/blob/62ed69f10791695c0350996411676b930a96ce71/docs/choosing-an-api.md)
+[Choosing an API](https://github.com/wonny-labs/crux-pilot/blob/05a50475653becf7e4867686f4f88747173e1c21/docs/choosing-an-api.md)
 (Zephyr, Crux or product code) and
-[Composition interfaces](https://github.com/wonny-labs/crux-pilot/blob/62ed69f10791695c0350996411676b930a96ce71/docs/composition-interfaces.md).
+[Composition interfaces](https://github.com/wonny-labs/crux-pilot/blob/05a50475653becf7e4867686f4f88747173e1c21/docs/composition-interfaces.md).
 This section shows how this repository applies them.
 
 - **Manifest.** `west.yml` makes this repository the west manifest repository. It imports `crux-pilot`

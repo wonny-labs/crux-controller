@@ -279,10 +279,11 @@ id = "pins-negative-pin-without-reason"
 job = "pins"
 run = '''
 cd ..
-# A newer revision of littlefs than the one Crux pins, with no
-# crux-override. It contains the pinned commit, so west crux-pins
-# reports MISMATCH rather than an error. This edit stays in the
-# runner's working copy.
+# An older revision of littlefs than the one Crux pins (the parent of
+# that commit, so no newer commit is needed), with no crux-override.
+# The full west update of this job has already fetched the pinned
+# commit, so west crux-pins resolves both and reports MISMATCH rather
+# than an error. This edit stays in the runner's working copy.
 python - <<'PY'
 import yaml
 
@@ -297,7 +298,7 @@ manifest["projects"].append(
     {
         "name": "littlefs",
         "remote": "zephyrproject-rtos",
-        "revision": "e9a8638fc228e43a3156ed3ac602229af3e3c1d5",
+        "revision": "11c9d5f01d392c5bbb2a3ca1496625acca28cc74",
         "path": "modules/fs/littlefs",
     }
 )

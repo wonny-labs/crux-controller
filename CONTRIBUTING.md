@@ -92,7 +92,7 @@ review, and a build in CI is not a run on a board.
 
 ### CI tiers
 
-CI runs in the three tiers of Crux, with its entry point, tier names, map file format and Jenkins parameters, as the [Crux CI page](https://github.com/wonny-labs/crux-pilot/blob/62ed69f10791695c0350996411676b930a96ce71/docs/ci.md) describes.
+CI runs in the three tiers of Crux, with its entry point, tier names, map file format and Jenkins parameters, as the [Crux CI page](https://github.com/wonny-labs/crux-pilot/blob/05a50475653becf7e4867686f4f88747173e1c21/docs/ci.md) describes.
 `scripts/ci/tiers.py` is a copy of the Crux selector.
 
 | Tier | When | What runs |
@@ -194,7 +194,7 @@ Crux's former controller sample used the same prefix, and a Crux test image
 `CONFIG_CRUX_CONTROLLER_M3`, as a further owner of the native watchdog next to `WDT_SHELL`,
 `HWINFO_SHELL` and `TASK_WDT_HW_FALLBACK`, not because of the prefix. The note
 `docs/findings/s4-system-composition.md` records this as read at `crux-pilot` `37c92b18`, and the same
-check was in the Crux source at `8e3737d2`, `1c4cf284`, `c5439c51`, `ea16f99f`, `ce2eb313`, `13c950bb` and `bd9efbc7` and is at `62ed69f1`
+check was in the Crux source at `8e3737d2`, `1c4cf284`, `c5439c51`, `ea16f99f`, `ce2eb313`, `13c950bb`, `bd9efbc7` and `62ed69f1` and is at `05a50475`
 (`components/system/ports/zephyr/CMakeLists.txt`). This repository never defines that symbol.
 
 ## Commits and pull requests

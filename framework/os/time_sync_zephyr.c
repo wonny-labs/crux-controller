@@ -11,9 +11,13 @@
  * does.
  *
  * What the library does, read at Zephyr v4.4.0 (include/zephyr/net/sntp.h and
- * subsys/net/lib/sntp/sntp.c, sntp_simple.c); the revision that west.yml pins through Crux is
- * v4.4.2, and between the two tags the only change under subsys/net/lib/sntp and
- * include/zephyr/net/sntp.h is a fix in sntp_close_async(), which this file does not call:
+ * subsys/net/lib/sntp/sntp.c, sntp_simple.c); between v4.4.0 and v4.4.2 the only change under
+ * subsys/net/lib/sntp and include/zephyr/net/sntp.h is a fix in sntp_close_async(), which this file
+ * does not call. The revision that west.yml pins through Crux is now v4.5.0. Between v4.4.2 and
+ * v4.5.0 sntp_simple.c and the functions of sntp.h are unchanged; sntp.c clamps the delay and the
+ * uncertainty and checks the precision only for the uncertainty option, which is not selected, so
+ * ts and the codes below are as described; CONFIG_SNTP now selects SNTP_LIB, and the new SNTP
+ * server (CONFIG_SNTP_SERVER) is not selected:
  *   - sntp_simple(server, timeout, &ts) takes "addr[:port]" (port 123 by default), resolves it
  *     with getaddrinfo (an IPv4 literal needs no DNS), opens one UDP socket, resends the request
  *     with a growing wait (100, 200, 400, 800, then 1600 ms) until the timeout is over, and closes
