@@ -47,7 +47,8 @@ static int inject_apart(controller_framework_fault_t fault, const char *name)
         if (name == NULL || name[0] == '\0' || strlen(name) >= NAME_SIZE) {
             return -1;
         }
-        (void)strcpy(refused_channel, name);
+        /* The length was checked above: the name and its terminator fit. */
+        memcpy(refused_channel, name, strlen(name) + 1u);
         return 0;
     }
     const int service = service_of(name);
@@ -75,7 +76,8 @@ int controller_framework_inject(controller_framework_fault_t fault, const char *
         if (name == NULL || name[0] == '\0' || strlen(name) >= NAME_SIZE) {
             return -1;
         }
-        (void)strcpy(armed_name, name);
+        /* The length was checked above: the name and its terminator fit. */
+        memcpy(armed_name, name, strlen(name) + 1u);
         break;
     case CONTROLLER_FRAMEWORK_FAULT_FATAL:
     case CONTROLLER_FRAMEWORK_FAULT_NONE:
