@@ -102,6 +102,7 @@ EXPECTED_NIGHTLY_ONLY = {
 # Checks of the nightly tier only, in a job that the full tier runs too, by job, in run order after
 # the checks of the full tier.
 EXPECTED_NIGHTLY_EXTRA = {
+    "host-OFF": ["host-fuzz"],
     "base": ["base-vulnerabilities"],
 }
 # The jobs of ci.yml and budget.yml run for every change, documentation-only changes included. The

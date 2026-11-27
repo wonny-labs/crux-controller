@@ -115,9 +115,10 @@ class WorkflowsUseTheScript(unittest.TestCase):
                 self.assertEqual(1, run.count(CALL), f"{name} {job_id}")
                 self.assertNotIn("sudo", run, f"{name} {job_id}: the script calls sudo itself")
                 found.append((name, job_id, step["name"]))
-        # The 14 steps that installed packages with apt-get before the script existed.
-        self.assertEqual(14, len(found), found)
-        self.assertEqual(9, sum(1 for name, _, _ in found if name == "ci.yml"), found)
+        # The 14 steps that installed packages with apt-get before the script existed, and the step of
+        # the host job that installs clang-18 with libFuzzer for the nightly check host-fuzz.
+        self.assertEqual(15, len(found), found)
+        self.assertEqual(10, sum(1 for name, _, _ in found if name == "ci.yml"), found)
 
     def test_jenkins_does_not_call_the_script(self):
         # Jenkins runs in the Dev Container image, which installs its packages in the Dockerfile.
