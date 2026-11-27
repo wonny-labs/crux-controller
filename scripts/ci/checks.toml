@@ -1799,6 +1799,8 @@ run = '''
 cd ..
 python -m unittest discover -s crux-controller/tests/tooling -p 'test_bundle.py' -v
 python -m unittest discover -s crux-controller/tests/tooling -p 'test_spdx.py' -v
+python -m unittest discover -s crux-controller/tests/tooling -p 'test_check_triage.py' -v
+python -m unittest discover -s crux-controller/tests/tooling -p 'test_match_vulnerabilities.py' -v
 '''
 scope = "release"
 
@@ -1931,6 +1933,24 @@ job = "release"
 run = '''
 cd ..
 cat bundle/release-manifest.json
+'''
+scope = "release"
+
+# Known vulnerabilities of the release image (criterion 36, delivery stage 4): Grype matches the SPDX
+# files of the build, and release/check_triage.py fails on a match with no triage record in
+# release/triage.openvex.json, or with the status affected or under investigation. The nightly
+# check base-vulnerabilities only reports.
+[[check]]
+id = "release-vulnerabilities"
+job = "release"
+run = '''
+cd ..
+FRESH="${RUNNER_TEMP:-/tmp}/release-workspace"
+REPORTS="$(mktemp -d)"
+crux-controller/scripts/ci/match-vulnerabilities.sh --json "$REPORTS" \
+  "$FRESH/crux-controller/build/net/spdx"
+python crux-controller/release/check_triage.py --matches "$REPORTS" \
+  --triage crux-controller/release/triage.openvex.json | tee -a "${GITHUB_STEP_SUMMARY:-/dev/stdout}"
 '''
 scope = "release"
 

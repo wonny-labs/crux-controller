@@ -90,7 +90,8 @@ EXPECTED_FULL = {
                 "rebuild-compare", "rebuild-not-done"],
     "release": ["release-tool-tests", "release-pins", "release-freeze", "release-fresh-workspace",
                 "release-sdk", "release-build", "release-parse-spdx", "release-assemble",
-                "release-check-bundle", "release-print-manifest", "release-sbom-scan", "release-not-done"],
+                "release-check-bundle", "release-print-manifest", "release-vulnerabilities",
+                "release-sbom-scan", "release-not-done"],
 }
 EXPECTED_NIGHTLY_ONLY = {
     "scheduled-main": ["scheduled-pin-main", "scheduled-fetch", "scheduled-pins", "scheduled-sdk",
