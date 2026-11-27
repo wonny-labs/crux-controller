@@ -158,6 +158,14 @@ class Scenario(unittest.TestCase):
         for word in (f"{PORT}", "ssl.", "connected to pseudotty", "!setup", "account created", "source == \"stored\""):
             self.assertIn(word, text)
 
+    def test_the_scenario_closes_a_kept_alive_connection_abruptly_then_needs_answers(self):
+        text = read(f"{SCENARIO}/pytest/test_interactive.py")
+        body = text[text.index("def test_a_person_operates"):]
+        closed = body.index("close_kept_alive_connection_abruptly()")
+        self.assertLess(closed, body.index("next_answer()"))
+        self.assertLess(closed, body.index('console.type("help")'))
+        self.assertNotIn("Connection: close", text[text.index("def close_kept_alive"):text.index("def next_answer")])
+
     @ci_map.needs_tomllib
     def test_ci_requires_the_scenario_to_pass(self):
         run = ci_map.run("base-native-sim-interactive-report")

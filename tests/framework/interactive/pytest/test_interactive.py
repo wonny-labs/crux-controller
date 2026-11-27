@@ -8,6 +8,11 @@ pseudo-terminal, makes the first account and logs in, and it opens an HTTPS conn
 port on the host's loopback address. Last it restarts the program and checks that the certificate
 and the account came back from the flash file. The password is made here for each run.
 
+It also closes a kept-alive HTTPS connection without a TLS close_notify, as Python's ssl module and
+many browsers do, and then needs the next connection and the console to answer. Over native_sim's
+offloaded sockets with Mbed TLS that close spins the web server and stops the simulated clock unless
+the build carries the offload fix of nsos_rdhup.cmake.
+
 What this cannot show: a browser (the client is Python's ssl module, which does not check the
 self-signed certificate), a web login, the port forwarding of a Dev Container, or anything on a
 board.
@@ -31,6 +36,8 @@ CONSOLE_TIMEOUT_S = 30
 CONNECT_ATTEMPTS = 50
 CONNECT_RETRY_S = 0.2
 USER = "operator"
+NEXT_ANSWER_TIMEOUT_S = 10
+DRAIN_S = 0.5
 
 
 def start(dut: DeviceAdapter):
@@ -77,9 +84,7 @@ class Console:
 
 def https_answer():
     """Open TLS to the web port and send one request; return the status line and the certificate."""
-    context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-    context.check_hostname = False
-    context.verify_mode = ssl.CERT_NONE
+    context = tls_context()
     last = None
     for _ in range(CONNECT_ATTEMPTS):
         try:
@@ -93,6 +98,41 @@ def https_answer():
             last = error
             time.sleep(CONNECT_RETRY_S)
     raise AssertionError(f"no HTTPS answer on 127.0.0.1:{PORT}: {last}")
+
+
+def tls_context():
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    context.check_hostname = False
+    context.verify_mode = ssl.CERT_NONE
+    return context
+
+
+def close_kept_alive_connection_abruptly():
+    """Send a keep-alive request, read the answer, then close TCP with no TLS close_notify."""
+    raw = socket.create_connection(("127.0.0.1", PORT), timeout=NEXT_ANSWER_TIMEOUT_S)
+    tls = tls_context().wrap_socket(raw)
+    tls.sendall(b"GET / HTTP/1.1\r\nHost: 127.0.0.1:8443\r\n\r\n")
+    answer = tls.recv(4096)
+    assert answer.startswith(b"HTTP/1.1 "), answer
+    # Read everything the server sent, so that the close is a FIN: unread data would make it a reset.
+    tls.settimeout(DRAIN_S)
+    try:
+        while tls.recv(4096):
+            pass
+    except (socket.timeout, ssl.SSLWantReadError):
+        pass
+    tls.close()  # SSLSocket.close() sends no close_notify; the FIN alone ends the connection.
+
+
+def next_answer():
+    """One new connection and request, with a short timeout; return the status line."""
+    try:
+        with socket.create_connection(("127.0.0.1", PORT), timeout=NEXT_ANSWER_TIMEOUT_S) as raw:
+            with tls_context().wrap_socket(raw) as tls:
+                tls.sendall(b"GET / HTTP/1.1\r\nHost: 127.0.0.1:8443\r\nConnection: close\r\n\r\n")
+                return tls.recv(4096).decode(errors="replace").split("\r\n", 1)[0]
+    except OSError as error:
+        raise AssertionError(f"no answer within {NEXT_ANSWER_TIMEOUT_S} s after an abrupt close: {error!r}")
 
 
 def test_a_person_operates_the_base_image_from_the_host(dut: DeviceAdapter):
@@ -126,6 +166,26 @@ def test_a_person_operates_the_base_image_from_the_host(dut: DeviceAdapter):
         console.type("logout")
         console.expect("login: ")
         assert password not in console.text
+    finally:
+        console.close()
+
+    # A client that ends a kept-alive connection without close_notify must leave the image serving:
+    # the next connection is answered and the console still answers a command.
+    close_kept_alive_connection_abruptly()
+    status = next_answer()
+    assert status.startswith("HTTP/1.1 "), status
+    console = Console(pty)
+    try:
+        console.type("")
+        console.expect("login: ")
+        console.type(USER)
+        console.expect("password: ")
+        console.type(password)
+        console.expect("> ")
+        console.type("help")
+        console.expect("> ")
+        console.type("logout")
+        console.expect("login: ")
     finally:
         console.close()
 
