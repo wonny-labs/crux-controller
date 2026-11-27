@@ -63,7 +63,7 @@ zone, `framework/management`, which holds build files and data for the web route
 |---|---|---|---|
 | `workload/` | The portable core of the workload: configuration record, periodic cycle, message wire form. Built for the image and for the host tests. | ISO C and its own tree | any Crux, Sockets profile or Zephyr header |
 | `app/src` | The application: composition, thread glue, and the code of each capability. Plain C. | ISO C, the Sockets profile headers, public `<crux/NAME.h>` headers except the frozen three, its own tree, `workload/include`, the headers of `framework/src`, `<controller/NAME.h>` | any Zephyr header, the *frozen headers*, `<crux/file_zephyr.h>`, `<crux/web_zephyr.h>`, `<crux/cli_zephyr.h>`, a quoted include of a header of a zone |
-| `app/os` | The adapter zone. The one place that creates threads, queues messages and sleeps, with Zephyr kernel calls, for the configurations of the workload. `framework/os` is the adapter zone of the module and queries the SNTP server. | ISO C, public `<crux/NAME.h>` headers except the frozen three, `zephyr/kernel.h`, `zephyr/net/sntp.h`, its own tree, header files (`.h`) of `app/src` | the Sockets profile and other POSIX headers, any composition interface, every other Zephyr header, vendor headers, the frozen three |
+| `app/os` | The adapter zone. The one place that creates threads, queues messages and sleeps, with Zephyr kernel calls, for the configurations of the workload. `framework/os` is the adapter zone of the module: it queries the SNTP server and carries out the health supervision, with the supervision headers of [composition-zone.md](composition-zone.md#the-supervision-headers-of-frameworkos) on top of this list. | ISO C, public `<crux/NAME.h>` headers except the frozen three, `zephyr/kernel.h`, `zephyr/net/sntp.h`, its own tree, header files (`.h`) of `app/src` | the Sockets profile and other POSIX headers, any composition interface, every other Zephyr header, vendor headers, the frozen three |
 | `framework/compose` | The composition zone of the module. The one place that mounts a file system and binds it to Crux File, the one place that starts HTTPS management with the Web composition interface and registers its TLS material (`management`, `base`), and the one place that starts the serial command line (`base`). `app/compose` keeps the same rule and holds no source. | ISO C, public `<crux/NAME.h>` headers, `<crux/file_zephyr.h>`, `<crux/web_zephyr.h>`, `<crux/cli_zephyr.h>`, `zephyr/fs/fs.h`, `zephyr/devicetree.h`, `zephyr/net/tls_credentials.h`, its own tree, header files (`.h`) of `framework/src` | the Sockets profile, Crux private or port headers, every other Zephyr header, vendor headers |
 
 Points that the table cannot carry:
@@ -73,7 +73,7 @@ Points that the table cannot carry:
   directory where one narrow kind of Zephyr or composition use is allowed, with an exact allow-list
   and a reason for each entry. Without zones, either the application would grow Zephyr includes or a
   capability such as File could not be composed at all. There is no per-file exception.
-- **The allow-lists are exact.** `OS_ADAPTER_ZEPHYR_HEADERS` and `COMPOSITION_ZEPHYR_HEADERS` in
+- **The allow-lists are exact.** `OS_ADAPTER_ZEPHYR_HEADERS`, `FRAMEWORK_OS_ZEPHYR_HEADERS` and `COMPOSITION_ZEPHYR_HEADERS` in
   `scripts/check_boundary.py` are sets of names with no wildcards. Changing one is a change of the script,
   of `tests/tooling/test_boundary.py` and of [composition-zone.md](composition-zone.md) in one reviewed
   pull request.
@@ -91,27 +91,47 @@ Points that the table cannot carry:
   be checked.
 - **Inside the checked trees.** `app/os` holds `workload_os_zephyr.c` (every configuration of the workload), and
   `framework/os` holds `time_sync_zephyr.c` (added to the application target of `sntp` by
-  `framework/configurations.cmake`, and built into the framework library for `base`). `framework/compose` is a
-  static library, the only target that links `crux::file_zephyr`.
+  `framework/configurations.cmake`, and built into the framework library for `base`) and the adapters of the
+  health supervision (`base`). `framework/compose` is a static library, the only target that links `crux::file_zephyr`.
 
 ## The controller framework
 
 The controller framework is a Zephyr module of this repository: `zephyr/module.yml`, `zephyr/Kconfig` and
 `zephyr/CMakeLists.txt`. The Kconfig symbol `CRUX_CONTROLLER_FRAMEWORK` turns it on, and each service under it
-(`CRUX_CONTROLLER_FRAMEWORK_MANAGEMENT`, `CRUX_CONTROLLER_FRAMEWORK_CLI_SERIAL`, `CRUX_CONTROLLER_FRAMEWORK_TIME_SYNC`)
-is on by default when the Crux and Zephyr symbols it needs are on. A product's `main()` calls `controller_framework_start()` of
-`<controller/framework.h>` once; the start function runs a table of phases with the portable startup sequence of
-`framework/src/startup.c` and logs the name and result of each:
+(`CRUX_CONTROLLER_FRAMEWORK_MANAGEMENT`, `CRUX_CONTROLLER_FRAMEWORK_CLI_SERIAL`, `CRUX_CONTROLLER_FRAMEWORK_TIME_SYNC`,
+`CRUX_CONTROLLER_FRAMEWORK_SUPERVISION`, `CRUX_CONTROLLER_FRAMEWORK_REBOOT`) is on by default when the Crux and Zephyr
+symbols it needs are on. A product's `main()` calls `controller_framework_start()` of `<controller/framework.h>` once;
+the start function runs a table of steps with the portable startup sequence of `framework/src/startup.c` and logs the
+name and result of each:
 
-1. clock: the Crux monotonic clock answers. A failure stops startup.
-2. web management: the storage mount, the credential store, Access, the configuration and status services, the TLS
-   certificate, sessions, web management and the listener, in the order of `framework/src/management_port.h`.
-3. command line: the Crux serial console on the UART of the devicetree alias `crux-serial0`, with its login and
-   its first-account setup (`framework/src/cli_port.h`). It needs Access, so it runs only after phase 2 succeeded.
-4. time synchronisation: the SNTP thread of `framework/src/time_sync.c`.
+1. clock: the Crux monotonic clock answers; a failure stops startup. With health supervision, the reset cause is read
+   once and cleared, the retained region is read, and the boot counter decides normal boot or safe mode.
+2. supervisor: the supervisor thread arms the Crux System watchdog with one timeout and supervises every later step.
+3. web management: the storage mount, the credential store, Access, the configuration and status services, Crux
+   Reboot, the TLS certificate, sessions, web management and the listener, in the order of
+   `framework/src/management_port.h`; then the framework's reboot thread.
+4. command line: the Crux serial console on the UART of the devicetree alias `crux-serial0`, with its login, its
+   first-account setup and the framework's commands (`framework/src/cli_port.h`). It needs Access, so it runs only
+   after step 3 succeeded.
+5. time synchronisation: the SNTP thread of `framework/src/time_sync.c`; left out in safe mode.
+6. application: no application is given yet, and startup supervision ends.
 
-A failure of phase 2, 3 or 4 is logged and the controller runs without that service. The framework creates no
-application thread and takes no application yet. The base image (`base`) is `app/` with `app/conf/base.conf`:
+A failure of steps 3 to 5 is logged and the controller runs without that service. The framework creates no
+application thread and takes no application yet.
+
+Health supervision follows specification sections 4 and 5 of the controller framework. The supervisor feeds the
+watchdog only while the current step is within its deadline and no task watchdog channel of a framework thread (time
+synchronisation, reboot) has expired; a hang latches the fault, writes the last-fault record to the retained region
+and ends in a reset. The framework's fatal error handler writes a minimal record and resets: in thread context
+through Crux System, and in the fault exception of a Cortex-M by halting, so that the armed hardware watchdog
+resets the device; with no armed watchdog the halt is final. Consecutive fault
+resets lead to safe mode, which leaves out time synchronisation and the application, and the serial command
+`recovery exit` leaves it through Crux Reboot with the operator reset marker. The rules are portable C with host
+tests (`framework/src/boot_record.c`, `supervision.c`, `controller_state.c`, `reboot_policy.c`), the threads, the
+task watchdog, the retained region and the fatal error handler are in `framework/os`, and the status items and
+commands are in `framework/compose/supervision_start.c`. The status service shows the controller state, the boot
+counter, the watchdog state, the last-fault record and the thread with the least unused stack. Which reset cause
+the board reports and whether the retained region survives its resets are board facts that no board run has shown. The base image (`base`) is `app/` with `app/conf/base.conf`:
 its `main()` calls the start function, and `app/CMakeLists.txt` links `controller::framework` and calls
 `controller_framework_image()`, which adds the route table and the packaged page to the target `app`. The
 configurations built on the workload do not combine with the framework, and `app/CMakeLists.txt` stops a build
@@ -120,9 +140,9 @@ that asks for both.
 | Tree | Role |
 |---|---|
 | `include/` | The interface headers `<controller/framework.h>` and `<controller/version.h>` |
-| `framework/src` | The portable core: startup sequence, start function, time synchronisation glue and policy, management policy, port headers |
-| `framework/compose` | The composition zone of the module: storage mount, web management start and serial command line start |
-| `framework/os` | The adapter zone of the module: the SNTP query and its thread |
+| `framework/src` | The portable core: startup sequence, start function, time synchronisation glue and policy, management policy, boot counter and reset rules, supervision decisions, controller and application states, port headers |
+| `framework/compose` | The composition zone of the module: storage mount, web management start, serial command line start, the status items and commands of health supervision |
+| `framework/os` | The adapter zone of the module: the SNTP query and its thread, the supervisor thread, the task watchdog, the retained region, the fatal error handler and the reboot thread |
 | `framework/management/` | The build files and data of the web route table: the packaged page, the reviewed route list, `management.cmake` and `entropy.cmake` |
 
 `<controller/version.h>` holds the framework version and is the only place it is kept. It follows

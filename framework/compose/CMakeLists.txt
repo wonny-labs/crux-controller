@@ -33,3 +33,14 @@ if(CONFIG_CRUX_CONTROLLER_FRAMEWORK_CLI_SERIAL)
     target_sources(compose PRIVATE cli_start.c)
     target_link_libraries(compose PRIVATE crux::cli_zephyr crux::cli crux::logging)
 endif()
+
+# The composition part of health supervision: the framework's status items, its commands of the
+# serial command line and, with Crux Reboot, the reboot service with the framework's callback policy.
+# The framework's reboot thread (framework/os) carries out the requests; no Crux reboot worker starts.
+if(CONFIG_CRUX_CONTROLLER_FRAMEWORK_SUPERVISION)
+    target_sources(compose PRIVATE supervision_start.c)
+    target_link_libraries(compose PRIVATE crux::mgmt_status crux::logging)
+    if(CONFIG_CRUX_CONTROLLER_FRAMEWORK_REBOOT)
+        target_link_libraries(compose PRIVATE crux::reboot)
+    endif()
+endif()

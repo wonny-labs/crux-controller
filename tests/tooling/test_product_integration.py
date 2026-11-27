@@ -198,7 +198,8 @@ class NightlyCheck(unittest.TestCase):
 
     def test_the_job_runs_only_in_the_nightly_tier(self):
         checks = ci_map.checks(self.JOB)
-        self.assertEqual(["product-integration-workspace", "product-integration-build", "product-integration-run"],
+        self.assertEqual(["product-integration-workspace", "product-integration-build", "product-integration-run",
+                          "product-integration-sbom", "product-integration-vulnerabilities"],
                          [c["id"] for c in checks])
         for check in checks:
             with self.subTest(check=check["id"]):

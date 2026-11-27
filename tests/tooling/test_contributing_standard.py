@@ -182,16 +182,16 @@ class StaticAnalysisSection(unittest.TestCase):
         body = flat(section())
         analysed = host_built_sources()
         missing = set(not_analysed())
-        self.assertEqual(14, len(analysed))
-        self.assertEqual(21, len(missing))
+        self.assertEqual(22, len(analysed))
+        self.assertEqual(32, len(missing))
         self.assertIn("clang-tidy 18", body)
         for family in ("bugprone", "clang-analyzer", "performance", "portability"):
             self.assertIn(f"`{family}`", body)
         self.assertIn("warnings are errors", body)
-        self.assertIn("the 14 sources", body)
+        self.assertIn("the 22 sources", body)
         self.assertIn("`scripts/analyze_host.py`", body)
-        self.assertIn("21 today", body)
-        self.assertIn("the 21 sources above", body)
+        self.assertIn("32 today", body)
+        self.assertIn("the 32 sources above", body)
         self.assertIn("the sources that the host tests do not build", body)
         self.assertIn("Zephyr or Crux headers or Kconfig values", body)
         self.assertNotIn("because they need Zephyr headers", body)
@@ -200,12 +200,12 @@ class StaticAnalysisSection(unittest.TestCase):
     def test_ten_product_sources_get_warning_flags_and_six_scenario_sources_do_not(self):
         body = flat(section())
         names = {path.name: path for path in not_analysed()}
-        self.assertEqual(21, len(names), "a basename is not unique")
+        self.assertEqual(32, len(names), "a basename is not unique")
         flagged = product_sources_with_warning_flags()
         scenario = {n for n, p in names.items() if "/tests/" in p.as_posix()}
         product = set(names) - scenario
-        self.assertEqual(9, len(scenario))
-        self.assertEqual(12, len(product))
+        self.assertEqual(13, len(scenario))
+        self.assertEqual(19, len(product))
         # Each product source is built with the flags by the CMake files that name them.
         self.assertEqual(product, product & flagged, sorted(product - flagged))
         # No scenario source is in a COMPILE_OPTIONS list, and no scenario file sets the flags on
@@ -217,9 +217,9 @@ class StaticAnalysisSection(unittest.TestCase):
         for path in scenario_cmake_files():
             self.assertNotRegex(path.read_text(), r"target_compile_options\(app", path.name)
         # The text says exactly that.
-        self.assertIn("12 of those 21 are product sources", body)
+        self.assertIn("19 of those 32 are product sources", body)
         self.assertIn("`-Wall -Wextra -Werror`", body)
-        self.assertIn("The other 9 are the `native_sim` scenario sources", body)
+        self.assertIn("The other 13 are the `native_sim` scenario sources", body)
         self.assertIn("not on the scenario source", body)
         self.assertNotIn("Those 16 sources get compiler warnings only", body)
         self.assertNotRegex(body, r"(?i)twister")
@@ -243,17 +243,25 @@ class StaticAnalysisSection(unittest.TestCase):
         self.assertIn("`.github/workflows/budget.yml`", body)
         self.assertIn("`Static analysis`", body)
 
+    # Approved behaviour change (criterion 41, delivery stage 2): the host-test coverage is reported by
+    # gcovr in the check host-coverage, without a threshold. The text says so, and the other tools stay out.
     def test_what_is_not_measured_or_linted_is_stated_and_true(self):
         body = flat(section())
-        self.assertIn("no coverage measurement", body)
+        self.assertIn("no coverage threshold, no coverage measurement of the `native_sim` scenarios", body)
         self.assertIn("Python, shell, YAML and CMake", body)
         workflows = " ".join(
             p.read_text().lower() for p in (ROOT / ".github/workflows").glob("*.yml")
         )
         # The checks of the workflows are in the CI map file and the scripts of scripts/ci.
         workflows += " ".join(p.read_text().lower() for p in ci_map.ci_sources())
-        for tool in ("gcov", "lcov", "ruff", "flake8", "pylint", "shellcheck", "yamllint"):
+        for tool in ("lcov", "ruff", "flake8", "pylint", "shellcheck", "yamllint"):
             self.assertNotIn(tool, workflows)
+        coverage = ci_map.run("host-coverage")
+        self.assertIn("-DCRUX_HOST_COVERAGE=ON", coverage)
+        self.assertIn("gcovr==", coverage)
+        self.assertNotIn("--fail-under", coverage)
+        self.assertIn("`host-coverage`", body)
+        self.assertIn("does not gate", body)
 
     def test_compliance_statement_is_negative_and_links_the_platform_text(self):
         body = flat(section())

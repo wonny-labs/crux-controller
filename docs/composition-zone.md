@@ -227,7 +227,7 @@ checked trees, each with a rule of its own in `RULES`:
 | `include` | The interface headers `<controller/framework.h>` and `<controller/version.h>`, which a product includes | ISO C, public `<crux/NAME.h>` headers except the frozen three, its own tree |
 | `framework/src` | The portable core: the startup sequence and the start function, the time synchronisation glue and policy, the management policy and the port headers | ISO C, public `<crux/NAME.h>` headers except the frozen three, its own tree, `<controller/NAME.h>`; no Zephyr header and no Sockets profile |
 | `framework/compose` | The composition zone of the module: the storage mount, the start of web management and the start of the serial command line | the rule of `app/compose`, with header files (`.h`) of `framework/src` in place of those of `app/src` |
-| `framework/os` | The adapter zone of the module: the SNTP query and its thread | the rule of `app/os`, with header files (`.h`) of `framework/src` in place of those of `app/src` |
+| `framework/os` | The adapter zone of the module: the SNTP query and its thread, and the health supervision (supervisor thread, task watchdog, retained region, fatal error handler, reboot thread) | the rule of `app/os` with the supervision headers below, and header files (`.h`) of `framework/src` in place of those of `app/src` |
 
 `<controller/NAME.h>` must name a file of `include/controller/`, one level deep. `app/src` may include it and the
 headers of `framework/src`, because the base image's `main()` calls the start function and the configurations built
@@ -237,7 +237,28 @@ include it, and the two zones of the module reach neither `app/src` nor each oth
 A C or C++ source or header under `app/`, `framework/`, `include/` or `zephyr/` that lies in none of the checked trees fails
 the check (`MODULE_TREES` in `scripts/check_boundary.py`), so a source cannot escape the rules by its place. Build
 files, the web assets of `framework/management/` and the data files of `app/conf/` and `app/boards/` are not
-sources. The allow-lists of the zones are those above; the module's trees add no Zephyr header to them.
+sources. The allow-lists of the zones are those above, and the module's adapter zone adds the headers of the next section.
+
+### The supervision headers of `framework/os`
+
+The health supervision of the framework uses Zephyr directly, as the ports-and-adapters split of the
+framework puts every OS call in an adapter zone: the portable core in `framework/src` decides, and
+`framework/os` carries the decision out. Crux System gives the one hardware watchdog activation, the
+reset cause and the software reset; it has no task watchdog, no retained memory and no fatal error
+hook, so the public interface is not enough for these. `FRAMEWORK_OS_ZEPHYR_HEADERS` in
+`scripts/check_boundary.py` is the list of `app/os` plus five headers, each with a reason:
+
+| Header | Why `framework/os` needs it |
+|---|---|
+| `zephyr/task_wdt/task_wdt.h` | One task watchdog channel per supervised framework thread, with no hardware fallback (`task_wdt_init(NULL)`); the supervisor feeds the Crux watchdog only while no channel has expired. Established mechanism: Zephyr's task watchdog. |
+| `zephyr/retention/retention.h` | The retained region of the boot counter and the last-fault record, with Zephyr's prefix and checksum over a retained memory device. The framework uses the retention API and not the retained memory driver header. Established mechanism: Zephyr's retention subsystem. |
+| `zephyr/fatal.h` | The framework's `k_sys_fatal_error_handler()`, which writes a minimal record and ends in a reset: Crux's `crux_system_reset()` where the handler runs in thread context, otherwise `k_fatal_halt()`, after which the armed, unfed hardware watchdog resets the device. Established mechanism: Zephyr documents the handler as the place of an application's fatal error policy (`include/zephyr/fatal.h`); the halt that leaves the reset to the watchdog is a project-specific workaround in place of `zephyr/sys/reboot.h`, which is not on the list. |
+| `zephyr/device.h` | The device of the retained region, for the retention API. |
+| `zephyr/devicetree.h` | The lookup of the retained region by its node label `controller_retained`, which the board overlay names. |
+
+`app/os`, the composition zones, the core, `include` and the workload keep failing on each of the five, except
+`zephyr/devicetree.h`, which the composition zones already have. `tests/tooling/test_boundary.py`
+(`FrameworkAdapterSupervision`) pins the set and checks both sides.
 
 ## What the zones do not cover
 

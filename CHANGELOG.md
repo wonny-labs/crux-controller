@@ -47,6 +47,13 @@ build configurations by their earlier step ids, S0 to S6.
   the parts and the string disagree. It is not an image version; no tag exists.
 - The versioning and release rules are in [CONTRIBUTING.md](CONTRIBUTING.md#versions-releases-and-tags) and
   [RELEASE.md](RELEASE.md#versions). No compatibility effect.
+- Health supervision (delivery stage 2): a boot record in a retained region of the base image, the reset cause
+  read once, a supervisor thread that feeds the Crux watchdog only while each step meets its deadline, a fault
+  record for a hang or fatal error, and a safe-mode boot after repeated faults. The serial commands `status`,
+  `reboot`, `recovery clear` and `recovery exit` join the base image; the last three need the permission
+  `system.reboot` and exist only in an image with Crux Reboot. Compatibility: additive; the administrator role
+  gains `system.reboot`; no existing command, public interface or stored format changes. Verified on `native_sim` and by host tests only; nothing ran on a
+  board, and the board check of the retained region is open.
 
 ### Capability names
 

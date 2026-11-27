@@ -1,0 +1,6 @@
+# Reviewed false positives of the secret scan (scripts/ci/secret-scan.sh); one fingerprint per line.
+# tests/tooling/test_secret_scan.py holds the allowed entries and checks that each still names its line.
+#
+# crux.boardKey is the setting name that Crux's VS Code tasks read; its value is the board's build
+# folder, not a secret.
+.vscode/settings.json:generic-api-key:3
