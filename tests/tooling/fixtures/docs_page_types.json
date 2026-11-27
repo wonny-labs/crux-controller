@@ -22,6 +22,7 @@
     "docs/getting-started.md": "entry",
     "docs/glossary.md": "reference",
     "docs/native-setup.md": "how-to",
+    "docs/native-sim-interactive.md": "how-to",
     "docs/reviewing.md": "explanation",
     "docs/roadmap.md": "reference",
     "docs/troubleshooting.md": "reference",
