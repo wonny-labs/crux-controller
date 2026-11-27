@@ -1169,8 +1169,10 @@ status=$?
 set -e
 tail -n 20 prerequisite-refused.log
 test "$status" -ne 0 || { echo "the build did not refuse the start prerequisite" >&2; exit 1; }
-grep -q "CONFIG_CRUX_CONTROLLER_PREREQUISITE_TIME needs time synchronisation, which this build leaves out" \
-  prerequisite-refused.log || { echo "no clear message for the refused start prerequisite" >&2; exit 1; }
+# CMake wraps a long message over several lines, so the lines are joined before the search.
+tr -s ' \n' '  ' < prerequisite-refused.log \
+  | grep -q "CONFIG_CRUX_CONTROLLER_PREREQUISITE_TIME needs time synchronisation, which this build leaves out" \
+  || { echo "no clear message for the refused start prerequisite" >&2; exit 1; }
 '''
 scope = "always"
 fast = ["framework"]
