@@ -115,8 +115,9 @@ class WorkflowsUseTheScript(unittest.TestCase):
                 self.assertEqual(1, run.count(CALL), f"{name} {job_id}")
                 self.assertNotIn("sudo", run, f"{name} {job_id}: the script calls sudo itself")
                 found.append((name, job_id, step["name"]))
-        # The 14 steps that installed packages with apt-get before the script existed.
-        self.assertEqual(14, len(found), found)
+        # The 14 steps that installed packages with apt-get before the script existed, and the step of
+        # the template job of scheduled-main.yml.
+        self.assertEqual(15, len(found), found)
         self.assertEqual(9, sum(1 for name, _, _ in found if name == "ci.yml"), found)
 
     def test_jenkins_does_not_call_the_script(self):
