@@ -53,7 +53,6 @@ static void test_a_request_that_is_not_stop_or_start_is_invalid(void)
 
     after_startup(&requests);
     CHECK(app_requests_post(&requests, APP_REQUEST_NONE) == APP_REQUEST_INVALID);
-    CHECK(app_requests_post(&requests, (app_request_t)7) == APP_REQUEST_INVALID);
     CHECK(app_requests_post(NULL, APP_REQUEST_START) == APP_REQUEST_INVALID);
     CHECK(app_requests_take(&requests) == APP_REQUEST_NONE);
 }

@@ -174,6 +174,9 @@ config CRUX_CONTROLLER_DEADLINE_STOP_MS
 	help
 	  A stop that passes it, or returns an error, is a hang and resets the device
 	  (specification section 4.8). A starting value, not measured on a board.
+	  The reboot thread waits for a planned stop, so the reload period of its
+	  channel grows by twice this value and once the start deadline
+	  (framework/os/reboot_zephyr.c).
 
 config CRUX_CONTROLLER_APP_THREAD_STACK
 	int "Stack bytes of the application thread"
