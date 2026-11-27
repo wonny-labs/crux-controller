@@ -1,9 +1,9 @@
 # Controller framework threat model
 
 This page lists the assets, interfaces and threats of the [controller framework](controller-framework.md) and its base image, and says which points of Annex I of the EU Cyber Resilience Act apply, with the reason.
-It serves requirements T1 and M1 of the [specification](controller-framework-spec.md#2-requirements), which holds the requirements and criteria that the mitigations name.
+It serves requirements H1 and M1 of the [specification](controller-framework-spec.md#2-requirements), which holds the requirements and criteria that the mitigations name.
 A product extends this page with its own assets, interfaces and threats (section 6).
-The source labels and the marker `not verified` follow [specification section 1](controller-framework-spec.md#1-scope-and-conventions).
+The source labels follow [specification section 1](controller-framework-spec.md#1-scope-and-conventions).
 
 ## 1. Scope and assumptions
 
@@ -12,7 +12,7 @@ The source labels and the marker `not verified` follow [specification section 1]
 - Physical access to the serial port, the medium and the debug port is part of the trust model: a person with it is treated as a possible attacker, and the product decides the physical protection (D16, S9).
 - The application runs in the same image with no memory isolation from the framework (specification section 7.4), so it is trusted code.
 - Image signing, the boot loader and the update path come from Crux's secure boot work (D7).
-- The threat categories follow STRIDE (spoofing, tampering, repudiation, information disclosure, denial of service, elevation of privilege): standard practice, source `not verified`.
+- The threat categories follow STRIDE (not read): spoofing, tampering, repudiation, information disclosure, denial of service and elevation of privilege.
 
 ## 2. Assets
 
@@ -39,13 +39,18 @@ The personal data among them are account names and the source network addresses 
 | Serial command line | Inbound | Physical access to the console UART | An Access login on every command except the login and first-account setup (S4) |
 | SSH command line (build option) | Inbound | The network | Crux Access and SSH on the Wolf profile (C7) |
 | SNTP client | Outbound | The configured time servers | None: SNTP is unauthenticated |
-| DHCP client and address resolution | Both | The local network | None |
+| Address resolution (ARP) | Both | The local network | None |
+| DHCP client (off in the reference configuration) | Both | The local network | None |
+| DNS client (only when the time server is given by name) | Outbound | The configured DNS server | None |
 | Removable medium (reference board) | Physical | A person who removes the card | Crux credential store tag and device binding (S9) |
-| Debug port | Physical | A person at the board | Product lockdown, recorded in the product security documentation (T2) |
+| Debug port | Physical | A person at the board | Product lockdown, recorded in the product security documentation (H2) |
 | Update path | Inbound | Open (D17) | Image signature checked by the boot loader (D7); security counter (U1) |
 | Application interface | In the image | Application code | None: trusted code |
 
-Outbound traffic inventory (M1): the base image opens no outbound connection other than SNTP queries and DHCP, and criterion 46 checks this.
+Outbound traffic inventory (M1): in the reference configuration, the base image sends SNTP queries to the configured time server and ARP on the local network, and opens no other outbound connection.
+DHCP is off there, and a build that turns it on adds DHCP traffic.
+DNS queries occur only when the time server is given by name, which needs a DNS resolver in the image.
+Criterion 46 checks this inventory.
 
 ## 4. Threats
 
@@ -61,7 +66,7 @@ Outbound traffic inventory (M1): the base image opens no outbound connection oth
 | 8 | Update path | Malicious or older image | Tampering | Boot loader signature check (D7), security counter (U1), health-gated confirmation | No counter storage at the pin ([C16](controller-framework-platform-gaps.md#c16-security-counter)) |
 | 9 | Network | Connection or request flood | Denial of service | Network limits (A1); supervision in a higher priority band (specification section 7.4) | No request rate limit at the pin ([C18](controller-framework-platform-gaps.md#c18-request-rate-limit)) |
 | 10 | Wall time | Forged SNTP replies | Tampering | Every timing decision uses the monotonic clock | Audit timestamps can be falsified |
-| 11 | Console, debug port | Access in production | Elevation | Console choice (D16) and debug-port lockdown recorded by the product (T2) | Defined by the product |
+| 11 | Console, debug port | Access in production | Elevation | Console choice (D16) and debug-port lockdown recorded by the product (H2) | Defined by the product |
 | 12 | Controller | Fault or reset loop | Denial of service | Watchdog, boot counter and safe mode (R1 to R3) | Safe mode cannot escape a fault in its own services |
 | 13 | Image | Memory corruption in the application or framework | Elevation | Stack canaries and hardware stack protection (S6) | No memory partition between application and framework |
 | 14 | Security events | Loss or forgery of records | Repudiation | Event list (L1); persistence with an opt-out | Records are not tamper-proof, and the RAM ring is lost at a reset unless persisted ([C17](controller-framework-platform-gaps.md#c17-security-event-persistence)) |
@@ -70,7 +75,7 @@ Outbound traffic inventory (M1): the base image opens no outbound connection oth
 
 ## 5. Annex I applicability
 
-The point texts come from an unofficial reproduction of Regulation (EU) 2024/2847, `not verified` against the Official Journal.
+The point texts are unofficial text of Regulation (EU) 2024/2847, not checked against the Official Journal.
 [Specification section 6.5](controller-framework-spec.md#65-cra-annex-i-traceability) maps each point to requirements and criteria.
 
 | Point | Applies | Reason |
@@ -84,7 +89,7 @@ The point texts come from an unofficial reproduction of Regulation (EU) 2024/284
 | Part I (2)(f) integrity | Yes | Configuration, retained record, credentials and image |
 | Part I (2)(g) data minimisation | Yes | The framework stores accounts and events (section 2) |
 | Part I (2)(h) availability, resilience to denial of service | Yes | Device management is reachable from the network |
-| Part I (2)(i) impact on other networks | Yes, small | The base image sends SNTP and DHCP traffic only |
+| Part I (2)(i) impact on other networks | Yes, small | In the reference configuration, the base image sends SNTP and ARP traffic only |
 | Part I (2)(j) limit attack surfaces | Yes | Services, console and debug port are build or product choices |
 | Part I (2)(k) reduce the impact of an incident | Yes | Exploitation mitigation of the image |
 | Part I (2)(l) record internal activity, with an opt-out | Yes | The framework records security events |

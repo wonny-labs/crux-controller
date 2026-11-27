@@ -101,7 +101,8 @@ These Crux facts back [specification section 6.2](controller-framework-spec.md#6
 - Evidence (Crux `main`): the erase removes the accounts, the TLS key and certificate and the SSH host key, and Crux makes the device keys again at the next start, while [specification section 5.3](controller-framework-spec.md#53-storage-or-access-failure-and-factory-reset-d15) keeps the device identity and section 5.5 puts a prepared device without its identity into safe mode.
 - Crux change: an erase for a factory reset. State: Crux `main`. Priority 2.
 - Crux change: an erase that keeps the TLS key and certificate. State: Crux change needed. Priority 2.
-- Interim state: factory reset only by device preparation. Replacement criterion: none.
+- Interim state: until the credential store erase is at the pin, factory reset is only by device preparation. Replacement criterion: none; criterion 42 needs the erase.
+- Interim state: with the erase at the pin and no identity-keeping erase, a factory reset also removes the device identity, and recovery of the identity is device preparation ([specification section 5.5](controller-framework-spec.md#55-device-preparation-d11)). Replacement criterion: none; PR4 needs the identity-keeping erase.
 
 ### C15. Size limit of the application data root
 
