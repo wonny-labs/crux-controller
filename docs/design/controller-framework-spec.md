@@ -662,7 +662,7 @@ The fixture application is a test, not an image or variant: it has no board buil
 
 This section serves requirements P1 and P2.
 The split follows the ports-and-adapters pattern (A. Cockburn, "Hexagonal architecture"): the portable core defines its ports, and the adapter and composition zones implement them for Zephyr.
-`scripts/check_boundary.py` on `main` checks only the trees in its `RULES` (lines 160-240: `app/src`, `workload`, `app/compose`, `app/os`, `include/`, `framework/src`, `framework/compose`, `framework/os`); `check()` (line 388) scans those trees, and `uncovered_sources()` (line 432) fails a source under `MODULE_TREES` (line 133) that no rule covers.
+`scripts/check_boundary.py` on `main` checks only the trees in its `RULES` (`app/src`, `workload`, `app/compose`, `app/os`, `include/`, `framework/src`, `framework/compose`, `framework/os`); `check()` scans those trees, and `uncovered_sources()` fails a source under `MODULE_TREES` that no rule covers.
 A framework source outside the checked trees would escape the check, so every source of the module, the base image, the fixture application and the application template must lie in a checked tree.
 
 | Tree | Holds | May include |
@@ -670,14 +670,15 @@ A framework source outside the checked trees would escape the check, so every so
 | `include/` | The application interface header that a product includes | ISO C and public `<crux/NAME.h>` headers |
 | `framework/src` (portable core) | States, supervision policy, boot counter, safe mode, retained record format, startup step table, time synchronisation and management policy, and the port headers | The rules of `framework/src` on `main`: no Zephyr header, no Sockets profile, no workload |
 | `framework/compose` (composition zone) | Storage mount, management start, command line start | The rules of `app/compose` on `main`, including `<crux/cli_zephyr.h>` |
-| `framework/os` (adapter zone) | Supervisor thread, task watchdog, retained record access, fatal error handler, SNTP adapter | The rules of `app/os` on `main` |
+| `framework/os` (adapter zone) | Supervisor thread, task watchdog, retained record access, fatal error handler, SNTP adapter | The rules of `app/os` on `main`, plus the supervision headers of `FRAMEWORK_OS_ZEPHYR_HEADERS` |
 | `app/` (base image) | `main()` | ISO C and the header of `include/` (the target; on `main`, the `app/src` rule is broader) |
 | `tests/` fixture application | The contract test application (section 8.1) | ISO C, the header of `include/`, public `<crux/NAME.h>` headers and the Zephyr headers that its threads need |
 | Application template (section 7.5) | `main()` and the template's tests | For `main()`, the rules of `app/`; the rules for the template's tests are open |
 
 - On `main`, the trees `include/`, `framework/src`, `framework/compose` and `framework/os` each have one rule in `RULES`; `tests/` and the application template have none yet. A source file of the module that no rule covers fails the check.
 - Each new header is a separate reviewed boundary change under CONTRIBUTING "The boundary", with its reason in [composition-zone.md](../composition-zone.md) and a case in `tests/tooling/test_boundary.py`.
-- Not on `main` (proposed, each a reviewed boundary change): `zephyr/fs/littlefs.h` for the composition zone, for the LittleFS mount, because Crux's LittleFS File provider mounts nothing by itself (Crux `main`, `zephyr/Kconfig:461-486`); and for the adapter zone `zephyr/task_wdt/task_wdt.h`, `zephyr/retention/retention.h` (the framework uses the retention API, not the `retained_mem` driver header), `zephyr/fatal.h`, and `zephyr/device.h` and `zephyr/devicetree.h`, which find the retained region.
+- Not on `main` (proposed, a reviewed boundary change): `zephyr/fs/littlefs.h` for the composition zone, for the LittleFS mount, because Crux's LittleFS File provider mounts nothing by itself (Crux `main`, `zephyr/Kconfig:461-486`).
+- On `main`, the adapter zone `framework/os` also allows `zephyr/task_wdt/task_wdt.h`, `zephyr/retention/retention.h` (the framework uses the retention API, not the `retained_mem` driver header), `zephyr/fatal.h`, and `zephyr/device.h` and `zephyr/devicetree.h`, which find the retained region ([composition-zone.md](../composition-zone.md#the-supervision-headers-of-frameworkos)).
 
 The portable core runs in host tests with fake ports, and the Zephyr adapter and composition zones are the only OS-specific code.
 The portable core, the separated OS-specific zones and the host tests hold in every delivery stage, and the framework adds no abstraction for Linux before it has a Linux function to serve.

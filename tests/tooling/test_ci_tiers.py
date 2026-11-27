@@ -57,10 +57,10 @@ needs_selector = unittest.skipIf(tiers is None, "scripts/ci/tiers.py needs Pytho
 # removes the check, and say so in the pull request.
 BUDGET = {f"budget-{c}": [f"budget-{c}"] for c in ("minimal", "workload", "net", "file", "system", "sntp")}
 EXPECTED_FULL = {
-    "tooling": ["tooling-tests", "spdx"],
+    "tooling": ["tooling-tests", "secret-scan", "spdx"],
     "pins": ["pins-contract", "pins-mbed-default", "pins-mbed-group-on", "pins-negative-unnarrowed-import",
              "pins-negative-pin-without-reason"],
-    "host-OFF": ["host-tests-sanitize-off"],
+    "host-OFF": ["host-tests-sanitize-off", "host-coverage"],
     "host-ON": ["host-tests-sanitize-on"],
     "workload": ["workload-native-sim", "workload-build", "workload-outputs", "workload-config"],
     "net": ["net-build", "net-outputs", "net-config"],
@@ -74,7 +74,8 @@ EXPECTED_FULL = {
     "patch-style": ["patch-style-fetch-zephyr", "patch-style"],
     "minimal": ["minimal-build", "minimal-outputs"],
     "base": ["base-mbed-default", "base-mbed-group-on", "base-mbed-fetch", "base-sdk", "base-native-sim",
-             "base-native-sim-report", "base-build", "base-outputs", "base-config", "base-symbols"],
+             "base-native-sim-report", "base-build", "base-outputs", "base-config", "base-symbols",
+             "base-sbom"],
     "static": ["format", "static-analysis"],
     **BUDGET,
     "budget-management": ["budget-management-mbed", "budget-management-sdk", "budget-management"],
@@ -94,7 +95,13 @@ EXPECTED_NIGHTLY_ONLY = {
     "scheduled-main": ["scheduled-pin-main", "scheduled-fetch", "scheduled-pins", "scheduled-sdk",
                        "scheduled-build", "scheduled-outputs", "scheduled-config"],
     "product-integration": ["product-integration-workspace", "product-integration-build",
-                            "product-integration-run"],
+                            "product-integration-run", "product-integration-sbom",
+                            "product-integration-vulnerabilities"],
+}
+# Checks of the nightly tier only, in a job that the full tier runs too, by job, in run order after
+# the checks of the full tier.
+EXPECTED_NIGHTLY_EXTRA = {
+    "base": ["base-vulnerabilities"],
 }
 # The jobs of ci.yml and budget.yml run for every change, documentation-only changes included. The
 # other three workflows run only for the paths of their filter.
@@ -111,7 +118,8 @@ WORKFLOW_JOBS = {
     "release.yml": ["release"],
     "scheduled-main.yml": ["scheduled-main", "product-integration"],
 }
-DOCS_READERS = {"tooling-tests", "spdx"}
+# The checks that every fast run selects: the tooling tests, the secret scan and the SPDX headers.
+DOCS_READERS = {"tooling-tests", "secret-scan", "spdx"}
 C_CHECKS = {"format", "static-analysis", "patch-style-fetch-zephyr", "patch-style"}
 
 
@@ -128,6 +136,15 @@ def by_job(checks):
 
 def flat(jobs):
     return {i for ids in jobs.values() for i in ids}
+
+
+def nightly_expected():
+    """The checks of the nightly tier, by job: the full tier, the nightly-only jobs, and the nightly
+    checks of jobs that the full tier runs too."""
+    jobs = {job: list(ids) for job, ids in {**EXPECTED_FULL, **EXPECTED_NIGHTLY_ONLY}.items()}
+    for job, ids in EXPECTED_NIGHTLY_EXTRA.items():
+        jobs[job] = jobs[job] + ids
+    return jobs
 
 
 def workflow(name):
@@ -152,14 +169,14 @@ class ManifestTest(unittest.TestCase):
         self.assertEqual(EXPECTED_FULL, by_job(self.plan("full", None)))
 
     def test_the_nightly_tier_adds_only_the_nightly_jobs(self):
-        self.assertEqual({**EXPECTED_FULL, **EXPECTED_NIGHTLY_ONLY}, by_job(self.plan("nightly", None)))
+        self.assertEqual(nightly_expected(), by_job(self.plan("nightly", None)))
 
     def test_the_nightly_tier_ignores_the_change(self):
         self.assertEqual(self.plan("nightly", None), self.plan("nightly", ["docs/a.md"]))
 
     def test_every_job_has_checks_and_every_check_runs_in_full_or_nightly(self):
         self.assertEqual(set(self.manifest.jobs), set(EXPECTED_FULL) | set(EXPECTED_NIGHTLY_ONLY))
-        everything = flat(EXPECTED_FULL) | flat(EXPECTED_NIGHTLY_ONLY)
+        everything = flat(nightly_expected())
         self.assertEqual(everything, {c.id for c in self.manifest.checks})
 
     def test_every_fast_component_exists(self):
@@ -319,7 +336,8 @@ class FastTierTest(unittest.TestCase):
 
     def test_a_product_source_change_runs_the_quick_checks_and_one_board_build(self):
         ids = self.ids(["app/src/policy.c", "docs/architecture.md"])
-        expected = (DOCS_READERS | C_CHECKS | {"host-tests-sanitize-off", "host-tests-sanitize-on"}
+        expected = (DOCS_READERS | C_CHECKS
+                    | {"host-tests-sanitize-off", "host-coverage", "host-tests-sanitize-on"}
                     | set(EXPECTED_FULL["boundary"]) | set(EXPECTED_FULL["workload"])
                     | set(EXPECTED_FULL["management"][:6]))
         self.assertEqual(expected, ids)
@@ -332,7 +350,9 @@ class FastTierTest(unittest.TestCase):
 
     def test_a_host_test_change_runs_the_host_tests(self):
         ids = self.ids(["tests/host/test_policy.c"])
-        self.assertEqual(DOCS_READERS | C_CHECKS | {"host-tests-sanitize-off", "host-tests-sanitize-on"}, ids)
+        self.assertEqual(
+            DOCS_READERS | C_CHECKS | {"host-tests-sanitize-off", "host-coverage", "host-tests-sanitize-on"},
+            ids)
 
     def test_a_management_change_runs_its_scenario_and_no_board_build(self):
         ids = self.ids(["framework/management/management_page.c"])
@@ -653,7 +673,7 @@ class RunnerTest(unittest.TestCase):
         result = subprocess.run([str(REPO / "scripts/ci/run-tier.sh"), "nightly", "--plan"], cwd=REPO, env=env,
                                 capture_output=True, text=True, check=False)
         self.assertEqual(0, result.returncode, result.stderr)
-        self.assertEqual(len(flat(EXPECTED_FULL)) + len(flat(EXPECTED_NIGHTLY_ONLY)),
+        self.assertEqual(len(flat(nightly_expected())),
                          len([line for line in result.stdout.splitlines() if ": " in line and not line.startswith("Tier")]))
 
 

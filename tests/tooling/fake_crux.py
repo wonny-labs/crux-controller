@@ -14,7 +14,7 @@ PUBLIC_HEADERS = (
     "access.h", "config_service.h", "credential_store.h", "file.h", "logging.h",
     "management_status.h", "security_event.h", "status.h", "system.h", "time.h", "time_authority.h",
     "tls_certificate.h", "tls_certificate_start.h", "web.h", "web_management.h", "web_session.h",
-    "cli.h",
+    "cli.h", "reboot.h",
 )
 
 # Composition interfaces, as (component, header): the zone of framework/compose may include these.

@@ -3,7 +3,7 @@
 # The product integration check: the fixture product of this folder imports crux-controller at the
 # commit under test into a west workspace of its own, builds for native_sim and runs.
 #
-#   tests/product_integration/run.sh workspace|build|run|all FOLDER
+#   tests/product_integration/run.sh workspace|build|run|sbom|vulnerabilities|all FOLDER
 #
 #   workspace  make FOLDER a new west workspace: the fixture as its manifest repository (with the
 #              commit of this clone as the revision of crux-controller), a clone of that commit,
@@ -11,7 +11,11 @@
 #              group switched on, the list checked again and west update for the Mbed modules
 #   build      build the fixture for native_sim/native/64 with the verified Zephyr gate
 #   run        run the image with a time limit and check that every case passed
-#   all        the three in order
+#   sbom       the SPDX documents of the built image (west spdx), their syntax check and the element
+#              check of release/check_sbom.py, which reports and does not gate (criterion 35)
+#   vulnerabilities  those documents against a public vulnerability database, report only
+#              (scripts/ci/match-vulnerabilities.sh; criterion 36)
+#   all        workspace, build and run in order
 #
 # FOLDER must not exist, be empty, or be a workspace that this script made earlier (it holds the file
 # .product-integration); anything else is refused and left alone. The script needs Linux (native_sim),
@@ -21,14 +25,14 @@
 set -euo pipefail
 
 usage() {
-    printf 'Usage: %s workspace|build|run|all FOLDER\n' "$0" >&2
+    printf 'Usage: %s workspace|build|run|sbom|vulnerabilities|all FOLDER\n' "$0" >&2
     exit 2
 }
 
 [[ $# -eq 2 ]] || usage
 step=$1
 case "$step" in
-    workspace | build | run | all) ;;
+    workspace | build | run | sbom | vulnerabilities | all) ;;
     *) usage ;;
 esac
 if [[ "$(uname -s)" != Linux && -z "${CRUX_PRODUCT_INTEGRATION_ANY_HOST:-}" ]]; then
@@ -139,10 +143,31 @@ run_image() {
     printf 'ok: the fixture product runs on native_sim. Nothing was flashed and no board was used.\n'
 }
 
+make_sbom() {
+    need_workspace
+    cd "$folder"
+    export ZEPHYR_BASE="$folder/zephyr"
+    export ZEPHYR_TOOLCHAIN_VARIANT="${ZEPHYR_TOOLCHAIN_VARIANT:-host}"
+    # The CMake file API query must exist when CMake runs, so CMake runs again after it is made.
+    west spdx --init -d "$folder/build"
+    west build -d "$folder/build" --cmake product -- -DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON
+    west spdx -d "$folder/build"
+    "$python" "$repo/release/parse_spdx.py" --dir "$folder/build/spdx"
+    "$python" "$repo/release/check_sbom.py" --report --dir "$folder/build/spdx"
+    printf 'ok: the SBOM of the fixture product is in %s\n' "$folder/build/spdx"
+}
+
+match_vulnerabilities() {
+    need_workspace
+    "$repo/scripts/ci/match-vulnerabilities.sh" "$folder/build/spdx"
+}
+
 case "$step" in
     workspace) make_workspace ;;
     build) build_image ;;
     run) run_image ;;
+    sbom) make_sbom ;;
+    vulnerabilities) match_vulnerabilities ;;
     all)
         make_workspace
         build_image

@@ -104,7 +104,7 @@ case "$1" in
         ;;
     base)
         conf="conf/base.conf"
-        overlay="boards/net.overlay;boards/management.overlay"
+        overlay="boards/net.overlay;boards/management.overlay;boards/retained.overlay"
         ;;
     *) usage ;;
 esac

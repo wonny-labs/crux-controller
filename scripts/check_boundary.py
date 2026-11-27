@@ -42,7 +42,10 @@ four trees of the controller framework module and its interface header.
   headers, the interface headers and headers of its own tree, and no Zephyr header.
 * ``framework/compose`` and ``framework/os`` are the composition and adapter zones of the module.
   They have the allow-lists of ``app/compose`` and ``app/os`` and reach the core through its header
-  files only. Neither reaches ``app/src``, the workload or the other zone.
+  files only. Neither reaches ``app/src``, the workload or the other zone. ``framework/os`` also
+  has the headers of the framework's health supervision (``FRAMEWORK_OS_ZEPHYR_HEADERS``):
+  ``zephyr/task_wdt/task_wdt.h``, ``zephyr/retention/retention.h``, ``zephyr/fatal.h``,
+  ``zephyr/device.h`` and ``zephyr/devicetree.h``.
 
 ``app/src`` may include the interface headers and the headers of ``framework/src``, because
 the configurations built on the workload compose the framework services that moved into the
@@ -101,6 +104,21 @@ COMPOSITION_ZEPHYR_HEADERS = frozenset(
 # There are no wildcards: a name is a header or it is not. Adding a name is a reviewed change of
 # this file, of tests/tooling/test_boundary.py and of that document.
 OS_ADAPTER_ZEPHYR_HEADERS = frozenset({"zephyr/kernel.h", "zephyr/net/sntp.h"})
+
+# The adapter zone of the framework module, framework/os, has the list of app/os plus the headers
+# of the framework's health supervision: the task watchdog, the retention API over the retained
+# region, the fatal error handler, and the devicetree lookup of the retained region (docs/composition-zone.md justifies each one). app/os keeps its own list.
+# Adding a name is a reviewed change of this file, of tests/tooling/test_boundary.py and of that
+# document.
+FRAMEWORK_OS_ZEPHYR_HEADERS = OS_ADAPTER_ZEPHYR_HEADERS | frozenset(
+    {
+        "zephyr/task_wdt/task_wdt.h",
+        "zephyr/retention/retention.h",
+        "zephyr/fatal.h",
+        "zephyr/device.h",
+        "zephyr/devicetree.h",
+    }
+)
 
 # The public Crux headers that the product no longer uses. Threads and queues come from Zephyr
 # directly, in app/os behind a port header of app/src (ADR-0002 of Crux), so app/src and
@@ -226,15 +244,15 @@ RULES = (
         zephyr_allow=COMPOSITION_ZEPHYR_HEADERS,
         composition_crux=COMPOSITION_CRUX_HEADERS,
     ),
-    # The adapter zone of the module: the allow-list of app/os, and the header files of the core
-    # in place of those of app/src.
+    # The adapter zone of the module: the allow-list of app/os with the supervision headers, and
+    # the header files of the core in place of those of app/src.
     Rule(
         "framework/os",
         allow_sockets=False,
         allow_crux=True,
         extra_roots=("framework/src",),
         extra_roots_headers_only=True,
-        zephyr_allow=OS_ADAPTER_ZEPHYR_HEADERS,
+        zephyr_allow=FRAMEWORK_OS_ZEPHYR_HEADERS,
         deny_crux=FROZEN_CRUX_HEADERS,
     ),
 )

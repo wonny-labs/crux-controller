@@ -293,15 +293,19 @@ static void the_policy_has_exactly_an_administrator_and_a_read_only_role(void)
     CHECK(strcmp(MANAGEMENT_ROLE_READ_ONLY, "read-only") == 0);
 }
 
-static void the_administrator_holds_exactly_manage_status_read_and_config_save(void)
+/* The administrator also holds the Crux Reboot permission, which the framework's reboot and
+ * recovery commands need (specification section 5.2). */
+static void the_administrator_holds_exactly_manage_status_read_config_save_and_reboot(void)
 {
     const management_role_t *role = role_named(management_policy_get(), "administrator");
 
     REQUIRE(role != NULL);
-    CHECK(role->permission_count == 3u);
+    CHECK(role->permission_count == 4u);
     CHECK(has_permission(role, "access.manage"));
     CHECK(has_permission(role, "status.read"));
     CHECK(has_permission(role, "config.save"));
+    CHECK(has_permission(role, "system.reboot"));
+    CHECK(strcmp(MANAGEMENT_PERMISSION_SYSTEM_REBOOT, "system.reboot") == 0);
 }
 
 static void the_read_only_role_holds_status_read_and_nothing_else(void)
@@ -314,6 +318,7 @@ static void the_read_only_role_holds_status_read_and_nothing_else(void)
     CHECK(!has_permission(role, "access.manage"));
     CHECK(!has_permission(role, "config.save"));
     CHECK(!has_permission(role, "access.self"));
+    CHECK(!has_permission(role, "system.reboot"));
 }
 
 static void the_session_limits_are_fifteen_minutes_idle_and_eight_hours_absolute(void)
@@ -488,7 +493,7 @@ int main(void)
     the_parser_stops_at_the_first_nul();
     the_permission_names_match_only_when_all_three_are_the_policys();
     the_policy_has_exactly_an_administrator_and_a_read_only_role();
-    the_administrator_holds_exactly_manage_status_read_and_config_save();
+    the_administrator_holds_exactly_manage_status_read_config_save_and_reboot();
     the_read_only_role_holds_status_read_and_nothing_else();
     the_session_limits_are_fifteen_minutes_idle_and_eight_hours_absolute();
     the_shipped_policy_meets_the_rules_that_access_enforces();

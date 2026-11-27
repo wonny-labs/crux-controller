@@ -145,7 +145,7 @@ env = { BOARD = "mimxrt1060_evk@B//qspi", CONFIG = "management", CONF = "conf/wo
 # Mbed TLS group, which its first check switches on in its own workspace.
 [jobs.budget-base]
 description = "Budget base"
-env = { BOARD = "mimxrt1060_evk@B//qspi", CONFIG = "base", CONF = "conf/base.conf", OVERLAY = "boards/net.overlay;boards/management.overlay", REQUIRE = "CONFIG_CRUX_CONTROLLER_FRAMEWORK=y CONFIG_CRUX_CONTROLLER_FRAMEWORK_MANAGEMENT=y CONFIG_CRUX_CONTROLLER_FRAMEWORK_TIME_SYNC=y CONFIG_CRUX_CONTROLLER_FRAMEWORK_CLI_SERIAL=y CONFIG_CRUX_ACCESS=y CONFIG_CRUX_WEB_MANAGEMENT=y CONFIG_CRUX_CLI_CONSOLE=y" }
+env = { BOARD = "mimxrt1060_evk@B//qspi", CONFIG = "base", CONF = "conf/base.conf", OVERLAY = "boards/net.overlay;boards/management.overlay;boards/retained.overlay", REQUIRE = "CONFIG_CRUX_CONTROLLER_FRAMEWORK=y CONFIG_CRUX_CONTROLLER_FRAMEWORK_SUPERVISION=y CONFIG_CRUX_CONTROLLER_FRAMEWORK_REBOOT=y CONFIG_CRUX_CONTROLLER_FRAMEWORK_MANAGEMENT=y CONFIG_CRUX_CONTROLLER_FRAMEWORK_TIME_SYNC=y CONFIG_CRUX_CONTROLLER_FRAMEWORK_CLI_SERIAL=y CONFIG_CRUX_ACCESS=y CONFIG_CRUX_WEB_MANAGEMENT=y CONFIG_CRUX_CLI_CONSOLE=y" }
 
 # The Dev container job builds the image of .devcontainer/ and runs checks in it through
 # scripts/dev-shell.sh. The SEGGER download accepts SEGGER's terms of use, and no check uses a
@@ -178,6 +178,16 @@ id = "tooling-tests"
 job = "tooling"
 run = '''
 python -m unittest discover -s tests/tooling -v
+'''
+scope = "always"
+fast = "always"
+
+# The secret scan of criterion 41, on every change: Gitleaks at a pinned release over the checkout.
+[[check]]
+id = "secret-scan"
+job = "tooling"
+run = '''
+scripts/ci/secret-scan.sh
 '''
 scope = "always"
 fast = "always"
@@ -324,6 +334,31 @@ run = '''
 cmake -S tests/host -B build/host -G Ninja -DWORKLOAD_SANITIZE=OFF
 cmake --build build/host
 ctest --test-dir build/host --output-on-failure
+'''
+scope = "always"
+fast = ["product", "host-tests"]
+
+# The host-test coverage of criterion 41: the host tests again, built with --coverage, and a gcovr
+# summary of the sources they build, per file and in total. No threshold is set yet (an owner
+# decision), so the check reports and does not gate; gcovr is pinned and runs in a virtual
+# environment of the runner's temporary folder. Label: coverage reporting is documented but optional
+# (Zephyr documentation, test coverage; specification section 6.4, Q1). The tool, gcovr, is documented
+# but optional (gcovr documentation, read: a summary of gcov data; no standard names it), as the
+# specification names no tool (section 6.3).
+[[check]]
+id = "host-coverage"
+job = "host-OFF"
+run = '''
+cmake -S tests/host -B build/host-coverage -G Ninja -DWORKLOAD_SANITIZE=OFF -DCRUX_HOST_COVERAGE=ON
+cmake --build build/host-coverage
+ctest --test-dir build/host-coverage --output-on-failure
+venv="${RUNNER_TEMP:-/tmp}/coverage-venv"
+python3 -m venv "$venv"
+"$venv/bin/python" -m pip install --quiet gcovr==8.3
+"$venv/bin/gcovr" --root . --filter 'framework/src/' --filter 'app/src/' --filter 'workload/' \
+  --exclude 'tests/' --txt-summary --print-summary build/host-coverage \
+  | tee -a "${GITHUB_STEP_SUMMARY:-/dev/stdout}"
+echo "No coverage threshold is set yet (an owner decision): this check reports and does not gate."
 '''
 scope = "always"
 fast = ["product", "host-tests"]
@@ -1057,7 +1092,14 @@ statuses = [case["status"] for suite in suites for case in suite["testcases"]]
 print([suite["name"] for suite in suites], statuses)
 assert suites, "the base scenario is not in the Twister report"
 assert statuses and all(status == "passed" for status in statuses), statuses
-assert len(statuses) == 8, statuses
+assert len(statuses) == 11, statuses
+# The scenarios of health supervision run on the console harness: each passes when its program printed
+# every line of its testcase.yaml in order, across the restarts of the simulated process.
+for name in ("controller.framework.native_sim.recovery", "controller.framework.native_sim.no_watchdog"):
+    found = [suite for suite in report["testsuites"] if name in suite["name"]]
+    print(name, [suite.get("status") for suite in found])
+    assert found, name + " is not in the Twister report"
+    assert all(suite.get("status") == "passed" for suite in found), found
 PY
 '''
 scope = "always"
@@ -1072,7 +1114,7 @@ export ZEPHYR_BASE="$PWD/zephyr"
 west build -p always -b "$BOARD" -d crux-controller/build/base \
   crux-controller/app -- -DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON \
   "-DEXTRA_CONF_FILE=conf/base.conf" \
-  "-DEXTRA_DTC_OVERLAY_FILE=boards/net.overlay;boards/management.overlay"
+  "-DEXTRA_DTC_OVERLAY_FILE=boards/net.overlay;boards/management.overlay;boards/retained.overlay"
 '''
 scope = "always"
 
@@ -1110,9 +1152,28 @@ for option in CONFIG_CRUX_CONTROLLER_FRAMEWORK=y CONFIG_CRUX_CONTROLLER_FRAMEWOR
     CONFIG_CRUX_WEB_MANAGEMENT=y CONFIG_CRUX_SYSTEM=y \
     CONFIG_CRUX_FILE_FATFS_RT1060_RAM_DISK=y CONFIG_DISK_DRIVER_RAM=y \
     CONFIG_ENTROPY_MCUX_TRNG=y CONFIG_MBEDTLS_PSA_DRIVER_GET_ENTROPY=y \
-    'CONFIG_CRUX_WEB_BIND_ADDRESS="192.168.77.2"' 'CONFIG_CRUX_CONTROLLER_TIME_SERVER="192.168.77.1"'; do
+    'CONFIG_CRUX_WEB_BIND_ADDRESS="192.168.77.2"' 'CONFIG_CRUX_CONTROLLER_TIME_SERVER="192.168.77.1"' \
+    CONFIG_CRUX_CONTROLLER_FRAMEWORK_SUPERVISION=y CONFIG_CRUX_CONTROLLER_FRAMEWORK_REBOOT=y \
+    CONFIG_CRUX_REBOOT=y CONFIG_TASK_WDT=y CONFIG_RETENTION=y CONFIG_RETAINED_MEM=y \
+    CONFIG_MAIN_THREAD_PRIORITY=8 CONFIG_STACK_CANARIES=y CONFIG_HW_STACK_PROTECTION=y \
+    CONFIG_RETENTION_MUTEX_FORCE_DISABLE=y CONFIG_RETAINED_MEM_MUTEX_FORCE_DISABLE=y; do
   grep -qxF "$option" "$build/.config" || { echo "missing $option" >&2; exit 1; }
 done
+# Criterion 19, the production watchdog configuration: no task watchdog hardware fallback (every
+# channel has a callback in framework/os/supervisor_zephyr.c, which also refuses the fallback at build
+# time), no start without a watchdog, no fault injection, no retention mutex that the fatal error
+# handler would take, and a timeout T inside the range of Crux System on this board: 500 to 64000 ms
+# in steps of 500 ms (Crux components/system/ports/zephyr/system_zephyr.c at the pin). The TLS
+# identity option of section 7.1 does not exist yet.
+for option in CONFIG_TASK_WDT_HW_FALLBACK=y CONFIG_CRUX_CONTROLLER_START_WITHOUT_WATCHDOG=y \
+    CONFIG_CRUX_CONTROLLER_FRAMEWORK_FAULT_INJECTION=y CONFIG_RETENTION_MUTEXES=y \
+    CONFIG_RETAINED_MEM_MUTEXES=y CONFIG_CRUX_SYSTEM_NATIVE_SIM_WATCHDOG=y; do
+  ! grep -qxF "$option" "$build/.config" || { echo "unexpected $option" >&2; exit 1; }
+done
+timeout=$(sed -n 's/^CONFIG_CRUX_CONTROLLER_WATCHDOG_TIMEOUT_MS=//p' "$build/.config")
+test -n "$timeout" && [ "$timeout" -ge 500 ] && [ "$timeout" -le 64000 ] && [ $((timeout % 500)) -eq 0 ] \
+  || { echo "watchdog timeout $timeout outside 500..64000 ms in steps of 500" >&2; exit 1; }
+grep -q 'controller_retained' "$build/zephyr.dts" || { echo "no retained region" >&2; exit 1; }
 # No configuration of the workload, no other watchdog owner, shell, card, test entropy or
 # plain HTTP.
 for option in CONFIG_CRUX_CONTROLLER_WORKLOAD=y CONFIG_CRUX_CONTROLLER_NET=y \
@@ -1138,16 +1199,51 @@ cd ..
 nm=$(find "$ZEPHYR_SDK_INSTALL_DIR" -name 'arm-zephyr-eabi-nm' -type f | head -n 1)
 test -n "$nm" || { echo "no nm in the SDK" >&2; exit 1; }
 "$nm" crux-controller/build/base/zephyr/zephyr.elf > symbols.txt
-for symbol in controller_framework_start startup_run management_port_start time_sync_start \
+for symbol in controller_framework_start startup_run_steps management_port_start time_sync_start \
     time_sync_port_query crux_web_start crux_access_init crux_mgmt_status_start sntp_simple \
-    cli_port_start crux_cli_init crux_cli_serial_start crux_cli_console_run; do
+    cli_port_start crux_cli_init crux_cli_serial_start crux_cli_console_run \
+    supervisor_port_start boot_decide recovery_boot k_sys_fatal_error_handler task_wdt_add \
+    retention_write crux_watchdog_start crux_reboot_start crux_reboot_work_once \
+    reboot_policy_allow reboot_port_start; do
   grep -qE " [Tt] ${symbol}$" symbols.txt || { echo "not linked: $symbol" >&2; exit 1; }
 done
-for symbol in workload_thread_start; do
+# The composition states a callback policy and starts no Crux reboot worker (criterion 18), and no
+# fault injection reaches a board image.
+for symbol in workload_thread_start crux_reboot_start_worker controller_framework_inject; do
   ! grep -qE " [Tt] ${symbol}$" symbols.txt || { echo "linked: $symbol" >&2; exit 1; }
 done
 '''
 scope = "always"
+
+# The SBOM of the base image (criterion 35, delivery stage 2): west spdx over the board build of the
+# base image, then the syntax check of release/parse_spdx.py and the element check of
+# release/check_sbom.py, which reports the packages that lack an element and does not gate until the
+# supplier and identifier table of the release step exists. The CMake file API query must exist
+# when CMake runs, so CMake runs again after the query is made.
+[[check]]
+id = "base-sbom"
+job = "base"
+run = '''
+cd ..
+export ZEPHYR_BASE="$PWD/zephyr"
+west spdx --init -d crux-controller/build/base
+west build -d crux-controller/build/base --cmake -- -DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON
+west spdx -d crux-controller/build/base
+python crux-controller/release/parse_spdx.py --dir crux-controller/build/base/spdx
+python crux-controller/release/check_sbom.py --report --dir crux-controller/build/base/spdx \
+  | tee -a "${GITHUB_STEP_SUMMARY:-/dev/stdout}"
+'''
+scope = "always"
+
+# Known vulnerabilities of the base image (criterion 36, delivery stage 2): every night, the SBOM of
+# base-sbom against a public vulnerability database, report only.
+[[check]]
+id = "base-vulnerabilities"
+job = "base"
+run = '''
+scripts/ci/match-vulnerabilities.sh build/base/spdx | tee -a "${GITHUB_STEP_SUMMARY:-/dev/stdout}"
+'''
+tiers = ["nightly"]
 
 # --- static --------------------------------------------------------------------------------------
 # The tool versions are pinned: another clang-format or clang-tidy may report differently.
@@ -1957,5 +2053,25 @@ id = "product-integration-run"
 job = "product-integration"
 run = '''
 tests/product_integration/run.sh run "${RUNNER_TEMP:-/tmp}/product-integration"
+'''
+tiers = ["nightly"]
+
+# The SBOM of the product integration image (criterion 35) and its known vulnerabilities (criterion
+# 36), report only, as for the base image.
+[[check]]
+id = "product-integration-sbom"
+job = "product-integration"
+run = '''
+tests/product_integration/run.sh sbom "${RUNNER_TEMP:-/tmp}/product-integration" \
+  | tee -a "${GITHUB_STEP_SUMMARY:-/dev/stdout}"
+'''
+tiers = ["nightly"]
+
+[[check]]
+id = "product-integration-vulnerabilities"
+job = "product-integration"
+run = '''
+tests/product_integration/run.sh vulnerabilities "${RUNNER_TEMP:-/tmp}/product-integration" \
+  | tee -a "${GITHUB_STEP_SUMMARY:-/dev/stdout}"
 '''
 tiers = ["nightly"]

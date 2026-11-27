@@ -2,6 +2,8 @@
 #ifndef CLI_PORT_H
 #define CLI_PORT_H
 
+#include <stdbool.h>
+
 /*
  * The port of the serial command line. framework/src declares it and the composition zone
  * (framework/compose/cli_start.c) implements it with the console composition interface of Crux,
@@ -25,6 +27,10 @@ typedef enum {
 typedef struct {
     /* The role of the first account, borrowed for the program's life. */
     const char *setup_role;
+    /* True: the framework's commands of health supervision join the registry: status
+     * (status.read) and, in an image with Crux Reboot, reboot, recovery clear and recovery exit
+     * (system.reboot). */
+    bool framework_commands;
 } cli_port_config_t;
 
 /* Start the serial command line, or refuse and leave it off. */

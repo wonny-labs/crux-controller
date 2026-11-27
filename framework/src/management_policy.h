@@ -26,8 +26,8 @@
  * no test that runs without Zephyr.
  *
  * Only the permissions that the web routes of the management capability would check are granted:
- * the status and the configuration save. Nothing else is granted, because no other route is
- * planned.
+ * the status and the configuration save, and to the administrator the restart, which the
+ * framework's reboot and recovery commands check through Crux Reboot. Nothing else is granted.
  *
  * The password rule is not set here. A missing rule selects the Crux Access reference rule, which
  * is the intent. Setting one later is a product decision of its own.
@@ -43,6 +43,9 @@
 #define MANAGEMENT_PERMISSION_ACCESS_MANAGE "access.manage"
 #define MANAGEMENT_PERMISSION_STATUS_READ "status.read"
 #define MANAGEMENT_PERMISSION_CONFIG_SAVE "config.save"
+/* CRUX_REBOOT_PERMISSION in crux/reboot.h; the composition compares the two at start when the image
+ * has Crux Reboot. */
+#define MANAGEMENT_PERMISSION_SYSTEM_REBOOT "system.reboot"
 
 /* A session ends after 15 minutes without activity, and at the latest 8 hours after its start. */
 #define MANAGEMENT_SESSION_IDLE_LIMIT_S (15u * 60u)

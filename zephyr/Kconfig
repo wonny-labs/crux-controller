@@ -57,6 +57,123 @@ config CRUX_CONTROLLER_FRAMEWORK_TIME_SYNC
 	  framework/src/time_sync_policy.h. SNTP is unauthenticated. The server and the limits are the
 	  options below.
 
+config CRUX_CONTROLLER_FRAMEWORK_SUPERVISION
+	bool "Health supervision: watchdog, boot counter and safe mode"
+	default y
+	depends on CRUX_SYSTEM && TASK_WDT && !TASK_WDT_HW_FALLBACK
+	help
+	  The supervision of specification sections 4 and 5: startup step 1 reads the
+	  reset cause once and clears it, reads the retained region and decides normal
+	  boot or safe mode; step 2 starts the supervisor thread, which arms the Crux
+	  System watchdog with one timeout and feeds it only while every startup step is
+	  within its deadline and no task watchdog channel of a framework thread has
+	  expired. A hang latches the fault, writes the last-fault record to the retained
+	  region and ends in a reset; the framework's fatal error handler writes a minimal
+	  record and resets through Crux System in thread context, or halts so that the
+	  armed watchdog resets the device (a halt with no armed watchdog is final). After CRUX_CONTROLLER_SAFE_MODE_THRESHOLD consecutive fault
+	  resets the boot is in safe mode, with no time synchronisation and no
+	  application. The status service and the serial command line show the state.
+	  The retained region is the Zephyr retention area of the devicetree node label
+	  controller_retained, built without the retention and retained memory mutexes;
+	  without that node the boot counter lives in RAM for one boot. The framework
+	  defines k_sys_fatal_error_handler(), so the image defines none.
+
+config CRUX_CONTROLLER_FRAMEWORK_REBOOT
+	bool "Restart through Crux Reboot, with the operator reset marker"
+	default y
+	depends on CRUX_CONTROLLER_FRAMEWORK_SUPERVISION && CRUX_CONTROLLER_FRAMEWORK_MANAGEMENT
+	depends on CRUX_REBOOT
+	help
+	  Start Crux Reboot with the framework's callback policy and no Crux reboot
+	  worker; the framework's own reboot thread carries out the requests, so the
+	  policy check just before the reset writes the operator reset marker and the
+	  next boot is not counted as a fault reset. The serial command line gains
+	  reboot, recovery clear and recovery exit, which need system.reboot.
+
+if CRUX_CONTROLLER_FRAMEWORK_SUPERVISION
+
+config CRUX_CONTROLLER_WATCHDOG_TIMEOUT_MS
+	int "Watchdog timeout T in milliseconds"
+	default 8000
+	range 1000 64000
+	help
+	  The one timeout of the boot (gap C3), for startup and runtime. It must cover
+	  the supervisor's period with a margin (at least twice the period) and lie in
+	  the range of the watchdog provider: Crux System supports 500 to 64000 ms in
+	  steps of 500 ms on the RT1060-EVKB. A starting value, not measured.
+
+config CRUX_CONTROLLER_SUPERVISOR_PERIOD_MS
+	int "Supervisor period in milliseconds"
+	default 1000
+	range 100 10000
+	help
+	  How often the supervisor checks the steps and the channels and feeds the
+	  watchdog. A starting value, not measured.
+
+config CRUX_CONTROLLER_SAFE_MODE_THRESHOLD
+	int "Consecutive fault resets that lead to safe mode (N)"
+	default 3
+	range 1 10
+
+config CRUX_CONTROLLER_STABLE_PERIOD_S
+	int "Seconds of operation that make a successful boot"
+	default 300
+	range 1 86400
+	help
+	  The controller must be operational, and the application neither in fault nor
+	  held, without interruption for this long before the boot counter is cleared.
+
+config CRUX_CONTROLLER_DEADLINE_MANAGEMENT_MS
+	int "Deadline of the web management step in milliseconds"
+	default 60000
+	range 1000 600000
+	help
+	  The step mounts the volume, starts the credential store and Access, and makes
+	  the TLS key and certificate when none is stored, which can take long on a board.
+	  A starting value, not measured on a board.
+
+config CRUX_CONTROLLER_DEADLINE_COMMAND_LINE_MS
+	int "Deadline of the command line step in milliseconds"
+	default 5000
+	range 100 600000
+	help
+	  A starting value, not measured on a board.
+
+config CRUX_CONTROLLER_DEADLINE_TIME_SYNC_MS
+	int "Deadline of the time synchronisation step in milliseconds"
+	default 5000
+	range 100 600000
+	help
+	  A starting value, not measured on a board.
+
+config CRUX_CONTROLLER_DEADLINE_APPLICATION_MS
+	int "Deadline of the application step (step 12) in milliseconds"
+	default 5000
+	range 100 600000
+	help
+	  The step ends startup supervision; from delivery stage 3 on it bounds the
+	  activation of the application's channels and its start. A starting value, not
+	  measured on a board.
+
+config CRUX_CONTROLLER_START_WITHOUT_WATCHDOG
+	bool "Allow operation without a hardware watchdog (development, bench and native_sim builds)"
+	help
+	  Decision D14. Off, a watchdog that is not armed makes the controller degraded,
+	  and from delivery stage 3 on the application is held. On, the controller is
+	  operational without the watchdog and the application may start. In either case
+	  a hang that the supervisor sees ends in a software reset, and a hang of the
+	  supervisor itself is not detected, which is why a product build leaves this off.
+
+config CRUX_CONTROLLER_FRAMEWORK_FAULT_INJECTION
+	bool "Fault injection for the native_sim scenarios"
+	depends on BOARD_NATIVE_SIM
+	help
+	  Test only: <controller/framework_test.h> arms a stalled startup step, a stalled
+	  framework thread or a fatal error, for the scenarios under tests/framework.
+	  No board image can select it.
+
+endif # CRUX_CONTROLLER_FRAMEWORK_SUPERVISION
+
 # The options of time synchronisation. The configuration sntp of app/ defines the same symbols in
 # app/Kconfig for its own option; the values and ranges are the same.
 
