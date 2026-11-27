@@ -139,11 +139,17 @@ that asks for both.
 
 | Tree | Role |
 |---|---|
-| `include/` | The interface header `<controller/framework.h>` |
+| `include/` | The interface headers `<controller/framework.h>` and `<controller/version.h>` |
 | `framework/src` | The portable core: startup sequence, start function, time synchronisation glue and policy, management policy, boot counter and reset rules, supervision decisions, controller and application states, port headers |
 | `framework/compose` | The composition zone of the module: storage mount, web management start, serial command line start, the status items and commands of health supervision |
 | `framework/os` | The adapter zone of the module: the SNTP query and its thread, the supervisor thread, the task watchdog, the retained region, the fatal error handler and the reboot thread |
 | `framework/management/` | The build files and data of the web route table: the packaged page, the reviewed route list, `management.cmake` and `entropy.cmake` |
+
+`<controller/version.h>` holds the framework version and is the only place it is kept. It follows
+[Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html): `main` carries the next planned release with
+`-dev`, and no release or tag exists yet. It is not an image's version: an application sets that in a Zephyr
+`VERSION` file next to its `CMakeLists.txt` ([Application version management](https://docs.zephyrproject.org/latest/build/version/index.html)),
+and the images of this repository have none.
 
 The include rules of these trees are in [composition-zone.md](composition-zone.md#the-trees-of-the-framework-module).
 
