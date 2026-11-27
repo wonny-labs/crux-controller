@@ -639,7 +639,7 @@ The last column names the decision or constraint that defines the option.
 | Roles by devicetree | Aliases `crux-serial0` (console) and `crux-watchdog0` (watchdog), `chosen` `zephyr,log-uart` (logging), node label `controller_storage` (storage) | Established mechanism |
 | No board name in sources | Nothing in the framework module, the base image's sources or the application interface names a board or SoC (requirement P1) | D9 |
 | Snippets only for cross-cutting settings | Debug and the RAM disk CI form; never per-board values | Established mechanism (Zephyr snippets) |
-| Generic Kconfig dependencies | `CRUX_CONTROLLER_FILE` depends on `CRUX_FILE_FATFS_RT1060` (`app/Kconfig:40`); it changes to a generic "Crux File provider present" symbol or a `DT_HAS_*_ENABLED` test when Crux offers one | Platform constraint or interim |
+| Generic Kconfig dependencies | `CRUX_CONTROLLER_FILE` depends on `CRUX_FILE_FATFS_RT1060` (`app/Kconfig:43` on `main`); it changes to a generic "Crux File provider present" symbol or a `DT_HAS_*_ENABLED` test when Crux offers one | Platform constraint or interim |
 | Board as a build input | `scripts/build-board.sh` builds the RT1060-EVKB only; the board target becomes an input, and builds go to `build/<board folder>/<configuration>` (requirement P1) | D9 |
 
 Adding a board takes, in this order: the board's `.conf` and `.overlay`, the aliases and `chosen` nodes, the partition layout from the secure boot work, a CI row, and the smallest build configuration as its first passing build.
@@ -662,8 +662,8 @@ The fixture application is a test, not an image or variant: it has no board buil
 
 This section serves requirements P1 and P2.
 The split follows the ports-and-adapters pattern (A. Cockburn, "Hexagonal architecture"): the portable core defines its ports, and the adapter and composition zones implement them for Zephyr.
-`scripts/check_boundary.py` checks only the trees in its `RULES` (`app/src`, `workload`, `app/compose`, `app/os`; lines 125-162), and `check()` scans only those trees (lines 308-313).
-A framework source outside them would escape the check, so every source of the module, the base image, the fixture application and the application template lives in a checked zone; the paths are open, decided at implementation.
+`scripts/check_boundary.py` on `main` checks only the trees in its `RULES` (lines 160-236: `app/src`, `workload`, `app/compose`, `app/os`, `include/`, `framework/src`, `framework/compose`, `framework/os`); `check()` (line 388) scans those trees, and `uncovered_sources()` (line 432) fails a source under `MODULE_TREES` (line 133) that no rule covers.
+A framework source outside the checked trees would escape the check, so every source of the module, the base image, the fixture application and the application template must lie in a checked tree.
 
 | Tree | Holds | May include |
 |---|---|---|
@@ -675,10 +675,9 @@ A framework source outside them would escape the check, so every source of the m
 | `tests/` fixture application | The contract test application (section 8.1) | ISO C, the header of `include/`, public `<crux/NAME.h>` headers and the Zephyr headers that its threads need |
 | Application template (section 7.5) | `main()` and the template's tests | For `main()`, the rules of `app/`; the rules for the template's tests are open |
 
-- `RULES` gains one rule per tree, and a source file of the module that no rule covers fails the check.
+- Each tree has one rule in `RULES` on `main`; a source file of the module that no rule covers fails the check.
 - Each new header is a separate reviewed boundary change under CONTRIBUTING "The boundary", with its reason in [composition-zone.md](../composition-zone.md) and a case in `tests/tooling/test_boundary.py`.
-- The composition zone gains `zephyr/fs/littlefs.h`, for the LittleFS mount, because Crux's LittleFS File provider mounts nothing by itself (Crux `main`, `zephyr/Kconfig:461-486`), and `<crux/cli_zephyr.h>`, which `COMPOSITION_CRUX_HEADERS` does not list.
-- The adapter zone gains `zephyr/task_wdt/task_wdt.h`, `zephyr/retention/retention.h` (the framework uses the retention API, not the `retained_mem` driver header), `zephyr/fatal.h`, and `zephyr/device.h` and `zephyr/devicetree.h`, which find the retained region.
+- Not on `main` (proposed, each a reviewed boundary change): `zephyr/fs/littlefs.h` for the composition zone, for the LittleFS mount, because Crux's LittleFS File provider mounts nothing by itself (Crux `main`, `zephyr/Kconfig:461-486`); and for the adapter zone `zephyr/task_wdt/task_wdt.h`, `zephyr/retention/retention.h` (the framework uses the retention API, not the `retained_mem` driver header), `zephyr/fatal.h`, and `zephyr/device.h`, which find the retained region.
 
 The portable core runs in host tests with fake ports, and the Zephyr adapter and composition zones are the only OS-specific code.
 The portable core, the separated OS-specific zones and the host tests hold in every delivery stage, and the framework adds no abstraction for Linux before it has a Linux function to serve.
@@ -732,6 +731,23 @@ Open points, decided at implementation unless stated:
 - Whether the template also carries the other parts of Crux's `templates/product` (the domain zone and its include check, the driver kit, the style checks, the release record and the contribution guide) or links them.
 - How a framework change that needs a change in existing copies is announced to products, and whether a copy records the framework revision that it was copied from.
 
+### 7.6 Versioning (D21)
+
+This section tells the release owner and product teams which version a product names and how a version is tagged.
+Each rule is labelled with its basis.
+
+- The framework uses Semantic Versioning 2.0.0 and starts at 0.y.z, where anything may change at any time. *Standard*: semver.org, rule 4.
+- The public interface is declared: the public headers, the Kconfig symbols and what the application template relies on. *Standard* for the requirement (semver.org, rule 1); the list is project-specific.
+- An image takes its version from the application's Zephyr `VERSION` file, which belongs to the application and is separate from the framework version. *Documented but optional* for the file (Zephyr "Application version management": each application keeps a `VERSION` file); the separation is project-specific.
+- A product pins the framework by commit SHA; the tag is the readable name. *Standard* for the SHA pin: the west manifest documentation says a branch gives no reproducible result and a SHA does. The tag as a name is project-specific.
+- Each version has a CHANGELOG entry that states the compatibility changes, the upgrade steps and the verified Crux and Zephyr revisions. *Project-specific*; no external source checked.
+- The first tag is 0.1.0, after delivery stage 3 (the application interface) with the template. *Project-specific*.
+- 1.0.0 is tagged only when the public interface is declared stable and verified on a board. The meaning of 1.0.0 is *standard* (semver.org, rule 5); the board gate is *project-specific*.
+- Every tag needs the repository owner's approval. *Project-specific*.
+
+Decided by the owner (2026-11-27): `main` carries the next planned version with the pre-release suffix `dev`, as Crux does (ADR-0008 in the Crux repository), for example `0.1.0-dev`. No tag or release follows from this. Semantic Versioning allows a hyphenated pre-release identifier (rule 9) and does not define `dev`, so the suffix is project-specific. Where the number is kept is decided at implementation, in a separate pull request.
+Open: how a Zephyr module states its version. No source on this point has been read yet; the Zephyr pages read cover applications only.
+
 ## 8. Verification
 
 ### 8.1 Layers (D8)
@@ -750,7 +766,7 @@ Open points, decided at implementation unless stated:
 - The image keeps essential system-level regression tests even where Crux tests the component: an HTTPS login, the TLS-only listener and the start order in the base image.
 - The `native_sim` scenarios keep code of this repository and those image-level checks; a case that only repeats Crux behaviour in detail is dropped.
 - The host tests stay and gain the portable core.
-- The smallest board build (`prj.conf` alone) stays as the first build a new board must pass; it takes another name than `base` (D13).
+- The smallest build (`app/prj.conf` alone) is the build configuration `minimal` on `main`, and it stays the first build a new board must pass (D13).
 - The board builds of `workload`, `net`, `file`, `system`, `sntp` and `management` are replaced by the base image.
 - `budgets/limits.json` gains a row for the base image; its `_comment` makes a change there a reviewed change.
 
@@ -900,8 +916,8 @@ D1 to D20 are decided, except D9, which is deferred, D16, which is a product dec
 | D9 | Second board | Deferred | The framework stays board-neutral (section 7.2) | — | C12 |
 | D10 | Crux gaps | Decided | Crux changes in the priority order of the [platform gaps](controller-framework-platform-gaps.md): they are platform gaps | Workarounds in this repository | — |
 | D11 | Device preparation | Decided | A preparation image or host tool writes the volume, and the TLS key and certificate are made during preparation; a normal boot never formats a medium and makes a key only in a development or reference build with an explicit option; a prepared device without its identity boots in safe mode (section 5.5) | The image formats an empty medium and makes the key at first boot: formatting destroys data, a removable medium may hold someone else's data, and a long first-boot step weakens startup supervision | Crux File providers refuse auto-format |
-| D12 | Repository role | Decided | The role sentence of CONTRIBUTING changes to a controller framework module with a base image that products import, as a reviewed change of the files that state the role; the repository is not a product and also checks Crux as a real downstream consumer; the glossary entry "Product" then takes Crux's sense; with D2 | Keep "reference consumer firmware" | CONTRIBUTING role section; [glossary](../glossary.md) |
-| D13 | Names | Decided | "Controller framework" for the module and "base image" for the one image, with no example image; Crux is the platform, and the documents reserve "the reference controller" for Crux's sample; the build configuration `base` (`prj.conf` alone) takes another name, for example `minimal`, as a reviewed change of the files that name it | Names with "platform" or "reference controller" | `tests/tooling/test_docs.py` |
+| D12 | Repository role | Decided, done on `main` | The role sentence of CONTRIBUTING and the glossary entry "Product" (Crux's sense) state a controller framework module with a base image that products import; the repository is not a product and also checks Crux as a real downstream consumer; with D2 | Keep "reference consumer firmware" | CONTRIBUTING role section; [glossary](../glossary.md) |
+| D13 | Names | Decided | "Controller framework" for the module and "base image" for the one image, with no example image; Crux is the platform, and the documents reserve "the reference controller" for Crux's sample; the build configuration of `app/prj.conf` alone is `minimal` on `main`, and `base` is the base image (`app/conf/base.conf`) | Names with "platform" or "reference controller" | `tests/tooling/test_docs.py` |
 | D14 | Application start without a hardware watchdog | Decided | In product builds the application does not start; development, bench and `native_sim` builds may allow it by an explicit build option, and in them a hang ends in a software reset (section 4.3) | Start the application and report "watchdog not armed" | Crux System reports an unavailable watchdog as not supported |
 | D15 | Recovery and factory reset authority | Decided | Factory reset by an authorised operator through Crux's credential store erase (Crux `main`, C9), with an optional product-defined physical-presence input, and device preparation as the recovery when Access is unusable; it erases credentials, configuration, application data and persisted security events and keeps the device identity (section 5.3) | An unauthenticated serial wipe | IEC 62443-4-2 CR 4.2 (not read), as direction |
 | D16 | Serial command line in production and audit persistence | Product decision | Direction in section 6.2; each product settles the details at product readiness | — | IEC 62443-4-2 CR 2.8 to 2.11 and CR 7.7 (not read), as direction |
@@ -909,6 +925,7 @@ D1 to D20 are decided, except D9, which is deferred, D16, which is a product dec
 | D18 | Role under the EU Cyber Resilience Act | Decided, legal confirmation needed | A component that products integrate, designed to the product-level requirements of Annex I; organisational duties are listed with their holder and not implemented (sections 6.5 and 6.6) | This repository as a product placed on the market | Regulation (EU) 2024/2847, unofficial text |
 | D19 | Support period | Decided | A field that each product supplies (H2); this repository fixes none | A support period fixed by this repository | Regulation (EU) 2024/2847 Article 13(8), unofficial text |
 | D20 | Application template | Decided | A folder of this repository that a product team copies once (`main()`, configuration, board files, west manifest and tests), with no framework logic; the copy imports the framework as a module at a pinned revision; CI builds the template from the same commit as the framework; delivered in delivery stage 4, after the application interface (section 7.5) | The fixture application as the only code reference, so that each product writes the same starting files by hand; a separate template repository, whose builds would not run from the framework's commit | Zephyr "Application Development" and `example-application`; west "Workspaces" (T2); GitHub template repositories; Crux `templates/product` |
+| D21 | Framework versioning | Decided | Semantic Versioning 2.0.0 from 0.y.z; the public interface is declared; products pin the framework by commit SHA, with the tag as its readable name; a CHANGELOG entry per version; first tag 0.1.0 after delivery stage 3; 1.0.0 only when the interface is declared stable and verified on a board; every tag needs the repository owner's approval (section 7.6) | A version per product copy; pinning by branch, which the west manifest documentation says is not reproducible | Semantic Versioning 2.0.0; Zephyr "Application version management"; west manifest ("revision") |
 
 ## 10. Terms
 
@@ -916,11 +933,12 @@ D1 to D20 are decided, except D9, which is deferred, D16, which is a product dec
 |---|---|---|
 | Controller framework | The Zephyr module of this repository: composition of the Crux services, health supervision and the application interface | These pages |
 | Base image | The image of this repository: the framework with no application | These pages |
-| Product | A firmware repository outside this repository that is built on Crux and the framework; the [glossary](../glossary.md) uses the word for this repository's firmware until D12 | Crux product composition guide |
+| Product | A firmware repository outside this repository that is built on Crux and the framework; the [glossary](../glossary.md) on `main` says this repository is not a product | Crux product composition guide |
 | Application | Product code that joins the framework: the product's control software or a third-party application runtime | These pages |
 | Third-party application runtime | Software from another vendor that runs user programs with its own scheduling and execution model | Common usage |
 | Fixture application | A test-only application under `tests/` that exercises the interface in a contract test | Common test usage |
 | Application template | A folder of this repository that a product team copies once to start a product repository; the copy imports the framework at a pinned revision and receives no later change of the folder (section 7.5) | Zephyr "Application Development" (`example-application`); GitHub template repositories |
+| Framework version | The version of the controller framework under Semantic Versioning, 0.y.z until its public interface is stable (section 7.6) | Semantic Versioning 2.0.0 |
 | Descriptor | The one structure an application defines, with its entry points, passed to the framework's start function | These pages |
 | Startup step, step deadline | One of the twelve steps of the start function (section 4.1); the software time limit of one step | These pages |
 | Supervision period | One of the periods of section 4.2, which say what the supervisor feeds the hardware watchdog by | These pages |
