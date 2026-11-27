@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "crux-controller release manifest",
-  "description": "What a release bundle records about one build. check_bundle.py applies the subset of keywords used here: type, required, properties, additionalProperties, pattern and minimum.",
+  "description": "What a release bundle records about one build. check_bundle.py applies the subset of keywords used here: type, required, properties, additionalProperties, propertyNames, minProperties, pattern and minimum.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -12,6 +12,7 @@
     "runner_image",
     "target",
     "bundle_hashes",
+    "spdx_hashes",
     "zephyr_bin_sha256",
     "firmware_identity"
   ],
@@ -24,6 +25,13 @@
     "target": {"type": "string", "pattern": "^[A-Za-z0-9_@/.-]+$"},
     "bundle_hashes": {
       "type": "object",
+      "additionalProperties": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+    },
+    "spdx_hashes": {
+      "description": "SHA-256 of each .spdx file of the build, by base name. The files are kept outside the bundle.",
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {"pattern": "^[A-Za-z0-9._-]+\\.spdx$"},
       "additionalProperties": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
     },
     "zephyr_bin_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},

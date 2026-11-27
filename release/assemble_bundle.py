@@ -5,6 +5,10 @@
 The bundle holds hashes and identities only. The image, ``.elf`` and ``.map`` files never
 enter it: ``zephyr.bin`` is read to hash it, and the bundle records the hash and the
 ``firmware_identity`` of the build (the definition of budgets/collect.py).
+
+The manifest also records the SHA-256 of each ``.spdx`` file that ``west spdx`` wrote
+(``spdx_hashes``, specification criterion 35). The SPDX files stay outside the bundle: they
+hold absolute build paths, which release/check_bundle.py refuses in a bundle item.
 """
 
 import argparse
@@ -34,17 +38,27 @@ def sha256_file(path):
     return hashlib.sha256(pathlib.Path(path).read_bytes()).hexdigest()
 
 
-def assemble(build_dir, lock_path, pins_report, out_dir, metadata=None):
+def spdx_hashes(spdx_dir):
+    """The SHA-256 of each ``.spdx`` file of a folder, by base name."""
+    files = sorted(pathlib.Path(spdx_dir).glob("*.spdx"))
+    if not files:
+        raise ValueError(f"no .spdx file in {pathlib.Path(spdx_dir).name}")
+    return {path.name: sha256_file(path) for path in files}
+
+
+def assemble(build_dir, lock_path, pins_report, out_dir, metadata=None, *, spdx_dir):
     """Write the bundle into ``out_dir`` and return it.
 
     ``metadata`` carries product_version, security_counter, release_tag, sdk_version and
-    runner_image, and optionally target (default: the controller's board).
+    runner_image, and optionally target (default: the controller's board). ``spdx_dir`` is
+    the folder of the ``.spdx`` files of the build.
     """
     metadata = dict(metadata or {})
     missing = [key for key in REQUIRED_METADATA if key not in metadata]
     if missing:
         raise ValueError(f"missing release metadata: {', '.join(missing)}")
     target = metadata.pop("target", collect.TARGET)
+    sbom = spdx_hashes(spdx_dir)
 
     build = pathlib.Path(build_dir)
     image = (build / "zephyr" / "zephyr.bin").read_bytes()
@@ -68,6 +82,7 @@ def assemble(build_dir, lock_path, pins_report, out_dir, metadata=None):
         "bundle_hashes": {
             name: sha256_file(out / name) for name in sorted((LOCK_NAME, PINS_NAME))
         },
+        "spdx_hashes": sbom,
         "zephyr_bin_sha256": image_sha256,
         "firmware_identity": collect.firmware_identity(image_sha256, config, target),
     }
@@ -81,6 +96,7 @@ def main(argv=None):
     parser.add_argument("--lock", required=True)
     parser.add_argument("--pins-report", required=True)
     parser.add_argument("--out-dir", required=True)
+    parser.add_argument("--spdx-dir", required=True, help="folder with the .spdx files")
     parser.add_argument("--product-version", required=True)
     parser.add_argument("--security-counter", type=int, required=True)
     parser.add_argument("--release-tag", required=True)
@@ -97,7 +113,10 @@ def main(argv=None):
         "target": args.target,
     }
     try:
-        out = assemble(args.build_dir, args.lock, args.pins_report, args.out_dir, metadata)
+        out = assemble(
+            args.build_dir, args.lock, args.pins_report, args.out_dir, metadata,
+            spdx_dir=args.spdx_dir,
+        )
     except (OSError, ValueError) as error:
         print(f"assemble_bundle: {error}", file=sys.stderr)
         return 1
