@@ -104,6 +104,12 @@ def product_sources_with_warning_flags():
     if f"zephyr_library_compile_options({flags})" in module:
         for args in statements(module, "zephyr_library_sources"):
             flagged |= c_names(args)
+    # The application template, which a product copies.
+    template = (ROOT / "template/app/CMakeLists.txt").read_text()
+    if f"target_compile_options(app PRIVATE {flags})" in template:
+        for args in statements(template, "target_sources"):
+            if args.startswith("app "):
+                flagged |= c_names(args)
     compose = (ROOT / "framework/compose/CMakeLists.txt").read_text()
     if f"target_compile_options(compose PRIVATE {flags})" in compose:
         for command in ("add_library", "target_sources"):
@@ -183,15 +189,15 @@ class StaticAnalysisSection(unittest.TestCase):
         analysed = host_built_sources()
         missing = set(not_analysed())
         self.assertEqual(26, len(analysed))
-        self.assertEqual(37, len(missing))
+        self.assertEqual(38, len(missing))
         self.assertIn("clang-tidy 18", body)
         for family in ("bugprone", "clang-analyzer", "performance", "portability"):
             self.assertIn(f"`{family}`", body)
         self.assertIn("warnings are errors", body)
         self.assertIn("the 26 sources", body)
         self.assertIn("`scripts/analyze_host.py`", body)
-        self.assertIn("37 today", body)
-        self.assertIn("of the 37 sources above", body)
+        self.assertIn("38 today", body)
+        self.assertIn("of the 38 sources above", body)
         # Criterion 41, delivery stage 3: the Zephyr sources from the native_sim compile database.
         self.assertIn("`scripts/analyze_zephyr.py`", body)
         self.assertIn("`static-analysis-zephyr`", body)
@@ -202,13 +208,16 @@ class StaticAnalysisSection(unittest.TestCase):
 
     def test_ten_product_sources_get_warning_flags_and_six_scenario_sources_do_not(self):
         body = flat(section())
-        names = {path.name: path for path in not_analysed()}
-        self.assertEqual(37, len(names), "a basename is not unique")
+        # By path: the template's main() and the base image's main() share the basename main.c.
+        paths = [path.relative_to(ROOT).as_posix() for path in not_analysed()]
+        self.assertEqual(38, len(paths))
         flagged = product_sources_with_warning_flags()
-        scenario = {n for n, p in names.items() if "/tests/" in p.as_posix()}
-        product = set(names) - scenario
-        self.assertEqual(17, len(scenario))
-        self.assertEqual(20, len(product))
+        scenario_paths = {p for p in paths if p.startswith("tests/")}
+        scenario = {pathlib.PurePosixPath(p).name for p in scenario_paths}
+        product = {pathlib.PurePosixPath(p).name for p in set(paths) - scenario_paths}
+        self.assertEqual(17, len(scenario_paths))
+        self.assertEqual(17, len(scenario), "a basename of a scenario source is not unique")
+        self.assertEqual(21, len(set(paths) - scenario_paths))
         # Each product source is built with the flags by the CMake files that name them.
         self.assertEqual(product, product & flagged, sorted(product - flagged))
         # No scenario source is in a COMPILE_OPTIONS list, and no scenario file sets the flags on
@@ -220,7 +229,7 @@ class StaticAnalysisSection(unittest.TestCase):
         for path in scenario_cmake_files():
             self.assertNotRegex(path.read_text(), r"target_compile_options\(app", path.name)
         # The text says exactly that.
-        self.assertIn("20 of those 37 are product sources", body)
+        self.assertIn("21 of those 38 are product sources", body)
         self.assertIn("`-Wall -Wextra -Werror`", body)
         self.assertIn("The other 17 are the `native_sim` scenario sources", body)
         self.assertIn("not on the scenario source", body)
