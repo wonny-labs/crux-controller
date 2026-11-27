@@ -7,10 +7,11 @@
  * band (priority 8, specification section 7.4), below the supervisor, so an application entry that
  * holds the CPU cannot starve supervision; its deadlines are the supervisor's.
  *
- * A request is a bit. app_port_post() adds the bits and wakes the thread; the thread takes every bit
- * that is set and runs the work function once for them, so requests posted during a batch run in
- * the next one. app_port_call() also asks for a completion, which the thread gives after the batch
- * that contained it. The one caller of app_port_call() is the start function, during startup.
+ * A request is a bit. app_port_post() adds the bits and wakes the thread; the thread takes every
+ * bit that is set and runs the work function once for them, so requests posted during a batch run
+ * in the next one. app_port_call() also asks for a completion, which the thread gives after the
+ * batch that contained it. app_port_call() has one caller at a time: the start function during
+ * startup, then the reboot thread before a planned reset.
  *
  * Status: built in CI for the board and run on native_sim; never run on a board.
  */

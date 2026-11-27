@@ -15,6 +15,7 @@
  */
 
 #include "../src/fault_injection.h"
+#include "../src/framework_control.h"
 #include "../src/reboot_policy.h"
 #include "../src/reboot_port.h"
 #include "../src/recovery.h"
@@ -44,9 +45,15 @@ static bool on_reboot_thread(void)
     return k_current_get() == &reboot_thread;
 }
 
-/* The base image has no application to ask; delivery stage 3 adds the application's judgement. */
+/* The framework allows every restart. On the reboot thread, the last step before the reset, it
+ * first stops a running application with the reason planned reset, which runs stop and then
+ * safe_state (specification sections 3.1 and 3.3); a stop that fails or hangs is a hang, which the
+ * supervisor ends with the same reset. */
 static bool restart_allowed(void)
 {
+    if (on_reboot_thread()) {
+        framework_control_planned_reset();
+    }
     return true;
 }
 

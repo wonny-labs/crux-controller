@@ -7,7 +7,10 @@
  *
  * The cases run in order, in one image, because the start function runs once per program. The
  * behaviour of each service is the subject of the scenarios of crux-controller; this test shows
- * that a product that imports the framework builds it and runs it. */
+ * that a product that imports the framework builds it and runs it, and that its main() passes a
+ * descriptor with the four entries of the application interface (criterion 14, delivery stage 3).
+ * The product's application here does nothing in its entries; the fixture application of
+ * crux-controller's tests/framework exercises the interface. */
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -39,23 +42,61 @@ static const char *drain_log(void)
     return log_text;
 }
 
+/* The product's application: the four mandatory entries, each succeeding at once. */
+static int product_init(controller_app_context_t *context)
+{
+    ARG_UNUSED(context);
+    return 0;
+}
+
+static int product_start(controller_app_context_t *context)
+{
+    ARG_UNUSED(context);
+    return 0;
+}
+
+static int product_stop(controller_app_context_t *context, controller_app_stop_reason_t reason)
+{
+    ARG_UNUSED(context);
+    ARG_UNUSED(reason);
+    return 0;
+}
+
+static void product_safe_state(controller_app_context_t *context)
+{
+    ARG_UNUSED(context);
+}
+
+static const controller_app_t product_application = {
+    .init = product_init,
+    .start = product_start,
+    .stop = product_stop,
+    .safe_state = product_safe_state,
+    .user_data = NULL,
+};
+
 ZTEST_SUITE(product, NULL, NULL, NULL, NULL, NULL);
 
 ZTEST(product, test_01_the_imported_framework_starts_every_phase)
 {
-    zassert_equal(controller_framework_start(), CONTROLLER_FRAMEWORK_OK);
+    zassert_equal(controller_framework_start(&product_application), CONTROLLER_FRAMEWORK_OK);
     const char *log = drain_log();
 
     zassert_not_null(strstr(log, "phase clock ok"), "%s", log);
     zassert_not_null(strstr(log, "phase web management ok"), "%s", log);
     zassert_not_null(strstr(log, "phase command line ok"), "%s", log);
     zassert_not_null(strstr(log, "phase time synchronisation ok"), "%s", log);
-    zassert_not_null(strstr(log, "startup done phases=4 failed=0"), "%s", log);
+    /* With health supervision and the application: clock, supervisor, storage access, app init,
+     * web management, command line, time synchronisation, start prerequisites and application. */
+    zassert_not_null(strstr(log, "phase app init ok"), "%s", log);
+    zassert_not_null(strstr(log, "application started state=running"), "%s", log);
+    zassert_not_null(strstr(log, "startup done phases=9 failed=0"), "%s", log);
 }
 
 ZTEST(product, test_02_a_second_start_is_refused)
 {
-    zassert_equal(controller_framework_start(), CONTROLLER_FRAMEWORK_ERR_ALREADY_STARTED);
+    zassert_equal(controller_framework_start(&product_application),
+                  CONTROLLER_FRAMEWORK_ERR_ALREADY_STARTED);
 }
 
 ZTEST(product, test_03_the_serial_console_prompts_for_a_login)

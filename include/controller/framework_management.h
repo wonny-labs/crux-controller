@@ -4,10 +4,10 @@
 
 /*
  * The registrations of the application interface that device management shows (specification
- * section 3.2): status items, which the framework adds to the Crux status service, and one parameter
- * table, which it adds to the Crux configuration service. They take the Crux types as they are; the
- * framework wraps neither service. Both are made inside init, which runs before the two services
- * start (startup steps 5 to 7), and only in a build with web management
+ * section 3.2): status items, which the framework adds to the Crux status service, and one
+ * parameter table, which it adds to the Crux configuration service. They take the Crux types as
+ * they are; the framework wraps neither service. Both are made inside init, which runs before the
+ * two services start (startup steps 5 to 7), and only in a build with web management
  * (CONFIG_CRUX_CONTROLLER_FRAMEWORK_MANAGEMENT).
  *
  * After a fault the registrations are released: each status item then answers CRUX_ERR_NOT_READY.
@@ -36,8 +36,8 @@ controller_app_result_t controller_app_status_register(controller_app_context_t 
  * <crux/config_service.h>, and the application loads each parameter before init returns. At most
  * CRUX_CONFIG_SERVICE_MAX entries.
  */
-controller_app_result_t controller_app_parameters_register(controller_app_context_t *context,
-                                                           const crux_config_service_entry_t *entries,
-                                                           size_t count);
+controller_app_result_t
+controller_app_parameters_register(controller_app_context_t *context,
+                                   const crux_config_service_entry_t *entries, size_t count);
 
 #endif

@@ -64,8 +64,8 @@ static int fake_init(void *argument)
     for (unsigned index = 0; index < app.channels_in_init; index++) {
         size_t got = 99u;
 
-        app.last_register = app_contract_register_channel(app.contract, channel_names[index], 100u,
-                                                          &got);
+        app.last_register =
+            app_contract_register_channel(app.contract, channel_names[index], 100u, &got);
         if (app.last_register == APP_CONTRACT_OK) {
             CHECK(got == index);
         }

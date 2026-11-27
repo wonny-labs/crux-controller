@@ -22,7 +22,7 @@ int app_port_start(app_port_work_t work);
 void app_port_post(uint32_t requests);
 
 /* Ask for the requests and wait until the work function has run them. One caller at a time: the
- * start function, during startup. */
+ * start function during startup, and after startup the reboot thread before a planned reset. */
 void app_port_call(uint32_t requests);
 
 #endif

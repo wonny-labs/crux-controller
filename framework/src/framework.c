@@ -4,8 +4,8 @@
  * The start function of the controller framework: the step table of the services that the build
  * turns on, run by the portable startup sequence (startup.h), and the application interface of
  * <controller/framework.h>. Each service is reached through its port, whose implementation is in
- * the composition zone (framework/compose) or the adapter zone (framework/os) of the module, so this
- * file includes no Zephyr header.
+ * the composition zone (framework/compose) or the adapter zone (framework/os) of the module, so
+ * this file includes no Zephyr header.
  *
  * Steps, with the numbers of specification section 4.1 where a step is one of them:
  *   clock (1)       the Crux monotonic clock answers. Required: without it nothing can be timed.
@@ -36,9 +36,10 @@
  *                   channels and its start, on the application thread; startup supervision ends
  *                   when start returns, or when the step decides not to call it.
  * Each step from storage access on has a software deadline (Kconfig), which the supervisor
- * enforces. Without an application the two management steps run one after the other. The network interface is up before main() (the Zephyr network configuration
- * library), and Crux Logging needs no start. A step after the clock that fails is reported and the
- * controller runs without that service.
+ * enforces. Without an application the two management steps run one after the other. The network
+ * interface is up before main() (the Zephyr network configuration library), and Crux Logging needs
+ * no start. A step after the clock that fails is reported and the controller runs without that
+ * service.
  *
  * The application thread (app_port.h) runs init, start and stop, and the operator stop and start
  * and the stop of a reported fault after startup; the supervisor calls safe_state after it has
@@ -224,6 +225,7 @@ static const uint32_t dependencies = 0u
 #define REQUEST_OPERATOR_STOP 0x04u
 #define REQUEST_OPERATOR_START 0x08u
 #define REQUEST_FAULT 0x10u
+#define REQUEST_PLANNED_STOP 0x20u
 #else
 #define DEADLINE_MANAGEMENT_MS 0u
 #define DEADLINE_COMMAND_LINE_MS 0u
@@ -358,8 +360,8 @@ static bool application_present(void)
     return app_contract_state(&fw.app) != APP_ABSENT;
 }
 
-/* The network's health from Crux NetIf (section 4.7): healthy with the link up and an address, failed
- * when the interface is not up or cannot be read, degraded otherwise. */
+/* The network's health from Crux NetIf (section 4.7): healthy with the link up and an address,
+ * failed when the interface is not up or cannot be read, degraded otherwise. */
 static void update_network_health(void)
 {
 #ifdef CONFIG_CRUX_NETIF
@@ -437,10 +439,10 @@ static void supervisor_tick(uint64_t now_ms)
     if (inputs.startup_done && application_present()) {
         report_dependencies();
     }
-    if (boot_stability_update(&fw.stability,
-                              controller_successful_boot_conditions(state,
-                                                                    app_contract_state(&fw.app)),
-                              now_ms, STABLE_PERIOD_MS)) {
+    if (boot_stability_update(
+            &fw.stability,
+            controller_successful_boot_conditions(state, app_contract_state(&fw.app)), now_ms,
+            STABLE_PERIOD_MS)) {
         recovery_counter_clear();
         say(CRUX_LOG_INFO, "successful boot: boot counter cleared");
     }
@@ -602,13 +604,14 @@ static app_run_t run_start(bool operator)
 
     switch (result) {
     case APP_RUN_STARTED:
-        say_application(CRUX_LOG_INFO, operator ? "started by an operator" : "started");
+        say_application(CRUX_LOG_INFO, operator? "started by an operator" : "started");
         break;
     case APP_RUN_HELD: {
         char text[CRUX_LOG_TEXT_MAX];
 
-        (void)snprintf(text, sizeof text, "application held reason=%s",
-                       operator ? "start prerequisite" : hold_name(app_contract_hold(&fw.app)));
+        (void)snprintf(text, sizeof text,
+                       "application held reason=%s",
+                       operator? "start prerequisite" : hold_name(app_contract_hold(&fw.app)));
         say(CRUX_LOG_WARN, text);
         break;
     }
@@ -660,6 +663,9 @@ static void application_work(uint32_t requests)
     if ((requests & REQUEST_OPERATOR_STOP) != 0u) {
         run_stop(APP_STOP_OPERATOR);
     }
+    if ((requests & REQUEST_PLANNED_STOP) != 0u && app_contract_state(&fw.app) == APP_RUNNING) {
+        run_stop(APP_STOP_PLANNED_RESET);
+    }
     if ((requests & REQUEST_OPERATOR_START) != 0u) {
         supervisor_port_step_begin(CALL_OPERATOR_START, DEADLINE_APPLICATION_MS);
         (void)run_start(true);
@@ -700,7 +706,8 @@ static int phase_prerequisites(void)
     }
     const bool healthy = prerequisites_healthy();
 
-    (void)snprintf(text, sizeof text, "start prerequisites %s:", healthy ? "healthy" : "not healthy");
+    (void)snprintf(text, sizeof text,
+                   "start prerequisites %s:", healthy ? "healthy" : "not healthy");
     for (int service = 0; service < SERVICE_COUNT; service++) {
         length = strlen(text);
         if ((prerequisites & (1u << (unsigned)service)) != 0u && length < sizeof text) {
@@ -716,8 +723,8 @@ static int phase_prerequisites(void)
 static int phase_application(void)
 {
     if (!application_present()) {
-        say(CRUX_LOG_INFO, atomic_load(&fw.safe_mode) ? "no application: safe mode"
-                                                      : "no application");
+        say(CRUX_LOG_INFO,
+            atomic_load(&fw.safe_mode) ? "no application: safe mode" : "no application");
         return 0;
     }
     if (app_contract_state(&fw.app) != APP_INITIALISED) {
@@ -821,8 +828,8 @@ static int phase_management(void)
 {
     /* The application's items and parameters are known now: init has run. */
     const management_port_config_t config = management_config();
-    const management_port_status_t status = core_started ? management_port_start_services(&config)
-                                                         : MANAGEMENT_PORT_ERR_NOT_READY;
+    const management_port_status_t status =
+        core_started ? management_port_start_services(&config) : MANAGEMENT_PORT_ERR_NOT_READY;
 
     management_started = status == MANAGEMENT_PORT_OK;
 #ifdef CONFIG_CRUX_CONTROLLER_FRAMEWORK_SUPERVISION
@@ -887,8 +894,7 @@ static const startup_step_t steps[] = {
     {{"storage access", phase_storage_and_access, false}, DEADLINE_MANAGEMENT_MS, NULL},
 #endif
 #ifdef CONFIG_CRUX_CONTROLLER_FRAMEWORK_SUPERVISION
-    {{"app init", phase_application_init, false}, DEADLINE_INIT_MS,
-     SKIP_WITHOUT_APPLICATION},
+    {{"app init", phase_application_init, false}, DEADLINE_INIT_MS, SKIP_WITHOUT_APPLICATION},
 #endif
 #ifdef CONFIG_CRUX_CONTROLLER_FRAMEWORK_MANAGEMENT
     {{"web management", phase_management, false}, DEADLINE_MANAGEMENT_MS, NULL},
@@ -900,7 +906,8 @@ static const startup_step_t steps[] = {
     {{"time synchronisation", phase_time_sync, false}, DEADLINE_TIME_SYNC_MS, SKIP_IN_SAFE_MODE},
 #endif
 #ifdef CONFIG_CRUX_CONTROLLER_FRAMEWORK_SUPERVISION
-    {{"start prerequisites", phase_prerequisites, false}, DEADLINE_APPLICATION_MS,
+    {{"start prerequisites", phase_prerequisites, false},
+     DEADLINE_APPLICATION_MS,
      SKIP_WITHOUT_APPLICATION},
     {{"application", phase_application, false}, DEADLINE_APPLICATION_MS, NULL},
 #endif
@@ -983,7 +990,8 @@ controller_framework_status_t controller_framework_start(const controller_app_t 
      * supervision ends here (section 4.2). */
     atomic_store(&fw.startup_done, true);
     if (application_present()) {
-        (void)snprintf(text, sizeof text, "startup supervision ended in step 12 application state=%s",
+        (void)snprintf(text, sizeof text,
+                       "startup supervision ended in step 12 application state=%s",
                        app_state_name(app_contract_state(&fw.app)));
         say(CRUX_LOG_INFO, text);
     } else {
@@ -1083,6 +1091,15 @@ framework_control_t framework_control_application_start(void)
     return control(REQUEST_OPERATOR_START);
 }
 
+void framework_control_planned_reset(void)
+{
+    if (application_present() && atomic_load(&fw.startup_done) &&
+        app_contract_state(&fw.app) == APP_RUNNING) {
+        say(CRUX_LOG_INFO, "planned reset: stopping the application");
+        app_port_call(REQUEST_PLANNED_STOP);
+    }
+}
+
 /* The application interface (<controller/framework.h>). Each call checks that its context is the
  * framework's; any other pointer is refused or ignored. */
 static bool context_valid(const controller_app_context_t *context)
@@ -1143,7 +1160,8 @@ int controller_app_data_root(const controller_app_context_t *context)
     return context_valid(context) ? atomic_load(&fw.data_root) : -1;
 }
 
-controller_framework_state_t controller_app_controller_state(const controller_app_context_t *context)
+controller_framework_state_t
+controller_app_controller_state(const controller_app_context_t *context)
 {
     (void)context;
     return (controller_framework_state_t)atomic_load(&fw.state);
@@ -1153,7 +1171,9 @@ controller_framework_health_t controller_app_service_health(const controller_app
                                                             controller_framework_service_t service)
 {
     (void)context;
-    if ((int)service < 0 || (int)service >= SERVICE_COUNT) {
+    /* The enumeration may be unsigned (short enums on a board), so one comparison covers both ends.
+     */
+    if ((unsigned)service >= (unsigned)SERVICE_COUNT) {
         return CONTROLLER_FRAMEWORK_HEALTH_ABSENT;
     }
     return (controller_framework_health_t)health_of((int)service);
@@ -1181,9 +1201,9 @@ controller_app_result_t controller_app_status_register(controller_app_context_t 
     return result_of(app_contract_register_status(&fw.app, items, count));
 }
 
-controller_app_result_t controller_app_parameters_register(controller_app_context_t *context,
-                                                           const crux_config_service_entry_t *entries,
-                                                           size_t count)
+controller_app_result_t
+controller_app_parameters_register(controller_app_context_t *context,
+                                   const crux_config_service_entry_t *entries, size_t count)
 {
     if (!context_valid(context)) {
         return CONTROLLER_APP_ERR_INVALID;

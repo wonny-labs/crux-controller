@@ -257,8 +257,8 @@ management_port_status_t management_port_start_services(const management_port_co
     if (!core_done) {
         return MANAGEMENT_PORT_ERR_NOT_READY;
     }
-    /* The core part parsed the same text, so this parse succeeds; the octets name the address in the
-     * certificate. */
+    /* The core part parsed the same text, so this parse succeeds; the octets name the address in
+     * the certificate. */
     if (!management_address_parse(CONFIG_CRUX_WEB_BIND_ADDRESS, octets)) {
         return failed("bind address");
     }

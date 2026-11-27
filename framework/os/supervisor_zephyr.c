@@ -170,8 +170,8 @@ static void supervisor_run(void *unused0, void *unused1, void *unused2)
                                                  (uint32_t)atomic_get(&expired)};
         const supervision_action_t action = supervision_poll(&state, now, &channels);
         /* A fault latched from outside (supervisor_port_latch()) is carried out here, once. */
-        const bool reported = action == SUPERVISION_STOPPED &&
-                              supervision_take_report(&state, &reason, name);
+        const bool reported =
+            action == SUPERVISION_STOPPED && supervision_take_report(&state, &reason, name);
 
         if (action == SUPERVISION_LATCH) {
             reason = state.reason;
@@ -244,7 +244,8 @@ void supervisor_port_step_end(void)
     k_spin_unlock(&lock, key);
 }
 
-/* A free slot: no name, and no expiry recorded for it. -1 when the table is full. Under the lock. */
+/* A free slot: no name, and no expiry recorded for it. -1 when the table is full. Under the lock.
+ */
 static int free_slot(void)
 {
     const uint32_t gone = (uint32_t)atomic_get(&expired);

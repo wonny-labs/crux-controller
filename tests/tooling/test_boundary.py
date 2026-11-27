@@ -708,7 +708,8 @@ class CompositionZone(unittest.TestCase):
         directories = [rule.directory for rule in check_boundary.RULES]
         self.assertEqual(
             ["app/src", "workload", "app/compose", "app/os",
-             "include", "framework/src", "framework/compose", "framework/os"],
+             "include", "framework/src", "framework/compose", "framework/os",
+             "tests/framework/fixture"],
             directories,
         )
 
@@ -1548,6 +1549,51 @@ class FrameworkAdapterSupervision(unittest.TestCase):
                      "zephyr/drivers/hwinfo.h", "zephyr/sys/reboot.h", "zephyr/logging/log.h"):
             files = {"framework/os/supervisor.c": f"#include <{name}>\n"}
             self.assertEqual([name], reasons(run(files)), name)
+
+
+class FixtureApplication(unittest.TestCase):
+    """tests/framework/fixture holds the fixture application of the native_sim scenarios.
+
+    Specification section 7.3: every source of the fixture application lies in a checked tree. It may
+    include ISO C headers, the interface headers of the framework (<controller/NAME.h>), public
+    <crux/NAME.h> headers except the frozen three, its own tree and the one Zephyr header that its
+    threads need, zephyr/kernel.h. A header of the framework's source trees, a composition interface,
+    the Sockets profile and every other Zephyr header fail, so the fixture reaches the framework as a
+    product does.
+    """
+
+    def in_fixture(self, text, name="fixture.c"):
+        return run({f"tests/framework/fixture/{name}": text})
+
+    def test_the_fixture_may_include_the_interface_crux_iso_c_and_zephyr_kernel(self):
+        text = ("#include <controller/framework.h>\n#include <controller/framework_management.h>\n"
+                "#include <crux/file.h>\n#include <stdint.h>\n#include <zephyr/kernel.h>\n"
+                '#include "fixture.h"\n')
+        files = {"tests/framework/fixture/fixture.c": text, "tests/framework/fixture/fixture.h": "",
+                 "include/controller/framework.h": "", "include/controller/framework_management.h": ""}
+        self.assertEqual([], run(files))
+
+    def test_the_fixture_may_not_include_a_header_of_the_framework_sources(self):
+        files = {"tests/framework/fixture/fixture.c": '#include "../../../framework/src/app_contract.h"\n',
+                 "framework/src/app_contract.h": ""}
+        self.assertEqual(["../../../framework/src/app_contract.h"], reasons(run(files)))
+
+    def test_the_fixture_may_not_include_another_zephyr_header(self):
+        self.assertEqual(["zephyr/drivers/uart.h"], reasons(self.in_fixture("#include <zephyr/drivers/uart.h>\n")))
+
+    def test_the_fixture_may_not_include_a_composition_interface_or_a_frozen_header(self):
+        for header in ("crux/file_zephyr.h", "crux/web_zephyr.h", "crux/cli_zephyr.h", "crux/thread.h"):
+            with self.subTest(header=header):
+                self.assertEqual([header], reasons(self.in_fixture(f"#include <{header}>\n")))
+
+    def test_the_fixture_may_not_use_the_sockets_profile(self):
+        self.assertEqual(["sys/socket.h"], reasons(self.in_fixture("#include <sys/socket.h>\n")))
+
+    def test_the_scenario_sources_beside_the_fixture_are_not_in_its_tree(self):
+        # The scenarios' own sources (tests/framework/<scenario>/src) are tests, not the fixture.
+        files = {"tests/framework/application/src/main.c": "#include <zephyr/drivers/uart.h>\n",
+                 "tests/framework/fixture/fixture.c": "#include <stdint.h>\n"}
+        self.assertEqual([], run(files))
 
 
 class BuildFiles(unittest.TestCase):

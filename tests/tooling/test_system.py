@@ -352,7 +352,10 @@ class SystemSources(unittest.TestCase):
             frozenset({"crux/thread.h", "crux/sync.h", "crux/serial.h"}),
             check_boundary.FROZEN_CRUX_HEADERS,
         )
-        self.assertEqual(["app/src", "workload", "app/compose", "app/os", "include", "framework/src", "framework/compose", "framework/os"],
+        self.assertEqual(["app/src", "workload", "app/compose", "app/os", "include", "framework/src", "framework/compose", "framework/os",
+                          # Added with the fixture application (delivery stage 3); the zone
+                          # allow-lists above stay as they were.
+                          "tests/framework/fixture"],
                          [rule.directory for rule in check_boundary.RULES])
 
     def test_a_private_system_header_fails_in_every_tree(self):

@@ -148,7 +148,11 @@ FRAMEWORK_API = re.compile(r"^controller/[A-Za-z0-9_]+\.h$")
 
 # The top-level trees whose C and C++ sources and headers must each sit in a checked tree. A
 # source of the module, the base image or the configurations of app that no rule covers fails.
-MODULE_TREES = ("app", "framework", FRAMEWORK_API_ROOT, "zephyr")
+# The fixture application of the scenarios (tests/framework/fixture) and the one Zephyr header that
+# it may include for its threads.
+FIXTURE_ROOT = "tests/framework/fixture"
+FIXTURE_ZEPHYR_HEADERS = frozenset({"zephyr/kernel.h"})
+MODULE_TREES = ("app", "framework", FRAMEWORK_API_ROOT, "zephyr", FIXTURE_ROOT)
 SOURCE_SUFFIXES = frozenset(
     ".c .h .inc .cc .cpp .cxx .hh .hpp .hxx .s .S".split()
 )
@@ -254,6 +258,18 @@ RULES = (
         extra_roots_headers_only=True,
         zephyr_allow=FRAMEWORK_OS_ZEPHYR_HEADERS,
         deny_crux=FROZEN_CRUX_HEADERS,
+    ),
+    # The fixture application of the native_sim scenarios (specification section 7.3): ISO C, the
+    # interface headers of the framework, public Crux headers and the Zephyr kernel header that its
+    # threads need, as a product's application has; no framework source header, no composition
+    # interface and no Sockets profile.
+    Rule(
+        FIXTURE_ROOT,
+        allow_sockets=False,
+        allow_crux=True,
+        zephyr_allow=FIXTURE_ZEPHYR_HEADERS,
+        deny_crux=FROZEN_CRUX_HEADERS,
+        framework_api=True,
     ),
 )
 

@@ -5,8 +5,8 @@
 /*
  * Fault injection for the native_sim scenarios of the controller framework. It exists only in an
  * image with CONFIG_CRUX_CONTROLLER_FRAMEWORK_FAULT_INJECTION, which depends on native_sim, so no
- * board image can carry it. A scenario arms the first three before controller_framework_start(), once per boot; the
- * service and channel faults can be armed and changed at any time.
+ * board image can carry it. A scenario arms the first three before controller_framework_start(),
+ * once per boot; the service and channel faults can be armed and changed at any time.
  */
 
 typedef enum {

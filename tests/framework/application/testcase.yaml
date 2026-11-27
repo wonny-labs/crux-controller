@@ -1,0 +1,122 @@
+common:
+  platform_allow:
+    - native_sim/native/64
+  integration_platforms:
+    - native_sim/native/64
+  tags:
+    - controller
+    - framework
+tests:
+  controller.framework.native_sim.application:
+    timeout: 900
+    harness: console
+    harness_config:
+      type: multi_line
+      ordered: true
+      # Only lines whose order the code fixes: a line of the fixture's threads and a line of the
+      # supervisor can come in either order, so at most one of them is listed between two fixed ones.
+      regex:
+        # Boot 1: the contract (criteria 4, 5, 6, 8, 21, 23 and 34).
+        - "application scenario boot 1"
+        - "application scenario: a descriptor without safe_state is refused"
+        - "init channels=0,0 status=0 parameter=0,.*,0 root=3 file=hello.txt written"
+        - "application init result=0 channels=2 state=initialised"
+        - "phase app init ok"
+        - "phase web management ok"
+        - "start prerequisites healthy: storage=healthy configuration=healthy"
+        - "phase start prerequisites ok"
+        - "start: worker and monitor threads created with Zephyr"
+        - "application started state=running"
+        - "phase application ok"
+        - "startup supervision ended in step 12 application state=running"
+        - "application scenario: a second start is refused"
+        - "application scenario: controller operational, application running"
+        - "application scenario: the status service shows fixture.counter"
+        - "application scenario: the configuration service shows fixture.period"
+        - "application scenario: route sweep routes=[0-9]+ refused=[0-9]+ public=[0-9]+"
+        - "stop reason=operator"
+        - "stop: both threads ended"
+        - "application stopped state=stopped"
+        - "application scenario: operator stop: stop, then safe state, controller operational"
+        - "start: worker and monitor threads created with Zephyr"
+        - "application started by an operator state=running"
+        - "application scenario: operator start: started again without init"
+        - "runtime dependency configuration health=failed"
+        - "application scenario: runtime dependency failed: controller degraded, application running"
+        - "runtime dependency configuration health=healthy"
+        - "application scenario: runtime dependency recovered: controller operational"
+        - "worker reports a fault"
+        - "application reported a fault: stopping it"
+        - "stop reason=fault"
+        - "application fault: stopped and released state=fault"
+        - "application scenario: reported fault: stop, then safe state, controller operational"
+        - "application scenario: the status service shows the application in fault and its item released"
+        - "application scenario: restart requested"
+        # Boot 2: stop returns an error (criterion 8).
+        - "application scenario boot 2"
+        - "stop returns an error and ends nothing"
+        - "application stop returned an error: a hang, feeding stops"
+        - "application safe state requested by the supervisor"
+        - "fault latched reason=stop name=app stop"
+        - "Crux simulated watchdog expired"
+        # Boot 3: the worker stops feeding (criterion 9).
+        - "application scenario boot 3"
+        - "last fault stop app stop"
+        - "worker stops feeding its channel"
+        - "application safe state requested by the supervisor"
+        - "fault latched reason=channel name=worker"
+        - "Crux simulated watchdog expired"
+        # Boot 4: start passes its deadline (criterion 20).
+        - "application scenario boot 4"
+        - "last fault channel worker"
+        - "application scenario: start will pass its deadline"
+        - "start hangs"
+        - "application safe state requested by the supervisor"
+        - "fault latched reason=deadline name=application"
+        - "Crux simulated watchdog expired"
+        # Boot 5: stop passes its deadline (criterion 21).
+        - "application scenario boot 5"
+        - "last fault deadline application"
+        - "stop hangs"
+        - "application safe state requested by the supervisor"
+        - "fault latched reason=deadline name=app stop"
+        - "Crux simulated watchdog expired"
+        # Boot 6: init fails after its registrations (criterion 8).
+        - "application scenario boot 6"
+        - "last fault deadline app stop"
+        - "init fails after its registrations"
+        - "application init result=-1 channels=0 state=fault"
+        - "phase app init failed result=-1"
+        - "application not started: state=fault"
+        - "application scenario: init failed: safe state 1, controller operational"
+        - "application scenario: device management answers"
+        - "application scenario: restart requested"
+        # Boot 7: the activation of the second channel is refused (criterion 22).
+        - "application scenario boot 7"
+        - "fault injection: channel monitor refused"
+        - "application fault: activation or start failed state=fault"
+        - "application scenario: activation refused: safe state 1, controller operational"
+        - "application scenario: device management answers"
+        - "application scenario: restart requested"
+        # Boot 8: start returns an error (criterion 22).
+        - "application scenario boot 8"
+        - "start fails before it creates a thread"
+        - "application fault: activation or start failed state=fault"
+        - "application scenario: start failed: safe state 1, controller operational"
+        - "application scenario: device management answers"
+        - "application scenario: restart requested"
+        # Boot 9: a start prerequisite fails at boot (criterion 23), then a planned reset.
+        - "application scenario boot 9"
+        - "start prerequisites not healthy: storage=healthy configuration=failed"
+        - "application held reason=start prerequisite"
+        - "startup supervision ended in step 12 application state=held"
+        - "application scenario: held by a start prerequisite, controller degraded"
+        - "application started by an operator state=running"
+        - "application scenario: operator start ran the held application"
+        - "application scenario: restart requested"
+        - "planned reset: stopping the application"
+        - "stop reason=planned reset"
+        - "application stopped state=stopped"
+        # Boot 10: a normal boot after the planned reset.
+        - "application scenario boot 10"
+        - "application scenario done"

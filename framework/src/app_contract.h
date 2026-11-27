@@ -15,7 +15,8 @@
  *   - any application thread calls app_contract_feed() and app_contract_report_fault();
  *   - the supervisor thread calls app_contract_supervisor_safe_state() once it has latched a fault;
  *   - any thread reads app_contract_state() and app_contract_items_available().
- * The fields that more than one thread reads are atomics; the others belong to the framework thread.
+ * The fields that more than one thread reads are atomics; the others belong to the framework
+ * thread.
  *
  * A channel requirement is a name and a reload period that init registers; it becomes an active
  * channel through the channel port immediately before start, and the port's handle may change at
@@ -50,7 +51,8 @@ typedef struct {
     void *argument;
 } app_entries_t;
 
-/* True when every entry is there (section 3.3: a descriptor without a mandatory entry is refused). */
+/* True when every entry is there (section 3.3: a descriptor without a mandatory entry is refused).
+ */
 bool app_entries_complete(const app_entries_t *entries);
 
 /* The task watchdog behind the active channels. add returns a handle of zero or more, or a negative

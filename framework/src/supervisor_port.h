@@ -52,7 +52,8 @@ void supervisor_port_step_end(void);
 /*
  * Activate a task watchdog channel, fed now. The name is borrowed for the program's life. Returns a
  * handle of zero or more, or a negative value when the table or the task watchdog is full. A handle
- * whose channel was deleted can be given again; a handle whose channel expired is never given again.
+ * whose channel was deleted can be given again; a handle whose channel expired is never given
+ * again.
  */
 int supervisor_port_channel_add(const char *name, uint32_t reload_ms);
 

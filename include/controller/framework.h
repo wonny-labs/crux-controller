@@ -8,13 +8,13 @@
  * the start function once, from the main thread, after the Zephyr network configuration has
  * brought the interface up; the base image of this repository does the same with no application.
  *
- * The start function starts the services that the build turns on (CONFIG_CRUX_CONTROLLER_FRAMEWORK_*)
- * in the order of framework/src/framework.c, logs the name and result of each step through Crux
- * Logging under the tag "framework", and returns. A service that fails is reported and the
- * controller runs without it; only a clock that does not answer stops startup. With health
- * supervision (CONFIG_CRUX_CONTROLLER_FRAMEWORK_SUPERVISION) the function also decides normal boot or
- * safe mode, arms the watchdog and supervises its steps, and the framework owns
- * k_sys_fatal_error_handler(). Call it from a thread below the supervisor's priority (7), for
+ * The start function starts the services that the build turns on
+ * (CONFIG_CRUX_CONTROLLER_FRAMEWORK_*) in the order of framework/src/framework.c, logs the name and
+ * result of each step through Crux Logging under the tag "framework", and returns. A service that
+ * fails is reported and the controller runs without it; only a clock that does not answer stops
+ * startup. With health supervision (CONFIG_CRUX_CONTROLLER_FRAMEWORK_SUPERVISION) the function also
+ * decides normal boot or safe mode, arms the watchdog and supervises its steps, and the framework
+ * owns k_sys_fatal_error_handler(). Call it from a thread below the supervisor's priority (7), for
  * example the main thread with CONFIG_MAIN_THREAD_PRIORITY=8.
  *
  * The application interface needs health supervision. The framework runs no execution thread for
@@ -61,14 +61,14 @@ typedef enum {
  *               not depend on configuration, time, web management or the command line, which start
  *               after it. On failure nothing that it started still runs.
  *   start       on success, the threads that feed the activated channels run and feed within their
- *               reload periods; on failure every thread that it created has ended before it returns.
- *   stop        on success every thread of the application has ended. An error return or a missed
- *               deadline is a hang: the device resets. A thread's last feed must come less than its
- *               reload period before stop returns, because the channel is deleted only then.
- *   safe_state  puts the outputs into the product's safe state and never blocks. It can run at the
- *               same time as the application's threads (from the supervisor before a reset), so it
- *               is idempotent, takes no lock, allocates nothing and logs nothing.
- * An entry returns 0 for success. The descriptor is borrowed for the program's life.
+ *               reload periods; on failure every thread that it created has ended before it
+ * returns. stop        on success every thread of the application has ended. An error return or a
+ * missed deadline is a hang: the device resets. A thread's last feed must come less than its reload
+ * period before stop returns, because the channel is deleted only then. safe_state  puts the
+ * outputs into the product's safe state and never blocks. It can run at the same time as the
+ * application's threads (from the supervisor before a reset), so it is idempotent, takes no lock,
+ * allocates nothing and logs nothing. An entry returns 0 for success. The descriptor is borrowed
+ * for the program's life.
  */
 typedef struct {
     int (*init)(controller_app_context_t *context);
@@ -149,7 +149,8 @@ typedef enum {
 
 /* Read-only views (sections 4.6 and 4.7), from any thread. A runtime dependency that changes its
  * health is reported here and through the status service; the application decides its response. */
-controller_framework_state_t controller_app_controller_state(const controller_app_context_t *context);
+controller_framework_state_t
+controller_app_controller_state(const controller_app_context_t *context);
 controller_framework_health_t controller_app_service_health(const controller_app_context_t *context,
                                                             controller_framework_service_t service);
 

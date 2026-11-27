@@ -70,7 +70,7 @@ static const text_source_t sources[] = {
 
 static crux_status_t read_text(void *context, crux_mgmt_status_value_t *out)
 {
-    const text_source_t *source = context;
+    const text_source_t *source = (const text_source_t *)context;
 
     out->type = CRUX_MGMT_STATUS_TEXT;
     (*source)(out->data.text, sizeof out->data.text);
@@ -95,8 +95,8 @@ static crux_status_t read_boot_counter(void *context, crux_mgmt_status_value_t *
 
 /* The services, so that a health item's context is the address of its identifier. */
 static const int services[SERVICE_COUNT] = {
-    SERVICE_NETWORK, SERVICE_STORAGE, SERVICE_ACCESS,       SERVICE_CONFIGURATION,
-    SERVICE_STATUS,  SERVICE_TIME,    SERVICE_WEB,          SERVICE_COMMAND_LINE,
+    SERVICE_NETWORK, SERVICE_STORAGE, SERVICE_ACCESS, SERVICE_CONFIGURATION,
+    SERVICE_STATUS,  SERVICE_TIME,    SERVICE_WEB,    SERVICE_COMMAND_LINE,
 };
 
 static crux_status_t read_health(void *context, crux_mgmt_status_value_t *out)
@@ -154,8 +154,7 @@ static crux_status_t read_application_item(void *context, crux_mgmt_status_value
     return item->read(item->context, out);
 }
 
-const void *supervision_compose_status_items(const void *app_items, size_t app_count,
-                                             size_t *count)
+const void *supervision_compose_status_items(const void *app_items, size_t app_count, size_t *count)
 {
     const crux_mgmt_status_item_t *given = app_items;
 

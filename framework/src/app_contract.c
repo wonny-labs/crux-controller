@@ -46,7 +46,8 @@ void app_contract_init(app_contract_t *contract, const app_entries_t *entries,
     atomic_init(&contract->initialised, false);
     atomic_init(&contract->fault_reported, false);
     contract->hold = APP_HOLD_NONE;
-    contract->capacity = capacity < APP_CONTRACT_CHANNELS_MAX ? capacity : APP_CONTRACT_CHANNELS_MAX;
+    contract->capacity =
+        capacity < APP_CONTRACT_CHANNELS_MAX ? capacity : APP_CONTRACT_CHANNELS_MAX;
     if (app_entries_complete(entries) && channel_port_complete(channels)) {
         contract->entries = *entries;
         contract->channels = *channels;
@@ -122,8 +123,7 @@ app_contract_status_t app_contract_register_status(app_contract_t *contract, con
     if (contract == NULL) {
         return APP_CONTRACT_ERR_INVALID;
     }
-    return register_table(contract, &contract->status_items, &contract->status_count, items,
-                          count);
+    return register_table(contract, &contract->status_items, &contract->status_count, items, count);
 }
 
 app_contract_status_t app_contract_register_parameters(app_contract_t *contract,
@@ -237,10 +237,9 @@ app_run_t app_contract_start(app_contract_t *contract, const app_start_condition
         return APP_RUN_NOT_NOW;
     }
     const app_state_t from = state_of(contract);
-    const bool startable =
-        operator ? (from == APP_STOPPED ||
-                    (from == APP_HELD && contract->hold == APP_HOLD_PREREQUISITE))
-                 : from == APP_INITIALISED;
+    const bool startable = operator? (from == APP_STOPPED ||
+                                      (from == APP_HELD && contract->hold == APP_HOLD_PREREQUISITE))
+                                   : from == APP_INITIALISED;
 
     if (!startable) {
         return APP_RUN_NOT_NOW;
@@ -272,7 +271,7 @@ app_run_t app_contract_start(app_contract_t *contract, const app_start_condition
     if (contract->entries.start(contract->entries.argument) != 0) {
         return start_failed(contract, ending);
     }
-    advance(contract, operator ? APP_EVENT_OPERATOR_START : APP_EVENT_START_OK, ending);
+    advance(contract, operator? APP_EVENT_OPERATOR_START : APP_EVENT_START_OK, ending);
     contract->hold = APP_HOLD_NONE;
     return APP_RUN_STARTED;
 }

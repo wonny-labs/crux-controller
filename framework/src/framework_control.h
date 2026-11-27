@@ -19,4 +19,13 @@ typedef enum {
 framework_control_t framework_control_application_stop(void);
 framework_control_t framework_control_application_start(void);
 
+/*
+ * Before a planned reset (specification section 3.3): stop a running application with the reason
+ * planned reset on the application thread and wait until that stop and its safe_state have run.
+ * Called by the framework's reboot thread just before Crux Reboot resets the device. Does nothing
+ * with no application, before the end of startup supervision, or when the application is not
+ * running. The wait is bounded by the stop's deadline, which the supervisor enforces.
+ */
+void framework_control_planned_reset(void);
+
 #endif

@@ -47,7 +47,7 @@ typedef enum {
     MANAGEMENT_PORT_ERR_INVALID_ARGUMENT = -1,
     MANAGEMENT_PORT_ERR_ALREADY_STARTED = -2, /* A second start; nothing changed. */
     MANAGEMENT_PORT_ERR_STEP_FAILED = -3,     /* A step of the sequence refused; nothing serves. */
-    MANAGEMENT_PORT_ERR_STORAGE = -4, /* The medium, a store root or the data root failed. */
+    MANAGEMENT_PORT_ERR_STORAGE = -4,   /* The medium, a store root or the data root failed. */
     MANAGEMENT_PORT_ERR_NOT_READY = -5, /* The services part before a successful core part. */
 } management_port_status_t;
 

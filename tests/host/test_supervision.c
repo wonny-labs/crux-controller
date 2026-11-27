@@ -137,9 +137,9 @@ static void test_an_outside_latch_stops_feeding_once(void)
           SUPERVISION_STOPPED);
 }
 
-/* The supervisor learns of an outside latch once, so that it writes the record, calls safe_state and
- * resets (specification section 4.8: a stop that returns an error). A latch that a poll found is
- * reported by that poll, not again. */
+/* The supervisor learns of an outside latch once, so that it writes the record, calls safe_state
+ * and resets (specification section 4.8: a stop that returns an error). A latch that a poll found
+ * is reported by that poll, not again. */
 static void test_an_outside_latch_is_reported_once(void)
 {
     supervision_t state;

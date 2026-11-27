@@ -529,7 +529,10 @@ class SntpSources(unittest.TestCase):
         self.assertEqual(
             frozenset({"zephyr/fs/fs.h", "zephyr/devicetree.h", "zephyr/net/tls_credentials.h"}),
             check_boundary.COMPOSITION_ZEPHYR_HEADERS)
-        self.assertEqual(["app/src", "workload", "app/compose", "app/os", "include", "framework/src", "framework/compose", "framework/os"],
+        self.assertEqual(["app/src", "workload", "app/compose", "app/os", "include", "framework/src", "framework/compose", "framework/os",
+                          # Added with the fixture application (delivery stage 3); the zone
+                          # allow-lists above stay as they were.
+                          "tests/framework/fixture"],
                          [rule.directory for rule in check_boundary.RULES])
 
     def test_the_sntp_header_still_fails_outside_the_adapter_zone(self):
