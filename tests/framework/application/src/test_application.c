@@ -1,11 +1,11 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
 /* The application scenario of the controller framework on native_sim (specification sections 3 and
- * 4, delivery stage 3). One run, nine boots of the fixture application (../fixture): the simulated
- * watchdog of Crux System restarts the simulated process after a missed feed, Crux Reboot restarts
- * it on the reboot command, and the retained region over the test-only retained memory of ../common
- * survives both. Each boot picks the fixture's behaviour, starts the framework with the fixture's
- * descriptor and prints what the console harness of testcase.yaml matches, in order:
+ * 4, delivery stage 3). One run, eleven boots of the fixture application (../fixture): the
+ * simulated watchdog of Crux System restarts the simulated process after a missed feed, Crux Reboot
+ * restarts it on the reboot command, and the retained region over the test-only retained memory of
+ * ../common survives both. Each boot picks the fixture's behaviour, starts the framework with the
+ * fixture's descriptor and prints what the console harness of testcase.yaml matches, in order:
  *
  *   1. The contract (criteria 4, 5, 6, 21, 23, 8 and 34): a descriptor without an entry and a
  *      second start are refused; init, the start prerequisites, then start, last in startup; the
@@ -28,7 +28,13 @@
  * an operator start while it is down stays held; after the service recovers, an operator start runs
  * it (criterion 23); then the reboot command,
  * which stops the running application with the reason planned reset before the reset (section 3.3).
- *  10. A normal boot after the planned reset.
+ *  10. A normal boot after the planned reset, then the reboot command.
+ *  11. The TLS certificate start is refused (section 4.1): web management stays off and reports
+ *      failed, and the configuration and status services, the command line, the reboot thread and
+ *      the start prerequisites behave as after a successful start. The start is wrapped at link
+ *      time (CMakeLists.txt), because no public Crux interface can store a certificate of another
+ *      key; the wrapper returns before Crux's module runs, so the module's own state and event are
+ *      not those of a real refusal.
  *
  * The safe-mode threshold is above the four fault resets of the run, so no boot enters safe mode.
  */
@@ -42,6 +48,7 @@
 #include <controller/framework.h>
 #include <controller/framework_test.h>
 #include <crux/access.h>
+#include <crux/tls_certificate_start.h>
 #include <crux/web.h>
 /* Test-only: Crux's session creation for channel adapters, which no product includes, so that this
  * test can make an account of the read-only role (CMakeLists.txt). */
@@ -71,6 +78,31 @@ extern const crux_web_route_t *const crux_web_route_table[];
 extern const size_t crux_web_route_count;
 
 static char response[8192];
+
+/* Boot 11: the TLS certificate start is refused, as Crux refuses a stored certificate of another
+ * key. The other boots run Crux's start. */
+static bool tls_refused;
+static unsigned tls_refusals;
+
+// NOLINTBEGIN(bugprone-reserved-identifier): the names that GNU ld's --wrap gives.
+crux_tls_certificate_result_t
+__real_crux_tls_certificate_start(const crux_tls_certificate_options_t *options,
+                                  crux_tls_certificate_start_t *how);
+crux_tls_certificate_result_t
+__wrap_crux_tls_certificate_start(const crux_tls_certificate_options_t *options,
+                                  crux_tls_certificate_start_t *how);
+
+crux_tls_certificate_result_t
+__wrap_crux_tls_certificate_start(const crux_tls_certificate_options_t *options,
+                                  crux_tls_certificate_start_t *how)
+{
+    if (!tls_refused) {
+        return __real_crux_tls_certificate_start(options, how);
+    }
+    tls_refusals++;
+    return CRUX_TLS_CERTIFICATE_ERR_KEY_MISMATCH;
+}
+// NOLINTEND(bugprone-reserved-identifier)
 
 static void fail(const char *what)
 {
@@ -495,6 +527,75 @@ static void fault_kept(const char *what, unsigned starts)
     }
 }
 
+static bool reboot_thread_found;
+
+static void find_reboot_thread(const struct k_thread *thread, void *unused)
+{
+    (void)unused;
+    const char *name = k_thread_name_get((k_tid_t)thread);
+
+    if (name != NULL && strcmp(name, "reboot") == 0) {
+        reboot_thread_found = true;
+    }
+}
+
+static bool healthy(controller_framework_service_t service)
+{
+    return fixture_health(service) == CONTROLLER_FRAMEWORK_HEALTH_HEALTHY;
+}
+
+#define HEALTH_IS(service, value)                                                                  \
+    "{\"name\":\"controller.health." service "\",\"status\":\"ok\",\"type\":\"text\","             \
+    "\"value\":\"" value "\"}"
+
+/* Boot 11: only web management is off after the refused TLS certificate start. */
+static void tls_certificate_refused(void)
+{
+    if (tls_refusals != 1u) {
+        fail("the wrapped TLS certificate start");
+        return;
+    }
+    if (!controller_is(CONTROLLER_FRAMEWORK_STATE_OPERATIONAL) ||
+        !count_reaches(fixture_starts, 1u) || !worker_counts()) {
+        fail("the start with the TLS certificate refused");
+        return;
+    }
+    say("TLS certificate refused: controller operational, application running");
+    const bool services = healthy(CONTROLLER_FRAMEWORK_SERVICE_CONFIGURATION) &&
+                          healthy(CONTROLLER_FRAMEWORK_SERVICE_STATUS) &&
+                          healthy(CONTROLLER_FRAMEWORK_SERVICE_COMMAND_LINE);
+
+    if (!services ||
+        fixture_health(CONTROLLER_FRAMEWORK_SERVICE_WEB) != CONTROLLER_FRAMEWORK_HEALTH_FAILED) {
+        fail("the health with the TLS certificate refused");
+        return;
+    }
+    say("TLS certificate refused: configuration, status and command line healthy, web failed");
+    k_thread_foreach(find_reboot_thread, NULL);
+    if (!reboot_thread_found) {
+        fail("the reboot thread with the TLS certificate refused");
+        return;
+    }
+    say("TLS certificate refused: the reboot thread runs");
+    if (https_request("GET", "/", NULL, NULL, response, sizeof response) != -1) {
+        fail("an answer on the web port with the TLS certificate refused");
+        return;
+    }
+    say("TLS certificate refused: no answer on the web port");
+    /* The status items come in a fixed order: each service's health in the order of
+     * controller_framework_service_t. */
+    if (!account_and_login()) {
+        return;
+    }
+    scenario_console_type("status");
+    if (!expect(HEALTH_IS("configuration", "healthy")) || !expect(HEALTH_IS("status", "healthy")) ||
+        !expect(HEALTH_IS("web", "failed")) || !expect(HEALTH_IS("command-line", "healthy")) ||
+        !expect("> ")) {
+        return;
+    }
+    say("TLS certificate refused: the status service shows web failed and the others healthy");
+}
+
 static void start_or_fail(fixture_behaviour_t behaviour)
 {
     if (controller_framework_start(fixture_descriptor(behaviour)) != CONTROLLER_FRAMEWORK_OK) {
@@ -583,11 +684,20 @@ int main(void)
         break;
     case 10:
         start_or_fail(FIXTURE_NORMAL);
-        if (controller_is(CONTROLLER_FRAMEWORK_STATE_OPERATIONAL) && worker_counts()) {
-            scenario_say("application scenario done");
-        } else {
+        if (!controller_is(CONTROLLER_FRAMEWORK_STATE_OPERATIONAL) || !worker_counts()) {
             fail("the boot after the planned reset");
+            break;
         }
+        say("a normal boot after the planned reset");
+        if (account_and_login() && command("reboot", "restart requested")) {
+            say("restart requested");
+        }
+        break;
+    case 11:
+        tls_refused = true;
+        start_or_fail(FIXTURE_NORMAL);
+        tls_certificate_refused();
+        scenario_say("application scenario done");
         break;
     default:
         fail("more boots than planned");

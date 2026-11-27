@@ -124,6 +124,23 @@ tests:
         - "application started by an operator state=running"
         - "application scenario: operator start ran the held application"
         - "application scenario: planned reset: stop with the reason planned reset, then safe state"
-        # Boot 10: a normal boot after the planned reset.
+        # Boot 10: a normal boot after the planned reset, then the reboot command.
         - "application scenario boot 10"
+        - "application scenario: a normal boot after the planned reset"
+        - "application scenario: restart requested"
+        # Boot 11: the TLS certificate start is refused, and only web management stays off
+        # (specification section 4.1).
+        - "application scenario boot 11"
+        - "application init result=0 channels=2 state=initialised"
+        - "tls certificate start refused result=-[0-9]+: web management stays off"
+        - "phase web management failed result=-6"
+        - "phase command line ok"
+        - "start prerequisites healthy: storage=healthy configuration=healthy"
+        - "application started state=running"
+        - "startup supervision ended in step 12 application state=running"
+        - "application scenario: TLS certificate refused: controller operational, application running"
+        - "application scenario: TLS certificate refused: configuration, status and command line healthy, web failed"
+        - "application scenario: TLS certificate refused: the reboot thread runs"
+        - "application scenario: TLS certificate refused: no answer on the web port"
+        - "application scenario: TLS certificate refused: the status service shows web failed and the others healthy"
         - "application scenario done"

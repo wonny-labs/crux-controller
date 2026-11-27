@@ -24,7 +24,11 @@ target_sources(app PRIVATE src/test_application.c ../fixture/fixture.c ../common
     ../common/retained_env.c ../common/https.c)
 target_include_directories(app PRIVATE ../common ../fixture)
 target_link_libraries(app PRIVATE controller::framework crux::access crux::file crux::configuration
-    crux::logging)
+    crux::logging crux::tls_certificate)
+# Test-only: Crux's TLS certificate start resolves to __wrap_crux_tls_certificate_start in
+# src/test_application.c, which refuses it in boot 11 and calls Crux's start in the other boots. GNU
+# ld's --wrap, as Zephyr's own native-based tests use it (tests/bsim/bluetooth/host/iso/frag).
+target_link_options(app PUBLIC -Wl,--wrap=crux_tls_certificate_start)
 # Test-only: the session creation of Crux Access for channel adapters, which no product reaches,
 # so that the test can make an account of the read-only role. Crux offers no command or route for
 # a second account. PRIVATE to this test image; Crux checks only its public targets for this header.
