@@ -87,7 +87,8 @@ def main(argv=None):
                         help="passed to clang-tidy as --extra-arg")
     args = parser.parse_args(argv)
 
-    root = analyze_host.repo_root()
+    # The repository of this script, wherever it runs from (CI runs it from the workspace folder).
+    root = pathlib.Path(__file__).resolve().parents[1]
     tool = os.environ.get("CLANG_TIDY", f"clang-tidy-{analyze_host.REQUIRED_MAJOR}")
     version = analyze_host.check_tool(tool)
     try:

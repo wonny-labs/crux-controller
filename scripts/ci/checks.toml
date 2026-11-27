@@ -1144,7 +1144,9 @@ cd ..
 database=$(find twister-out-base -path '*controller.framework.native_sim.application*' \
   -name compile_commands.json | head -n 1)
 test -n "$database" || { echo "no compile database of the application scenario" >&2; exit 1; }
-python crux-controller/scripts/analyze_zephyr.py --database "$database"
+database="$PWD/$database"
+cd crux-controller
+python scripts/analyze_zephyr.py --database "$database"
 '''
 scope = "always"
 fast = ["framework"]

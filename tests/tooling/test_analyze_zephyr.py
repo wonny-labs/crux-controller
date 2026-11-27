@@ -73,6 +73,12 @@ class CiCheck(unittest.TestCase):
         self.assertIn("compile_commands.json", run)
         self.assertIn("scripts/analyze_zephyr.py", run)
 
+    def test_the_script_finds_its_repository_from_its_own_place(self):
+        # CI starts the check in the workspace folder, which is no Git repository.
+        script = (ROOT / "scripts" / "analyze_zephyr.py").read_text()
+        self.assertIn("pathlib.Path(__file__).resolve().parents[1]", script)
+        self.assertNotIn("analyze_host.repo_root()", script)
+
 
 class PrerequisiteRefused(unittest.TestCase):
     """Criterion 27: a start prerequisite on a service that the build leaves out fails the build."""
