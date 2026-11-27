@@ -30,7 +30,7 @@ import tempfile
 SHA = re.compile(r"[0-9a-f]{40}")
 
 # (file, quote, optional). In a quote, {full} stands for the 40-character pin and {short} for its
-# first 8 characters. Every occurrence of a quote in its file moves, so one link quote moves every
+# first 8 characters ({short12}: 12). Every occurrence of a quote in its file moves, so one link quote moves every
 # link to a Crux page at the pin. An optional file that does not exist is skipped.
 # The Crux pin bot commits only the paths given with --allow-path: a file added here goes into the
 # lists of the crux-pin-update workflow and Jenkinsfile.example too (test_pin_update.py).
@@ -60,12 +60,18 @@ QUOTES = (
 # checks that every quote of the pin is in QUOTES or here). west.yml is the Crux tool's. In
 # CHANGELOG.md the entry that records a move is history. CONTRIBUTING.md is a person's: its link to
 # the Crux CI page stands for the copy of the selector in scripts/ci/tiers.py, and its sentence on
-# the include check records where the check was found; both move after that is checked again.
+# the include check records where the check was found; both move after that is checked again. The
+# copy tests/framework/interactive/nsos_rdhup.cmake records the Crux revision it was adapted from, and
+# test_native_sim_interactive.py ties that revision to west.yml on purpose: after a pin move that test
+# fails until a person has compared the copy with the new Crux and moved the three quotes.
 KEPT = (
     ("west.yml", "revision: {full}"),
     ("CHANGELOG.md", "to `{short}`"),
     ("CONTRIBUTING.md", LINK + "docs/ci.md"),
     ("CONTRIBUTING.md", "and is at `{short}`"),
+    ("tests/framework/interactive/nsos_rdhup.cmake", "nsos_rdhup.cmake at {short12}"),
+    ("tests/tooling/test_native_sim_interactive.py", "nsos_rdhup.cmake at {short12}"),
+    ("tests/tooling/test_native_sim_interactive.py", 'self.assertIn("{full}", read("west.yml"))'),
 )
 
 
@@ -74,7 +80,7 @@ class Mismatch(Exception):
 
 
 def quote(template, pin):
-    return template.format(full=pin, short=pin[:8])
+    return template.format(full=pin, short=pin[:8], short12=pin[:12])
 
 
 def pinned_revision(text, project="crux"):
