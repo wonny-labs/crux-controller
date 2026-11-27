@@ -12,8 +12,9 @@
 # CPE, which Grype cannot match. The run only reports: it exits 0 whatever it finds, and fails only
 # when the tool cannot run. A release check that fails on an untriaged match belongs to delivery
 # stage 4. Nothing is uploaded. Label: matching the SBOM against a public database is standard
-# (specification section 6.4, V2, from CRA Annex I Part II (1) and (2), unofficial text); the tool is
-# a project-specific workaround, as the specification leaves it open (section 6.3). Grype's README
+# (specification section 6.4, V2, from CRA Annex I Part II (1) and (2), unofficial text). The tool,
+# Grype, is documented but optional (Grype README, read: it scans SBOMs for known vulnerabilities;
+# no standard names it), as the specification leaves it open (section 6.3). Grype's README
 # documents the sbom: input, and the SBOM decoders of Syft, which Grype uses, include SPDX tag-value
 # (syft/format/decoders.go).
 set -euo pipefail

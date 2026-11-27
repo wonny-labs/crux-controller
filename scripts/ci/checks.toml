@@ -342,8 +342,9 @@ fast = ["product", "host-tests"]
 # summary of the sources they build, per file and in total. No threshold is set yet (an owner
 # decision), so the check reports and does not gate; gcovr is pinned and runs in a virtual
 # environment of the runner's temporary folder. Label: coverage reporting is documented but optional
-# (Zephyr documentation, test coverage; specification section 6.4, Q1); GCC's --coverage with gcovr
-# is a project-specific workaround, as the specification names no tool.
+# (Zephyr documentation, test coverage; specification section 6.4, Q1). The tool, gcovr, is documented
+# but optional (gcovr documentation, read: a summary of gcov data; no standard names it), as the
+# specification names no tool (section 6.3).
 [[check]]
 id = "host-coverage"
 job = "host-OFF"

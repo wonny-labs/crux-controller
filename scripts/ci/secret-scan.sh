@@ -9,10 +9,11 @@
 # default rules (private keys, API tokens, passwords in known formats) and prints each finding with
 # the secret redacted. A finding fails the check. There is no .gitleaks.toml, so no rule is turned
 # off; .gitleaksignore at the repository root lists the fingerprints of reviewed false positives,
-# and tests/tooling/test_secret_scan.py keeps that list fixed. Run from the repository root. Nothing is uploaded. Label: a secret scan is documented but optional (GitHub
-# documentation, secret scanning; specification section 6.4, Q1), and the tool is a project-specific
-# workaround, as the specification leaves it open (section 6.3); Gitleaks documents the dir command
-# and its default rules in its README.
+# and tests/tooling/test_secret_scan.py keeps that list fixed. Run from the repository root. Nothing
+# is uploaded. Label: a secret scan is documented but optional (GitHub documentation, secret
+# scanning; specification section 6.4, Q1). The tool, Gitleaks, is documented but optional (Gitleaks
+# README, read: its dir command and its setup options; no standard names it), as the specification
+# leaves it open (section 6.3).
 set -euo pipefail
 
 GITLEAKS_VERSION=8.30.1
