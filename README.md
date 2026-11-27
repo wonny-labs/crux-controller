@@ -1,4 +1,4 @@
-# Crux Controller _(crux-controller)_
+# Crux Controller
 
 Crux Controller is a controller framework for products built on [Crux](https://github.com/wonny-labs/crux).
 
