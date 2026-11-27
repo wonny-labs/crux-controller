@@ -115,6 +115,7 @@ static bool account_and_login(void)
 }
 
 /* A command whose output holds reply, and the prompt after it. */
+// NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
 static bool command(const char *line, const char *reply)
 {
     scenario_console_type(line);

@@ -63,6 +63,9 @@ static bool started;
 static const char *channel_names[SUPERVISION_CHANNELS_MAX];
 static int channel_ids[SUPERVISION_CHANNELS_MAX];
 static const size_t channel_count = SUPERVISION_CHANNELS_MAX;
+/* The slot number of each handle, whose address is the callback's argument. */
+static const size_t slot_numbers[SUPERVISION_CHANNELS_MAX] = {0, 1, 2, 3, 4, 5, 6, 7};
+BUILD_ASSERT(SUPERVISION_CHANNELS_MAX == 8u, "slot_numbers lists every slot");
 /* One bit per handle whose channel expired; set in the timer callback, read by the thread. A slot
  * whose bit is set is never given again before the reset. */
 static atomic_t expired;
@@ -82,7 +85,9 @@ static void say(crux_log_level_t level, const char *text)
 static void channel_expired(int channel_id, void *user_data)
 {
     ARG_UNUSED(channel_id);
-    (void)atomic_or(&expired, (atomic_val_t)BIT((uintptr_t)user_data));
+    const size_t *slot = user_data;
+
+    (void)atomic_or(&expired, (atomic_val_t)BIT(*slot));
 }
 
 #if defined(CONFIG_THREAD_STACK_INFO) && defined(CONFIG_INIT_STACKS) &&                            \
@@ -272,7 +277,7 @@ int supervisor_port_channel_add(const char *name, uint32_t reload_ms)
     k_spin_unlock(&lock, key);
 
     /* task_wdt_add() feeds the new channel at once, so timing starts here. */
-    const int id = task_wdt_add(reload_ms, channel_expired, (void *)(uintptr_t)handle);
+    const int id = task_wdt_add(reload_ms, channel_expired, (void *)&slot_numbers[handle]);
 
     key = k_spin_lock(&lock);
     if (id < 0) {

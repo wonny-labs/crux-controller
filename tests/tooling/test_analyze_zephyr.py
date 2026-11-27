@@ -26,7 +26,14 @@ class KeptArguments(unittest.TestCase):
                    "autoconf.h", "-include", "first.h", "-std=c17", "-m64", "-nostdinc", "-c", "a.c",
                    "-o", "a.o"]
         self.assertEqual(["-DFOO=1", "-D", "BAR", "-Iinc", "-isystem", "/sys", "-imacros", "autoconf.h",
-                          "-include", "first.h", "-std=c17", "-m64", "-nostdinc"],
+                          "-include", "first.h", "-std=c17", "-m64", "-nostdlibinc"],
+                         analyze_zephyr.kept_arguments(command))
+
+    def test_gccs_own_header_folder_is_left_out(self):
+        # clang refuses GCC's stdatomic.h; its built-in headers take the place of GCC's.
+        command = ["gcc", "-isystem", "/usr/lib/gcc/x86_64-linux-gnu/13/include", "-isystem",
+                   "/ws/modules/picolibc/include", "-I/usr/lib/gcc/x86_64-linux-gnu/13/include-fixed"]
+        self.assertEqual(["-isystem", "/ws/modules/picolibc/include"],
                          analyze_zephyr.kept_arguments(command))
 
     def test_gcc_options_that_clang_refuses_are_dropped(self):

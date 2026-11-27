@@ -23,6 +23,7 @@ import argparse
 import json
 import os
 import pathlib
+import re
 import shlex
 import subprocess
 import sys
@@ -36,7 +37,12 @@ import analyze_host  # noqa: E402
 KEPT_WITH_VALUE = ("-I", "-isystem", "-iquote", "-idirafter", "-include", "-imacros", "-D", "-U")
 # Options whose value is joined to them that the analysis keeps.
 KEPT_PREFIXES = ("-I", "-D", "-U", "-std=", "-isystem", "-iquote", "-idirafter")
-KEPT_EXACT = frozenset({"-m32", "-m64", "-nostdinc"})
+KEPT_EXACT = frozenset({"-m32", "-m64"})
+# GCC's own header folder (stddef.h, stdatomic.h and the like for GCC) is left out, so that clang uses
+# its built-in headers, and -nostdinc becomes -nostdlibinc, which keeps them while it still leaves out
+# the host's C library headers; the image's C library comes from its -isystem path.
+GCC_HEADERS = "/lib/gcc/"
+REPLACED = {"-nostdinc": "-nostdlibinc"}
 
 
 def arguments_of(entry):
@@ -54,10 +60,14 @@ def kept_arguments(arguments):
     while index < len(arguments):
         argument = arguments[index]
         if argument in KEPT_WITH_VALUE and index + 1 < len(arguments):
-            kept += [argument, arguments[index + 1]]
+            if GCC_HEADERS not in arguments[index + 1]:
+                kept += [argument, arguments[index + 1]]
             index += 2
             continue
-        if argument in KEPT_EXACT or argument.startswith(KEPT_PREFIXES):
+        if argument in REPLACED:
+            kept.append(REPLACED[argument])
+        elif argument in KEPT_EXACT or (argument.startswith(KEPT_PREFIXES)
+                                        and GCC_HEADERS not in argument):
             kept.append(argument)
         index += 1
     return kept
@@ -109,7 +119,10 @@ def main(argv=None):
               flush=True)
         for path in sources:
             print(f"  {path.relative_to(root).as_posix()}")
-        command = [tool, "-p", directory, "--quiet"]
+        # Headers of this repository only, as .clang-tidy asks: its filter alone would also match the
+        # generated headers of a build folder whose path holds "tests".
+        header_filter = f"^{re.escape(str(root))}/(workload|app|tests)/"
+        command = [tool, "-p", directory, "--quiet", f"--header-filter={header_filter}"]
         command += [f"--extra-arg={arg}" for arg in args.extra_arg]
         status = subprocess.run(command + [str(path) for path in sources]).returncode
     missing = analyze_host.not_analysed(analyze_host.tracked_sources(root), sources)
