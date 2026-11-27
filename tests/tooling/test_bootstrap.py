@@ -214,7 +214,7 @@ class BootstrapDispatch(unittest.TestCase):
         self.assertEqual(1, len(result.stdout.strip().splitlines()) + len(result.stderr.strip().splitlines()))
 
     def test_board_host_runs_the_step_of_the_crux_checkout(self):
-        crux = self.repo.parent / "crux-pilot" / "scripts"
+        crux = self.repo.parent / "crux" / "scripts"
         crux.mkdir(parents=True)
         (crux / "bootstrap.sh").write_text(f'#!/usr/bin/env bash\necho "crux $*" >> "{self.log}"\n')
         result = self.run_script_args("board-host")

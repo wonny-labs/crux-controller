@@ -3,7 +3,7 @@
 
 The Boundary check job downloads check_domain_includes.py from a commit URL and verifies its
 SHA-256 before it runs: the check product-include-check of scripts/ci/checks.toml, with the pins
-of the job env in ci.yml. The revision of crux-pilot that west.yml pins contains the same file with
+of the job env in ci.yml. The revision of Crux that west.yml pins contains the same file with
 the same hash. These tests read the workflow and the map file only. They do not use the network.
 """
 
@@ -18,7 +18,7 @@ import ci_map
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 CI = ROOT / ".github" / "workflows" / "ci.yml"
 URL = re.compile(
-    r"https://raw\.githubusercontent\.com/wonny-labs/crux-pilot/"
+    r"https://raw\.githubusercontent\.com/wonny-labs/crux/"
     r"(?P<commit>\$\{CHECK_COMMIT\}|[0-9a-f]{40})/templates/product/check_domain_includes\.py"
 )
 

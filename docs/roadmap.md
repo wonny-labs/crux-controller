@@ -45,7 +45,7 @@ Around the configurations:
 - Declared resource limits for `minimal` to `base` (`budgets/limits.json`), which are placeholders, checked in
   CI against static size only. Stack use, heap use and timing are not measured.
 - Release tooling and a dry run that publishes nothing, a rebuild comparison at another path, and a daily
-  build against the current `crux-pilot` main that is information only.
+  build against the current Crux `main` that is information only.
 - The findings notes are listed in the [findings index](findings/README.md).
 
 ## Static size per configuration
@@ -127,7 +127,7 @@ its own resource row and tests first on `native_sim`. What it says is out of sco
 of Crux Thread, Sync, Queue and Serial, Reliance Edge, and any firmware image in public form. These are
 the recorded positions, not commitments.
 
-Nothing has been filed in `crux-pilot`, and filing a request there needs the owner's approval. How the work
+Nothing has been filed in Crux, and filing a request there needs the owner's approval. How the work
 was tracked is in [history](history/board-runs-and-tracking.md).
 
 ## Also not done

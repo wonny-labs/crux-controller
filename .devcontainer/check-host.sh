@@ -64,7 +64,7 @@ check_layout() {
     for entry in "$workspace"/*; do
         name="${entry##*/}"
         case "$name" in
-            crux-controller | .west | zephyr | modules | bootloader | tools | crux-pilot | twister-out* | .crux-extra-ca.crt) ;;
+            crux-controller | .west | zephyr | modules | bootloader | tools | crux | twister-out* | .crux-extra-ca.crt) ;;
             *) others="$others $name" ;;
         esac
     done

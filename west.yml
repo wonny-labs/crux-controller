@@ -1,5 +1,5 @@
 # West manifest of crux-controller. This repository is the manifest repository
-# and Crux (crux-pilot) is imported at a pinned commit (west's T2 topology). No optional
+# and Crux (the project crux) is imported at a pinned commit (west's T2 topology). No optional
 # group is enabled here. The Crux import is narrowed by name (see the comment on the
 # project). The one other project is picolibc, a test-only libc for the native_sim scenario of
 # the net configuration (see the comment on the project).
@@ -13,9 +13,9 @@ manifest:
       url-base: https://github.com/zephyrproject-rtos
 
   projects:
-    - name: crux-pilot
+    - name: crux
       remote: crux
-      # Commit of crux-pilot origin/main, the merge of its account-only credential erase and the
+      # Commit of Crux origin/main, the merge of its account-only credential erase and the
       # require_existing_identity option of TLS certificate start. It follows 05a50475 and keeps
       # Zephyr v4.5.0 (41d10b59) and the Crux manifest: every Zephyr module, MCUboot (2.5.0),
       # Mbed TLS 4.1.1 and TF-PSA-Crypto 1.1.1 keep their revisions; the three are in the optional groups

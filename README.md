@@ -1,7 +1,7 @@
 # Crux Controller
 
 Crux Controller is an Apache-2.0 controller framework for products built on
-[Crux](https://github.com/wonny-labs/crux-pilot), an embedded software platform for Zephyr RTOS firmware.
+[Crux](https://github.com/wonny-labs/crux), an embedded software platform for Zephyr RTOS firmware.
 It is a Zephyr module that products import, with a base image that runs its services and no application.
 It uses Crux through public headers, public CMake targets and published composition interfaces only. Its other
 build configurations show one Crux capability each, on a synthetic workload.
@@ -62,7 +62,7 @@ it, and [Adding a capability](docs/adding-a-capability.md) shows how a configura
 | Add a capability | [Adding a capability](docs/adding-a-capability.md) and [the composition zone](docs/composition-zone.md) |
 | Review a change | [Reviewing](docs/reviewing.md) |
 | Run an image on a board | [Board bring-up](docs/board-bring-up.md) |
-| Build a product of your own on Crux | Crux's guides at the pinned revision: [Choosing an API](https://github.com/wonny-labs/crux-pilot/blob/1330195487c34c8df6046d41ae030d3cdf8a5138/docs/choosing-an-api.md), [Composition interfaces](https://github.com/wonny-labs/crux-pilot/blob/1330195487c34c8df6046d41ae030d3cdf8a5138/docs/composition-interfaces.md), the [Product Composition Guide](https://github.com/wonny-labs/crux-pilot/blob/1330195487c34c8df6046d41ae030d3cdf8a5138/docs/product-composition.md) with its [product template](https://github.com/wonny-labs/crux-pilot/blob/1330195487c34c8df6046d41ae030d3cdf8a5138/templates/product/README.md), and [Component readiness](https://github.com/wonny-labs/crux-pilot/blob/1330195487c34c8df6046d41ae030d3cdf8a5138/docs/component-readiness.md) |
+| Build a product of your own on Crux | Crux's guides at the pinned revision: [Choosing an API](https://github.com/wonny-labs/crux/blob/1330195487c34c8df6046d41ae030d3cdf8a5138/docs/choosing-an-api.md), [Composition interfaces](https://github.com/wonny-labs/crux/blob/1330195487c34c8df6046d41ae030d3cdf8a5138/docs/composition-interfaces.md), the [Product Composition Guide](https://github.com/wonny-labs/crux/blob/1330195487c34c8df6046d41ae030d3cdf8a5138/docs/product-composition.md) with its [product template](https://github.com/wonny-labs/crux/blob/1330195487c34c8df6046d41ae030d3cdf8a5138/templates/product/README.md), and [Component readiness](https://github.com/wonny-labs/crux/blob/1330195487c34c8df6046d41ae030d3cdf8a5138/docs/component-readiness.md) |
 | Find any other page by task | [Documentation map](docs/README.md) |
 
 ## Status
