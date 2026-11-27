@@ -24,7 +24,7 @@ When the pin moves, each gap is checked again; a gap whose Crux change is at the
 | [C11](#c11-simulated-watchdog-on-native_sim) | None | — | — | None |
 | [C12](#c12-soc-gates) | Board-neutral driver gates | Crux change needed when a second board enters the scope (D9) | Deferred | A second board |
 | [C13](#c13-linux-providers) | Linux providers | Designed with Crux's first Linux product | — | Delivery stage 6 |
-| [C14](#c14-operator-reset-marker-and-crux-reboot) | A pre-reset hook in Crux Reboot | Crux change needed | 2 | None; the interim rule serves delivery stage 2 |
+| [C14](#c14-operator-reset-marker-and-crux-reboot) | A pre-reset hook in Crux Reboot | Crux change needed | 2 | None; the interim rule serves every delivery stage, including Product Ready |
 | [C15](#c15-size-limit-of-the-application-data-root) | A size limit per File root | Crux change needed | 1 | Delivery stage 4 (criterion 24); Framework Complete |
 | [Web adapter](#other-crux-changes) | A web adapter for the File service | Crux change needed | 3 | Product Ready of a product that offers HTTPS file transfer |
 
@@ -131,7 +131,7 @@ The pin is Crux `62ed69f1`; the Crux `main` changes above are at `05a50475` and 
 ### C6. Console and logging UART
 
 Zephyr's usual way to share one UART is the shell's log backend (`CONFIG_SHELL_LOG_BACKEND`), which queues log messages and multiplexes them with the shell's output.
-Crux refuses every form of it, at the pin and on Crux `main`:
+Crux refuses every form of it, at the pin and on Crux `main`; the line references are at the pin:
 
 | Where | What it refuses |
 |---|---|

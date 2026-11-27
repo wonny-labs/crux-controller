@@ -103,14 +103,14 @@ Build and run commands:
 
 | Command | What it does | Available |
 |---|---|---|
-| `bash scripts/build-board.sh management` | Builds this repository's device management configuration for the RT1060-EVKB | Now |
+| `bash scripts/build-board.sh management` | Builds this repository's device management configuration for the RT1060-EVKB; it needs the Mbed TLS group, which the Dev Container does not switch on ([board bring-up](../board-bring-up.md)) | Now |
 | `west twister -p native_sim/native/64 -T tests/native_sim` | Runs this repository's `native_sim` scenarios | Now |
 | `bash scripts/build-board.sh <configuration>` | Builds the base image for the board; the configuration name is open (D13) | After delivery stage 1 |
 | `west init -l product` and `west update` | Fetch Zephyr, Crux and the framework into a product workspace | After delivery stage 1 |
 | `west build -b <board> app` | Builds the product image | After delivery stage 1 |
 | `west build -b native_sim/native/64 app -t run` | Builds and runs the product image on `native_sim` | After delivery stage 1 |
 
-The [tutorial](../tutorial.md) runs each current command through `bash scripts/dev-shell.sh`.
+The [tutorial](../tutorial.md) runs the Twister command through `bash scripts/dev-shell.sh`, and [board bring-up](../board-bring-up.md) runs `scripts/build-board.sh`.
 
 Integration order:
 
@@ -153,7 +153,7 @@ stateDiagram-v2
 
 ## Health and recovery
 
-A failure that is not a hang degrades the controller and is reported; a hang ends in a reset.
+A failure that is not a hang degrades the failing service, and the controller when the service is required, and is reported; a hang ends in a reset.
 Repeated fault resets lead to safe mode, a recovery-oriented service set from which an operator recovers the controller.
 
 ```mermaid
@@ -163,7 +163,7 @@ flowchart TD
     hang -->|yes| record["Write the retained record"]
     record --> armed{"Hardware watchdog armed?"}
     armed -->|yes| reset["Stop feeding: watchdog reset"]
-    armed -->|"no, the build allows it"| soft["Software reset"]
+    armed -->|no| soft["Software reset"]
     reset --> classify["Next boot: classify the reset and update the boot counter"]
     soft --> classify
     classify --> limit{"Counter reaches N?"}
