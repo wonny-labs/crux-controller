@@ -237,11 +237,23 @@ Hashes only: no firmware image, `.elf` or `.map` file goes into the repository, 
 CI artefact. No workflow uploads an artefact, and a test fails if one starts to. See
 [RELEASE.md](RELEASE.md).
 
-## Releases, tags and forks
+## Versions, releases and tags
 
-Tags, GitHub Releases and forks of this repository need the owner's approval. No workflow tags or
-publishes; they run with `contents: read`. No support period is promised, and only the latest release,
-if one exists, is supported.
+This section applies to people and to automated coding assistants alike. The release steps are in
+[RELEASE.md](RELEASE.md).
+
+- The version follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html). The number is kept
+  only in `include/controller/version.h`.
+- `main` carries the next planned release with `-dev`, now `0.1.0-dev`. No pull request changes the
+  version macros. Code must not test features by version number before 1.0.0.
+- Each pull request records its change and its compatibility effect in [CHANGELOG.md](CHANGELOG.md) under
+  Unreleased. Mark a breaking change to a public interface in that entry and in the pull request.
+- Builds are told apart by commit SHA. The version string does not order two snapshots of `main`.
+- `tests/tooling/test_version.py` fails when the version parts and the string disagree. CI runs it.
+- Change the version files only in a release task. Create no tag and no GitHub Release, and do not treat a
+  green check as approval. Tags, GitHub Releases and forks of this repository need the owner's approval.
+  No workflow tags or publishes; they run with `contents: read`. No support period is promised, and only
+  the latest release, if one exists, is supported.
 
 ## Security and licence
 

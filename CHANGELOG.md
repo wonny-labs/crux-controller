@@ -39,6 +39,8 @@ build configurations by their earlier step ids, S0 to S6.
   `<controller/version.h>` is the only place it is kept, with Semantic Versioning macros
   (`CONTROLLER_VERSION_MAJOR` to `CONTROLLER_VERSION_STRING`), and `tests/tooling/test_version.py` fails when
   the parts and the string disagree. It is not an image version; no tag exists.
+- The versioning and release rules are in [CONTRIBUTING.md](CONTRIBUTING.md#versions-releases-and-tags) and
+  [RELEASE.md](RELEASE.md#versions). No compatibility effect.
 
 ### Capability names
 

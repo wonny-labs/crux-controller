@@ -7,6 +7,25 @@ The general rules for releasing a product on Crux are in the Crux composition gu
 "Release": [`docs/product-composition.md` at the pinned revision `13301954`](https://github.com/wonny-labs/crux/blob/1330195487c34c8df6046d41ae030d3cdf8a5138/docs/product-composition.md).
 This page does not copy it. It says only what this repository does.
 
+## Versions
+
+The rules for daily work, such as what `main` carries, are in [CONTRIBUTING.md](CONTRIBUTING.md#versions-releases-and-tags).
+This section holds the release rules.
+
+- `X.Y.Z-dev` is `main` between releases. `X.Y.Z-rc.N` is a release candidate. `X.Y.Z` is a release.
+- A release is explicit. The owner approves it, and it is made in a release task: the release pull request
+  drops the suffix in `CONTROLLER_VERSION_PRERELEASE` and `CONTROLLER_VERSION_STRING`, and moves the
+  CHANGELOG entries under the release number.
+- The owner approves the merge of the release pull request. The owner then tags that merge commit
+  `vX.Y.Z` with an annotated tag. Tags are never moved.
+- Right after a release, `main` moves to the next version in a pull request: `X.(Y+1).0-dev`.
+- Only tags of the form `vX.Y.Z` exist. A release candidate is a version string, not a tag.
+- Before 1.0.0, every release from `main` raises the minor number, breaking changes included.
+- A patch release `X.Y.(Z+1)` comes only from a release branch `v0.Y.x`, cut from the tag when it is needed.
+- From 1.0.0, follow Semantic Versioning 2.0.0: a major number for an incompatible change, a minor number
+  for a compatible addition, a patch number for a fix.
+- Releases happen when they are needed, not on a calendar.
+
 ## The flow
 
 The workflow is `.github/workflows/release.yml`; its steps are the checks of the job `release` in `scripts/ci/checks.toml`.
