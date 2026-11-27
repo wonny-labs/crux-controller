@@ -31,7 +31,7 @@ those interfaces shows up here and is reported to Crux as an issue.
 | `workload/` | ISO C and its own tree | Crux, Sockets profile and Zephyr headers |
 | `app/compose/` (the composition zone) | ISO C, public `<crux/NAME.h>` headers, `<crux/file_zephyr.h>`, `<crux/web_zephyr.h>`, `<crux/cli_zephyr.h>`, `zephyr/fs/fs.h`, `zephyr/devicetree.h`, `zephyr/net/tls_credentials.h`, its own tree, header files (`.h`) of `app/src` | the Sockets profile, a Crux private or port header, any other Zephyr header, vendor and third-party headers |
 | `app/os/` (the adapter zone) | ISO C, public `<crux/NAME.h>` headers except the frozen three, `zephyr/kernel.h`, `zephyr/net/sntp.h`, its own tree, header files (`.h`) of `app/src` | the Sockets profile and other POSIX headers, `<crux/thread.h>`, `<crux/sync.h>`, `<crux/serial.h>`, `<crux/file_zephyr.h>`, `<crux/web_zephyr.h>`, `<crux/cli_zephyr.h>` or any composition interface, a Crux private or port header, any other Zephyr header, vendor and third-party headers |
-| `include/` (the interface header of the framework) | ISO C, public `<crux/NAME.h>` headers except the frozen three, its own tree | any Zephyr header, the Sockets profile, a composition interface, a header of `framework/` |
+| `include/` (the interface headers of the framework) | ISO C, public `<crux/NAME.h>` headers except the frozen three, its own tree | any Zephyr header, the Sockets profile, a composition interface, a header of `framework/` |
 | `framework/src` (the portable core) | ISO C, public `<crux/NAME.h>` headers except the frozen three, its own tree, `<controller/NAME.h>` | any Zephyr header, the Sockets profile, a composition interface, the workload, a header of a zone |
 | `framework/compose/` (the composition zone of the module) | the allow-list of `app/compose/`, header files (`.h`) of `framework/src` | as `app/compose/`, and `app/src` |
 | `framework/os/` (the adapter zone of the module) | the allow-list of `app/os/`, header files (`.h`) of `framework/src` | as `app/os/`, and `app/src` |
@@ -237,11 +237,23 @@ Hashes only: no firmware image, `.elf` or `.map` file goes into the repository, 
 CI artefact. No workflow uploads an artefact, and a test fails if one starts to. See
 [RELEASE.md](RELEASE.md).
 
-## Releases, tags and forks
+## Versions, releases and tags
 
-Tags, GitHub Releases and forks of this repository need the owner's approval. No workflow tags or
-publishes; they run with `contents: read`. No support period is promised, and only the latest release,
-if one exists, is supported.
+This section applies to people and to automated coding assistants alike. The release steps are in
+[RELEASE.md](RELEASE.md).
+
+- The version follows the rules in [RELEASE.md](RELEASE.md#versions). The number is kept only in
+  `include/controller/version.h`.
+- `main` carries the next planned release with `-dev`, now `0.1.0-dev`. No pull request outside a release
+  task changes the version macros. Code must not test features by version number before 1.0.0.
+- Each pull request records its change and its compatibility effect in [CHANGELOG.md](CHANGELOG.md) under
+  Unreleased. Mark a breaking change to a public interface in that entry and in the pull request.
+- Builds are told apart by commit SHA. The version string does not order two snapshots of `main`.
+- `tests/tooling/test_version.py` fails when the version parts and the string disagree. CI runs it.
+- Change the version files only in a release task. Create no tag and no GitHub Release, and do not treat a
+  green check as approval. Tags, GitHub Releases and forks of this repository need the owner's approval.
+  No workflow tags or publishes; they run with `contents: read`. No support period is promised, and only
+  the latest release, if one exists, is supported.
 
 ## Security and licence
 
