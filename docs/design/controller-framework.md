@@ -1,43 +1,34 @@
 # Controller framework
 
-The controller framework is a Zephyr module of this repository that composes the Crux services of a networked controller, supervises the controller's health and defines how an application joins it.
-This page explains what it is, who does what and how a product uses it.
-The [specification](controller-framework-spec.md) holds the requirements, the application interface, the operating model and the decisions, and the [platform gaps](controller-framework-platform-gaps.md) hold the Crux constraints at the pin.
+A product developer who builds a networked controller on Crux gets from the controller framework a controller that starts its platform services in one defined order, offers device management, supervises its own health and recovers from faults.
+The product keeps its application, the application's threads and their timing, its output safe state and its board files, and the framework imposes no execution model on the application.
+The framework is a Zephyr module of this repository, which the product imports with west.
+This page explains what the framework gives, who does what and how a product joins it.
+The [specification](controller-framework-spec.md) holds the requirements, the application interface, the operating model and the decisions, and the [platform gaps](controller-framework-platform-gaps.md) hold the Crux constraints at the pin and the Crux interface of each service.
 
 ## What it is
 
 - A **product** is a firmware repository outside this repository that imports Crux and the framework and adds an application.
 - An **application** is the product code that joins the framework: the product's own control software or a third-party application runtime.
 - The **base image** is the one image that this repository builds: every framework service and no application.
-- The framework gives the application no execution model: the application creates its own threads with Zephyr and calls Crux's public APIs directly.
+- The application creates its own threads with Zephyr and calls Crux's public APIs directly.
 
 ```mermaid
 flowchart TB
-    subgraph product["Product repository"]
-        pmain["main()"]
-        app["Application and its threads"]
-    end
-    subgraph framework["Controller framework, a Zephyr module"]
-        start["Start function and startup steps"]
-        sup["Supervisor and task watchdog"]
-        mgmt["Device management composition"]
-    end
-    subgraph crux["Crux services"]
-        csvc["Access, command line, web, configuration, status, logging, time, file, sockets, system"]
-    end
+    app["Product: main() and the application"]
+    framework["Controller framework: startup, supervision, device management"]
+    crux["Crux services"]
     zephyr["Zephyr kernel and drivers"]
-    board["Board: hardware watchdog, network, storage medium, UARTs"]
-    pmain -->|descriptor| start
-    start -->|init, start, stop, safe_state| app
-    app -->|feeds its channels| sup
-    app -->|public APIs| csvc
-    start --> csvc
-    mgmt --> csvc
-    sup -->|one watchdog token| csvc
-    csvc --> zephyr
+    board["Board"]
+    app -->|descriptor| framework
+    app -->|public APIs| crux
+    framework --> crux
+    crux --> zephyr
     app -->|threads| zephyr
     zephyr --> board
 ```
+
+The [startup sequence](controller-framework-spec.md#41-startup-steps) shows how the start function, the supervisor, the Crux services and the application interact.
 
 ## Who does what
 
@@ -50,37 +41,36 @@ flowchart TB
 - **The product** is responsible for the recovery policy choices that the framework offers (start prerequisites, runtime dependencies and the application's response to them, safe-mode threshold, watchdog policy), the output safe state and output protection during a reset with their hardware, the storage medium, device preparation and its board files.
   It is not responsible for the framework's internal policy.
 
-## Services
+## Capabilities
 
-| Service | Crux interface | Use in the framework | At the pin | Target |
-|---|---|---|---|---|
-| Web management | Crux Access, web server on the selected TLS profile (`<crux/web_zephyr.h>`), configuration and status services, a packaged page, the reboot routes (`CONFIG_CRUX_REBOOT`) | HTTPS web UI: status, parameters, accounts, reboot | Mbed TLS profile only | Also the Wolf profile ([C7](controller-framework-platform-gaps.md#c7-ssh-and-tls-profiles)) |
-| Serial command line | Crux console, `crux_cli_serial_start()` in `<crux/cli_zephyr.h>` | Command line with first-account setup (`!setup`); Access closes provisioning after the first save | On a second UART ([C6](controller-framework-platform-gaps.md#c6-console-and-logging-uart)) | Separate or shared UART as a build option |
-| SSH command line and SFTP | Crux SSH and Crux File service | Command line and file transfer over SSH | None (C7) | A build option with the Wolf profile and a Crux SSH composition interface |
-| Health supervision | Crux System (reset cause, one hardware watchdog activation), Zephyr task watchdog | [Specification section 4](controller-framework-spec.md#4-operating-model) | Crux service threads supervised indirectly ([C8](controller-framework-platform-gaps.md#c8-crux-service-threads-and-supervision)) | Every thread supervised by progress |
-| Time | Crux Time (monotonic clock, time authority), Zephyr SNTP | Wall time for logs, records and status; every timing decision uses the monotonic clock | Available | Unchanged |
-| Logging | Crux Logging (UART logger) | Framework log modules; the application uses Crux Logging directly | Available | Unchanged |
-| Configuration | Crux configuration service over the Crux Configuration Settings File provider | Framework and application parameters, shown in device management | Not persistent ([C4](controller-framework-platform-gaps.md#c4-configuration-saving-needs-a-power-cut-safe-file-system)) | Saved on LittleFS |
-| Network | Zephyr network configuration library, Crux Netif, Crux Sockets profile | Interface up before `main()`; link state for health and status | Available | Unchanged |
-| Storage | Crux File, one provider, one mount ([C1](controller-framework-platform-gaps.md#c1-one-storage-provider-per-image)) | Application data root, credential store roots, settings file | microSD FatFs provider (C4) | LittleFS on the reference board's microSD card |
-| Update | Crux image state contract | Health verdict for the confirmation of a test image | Images prepared for MCUboot, no confirmation ([C10](controller-framework-platform-gaps.md#c10-image-state)) | Health-gated confirmation |
+| Capability | What the product gets | Current state | Target |
+|---|---|---|---|
+| Device management | An HTTPS web UI for status, parameters, accounts and reboot, and a serial command line with first-account setup | Web management on Crux's Mbed TLS profile, and the serial command line on a second UART ([C6](controller-framework-platform-gaps.md#c6-console-and-logging-uart), [C7](controller-framework-platform-gaps.md#c7-ssh-and-tls-profiles)) | SSH, the Wolf TLS profile and one shared UART as build options |
+| Configuration | Parameters of the framework and the application, shown and changed through device management | Not persistent at the pin ([C4](controller-framework-platform-gaps.md#c4-configuration-saving-needs-a-power-cut-safe-file-system)) | Saved on a power-cut-safe file system, LittleFS on the reference board |
+| Health monitoring | Controller state, application state, service health, reset cause, last-fault record and watchdog state in the status service | Specified; Crux service threads supervised indirectly ([C8](controller-framework-platform-gaps.md#c8-crux-service-threads-and-supervision)) | Every Crux service thread supervised by its progress |
+| Fault recovery | A watchdog reset on a hang, a retained fault record, a boot counter, safe mode and health-gated image confirmation | Specified; images prepared for MCUboot with no confirmation ([C10](controller-framework-platform-gaps.md#c10-image-state)) | Health-gated confirmation through Crux's image state contract |
+| Application integration | A descriptor with four entries, watchdog channels, status items, parameters and a data root | Specified; delivered in delivery stage 3 | Validated by a first real runtime consumer |
+| Platform integration | The Crux services for time, logging, network, storage, sockets and system, composed in one start order, with per-board values in board files | Specified; the reference board is the RT1060-EVKB | Further boards when one enters the scope ([C12](controller-framework-platform-gaps.md#c12-soc-gates)) |
+
+The [service mapping](controller-framework-platform-gaps.md#service-mapping) names the Crux interface behind each capability.
 
 ## How a product joins
 
 A product is a workspace application whose repository is the west manifest repository (west's T2 topology), the shape that Crux's `templates/product` also uses:
 
 ```text
-product/                 manifest repository
-  west.yml               imports Crux and the framework
+product/                 the west manifest repository
+  west.yml               imports Crux and the framework at pinned commits
   app/
     CMakeLists.txt
-    prj.conf             build options
-    src/main.c           main() with the application's descriptor
+    prj.conf             build options, including the framework's Kconfig symbol
+    src/main.c           main(), which passes the application's descriptor to the start function
     boards/<board>.conf  per-board values
     boards/<board>.overlay
 ```
 
-The manifest lists both repositories at pinned commits and imports the Crux manifest, which brings in Zephyr, without the three wolf projects:
+The manifest below is the reference configuration on Crux's Mbed TLS profile: it imports the Crux manifest, which brings in Zephyr, and blocks the three wolf projects.
+A product on the Wolf profile needs another manifest ([C7](controller-framework-platform-gaps.md#c7-ssh-and-tls-profiles)).
 
 ```yaml
 manifest:
@@ -103,31 +93,35 @@ manifest:
     path: product
 ```
 
-1. `west init -l product` and `west update` fetch Zephyr, Crux and the framework into the workspace.
-2. The framework is a Zephyr module, and the product turns it on with one Kconfig symbol in `prj.conf`.
-3. The product's `main()` passes the application's descriptor to the framework's start function once.
-4. The start function runs the startup steps, starts the application last, returns, and the supervisor keeps supervising.
-5. The product sets the build options with Kconfig and keeps per-board values in its board files.
+Enabling configuration:
 
-```mermaid
-sequenceDiagram
-    participant M as main()
-    participant F as Start function
-    participant S as Supervisor
-    participant C as Crux services
-    participant A as Application
-    M->>F: descriptor
-    F->>F: Step 1 reset cause, retained record, boot counter
-    F->>S: Step 2 start the supervisor
-    S->>S: Arm the hardware watchdog
-    F->>C: Steps 3 and 4 storage, credential store, Access
-    F->>A: Step 5 init
-    F->>C: Steps 6 to 10 configuration, status, time, command line, web
-    F->>F: Step 11 check the start prerequisites
-    F->>A: Step 12 activate channels, start
-    F-->>M: return
-    Note over S,A: Runtime supervision
-```
+- One Kconfig symbol in `prj.conf` turns the framework module on; its name is open, decided at implementation (after delivery stage 1).
+- The build options of [specification section 7.1](controller-framework-spec.md#71-build-options) select the transports, the start prerequisites, the safe-mode threshold and the deadlines.
+- The board files set the devicetree roles: the aliases `crux-serial0` and `crux-watchdog0`, the `chosen` node `zephyr,log-uart` and the node label `controller_storage` ([specification section 7.2](controller-framework-spec.md#72-boards-and-variants)).
+
+Build and run commands:
+
+| Command | What it does | Available |
+|---|---|---|
+| `bash scripts/build-board.sh management` | Builds this repository's device management configuration for the RT1060-EVKB | Now |
+| `west twister -p native_sim/native/64 -T tests/native_sim` | Runs this repository's `native_sim` scenarios | Now |
+| `bash scripts/build-board.sh <configuration>` | Builds the base image for the board; the configuration name is open (D13) | After delivery stage 1 |
+| `west init -l product` and `west update` | Fetch Zephyr, Crux and the framework into a product workspace | After delivery stage 1 |
+| `west build -b <board> app` | Builds the product image | After delivery stage 1 |
+| `west build -b native_sim/native/64 app -t run` | Builds and runs the product image on `native_sim` | After delivery stage 1 |
+
+The [tutorial](../tutorial.md) runs each current command through `bash scripts/dev-shell.sh`.
+
+Integration order:
+
+1. Create the product workspace from the manifest and turn the module on.
+2. Add the board files with the devicetree roles.
+3. Build the product with no descriptor: every framework service runs, as in the base image, and device management answers.
+4. Add the application's descriptor and its entries (after delivery stage 3).
+5. Select the start prerequisites, the runtime dependencies, the safe-mode threshold and the deadlines.
+6. Prepare the device: the volume and the device identity ([specification section 5.5](controller-framework-spec.md#55-device-preparation-d11)).
+
+A code example of the application interface follows delivery stage 3, taken from the fixture application so that it matches a tested build.
 
 ## Base image
 
@@ -150,8 +144,8 @@ stateDiagram-v2
     Initialised --> Fault: activation or start fails
     Initialised --> Held: start not called
     Held --> Running: operator start after a prerequisite hold, all prerequisites healthy
-    Running --> Stopped: stop returns in time
-    Running --> Fault: application reports a fault
+    Running --> Stopped: stop succeeds
+    Running --> Fault: fault reported, stop succeeds
     Stopped --> Running: operator start
     Held --> [*]: reset
     Fault --> [*]: reset
@@ -159,20 +153,25 @@ stateDiagram-v2
 
 ## Health and recovery
 
-A failure that is not a hang degrades the controller and is reported; a hang stops the supervisor feeding the hardware watchdog, which resets the device.
-Repeated fault resets lead to safe mode, a minimal service set from which an operator recovers the controller.
+A failure that is not a hang degrades the controller and is reported; a hang ends in a reset.
+Repeated fault resets lead to safe mode, a recovery-oriented service set from which an operator recovers the controller.
 
 ```mermaid
 flowchart TD
     failure["Failure"] --> hang{"Hang?"}
     hang -->|no| degrade["Degrade and report"]
-    hang -->|yes| record["Write the retained record and stop feeding"]
-    record --> reset["Hardware watchdog reset"]
+    hang -->|yes| record["Write the retained record"]
+    record --> armed{"Hardware watchdog armed?"}
+    armed -->|yes| reset["Stop feeding: watchdog reset"]
+    armed -->|"no, the build allows it"| soft["Software reset"]
     reset --> classify["Next boot: classify the reset and update the boot counter"]
+    soft --> classify
     classify --> limit{"Counter reaches N?"}
     limit -->|no| normal["Normal boot"]
-    limit -->|yes| safe["Safe mode: minimal services, no application"]
+    limit -->|yes| safe["Safe mode: recovery-oriented services, no application"]
     safe --> exit["Operator command clears the counter and resets"]
     exit --> normal
-    normal --> stable["Operational for the stable period: the counter clears"]
+    normal --> stable["Successful boot: the counter clears"]
 ```
+
+A successful boot is a stable period in which the controller is operational and the application is neither in fault nor held ([specification section 5.2](controller-framework-spec.md#52-boot-counter-and-safe-mode-d4)).

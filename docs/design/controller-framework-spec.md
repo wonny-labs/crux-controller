@@ -2,16 +2,18 @@
 
 This page specifies the controller framework: its requirements, application interface, operating model, recovery, build options, verification and decisions.
 The [overview](controller-framework.md) explains what the framework is, who does what and how a product joins it.
-The [platform gaps](controller-framework-platform-gaps.md) hold the Crux and Zephyr constraints C1 to C13.
+The [platform gaps](controller-framework-platform-gaps.md) hold the Crux and Zephyr constraints C1 to C15 and the Crux interface behind each service.
 The page changes no source code; the [architecture](../architecture.md) and the [capabilities](../capabilities.md) describe the current images.
 
 ## 1. Scope and conventions
 
 Crux is read at the revision that [`west.yml`](../../west.yml) pins ("the pin"), and Zephyr at the release that this Crux revision pins.
+The pin is Crux `62ed69f1`, which pins Zephyr v4.4.2; Crux `main` is read at `05a50475`, which pins Zephyr v4.5.0.
 A Crux fact holds at the pin unless it carries one of these status words:
 
 | Status word | Meaning |
 |---|---|
+| Resolved (revision) | The Crux change is at the pin since that Crux revision; the gap keeps its entry and number for the references to it |
 | Crux `main` | Holds on Crux `main`, not at the pin |
 | Planned in Crux | Crux has decided the change; it is on neither the pin nor `main` |
 | Crux change needed | The framework needs the change; Crux has not decided it |
@@ -38,7 +40,7 @@ The criteria are in [section 8.4](#84-criteria).
 
 | # | Functional requirement | Criteria |
 |---|---|---|
-| F1 | The framework composes the Crux services of the [overview](controller-framework.md#services) and starts them in a defined order from one start function. | 1, 6 |
+| F1 | The framework composes the Crux services of the [service mapping](controller-framework-platform-gaps.md#service-mapping) and starts them in a defined order from one start function. | 1, 6 |
 | F2 | The base image runs every framework service with no application. | 1, 2, 3, 15 |
 | F3 | An application joins only through the interface of section 3, and the framework imposes no execution model on it. | 4, 5, 8, 14, 20, 21, 22, PR6 |
 | F4 | Device management offers HTTPS web management and a serial command line, and SSH in builds that carry its licensed stack. | 26 |
@@ -49,10 +51,10 @@ The criteria are in [section 8.4](#84-criteria).
 |---|---|---|
 | R1 | The hardware watchdog supervises the controller from startup step 2 of the start function on, through startup and runtime (section 4). | 6, 7, 9, 19, 20, 21, PR1 |
 | R2 | A hang ends in a reset, after which the next boot reports the reset cause as far as the hardware reports it and a detailed fault record only when one could be written before the reset, while a failure that is not a hang degrades the controller and is reported. | 7, 8, 9, 16, 18, PR1 |
-| R3 | Repeated fault resets lead to safe mode, a minimal service set from which an operator can recover the controller, and a fault in safe mode's own services is recovered by the boot loader or the product's recovery path (section 5.2). | 10, 11, 17 |
+| R3 | Repeated fault resets lead to safe mode, a recovery-oriented service set from which an operator can recover the controller, and a fault in safe mode's own services is recovered by the boot loader or the product's recovery path (section 5.2). | 10, 11, 17 |
 | R4 | The product declares start prerequisites, which the framework checks before every application start, and runtime dependencies, which the framework reports while the application runs (section 4.7). | 6, 10, 23 |
 | R5 | In product builds, the application does not start when the hardware watchdog cannot be armed. | 10, 19 |
-| R6 | Every startup step of a normal boot has a bounded, measured duration, and first-boot key generation belongs to device preparation. | 31 |
+| R6 | Every startup step of a normal boot has a measured duration; steps 3 to 12 have a software deadline, and steps 1 and 2 have none, because the supervisor that enforces the deadlines starts in step 2, so they are bounded by their content (section 4.1), and first-boot key generation belongs to device preparation. | 31 |
 | R7 | Configuration that the framework or the application saves survives a reset and a power cut, and the application data cannot fill the space of the settings file and the credential store (section 5.4). | 12, 24, PR1, PR2 |
 
 | # | Security requirement | Criteria |
@@ -86,7 +88,9 @@ Each entry is specified by the results it guarantees and the time it may take; h
 - `start(ctx)` is mandatory and returns within its step deadline.
   - On success, the threads that feed the activated channels run and feed within their reload periods.
   - On failure, every thread that `start` created has ended before it returns.
-- `stop(ctx, reason)` is mandatory and returns within its deadline; on return, every thread of the application has ended, so the framework can release its channels.
+- `stop(ctx, reason)` is mandatory and returns within its deadline; the reason is an operator stop, a planned reset or an application fault.
+  - On success, every thread of the application has ended, so the framework can release its channels.
+  - An error return or a missed deadline is a hang (section 4.8).
 - `safe_state(ctx)` is mandatory, puts outputs into the product's defined safe state and never blocks.
 
 ### 3.2 Context
@@ -97,7 +101,8 @@ The framework gives through `ctx` what it owns:
 - registration of status items, which the framework adds to the status service;
 - registration of a parameter table, which the framework adds to the configuration service;
 - the assigned application data root of Crux File;
-- read-only controller state and service health.
+- read-only controller state and service health;
+- a call that reports an application fault, which the framework handles on its own thread (section 4.8).
 
 The application calls Crux's public APIs directly for logging, time, sockets, file access under its data root and configuration reads, and Zephyr directly for threads and synchronisation.
 The framework does not wrap them, following the repository rule against pass-through wrappers.
@@ -108,16 +113,19 @@ The framework does not wrap them, following the repository rule against pass-thr
 |---|---|
 | One caller | The framework calls `init`, `start` and `stop` from one framework thread, in that order, never concurrently with each other |
 | Once | `init` runs once per boot; `start` runs once per transition to running; `stop` runs only in the running state |
-| `safe_state` callers | After a normal stop (an operator stop or a planned reset); on a recoverable application fault; from the supervisor on a deadline overrun or a channel expiry when the application has been initialised (section 4.8) |
+| `safe_state` callers | The framework thread, after `stop` returned (an operator stop, a planned reset or a reported application fault) and after a failed `init`, activation or `start`; the supervisor, on a deadline overrun or a channel expiry when the application has been initialised (section 4.8) |
+| `safe_state` and running threads | When the framework thread calls it, no application thread runs, because `stop` returned or no thread was started, so no application thread writes outputs after it; when the supervisor calls it, application threads may still run and overwrite outputs until the reset |
 | `safe_state` constraints | It may run concurrently with the application's threads, so it is idempotent, takes no lock, allocates nothing and logs nothing |
-| Partial `init` failure | The framework releases the registrations (requirements dropped, status items and parameters marked unavailable), calls `safe_state`, enters fault and calls neither `start` nor `stop` |
-| Partial `start` failure | When activation or `start` fails, the framework deletes the channels it activated, calls `safe_state`, enters fault and releases the registrations; threads that `start` created are the application's to end before it returns its error |
-| Thread clean-up | The framework never aborts an application thread; `stop` ends them, and the framework then releases their channels (section 4.4); a `stop` that passes its deadline is a hang (section 4.8) |
+| Partial `init` failure | The framework calls `safe_state`, releases the registrations (requirements dropped, status items and parameters marked unavailable), enters fault and calls neither `start` nor `stop` |
+| Partial `start` failure | When activation or `start` fails, the framework calls `safe_state`, deletes the channels it activated, releases the registrations and enters fault; threads that `start` created are the application's to end before it returns its error |
+| Reported application fault | The framework calls `stop` with the reason application fault and its deadline, then `safe_state`, then deletes the active channels and releases the registrations, and enters fault (section 4.8) |
+| Thread clean-up | The framework never aborts an application thread; `stop` ends them, and the framework then releases their channels (section 4.4); a `stop` that returns an error or passes its deadline is a hang (section 4.8) |
 | Second start function call | Refused, as is a descriptor without a mandatory entry |
 | Framework boundaries | The application may not block framework threads, take framework locks or call device management |
 
 Safe state is best effort.
 The framework calls `safe_state` in the cases above, but not from the fatal error handler and not after a CPU lockup.
+Once a reset is decided, the time until it is at most the watchdog timeout T, or the duration of a software reset request in a build without an armed watchdog (section 4.3).
 During and across a reset, outputs keep a safe state only through the board's hardware default, which the product designs and documents.
 IEC 61508-4 defines "safe state" for functional safety; these pages use the word in that sense and claim no safety integrity.
 
@@ -152,13 +160,33 @@ The product's `main()`, or the base image's, calls the start function once; the 
 | 11 | Check the start prerequisites (section 4.7). | A start prerequisite is not healthy: the application is held, and the controller is degraded. |
 | 12 | Unless in safe mode, with an application fault, with a start prerequisite that is not healthy, without an armed watchdog in a build that refuses it, or with no application: activate the application's registered channels and call the application's `start` (section 4.4). | Application fault, with the clean-up of a partial start (section 3.3). |
 
+```mermaid
+sequenceDiagram
+    participant M as main()
+    participant F as Start function
+    participant S as Supervisor
+    participant C as Crux services
+    participant A as Application
+    M->>F: descriptor
+    F->>F: Step 1 reset cause, retained record, boot counter
+    F->>S: Step 2 start the supervisor
+    S->>S: Arm the hardware watchdog
+    F->>C: Steps 3 and 4 storage, credential store, Access
+    F->>A: Step 5 init
+    F->>C: Steps 6 to 10 configuration, status, time, command line, web
+    F->>F: Step 11 check the start prerequisites
+    F->>A: Step 12 activate channels, start
+    F-->>M: return
+    Note over S,A: Runtime supervision
+```
+
 Startup watchdog rules (established mechanism for the parts that Crux and Zephyr provide; D4 for the step deadlines):
 
 - The hardware watchdog is armed in step 2, before the first step that touches a medium or the network, so a hang in steps 3 to 12 ends in a reset.
 - Step 1 only reads and writes registers and retained RAM, touches no storage medium or network, and is bounded.
 - Each step from 3 on has a software deadline (Kconfig, reference values from board measurement); the deadlines of steps 5 and 12 bound `init` and `start`.
 - While the current step is within its deadline, the supervisor feeds the watchdog at a period shorter than T.
-- When a step passes its deadline, the supervisor writes the retained record with the step name and stops feeding, and the watchdog resets the device.
+- When a step passes its deadline, the supervisor writes the retained record with the step name and stops feeding, and the watchdog resets the device; in a build without an armed watchdog, the supervisor requests a software reset instead (section 4.3).
 - The supervisor thread has a higher priority than the thread that runs the start function, so a long step cannot starve it (section 7.4).
 - Zephyr's default main thread priority (`CONFIG_MAIN_THREAD_PRIORITY`, 0) is above the supervisor, so the base image and each product set it into the startup band.
 - T is one value for the whole boot (C3): it covers the supervisor's feed period plus a scheduling margin, inside the provider's supported range; the step deadlines are independent of T.
@@ -175,9 +203,9 @@ Only a development or reference build with the TLS identity option generates a m
 | Not armed | The start function | Step 2 arms the hardware watchdog | Nothing; step 1 only reads and writes registers and retained RAM and touches no storage medium or network |
 | Startup supervision | Step 2 | `start` returns, or step 12 decides not to call `start` | Each startup step within its deadline (section 4.1), and every active channel |
 | Runtime supervision | The end of startup supervision | A reset | Every active channel has made progress and none has expired |
-| Feeding stopped | A step passes its deadline, `stop` passes its deadline, or a channel expires | The hardware watchdog resets the device | Nothing |
+| Feeding stopped | A step passes its deadline, `stop` returns an error or passes its deadline, or a channel expires | The hardware watchdog resets the device | Nothing |
 
-When step 2 cannot arm the watchdog, Crux System reports it as unavailable or faulted, the status service shows "not armed", and no period above applies; the application then starts only in a build that allows it (D14).
+When step 2 cannot arm the watchdog, Crux System reports it as unavailable or faulted, the status service shows "not armed", and no period above applies; the application then starts only in a build that allows it (D14), and the supervisor ends a hang with a software reset (section 4.3).
 
 ### 4.3 Runtime supervision
 
@@ -190,8 +218,10 @@ The pattern is Crux's documented one for supervising several activities (Crux `m
 | No hardware fallback | `CONFIG_TASK_WDT_HW_FALLBACK=n`; the Crux System build stops when it is set (`components/system/ports/zephyr/CMakeLists.txt:19-20`) | Platform constraint or interim |
 | No callback-less channel | A channel without a callback resets through `sys_reboot(SYS_REBOOT_COLD)`, which latches a software reset cause and loses the watchdog evidence; every channel has a callback | Established mechanism |
 | What is supervised | The framework's threads (supervisor inputs, time synchronisation, storage worker) and each application thread that registers a channel (section 3.2) | D4 |
-| Indirect health | Zephyr's threads (HTTP server, network RX and TX, deferred log processing) and Crux's (console, web workers) are not fed from inside; their health is read from link state, network buffer counters, log drop counters and a periodic local probe, until Crux offers a supervision hook ([C8](controller-framework-platform-gaps.md#c8-crux-service-threads-and-supervision)) | Platform constraint or interim |
-| Policy | Degrade and report for a failure that is not a hang (SNTP rounds fail, a save fails, the link is down); reset for a hang (a channel expires, a deadline passes, a fatal error); the reactions are in section 4.8 | D4 |
+| Crux service threads | At the pin, Crux's service threads (console, web workers, reboot and network settings workers, security event drain) are not fed from inside, and their health is read indirectly as in the next row; with Crux's progress hook (Crux `main`, [C8](controller-framework-platform-gaps.md#c8-crux-service-threads-and-supervision)), each started Crux service thread has a channel that the framework feeds from the hook | Platform constraint or interim |
+| Indirect health | Zephyr's threads (HTTP server, network RX and TX, deferred log processing), which no Crux hook covers, are not fed from inside; their health is read from link state, network buffer counters, log drop counters and a periodic local probe | Platform constraint or interim |
+| Build without an armed watchdog | In a build that allows operation without a hardware watchdog (development, bench and `native_sim` builds, D14) and whose watchdog is not armed, the supervisor ends a deadline overrun or a channel expiry by writing the retained record, calling `safe_state` when the application has been initialised, and requesting a software reset with `crux_system_reset()` (Crux `components/system/include/crux/system.h:90-97`); on `native_sim` with the simulated watchdog armed, it stops feeding as on a board ([C11](controller-framework-platform-gaps.md#c11-simulated-watchdog-on-native_sim)); a hang of the supervisor itself is not detected in such a build, which is why a product build refuses it | D14 |
+| Policy | Degrade and report for a failure that is not a hang (SNTP rounds fail, a save fails, the link is down); reset for a hang (a channel expires, a deadline passes, `stop` returns an error, a fatal error); the reactions are in section 4.8 | D4 |
 | Retained record | Before it stops feeding, the supervisor writes the failing channel or step, the uptime and the reason into a retained RAM record with a checksum (Zephyr retention subsystem over `retained_mem`) | Established mechanism (Zephyr retention) |
 | Fatal path record | The fatal error handler writes a minimal record; the fatal path and code in interrupt context must not block, so the fatal path writes the record without a mutex (with `CONFIG_RETENTION_MUTEXES`, `retention_write` takes one), by a mechanism that is open, decided at implementation | Established mechanism (Zephyr retention) |
 | Record use | The next boot reads the record once; placement and validity rules are in section 5.1 | D4 |
@@ -209,11 +239,12 @@ A **channel requirement** is a name and a reload period that `init` registers th
 | Register (`init`) | The framework records the requirement and creates no Zephyr channel. A requirement with a reload period of zero, a name already registered, or one more than the free capacity is refused, and `init` sees the error. |
 | Capacity | `CONFIG_TASK_WDT_CHANNELS` (Zephyr default 5, range 2 to 100) bounds the framework's own channels and the application's requirements together; the framework reserves its own channels, and the product raises the value when its application needs more. The framework keeps a fixed table and has no resource manager. |
 | Activate (step 12, and each operator start) | The framework calls `task_wdt_add()` for every requirement immediately before it calls `start`. `task_wdt_add()` feeds the new channel at once, so timing starts at activation, and each application thread feeds its channel within the reload period from then on. |
-| Partial activation | When `task_wdt_add()` fails for one requirement, the framework deletes the channels it activated in this step with `task_wdt_delete()`, does not call `start`, calls `safe_state`, and the application enters fault. |
+| Partial activation | When `task_wdt_add()` fails for one requirement, the framework does not call `start`, calls `safe_state`, deletes the channels it activated in this step with `task_wdt_delete()`, releases the registrations, and the application enters fault. |
 | Feed | An application thread feeds its own channel through the handle that its registration returned in `ctx`, because the Zephyr channel identifier may change at each activation; the supervisor feeds the hardware watchdog only while no channel has expired. |
-| Release (`stop`, fault) | After `stop` returns, every application thread has ended (section 3.1), and the framework deletes every active application channel; on an application fault it deletes them after `safe_state`. The requirements stay registered for a later operator start. |
+| Release (operator stop, planned reset) | After `stop` returns, every application thread has ended (section 3.1), and the framework calls `safe_state` and deletes every active application channel. The requirements stay registered for a later operator start. |
+| Release (application fault) | After `stop` returns for a reported fault, or after a failed activation or `start`, the framework calls `safe_state`, deletes every active application channel and releases the registrations, because a fault leaves only through a reset. |
 | Re-activate (operator start) | The framework checks the start prerequisites, activates the registered requirements again and calls `start`; `init` does not run again in the same boot. |
-| Expire | The channel callback records the channel identifier; the supervisor writes the retained record, calls `safe_state` when the application has been initialised, and stops feeding. |
+| Expire | The channel callback records the channel identifier; the supervisor writes the retained record, calls `safe_state` when the application has been initialised, and stops feeding, or requests a software reset in a build without an armed watchdog (section 4.3). |
 | After an expiry | Zephyr's task watchdog re-arms its timer only on the next feed or add of a channel, so the callback can repeat; recording is idempotent, the framework does not depend on further callbacks, and it neither feeds, deletes nor reuses the expired channel before the reset. |
 
 The framework's own channels follow the same rules, activated in the step that starts the supervised thread.
@@ -228,11 +259,11 @@ The states compare with the nRF Connect SDK CAF module states and the systemd un
 | Not initialised | A descriptor, before step 5 | Initialised when `init` succeeds; fault when it fails; held when the boot is in safe mode |
 | Initialised | `init` succeeded | Running when `start` succeeds; fault when activation or `start` fails; held when step 12 decides not to call `start` |
 | Held | The framework decided not to start the application: safe mode, a start prerequisite that is not healthy, or a watchdog that is not armed in a build that refuses it | Running on an operator start when the reason was a start prerequisite and every start prerequisite is healthy; otherwise only a reset |
-| Running | `start` succeeded | Stopped when `stop` returns within its deadline; fault when the application reports a fault |
-| Stopped | An operator stop, or a planned reset, after `stop` returned | Running on an operator start, outside safe mode, when every start prerequisite is healthy |
-| Fault | `init`, activation or `start` failed, or the application reported a fault | Only a reset |
+| Running | `start` succeeded | Stopped when an operator stop's or a planned reset's `stop` succeeds; fault when the application reports a fault and its `stop` succeeds |
+| Stopped | An operator stop, or a planned reset, after `stop` succeeded | Running on an operator start, outside safe mode, when every start prerequisite is healthy |
+| Fault | `init`, activation or `start` failed, or the application reported a fault and `stop` succeeded (section 3.3) | Only a reset |
 
-A hang (a channel expiry, or `stop` past its deadline) does not end in a reported fault state: the device resets (D4).
+A hang (a channel expiry, or a `stop` that returns an error or passes its deadline) does not end in a reported fault state: the device resets (D4).
 
 ### 4.6 Controller state (D4)
 
@@ -246,7 +277,11 @@ The states follow the common embedded usage of "degraded mode" and "recovery mod
 | Recovery | A boot in safe mode (section 5.2), entered when the boot counter reaches N or when a prepared device has no device identity (section 5.5); it lasts until the next reset |
 
 A service that is not required reports its own health, and its failure does not change the controller state.
-The boot counter clears after the stable period of operational state (section 5.2), and image confirmation needs the operational state (section 6.1).
+Three conditions build on the controller state and stay separate:
+
+- **Controller operational**: the state above.
+- **Successful boot**: the condition that clears the boot counter (section 5.2).
+- **Healthy image**: the health verdict that leads to the confirmation of a test image (section 6.1).
 
 ### 4.7 Service health and required services
 
@@ -267,17 +302,18 @@ Reachability of a remote peer is not part of any service's health, because it de
 
 The product's required services are of two kinds:
 
-- **Start prerequisites**: the framework checks them in step 11 and before every operator start, and holds the application while one of them is not healthy.
+- **Start prerequisites**: the framework checks them in step 11 and before every operator start, and holds the application while one of them is not healthy; by default there are none, and the product selects them explicitly (section 7.1).
 - **Runtime dependencies**: the framework reports a change of their health through the status service and the read-only service health in `ctx`; the application decides its response, and the framework neither stops nor restarts the application because of it.
 
 ### 4.8 Faults and reactions (D4)
 
 | Event | Framework reaction | `safe_state` | Afterwards |
 |---|---|---|---|
-| Operator stop | Calls `stop`, then releases the application's channels | After `stop` returns | Application stopped; controller state unchanged |
-| Recoverable application fault: `init`, activation or `start` fails, or the application reports a fault | Releases the registrations and channels | Yes | Application fault; controller state unchanged |
+| Operator stop | Calls `stop`, then `safe_state`, then deletes the application's channels | After `stop` succeeds | Application stopped; controller state unchanged |
+| `init`, activation or `start` fails | Calls `safe_state`, then deletes the activated channels and releases the registrations | Yes, with no application thread running (section 3.3) | Application fault; controller state unchanged |
+| Recoverable runtime application fault: the running application reports a fault through `ctx` | Calls `stop` with the reason application fault and its deadline; once every application thread has ended, calls `safe_state`, then deletes the channels and releases the registrations | After `stop` succeeds | Application fault; controller state unchanged |
 | A service fails without a hang | Degrade and report; a start prerequisite holds the application before a start; a runtime dependency is reported to the application | No | Controller degraded when the service is required |
-| A startup step, `init`, `start` or `stop` passes its deadline, or a channel expires | Writes the retained record and stops feeding | When the application has been initialised, from the supervisor, best effort | Reset by the hardware watchdog; a fault reset for the boot counter |
+| A startup step, `init`, `start` or `stop` passes its deadline, `stop` returns an error, or a channel expires | Writes the retained record and stops feeding; in a build without an armed watchdog, requests a software reset (section 4.3) | When the application has been initialised, from the supervisor, best effort, while application threads may still run (section 3.3) | Reset by the hardware watchdog, or the software reset; a fault reset for the boot counter |
 | Fatal error (`k_sys_fatal_error_handler`) | Calls no application entry; writes a minimal retained record when the retained region is usable, and resets | No | A fault reset for the boot counter |
 | CPU lockup, or a handler that cannot run | Nothing runs; the unfed hardware watchdog resets the device | No | Reset cause as the SoC reports it; no record |
 | N consecutive fault resets | Safe mode (section 5.2) | — | Controller in recovery |
@@ -298,8 +334,9 @@ Outputs keep a safe state during and across a reset only through the board's har
 - **Not a fault reset**: the counter keeps its value for
   - a reset with a valid operator reset marker, unless WATCHDOG is latched or a valid record names a deadline, a channel expiry or a fatal error;
   - a PIN reset or a DEBUG reset that meets no fault reset condition.
-- **Operator reset marker**: the framework writes it from Crux Reboot's policy callback at the check before the reset, and before its own operator resets (safe-mode exit and factory reset).
-  Crux Reboot asks the callback twice without saying which check it is, so the framework tracks the order of the calls, or consumes a marker left by a request that never reset.
+- **Operator reset marker**: the framework writes it before its own operator resets (safe-mode exit and factory reset) and before a reset that an operator requests through Crux Reboot.
+  For Crux Reboot, the framework needs a hook that Crux calls once, immediately before the reset, distinct from the policy callback ([C14](controller-framework-platform-gaps.md#c14-operator-reset-marker-and-crux-reboot)).
+  Interim rule: the framework writes the marker from the policy callback, which Crux Reboot asks at the request and again on its worker before the reset without saying which check it is, so the framework tracks the order of the calls, or consumes a marker left by a request that never reset.
 - **Power cycle**: a captured POR cause, or a region whose prefix or checksum is invalid, means that the region did not survive: the counter starts at zero and no record is reported, whatever other cause bits are latched.
   On the RT1062 a POR cause is never captured and a power-on reads as PIN, so detection of a power cycle there relies on the invalid-region rule.
 - **Interrupted write**: the record and counter are written with their checksum last; a write that a reset interrupts fails the checksum on the next boot and counts as an empty region, while the captured reset cause still decides whether the reset was a fault reset.
@@ -310,8 +347,9 @@ Outputs keep a safe state during and across a reset only through the board's har
 
 - **Boot counter**: counts consecutive fault resets and saturates at its maximum instead of wrapping.
 - **Safe mode entry**: after N consecutive fault resets (Kconfig, default 3) the next boot enters safe mode; a prepared device without its device identity also boots in safe mode (section 5.5).
-- **Safe-mode service set**: network, storage, credential store, Access, configuration service (which web management needs), status, web management when the device identity exists, the serial command line and logging, plus the reset cause and last-fault record; no application, no time synchronisation and no optional service.
-- **Counter reset**: the controller is operational without interruption for the stable period (Kconfig), an authorised operator command clears it, or a different image boots.
+- **Safe-mode service set**: a recovery-oriented service set of network, storage, credential store, Access, configuration service (which web management needs), status, web management when the device identity exists, the serial command line and logging, plus the reset cause and last-fault record; no application, no time synchronisation and no optional service.
+- **Successful boot**: the controller is operational and the application state is neither fault nor held, both without interruption for the stable period (Kconfig); the period starts when both conditions hold and starts again when either ends, so the counter does not clear while the application is in fault or held.
+- **Counter reset**: a successful boot clears the counter, an authorised operator command clears it, or a different image boots; a fault reset after the counter cleared counts from one.
 - **Safe-mode exit**: an authorised operator command clears the counter and resets into a normal boot; a different image also boots normally.
 - **Fault resets in safe mode**: safe mode cannot escape a hang or fatal error in its own services; the device resets, the counter stays saturated, and safe mode repeats.
   A test image that is not confirmed is reverted by the boot loader at that reset (section 6.1); for a confirmed image, the final recovery is the boot loader's or the product's recovery path, such as a new image through the programming interface, decided with Crux's secure boot work (D7).
@@ -322,8 +360,8 @@ Comparable mechanisms: U-Boot's boot count limit (`CONFIG_BOOTCOUNT_LIMIT`, `boo
 
 - **Storage or Access failure**: device management that needs accounts stays off; the controller is degraded or in recovery, and the serial log and the status service (where it runs) show the cause.
   Access cannot reopen in the same boot (C9), so a replaced medium takes effect after a reset; recovery is device preparation again, or a factory reset by a physical-presence input if the product defines one.
-- **Factory reset**: an authorised operator command through the planned Crux Access erase operation (C9) erases credentials (accounts) and configuration and returns to first-account provisioning.
-  It keeps the device identity, which only device preparation replaces.
+- **Factory reset**: an authorised operator command erases credentials (accounts) and configuration through Crux's credential store erase and the removal of the settings file, resets, and returns to first-account provisioning ([C9](controller-framework-platform-gaps.md#c9-access-and-an-unusable-store)).
+  It keeps the device identity, which only device preparation replaces; Crux's erase removes the TLS key and certificate as well, which C9 records.
   A product may add a physical-presence input, such as a button held at boot; no unauthenticated serial command erases the device.
 
 ### 5.4 Storage and configuration
@@ -334,13 +372,15 @@ Comparable mechanisms: U-Boot's boot count limit (`CONFIG_BOOTCOUNT_LIMIT`, `boo
 | Product medium | A product chooses its medium (for example eMMC or NOR flash) and its Crux File provider; the framework names neither | D3 |
 | Credentials on removable media | Whether the credential store may sit on a removable card is a product security decision | Product decision |
 | One mount, never format | The composition mounts the volume once with the keep policy and binds the roots; no service mounts on its own; the framework never formats, so a blank or foreign medium does not mount and its data stays untouched | D11 |
-| Configuration saving | Crux's Settings File provider for any power-cut-safe file system (`CRUX_CONFIGURATION_SETTINGS_FILE_ANY_FS`) on the LittleFS volume, once Crux's planned LittleFS File provider exists ([C4](controller-framework-platform-gaps.md#c4-configuration-saving-needs-a-power-cut-safe-file-system)) | Established mechanism |
+| Configuration saving | Crux's Settings File provider for any power-cut-safe file system (`CRUX_CONFIGURATION_SETTINGS_FILE_ANY_FS`) on the LittleFS volume of Crux's LittleFS File provider (`CRUX_FILE_LITTLEFS_BLK_DEV`, Crux `main`, [C4](controller-framework-platform-gaps.md#c4-configuration-saving-needs-a-power-cut-safe-file-system)) | Established mechanism |
 
 For each product medium, these rules hold:
 
 - **File system full**: a save or a file write answers an error, the status service shows it, and the application data root has a size limit so that it cannot fill the credential store and settings.
+  The framework owns the rule and the product sets the limit; Crux File has no size limit per root, so the limit needs a Crux change ([C15](controller-framework-platform-gaps.md#c15-size-limit-of-the-application-data-root)).
 - **Power-cut integrity**: the settings file and the credential store survive a cut at any point, shown by a power-cut test on the medium.
 - **Configuration compatibility after an update**: the parameter table carries a version; a new image gives new parameters their defaults, keeps stored values whose key and type match, and reports discarded values; a deliberate downgrade is a product decision.
+  The framework owns these rules; the platform mechanism is Crux Configuration, whose record carries the parameter's type and schema version and whose load gives the default for a record that does not match (`DEFAULT_REJECTED`, Crux `docs/configuration-contract.md`), so a parameter whose schema version changes also takes its default, and the rules need no Crux change.
 - **Configuration compatibility after a rollback**: when the boot loader reverts an image, the earlier image reads values that the reverted image may have saved with the same rules, keeps values whose key and type match, gives defaults where they do not, reports them, and leaves keys it does not know in place; so a parameter keeps its type for as long as its key exists, and a changed type takes a new key.
 
 LittleFS is copy-on-write: a rename replaces a file atomically, so a power cut leaves the old or the new file.
@@ -369,9 +409,9 @@ MCUboot reverts a test image that is not confirmed only when the device next res
 - **Health verdict** (framework): a test image is healthy when, during its trial, all of these hold, not uptime alone:
   - the controller is operational;
   - every start prerequisite is healthy and every device management service that the build includes has started;
-  - the application, when present and not stopped by an operator, has been running for the stable period;
-  - no fault reset happened since the test image first booted;
+  - the application, when present, has been running for the stable period; an application that an operator stopped does not meet this condition until it has run again for the stable period;
   - the configuration loaded with a compatible version (section 5.4).
+- **No reset history condition**: the verdict looks at the current boot only, because MCUboot reverts an unconfirmed test image at its first reset, so a test image that resets for any reason is reverted before a verdict can confirm it.
 - **Confirmation** (update component): when the verdict is healthy, the update component confirms the image through Crux's image state contract ([C10](controller-framework-platform-gaps.md#c10-image-state)).
 - **Trial deadline** (update component, on the framework's verdict): when the verdict is not healthy by the trial deadline (Kconfig, counted on the monotonic clock from the start of the boot), the update component requests a planned reset, and the boot loader reverts the image at that reset; the configuration rules after a rollback are in section 5.4.
   This planned reset carries no operator reset marker, so it counts as a fault reset, which has no effect because the reverted image clears the counter (section 5.1).
@@ -380,13 +420,14 @@ The verdict needs no particular device management service: a build without web m
 
 ### 6.2 Security items
 
-| Item | Rule | Label |
-|---|---|---|
-| First trusted enrolment of the self-signed certificate | Device preparation records the certificate fingerprint (on a label or in the preparation record), and the serial command line shows it, so the operator checks it at the first connection instead of trusting on first use (RFC 7435); a product may install a certificate from its own CA instead | D11 |
-| Serial command line in production | Every command needs an Access login after the first account; the product chooses whether the console is composed in production, for provisioning only, or always; physical access to the port is part of the trust model | Product decision (D16) |
-| Factory reset authority | Section 5.3 | D15 |
-| HTTPS file transfer | Confined to the application data root, with limits on file size, total size, concurrent transfers and file names; it needs Crux's web adapter for the File service ([crux-pilot#188](https://github.com/wonny-labs/crux-pilot/issues/188)) | D10 |
-| Audit persistence | Crux security events are drained to the log at the pin; the product chooses when they reach storage (for example at once for authentication failures and account changes, batched for others), weighing loss at a power cut against medium wear; timestamps come from unauthenticated SNTP (IEC 62443-4-2 CR 2.8 to 2.11, as direction) | Product decision (D16) |
+| Item | Rule | Kind | Label |
+|---|---|---|---|
+| First trusted enrolment of the self-signed certificate | Device preparation records the certificate fingerprint (on a label or in the preparation record), and the serial command line shows it, so the operator checks it at the first connection instead of trusting on first use (RFC 7435); a product may install a certificate from its own CA instead | Mandatory | D11 |
+| Serial command line login | Every command needs an Access login after the first account (requirement S2) | Mandatory | Established mechanism (Crux console contract) |
+| Serial command line in production | The product chooses whether the console is composed in production, for provisioning only, or always; physical access to the port is part of the trust model | Product choice | Product decision (D16) |
+| Factory reset authority | Section 5.3 | Mandatory | D15 |
+| HTTPS file transfer | Confined to the application data root, with limits on file size, total size, concurrent transfers and file names; it needs Crux's web adapter for the File service ([crux-pilot#188](https://github.com/wonny-labs/crux-pilot/issues/188)) | Mandatory when the product offers file transfer | D10 |
+| Audit persistence | Crux security events are drained to the log at the pin; the product chooses when they reach storage (for example at once for authentication failures and account changes, batched for others), weighing loss at a power cut against medium wear; timestamps come from unauthenticated SNTP (IEC 62443-4-2 CR 2.8 to 2.11, as direction) | Product choice | Product decision (D16) |
 
 ## 7. Build options, boards, source zones and priority bands
 
@@ -399,10 +440,10 @@ The last column names the decision or constraint that defines the option.
 |---|---|---|---|---|
 | Command line transport | serial, SSH, both | serial | SSH only with Crux's Wolf TLS profile, which needs a commercial or GPL-3.0-or-later licence, and only when Crux offers Access on the Wolf profile and an SSH composition interface | D6, [C7](controller-framework-platform-gaps.md#c7-ssh-and-tls-profiles) |
 | HTTPS TLS profile | Crux Mbed profile, Crux Wolf profile | Mbed | One profile per image; the Wolf value needs Crux Access on the Wolf profile | C7 |
-| Console and logging UART | separate, shared | separate | Shared only with Crux's planned build option | D5, [C6](controller-framework-platform-gaps.md#c6-console-and-logging-uart) |
-| Start prerequisites | Any of network, storage, Access, configuration, time, web management, command line | network, storage, Access, configuration | Checked before every application start (section 4.7) | D4 |
+| Console and logging UART | separate, shared | separate | Shared only with Crux's shared console mode (Crux `main`) | D5, [C6](controller-framework-platform-gaps.md#c6-console-and-logging-uart) |
+| Start prerequisites | Any of network, storage, Access, configuration, time, web management, command line | none | Checked before every application start (section 4.7); the product selects them explicitly; the reference configuration selects network, storage, Access and configuration | D4 |
 | Runtime dependencies | The same set | the start prerequisites | Reported while the application runs; the application responds (section 4.7) | D4 |
-| Start without a watchdog | allowed, refused | refused | Allowed only by an explicit option in `native_sim` and bench builds | D14 |
+| Start without a watchdog | allowed, refused | refused | Allowed only by an explicit option in development, bench and `native_sim` builds, in which a hang ends in a software reset (section 4.3); a product build refuses it | D14 |
 | Safe-mode threshold N | 1 to a small maximum | 3 | Section 5.2 | D4 |
 | Stable period | seconds | open, decided at implementation | Clears the boot counter (section 5.2) | D4 |
 | Startup step deadlines | milliseconds per step, including `init`, `start` and `stop` | from board measurement | Section 4.1 | Reference configuration |
@@ -417,10 +458,10 @@ The last column names the decision or constraint that defines the option.
 | Per-board values live in board files | `app/boards/<board>.conf`, merged with `prj.conf` when `CONF_FILE` is unset, and `app/boards/<board>.overlay`, in the base image and in each product | Established mechanism (Zephyr application development) |
 | Variants are fragments | `EXTRA_CONF_FILE`, `EXTRA_DTC_OVERLAY_FILE`, `FILE_SUFFIX` with fallback | Established mechanism |
 | Roles by devicetree | Aliases `crux-serial0` (console) and `crux-watchdog0` (watchdog), `chosen` `zephyr,log-uart` (logging), node label `controller_storage` (storage) | Established mechanism |
-| No board name in sources | Nothing in the framework module, the base image's sources or the application interface names a board or SoC (P1) | P1 |
+| No board name in sources | Nothing in the framework module, the base image's sources or the application interface names a board or SoC (requirement P1) | D9 |
 | Snippets only for cross-cutting settings | Debug and the RAM disk CI form; never per-board values | Established mechanism (Zephyr snippets) |
 | Generic Kconfig dependencies | `CRUX_CONTROLLER_FILE` depends on `CRUX_FILE_FATFS_RT1060` (`app/Kconfig:40`); it changes to a generic "Crux File provider present" symbol or a `DT_HAS_*_ENABLED` test when Crux offers one | Platform constraint or interim |
-| Board as a build input | `scripts/build-board.sh` builds the RT1060-EVKB only; the board target becomes an input, and builds go to `build/<board folder>/<configuration>` | P1 |
+| Board as a build input | `scripts/build-board.sh` builds the RT1060-EVKB only; the board target becomes an input, and builds go to `build/<board folder>/<configuration>` (requirement P1) | D9 |
 
 Adding a board takes, in this order: the board's `.conf` and `.overlay`, the aliases and `chosen` nodes, the partition layout from the secure boot work, a CI row, and the smallest build configuration as its first passing build.
 A second board is outside the current scope (D9), and the SoC gates of [C12](controller-framework-platform-gaps.md#c12-soc-gates) apply.
@@ -438,8 +479,10 @@ The 25 percent free margin of `budgets/limits.json` is a budget of the reference
 
 The fixture application is a test, not an image or variant: it has no board build and no `Budget` row, and it is not a product template.
 
-### 7.3 Source zones and OS neutrality (P2)
+### 7.3 Source zones and OS neutrality
 
+This section serves requirements P1 and P2.
+The split follows the ports-and-adapters pattern (A. Cockburn, "Hexagonal architecture"): the portable core defines its ports, and the adapter and composition zones implement them for Zephyr.
 `scripts/check_boundary.py` checks only the trees in its `RULES` (`app/src`, `workload`, `app/compose`, `app/os`; lines 125-162), and `check()` scans only those trees (lines 308-313).
 A framework source outside them would escape the check, so every source of the module, the base image and the fixture application lives in a checked zone; the paths are open, decided at implementation.
 
@@ -454,11 +497,11 @@ A framework source outside them would escape the check, so every source of the m
 
 - `RULES` gains one rule per tree, and a source file of the module that no rule covers fails the check.
 - Each new header is a separate reviewed boundary change under CONTRIBUTING "The boundary", with its reason in [composition-zone.md](../composition-zone.md) and a case in `tests/tooling/test_boundary.py`.
-- The composition zone gains `zephyr/fs/littlefs.h`, for the LittleFS mount, unless Crux's planned LittleFS provider mounts the volume itself, and `<crux/cli_zephyr.h>`, which `COMPOSITION_CRUX_HEADERS` does not list.
+- The composition zone gains `zephyr/fs/littlefs.h`, for the LittleFS mount, because Crux's LittleFS File provider mounts nothing by itself (Crux `main`, `zephyr/Kconfig:463-486`), and `<crux/cli_zephyr.h>`, which `COMPOSITION_CRUX_HEADERS` does not list.
 - The adapter zone gains `zephyr/task_wdt/task_wdt.h`, `zephyr/retention/retention.h` (the framework uses the retention API, not the `retained_mem` driver header), `zephyr/fatal.h`, and `zephyr/device.h` and `zephyr/devicetree.h`, which find the retained region.
 
 The portable core runs in host tests with fake ports, and the Zephyr adapter and composition zones are the only OS-specific code.
-The portable core, the separated OS-specific zones and the host tests hold in every delivery stage, and the framework adds no abstraction for Linux before it has a Linux function to serve (P1, P2).
+The portable core, the separated OS-specific zones and the host tests hold in every delivery stage, and the framework adds no abstraction for Linux before it has a Linux function to serve.
 Linux functions (P3, delivery stage 6) need Linux providers for the Crux components that have Zephyr providers only ([C13](controller-framework-platform-gaps.md#c13-linux-providers)), which Crux designs when its first Linux product is defined (Crux ADR-0003 R5).
 
 ### 7.4 Priority bands (reference configuration)
@@ -505,13 +548,14 @@ Zephyr priorities, where a lower number is a higher priority; a product tunes th
 
 | Stage | Content | Ends with |
 |---|---|---|
-| 1. Foundation | The Zephyr module, the repository role (D12), service composition, the base image, the boundary check of section 7.3 and the consumer integration job; it shows that a product imports the module and that the base services compose | Criteria 1 to 3, 13, 14, 26 and 28 to 30 |
-| 2. Reliability | First, the board check of section 5.6; then the startup and runtime watchdog, the channel lifecycle, the supervisor, boot counter, safe mode, retained record and diagnostics | Criteria 6, 7, 10, 11 and 16 to 19 |
-| 3. Application integration | The application contract of sections 3 and 4, shown through the fixture application | Criteria 4, 5, 8, 9 and 20 to 23 |
-| 4. Framework completion | Persistence on LittleFS and the interim states of section 8.5 | Criteria 12 and 24 on LittleFS, criterion 25, and the end of every interim state that section 8.5 does not accept for Framework Complete |
+| 1. Foundation | The Zephyr module, the repository role (D12), service composition, the base image, the boundary check of section 7.3 and the consumer integration job; it shows that a product imports the module and that the base services compose | Criteria 1 to 3, 13, 26, 28 to 30, and the part of criterion 14 with no descriptor |
+| 2. Reliability | First, the board check of section 5.6; then the startup and runtime watchdog, the channel lifecycle, the supervisor, boot counter, safe mode, retained record and diagnostics | Criteria 7, 10, 11, 16 to 18, and the base image parts of criteria 6 and 19 |
+| 3. Application integration | The application contract of sections 3 and 4, shown through the fixture application | Criteria 4, 5, 8, 9, 20 to 23, and the application parts of criteria 6, 14 and 19 |
+| 4. Framework completion | Persistence on LittleFS and the interim states of section 8.5 | Criteria 12 and 24 on LittleFS, criteria 25, 32 and 33, and the end of every interim state that section 8.5 does not accept for Framework Complete |
 | 5. Product readiness | Per product: secure boot and update, factory reset, hardware validation, security hardening, and validation of the application interface with a first real runtime consumer | PR1 to PR6 and criterion 31 |
 | 6. Linux functions (later) | A Linux adapter over Crux's Linux providers, coordinated with Crux | A later specification |
 
+The application interface exists from delivery stage 3 on, so a criterion part that names the application is checked with the fixture application from that stage, and the earlier part of criteria 6, 14 and 19 runs with no descriptor.
 Criterion 15 holds in every delivery stage.
 Criterion 27 is checked in each delivery stage for the options of section 7.1 that the stage adds.
 Later items:
@@ -530,7 +574,7 @@ Later items:
 | Milestone | Reached when | Interim states |
 |---|---|---|
 | Framework MVP | Delivery stages 1 to 3 end: criteria 1 to 11, 13 to 23 and 26 to 30, with criterion 27 for the options that these stages add | Every interim state of section 8.5 is accepted |
-| Framework Complete | Delivery stage 4 ends: every mandatory function and platform dependency, including persistence on LittleFS; criteria 1 to 30 | Only the interim states that section 8.5 accepts for Framework Complete |
+| Framework Complete | Delivery stage 4 ends: every mandatory function and platform dependency, including persistence on LittleFS; criteria 1 to 30, 32 and 33 | Only the interim states that section 8.5 accepts for Framework Complete |
 | Product Ready | Delivery stage 5 ends, per product on its board: PR1 to PR6 and criterion 31 | None of section 8.5 for the functions the product uses |
 
 ### 8.4 Criteria
@@ -539,24 +583,24 @@ Framework MVP:
 
 | # | Requirement | Criterion |
 |---|---|---|
-| 1 | F1, F2 | The base image enables every service of the [overview](controller-framework.md#services) that its TLS profile allows (C7), with no application, and the framework's Kconfig has no exclusion between services beyond those of the TLS profile. |
+| 1 | F1, F2 | The base image enables every service of the [service mapping](controller-framework-platform-gaps.md#service-mapping) that its TLS profile allows (C7), with no application, and the framework's Kconfig has no exclusion between services beyond those of the TLS profile. |
 | 2 | F2 | The RT1060-EVKB build of the base image passes in CI with `-DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON`, and its `Budget` row keeps at least 25 percent free in every region; the 25 percent is a budget of the reference board (section 7.2). |
 | 3 | F2 | The base image builds and runs on `native_sim` in CI. |
 | 4 | F3, F5 | A fixture application under `tests/`, with its own `main()`, `prj.conf` and descriptor, builds for `native_sim` in CI with this repository as a Zephyr module (`EXTRA_ZEPHYR_MODULES`) and runs: the log shows `init`, `start` and `stop` in order, a thread that the application created with Zephyr, a registered and activated watchdog channel, a status item and a parameter in device management, and a file under its data root. |
 | 5 | F3 | A second call of the start function, and a descriptor without a mandatory entry, are refused; a host or `native_sim` test checks both. |
-| 6 | F1, R1, R4 | A `native_sim` scenario of the start order: the reset cause is read once, the status service receives the captured copy, the flags are cleared after the capture, the watchdog is armed before the storage mount, the start prerequisites are checked, and the application starts last; startup supervision ends when `start` returns. |
-| 7 | R1, R2 | A `native_sim` scenario with an injected startup step that passes its deadline: the supervisor writes the retained record with the step name and stops feeding, and the simulated watchdog restarts the image (reset cause SOFTWARE, [C11](controller-framework-platform-gaps.md#c11-simulated-watchdog-on-native_sim)). |
-| 8 | F3, R2 | A `native_sim` scenario with an injected `init` failure after a registration: the application reports fault, `safe_state` ran, the registration is released, the controller state is unchanged, and device management answers. |
+| 6 | F1, R1, R4 | A `native_sim` scenario of the start order. Base image part (delivery stage 2): the reset cause is read once, the status service receives the captured copy, the flags are cleared after the capture, the watchdog is armed before the storage mount, and startup supervision ends in step 12 with no application. Application part (delivery stage 3): with the fixture application and a selected start prerequisite, the start prerequisites are checked, the application starts last, and startup supervision ends when `start` returns. |
+| 7 | R1, R2 | A `native_sim` scenario with an injected startup step that passes its deadline: the supervisor writes the retained record with the step name and stops feeding, and the simulated watchdog restarts the image (reset cause SOFTWARE, [C11](controller-framework-platform-gaps.md#c11-simulated-watchdog-on-native_sim)); with the simulated watchdog left out and the start-without-watchdog option on, the supervisor writes the record and requests a software reset (section 4.3). |
+| 8 | F3, R2 | A `native_sim` scenario with an injected `init` failure after a registration: the application reports fault, `safe_state` ran, the registration is released, the controller state is unchanged, and device management answers; and one in which the running application reports a fault: `stop` runs with the reason application fault, then `safe_state`, the channels and registrations are released, the application is in fault, and the controller state is unchanged; a `stop` that returns an error restarts the image. |
 | 9 | R1, R2 | A `native_sim` scenario with an injected stall of a registered application thread: the channel expiry is recorded, `safe_state` ran, the supervisor stops feeding, and the simulated watchdog restarts the image. |
-| 10 | R3, R4, R5, P2 | Host tests of the portable core: N consecutive fault resets enter safe mode; the stable period, the operator command and a different image clear the counter; the retained region's checksum rejects a damaged region; the state transitions of section 4; a start prerequisite that is not healthy holds the application; a watchdog that does not arm holds the application in a product build and not with the explicit option. |
-| 11 | R3 | A `native_sim` scenario of safe mode: the minimal service set runs, the application is not initialised, device management answers, and the exit command leads to a normal boot. |
+| 10 | R3, R4, R5, P2 | Host tests of the portable core: N consecutive fault resets enter safe mode; a successful boot, the operator command and a different image clear the counter, the counter does not clear while the application is in fault or held, and a fault reset after a clear counts from one; the retained region's checksum rejects a damaged region; the state transitions of section 4; a start prerequisite that is not healthy holds the application; a watchdog that does not arm holds the application in a product build and not with the explicit option. |
+| 11 | R3 | A `native_sim` scenario of safe mode: the recovery-oriented service set runs, the application is not initialised, device management answers, and the exit command leads to a normal boot. |
 | 13 | P2 | `scripts/check_boundary.py` checks every source tree of section 7.3; a source that no rule covers fails the check; the portable core has no Zephyr include; each new allow-list entry is a separate reviewed change. |
-| 14 | F3 | The product integration job of section 8.1 imports the framework into an independent west workspace, builds and runs on `native_sim` in the nightly tier. |
+| 14 | F3 | The product integration job of section 8.1 imports the framework into an independent west workspace, builds and runs on `native_sim` in the nightly tier; in delivery stage 1 the product's `main()` calls the start function with no descriptor, and from delivery stage 3 on it passes a descriptor with the four entries. |
 | 15 | F2 | The repository holds no control algorithm; the architecture, capabilities and roadmap pages describe the framework and the base image; no page claims a board run until one is approved and recorded. |
 | 16 | R2 | Fatal-error reset: a `native_sim` scenario with an injected fatal error in a framework thread shows that the handler calls no application entry, writes the minimal record and restarts the image; host tests show that the next boot counts it as a fault reset. |
 | 17 | R3 | Framework fault in safe mode: a `native_sim` scenario that boots in safe mode and stalls a safe-mode service thread shows that the supervisor stops feeding and the image restarts; host tests show that the counter stays saturated and the next boot is again in safe mode. |
 | 18 | R2 | Host tests of the reset rules of section 5.1: several latched cause bits, POR together with other bits, a SOFTWARE reset with and without the operator reset marker, CPU_LOCKUP together with SOFTWARE, with and without the marker, a consumed record, an interrupted write, counter saturation, and a different image identifier after an update and after a rollback. |
-| 19 | R1, R5 | Production watchdog configuration: a build test shows that a product build has `CONFIG_TASK_WDT_HW_FALLBACK=n`, a callback on every channel, neither the start-without-watchdog option nor the TLS identity option, and a timeout T inside the provider's range; a `native_sim` scenario of that configuration with an unavailable watchdog holds the application. |
+| 19 | R1, R5 | Production watchdog configuration: a build test shows that a product build has `CONFIG_TASK_WDT_HW_FALLBACK=n`, a callback on every channel, neither the start-without-watchdog option nor the TLS identity option, and a timeout T inside the provider's range; a `native_sim` scenario of that configuration with an unavailable watchdog shows "not armed" and a degraded controller with the base image (delivery stage 2) and holds the fixture application (delivery stage 3). |
 | 20 | F3, R1 | Start timeout: a `native_sim` scenario in which `start` passes its deadline: the supervisor writes the record with the step name, calls `safe_state`, stops feeding, and the image restarts. |
 | 21 | F3, R1 | Operator stop and restart: a `native_sim` scenario in which an operator stop calls `stop`, then `safe_state`, and releases the application's channels while the controller stays operational; an operator start checks the start prerequisites, activates the channels again without calling `init`, and calls `start`; a `stop` that passes its deadline restarts the image. |
 | 22 | F3 | Partial start failure: a `native_sim` scenario in which a channel activation fails and one in which `start` returns an error: the activated channels are deleted, `safe_state` ran, the application is in fault, the controller state is unchanged, and device management answers; host tests show that a requirement beyond the channel capacity and a duplicate name are refused in `init`. |
@@ -573,7 +617,9 @@ Framework Complete adds:
 |---|---|---|
 | 12 | R7 | A `native_sim` scenario saves a parameter on LittleFS, restarts on a file-backed disk and reads it back. |
 | 24 | R7 | Storage full: a `native_sim` scenario on LittleFS in which the application data root reaches its size limit: a file write answers an error, a parameter save still succeeds, and the status service shows storage degraded. |
-| 25 | D7 | Unconfirmed image timeout: host tests of the health verdict and the trial deadline with a fake image state port: a verdict that is not healthy by the deadline requests a planned reset, a healthy verdict leads to confirmation, and a build without web management is confirmed on the same conditions. |
+| 25 | D7 | Unconfirmed image timeout: host tests of the health verdict and the trial deadline with a fake image state port: a verdict that is not healthy by the deadline requests a planned reset, a healthy verdict leads to confirmation, an application that an operator stopped keeps the verdict not healthy, and a build without web management is confirmed on the same conditions. |
+| 32 | F1, R7 | Settings File sources: a build test of an image with configuration saving lists the sources that the build compiles for the Settings File backend and fails when one is under Crux's `tests/` path ([C5](controller-framework-platform-gaps.md#c5-settings-file-sources-under-a-crux-tests-path)). |
+| 33 | R1, R2 | Crux service thread supervision: the framework registers one Crux progress function, each started Crux service thread has its own task watchdog channel fed from it, and a `native_sim` scenario in which one started Crux service thread stops reporting shows the expiry recorded, the supervisor stops feeding, and the image restarts; host tests show that a thread that is not started has no active channel ([C8](controller-framework-platform-gaps.md#c8-crux-service-threads-and-supervision)). |
 
 Product Ready adds, per product on its board:
 
@@ -583,9 +629,9 @@ Product Ready adds, per product on its board:
 | PR2 | R7 | Configuration persists on the product medium, and the compatibility rules of section 5.4 hold across an update and a rollback. |
 | PR3 | D7 | Secure boot and update with the health-gated confirmation and the trial deadline of section 6.1, including the revert of an unconfirmed image at the reset after the deadline. |
 | PR4 | S2 | Factory reset with the authority and scope of sections 5.3 and 5.5. |
-| PR5 | S3 | The security items of section 6.2 are implemented. |
+| PR5 | S3 | The mandatory security items of section 6.2 are implemented, and the product records its choice for each product choice item. |
 | PR6 | F3 | Product integration with the product's own application, which is also the first real runtime consumer that validates the application interface before its stability tier is raised (section 3.4). |
-| 31 | R6 | Startup duration: on the product's board, each startup step of a normal boot is measured, stays within its deadline, and its deadline is set from that measurement. |
+| 31 | R6 | Startup duration: on the product's board, each startup step of a normal boot is measured; steps 3 to 12 stay within their deadlines, which are set from that measurement, and the measured durations of steps 1 and 2 are reported. |
 
 ### 8.5 Interim states
 
@@ -596,6 +642,8 @@ Each interim state is accepted until its Crux change is at the pin; the [platfor
 | FatFs serves files and the credential store, with no configuration save | C4 | No |
 | The product build reaches Crux's `tests/` for the Settings File sources | [C5](controller-framework-platform-gaps.md#c5-settings-file-sources-under-a-crux-tests-path) | No |
 | Crux service threads are supervised indirectly | C8 | No |
+| The application data root has no size limit | [C15](controller-framework-platform-gaps.md#c15-size-limit-of-the-application-data-root) | No |
+| The operator reset marker is written from the Crux Reboot policy callback | [C14](controller-framework-platform-gaps.md#c14-operator-reset-marker-and-crux-reboot) | Yes; the interim rule of section 5.1 applies |
 | The serial console uses a second UART | C6 | Yes; the shared UART is a build option |
 | No SSH and no Wolf profile | C7 | Yes; both are build options |
 | Factory reset only by device preparation | C9 | Yes; factory reset belongs to Product Ready |
@@ -611,7 +659,7 @@ D1 to D16 are decided, except D9, which is deferred, and D16, which is a product
 | D2 | How a product consumes the framework | Decided | A workspace application whose repository is the west manifest repository (T2), which owns `app/`, `main()`, `prj.conf` and its board files and imports Crux and the framework; the framework is a Zephyr module (`zephyr/module.yml`) that one Kconfig symbol turns on (established mechanism) | Importing the whole of this repository as the application, which takes `main()`, `prj.conf` and board files from the product; copying this repository, which forks the framework in every product | Zephyr application types, west T2 topology and "Modules"; nRF Connect SDK workspace applications (`ncs-example-application`) and `CONFIG_CAF`; Crux `templates/product` |
 | D3 | Medium and file system | Decided | LittleFS on the whole microSD card, for the reference board only; products choose their medium and provider (section 5.4) | LittleFS on a QSPI NOR partition; Reliance Edge under a commercial licence | C4 |
 | D4 | Response to a hang | Decided | A device reset with boot counter and safe mode, safe mode after N consecutive fault resets (Kconfig, default 3); `safe_state` on a channel expiry when possible, never from the fatal error handler, which writes a minimal record and resets; a CPU lockup left to the hardware watchdog (sections 4 and 5) | Stop the application and keep the framework running: a hung Zephyr thread cannot be removed safely (section 4.3), and safe mode after N resets reaches a held application with management running | Zephyr task watchdog and fatal error handling; Crux System contract; U-Boot boot count limit |
-| D5 | Console UART | Decided | Both as a build option, separate by default; shared needs the planned Crux option (C6) | — | Zephyr shell log backend; Crux Logging binding and console contract |
+| D5 | Console UART | Decided | Both as a build option, separate by default; shared needs Crux's shared console mode (Crux `main`, C6) | — | Zephyr shell log backend; Crux Logging binding and console contract |
 | D6 | SSH command line and SFTP | Decided | A command line transport option that allows SSH only with the Wolf profile under a commercial or GPL-3.0-or-later licence, Crux Access on the Wolf profile (Crux change needed) and Crux's deferred SSH composition interface | An SSH server on Mbed TLS, because it means writing a security-critical protocol implementation | Licences of wolfSSL and wolfSSH ([dependencies](../dependencies.md)); C7 |
 | D7 | Firmware update | Decided | Partition layout, image format and confirmation from Crux's secure boot work; the framework gives the health verdict, the update component confirms or requests a reset at the trial deadline, and the boot loader reverts an unconfirmed image at that reset; the watchdog policy from the boot loader to the application and the final recovery path are decided with the same work (sections 4.2, 5.2 and 6.1) | A framework-owned update design | MCUboot test, confirm and revert |
 | D8 | Verification | Decided | The layers of section 8.1; this repository builds one image, the base image, and a test-only fixture application under `tests/` exercises the interface | Keep every per-capability scenario and board build | Zephyr's split of applications, samples and tests |
@@ -620,8 +668,8 @@ D1 to D16 are decided, except D9, which is deferred, and D16, which is a product
 | D11 | Device preparation | Decided | A preparation image or host tool writes the volume, and the TLS key and certificate are made during preparation; a normal boot never formats a medium and makes a key only in a development or reference build with an explicit option; a prepared device without its identity boots in safe mode (section 5.5) | The image formats an empty medium and makes the key at first boot: formatting destroys data, a removable medium may hold someone else's data, and a long first-boot step weakens startup supervision | Crux File providers refuse auto-format |
 | D12 | Repository role | Decided | The role sentence of CONTRIBUTING changes to a controller framework module with a base image that products import, as a reviewed change of the files that state the role; the glossary entry "Product" then takes Crux's sense; with D2 | Keep "reference consumer firmware" | CONTRIBUTING role section; [glossary](../glossary.md) |
 | D13 | Names | Decided | "Controller framework" for the module and "base image" for the one image, with no example image; Crux is the platform, and the documents reserve "the reference controller" for Crux's sample; the build configuration `base` (`prj.conf` alone) takes another name, for example `minimal`, as a reviewed change of the files that name it | Names with "platform" or "reference controller" | `tests/tooling/test_docs.py` |
-| D14 | Application start without a hardware watchdog | Decided | In product builds the application does not start; `native_sim` and bench builds may allow it by an explicit build option | Start the application and report "watchdog not armed" | Crux System reports an unavailable watchdog as not supported |
-| D15 | Recovery and factory reset authority | Decided | Factory reset by an authorised operator through Crux's planned Access erase, with an optional product-defined physical-presence input, and device preparation as the recovery when Access is unusable; it erases credentials and configuration and keeps the device identity (section 5.3) | An unauthenticated serial wipe | IEC 62443-4-2 CR 4.2, as direction |
+| D14 | Application start without a hardware watchdog | Decided | In product builds the application does not start; development, bench and `native_sim` builds may allow it by an explicit build option, and in them a hang ends in a software reset (section 4.3) | Start the application and report "watchdog not armed" | Crux System reports an unavailable watchdog as not supported |
+| D15 | Recovery and factory reset authority | Decided | Factory reset by an authorised operator through Crux's credential store erase (C9), with an optional product-defined physical-presence input, and device preparation as the recovery when Access is unusable; it erases credentials and configuration and keeps the device identity (section 5.3) | An unauthenticated serial wipe | IEC 62443-4-2 CR 4.2, as direction |
 | D16 | Serial command line in production and audit persistence | Product decision | Direction in section 6.2; each product settles the details at product readiness | — | IEC 62443-4-2 CR 2.8 to 2.11 and CR 7.7, as direction |
 
 ## 10. Terms
@@ -650,7 +698,9 @@ D1 to D16 are decided, except D9, which is deferred, and D16, which is a product
 | Operator reset | A reset that an operator requests, including the framework's resets on an operator command (safe-mode exit, factory reset); it carries the operator reset marker | These pages |
 | Planned reset | A reset that software requests through Crux Reboot after the framework has called `stop` and `safe_state`; an operator reset is one, and the update component's reset at the trial deadline is one without the marker | These pages |
 | Fault reset | A reset that the boot counter counts (section 5.1) | These pages |
-| Boot counter, safe mode | A count of consecutive fault resets; a boot mode with a minimal service set and no application | U-Boot boot count limit; common embedded usage |
+| Boot counter, safe mode | A count of consecutive fault resets; a boot mode with a recovery-oriented service set and no application | U-Boot boot count limit; common embedded usage |
+| Successful boot | A stable period in which the controller is operational and the application is neither in fault nor held; it clears the boot counter (section 5.2) | These pages |
+| Health verdict, healthy image | The framework's judgement that a test image may be confirmed; a test image for which it holds (section 6.1) | These pages; MCUboot |
 | Device preparation, device identity | Steps before first use that write the volume and make the device's TLS key and certificate; that key and certificate | Common manufacturing usage (provisioning) |
 | Safe state | The defined output state on stop, fault or reset | IEC 61508-4 |
 | Update component, trial deadline | The component from Crux's secure boot work that confirms an image through Crux's image state contract; the time after which an unconfirmed test image leads to a reset request | These pages; MCUboot |
@@ -670,6 +720,7 @@ These sources cover this page, the [overview](controller-framework.md) and the [
 - littlefs design notes: copy-on-write and power-loss resilience.
 - Crux at the pin: `zephyr/Kconfig`, `zephyr/CMakeLists.txt`, `components/logging/ports/zephyr/`, `components/cli/ports/zephyr/include/crux/cli_zephyr.h`, `components/system/`, `components/access/include/crux/access.h`, `components/mgmt_status/include/crux/management_status.h`, `components/file/ports/zephyr/CMakeLists.txt`, `components/image_state/`, `components/*/ports/linux`, `docs/decisions/0001-application-boundary-and-api-stability.md` (Decision 4), `docs/decisions/0003-p9-result-services-keep-narrow-thread-sync.md` (R2, R5), `docs/management-in-a-product.md`, `tests/native/configuration_settings_littlefs`, `tests/native/file_littlefs`, `templates/product/README.md`.
 - Crux `main`: `docs/superpowers/specs/2026-10-24-system-health-design.md`, section "Supervising several activities"; `docs/ci.md` at `62ed69f1`, "Use in a product repository".
+- Crux `main` at `05a50475`: `west.yml` (Zephyr v4.5.0), `zephyr/Kconfig` (`CRUX_FILE_LITTLEFS_BLK_DEV`, `CRUX_CONFIGURATION_SETTINGS_FILE_ANY_FS`, `CRUX_CLI_CONSOLE_UART_SHARED`), `zephyr/CMakeLists.txt`, `zephyr/settings_file.cmake`, `patches/zephyr/README.md`, `components/credential/ports/zephyr/include/crux/credential_store_zephyr.h`, `components/service_priority/ports/zephyr/include/crux/service_priority_zephyr.h`, `components/reboot/include/crux/reboot.h`, `docs/configuration-contract.md`, `docs/file-contract.md`, `docs/management-in-a-product.md`.
 - Crux issues [#188](https://github.com/wonny-labs/crux-pilot/issues/188) and [#297](https://github.com/wonny-labs/crux-pilot/issues/297).
 - This repository: `scripts/check_boundary.py`, `scripts/build-board.sh`, `budgets/limits.json`, `docs/dependencies.md`, `docs/glossary.md`, `docs/roadmap.md`.
 - IEC 61508-4 (definition of safe state); IEC 62443-4-2 by clause title (CR 1.5, 2.8 to 2.11, 4.2, 7.3, 7.4, 7.7); ETSI EN 303 645, provision 5.1; the EU Cyber Resilience Act, Annex I; all as direction, not as compliance claims.

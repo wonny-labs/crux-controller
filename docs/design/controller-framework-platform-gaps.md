@@ -1,10 +1,50 @@
 # Controller framework: platform gaps
 
-This page lists the constraints that Crux and Zephyr put on the [controller framework](controller-framework.md) at the Crux revision that [`west.yml`](../../west.yml) pins, and the Crux change that lifts each one.
-It is the appendix of the [specification](controller-framework-spec.md), which refers to the constraints as C1 to C13.
+This page lists the constraints that Crux and Zephyr put on the [controller framework](controller-framework.md) at the Crux revision that [`west.yml`](../../west.yml) pins, the Crux change that lifts each one, and the Crux interface behind each framework service.
+It is the appendix of the [specification](controller-framework-spec.md), which refers to the constraints as C1 to C15.
 A statement holds at the pin unless it carries a Crux status word of [specification section 1](controller-framework-spec.md#1-scope-and-conventions).
-Priority 1 is the most urgent Crux change; the [interim states](controller-framework-spec.md#85-interim-states) say which states each milestone accepts.
-When the pin moves, each constraint is checked again, and a constraint whose Crux change is at the pin leaves this page.
+Priority 1 is the most urgent Crux change, and the delivery dependency names the first delivery stage or milestone that needs the change; the two are independent.
+The [interim states](controller-framework-spec.md#85-interim-states) say which states each milestone accepts.
+When the pin moves, each gap is checked again; a gap whose Crux change is at the pin takes the state Resolved with the Crux revision, keeps its number, evidence and references, and moves its interim state and replacement criterion out of force.
+
+## Summary
+
+| Gap | Crux change | State | Priority | Delivery dependency |
+|---|---|---|---|---|
+| [C1](#c1-one-storage-provider-per-image) | None | — | — | None |
+| [C2](#c2-one-reset-cause-owner) | None | — | — | None |
+| [C3](#c3-one-watchdog-activation-per-boot) | None | — | — | None |
+| [C4](#c4-configuration-saving-needs-a-power-cut-safe-file-system) | A LittleFS File provider with Configuration saving on it | Crux `main` | 1 | Delivery stage 4 (criteria 12 and 24); Framework Complete |
+| [C5](#c5-settings-file-sources-under-a-crux-tests-path) | Settings File sources outside Crux's `tests/` | Crux `main` | 1 | Delivery stage 4 (criterion 32); Framework Complete |
+| [C6](#c6-console-and-logging-uart) | A shared console and Logging UART | Crux `main` | 2 | None; a build option |
+| [C7](#c7-ssh-and-tls-profiles) | Access on the Wolf profile; an SSH composition interface; two TLS stacks | Crux change needed; deferred by Crux; deferred by Crux | 2; 3; — | Product Ready of a product that selects SSH or the Wolf profile |
+| [C8](#c8-crux-service-threads-and-supervision) | A progress hook in Crux service threads | Crux `main` | 1 | Delivery stage 4 (criterion 33); Framework Complete |
+| [C9](#c9-access-and-an-unusable-store) | A credential store erase; an erase that keeps the device identity | Crux `main`; Crux change needed | 2 | Delivery stage 5 (PR4) |
+| [C10](#c10-image-state) | An image state provider for the update path | Crux change needed | 2 | Delivery stage 5 (PR3) |
+| [C11](#c11-simulated-watchdog-on-native_sim) | None | — | — | None |
+| [C12](#c12-soc-gates) | Board-neutral driver gates | Crux change needed when a second board enters the scope (D9) | Deferred | A second board |
+| [C13](#c13-linux-providers) | Linux providers | Designed with Crux's first Linux product | — | Delivery stage 6 |
+| [C14](#c14-operator-reset-marker-and-crux-reboot) | A pre-reset hook in Crux Reboot | Crux change needed | 2 | None; the interim rule serves delivery stage 2 |
+| [C15](#c15-size-limit-of-the-application-data-root) | A size limit per File root | Crux change needed | 1 | Delivery stage 4 (criterion 24); Framework Complete |
+| [Web adapter](#other-crux-changes) | A web adapter for the File service | Crux change needed | 3 | Product Ready of a product that offers HTTPS file transfer |
+
+The pin is Crux `62ed69f1`; the Crux `main` changes above are at `05a50475` and not at the pin.
+
+## Service mapping
+
+| Service | Crux interface | Use in the framework | At the pin | Target |
+|---|---|---|---|---|
+| Web management | Crux Access, web server on the selected TLS profile (`<crux/web_zephyr.h>`), configuration and status services, a packaged page, the reboot routes (`CONFIG_CRUX_REBOOT`) | HTTPS web UI: status, parameters, accounts, reboot | Mbed TLS profile only | Also the Wolf profile ([C7](#c7-ssh-and-tls-profiles)) |
+| Serial command line | Crux console, `crux_cli_serial_start()` in `<crux/cli_zephyr.h>` | Command line with first-account setup (`!setup`); Access closes provisioning after the first save | On a second UART ([C6](#c6-console-and-logging-uart)) | Separate or shared UART as a build option |
+| SSH command line and SFTP | Crux SSH and Crux File service | Command line and file transfer over SSH | None (C7) | A build option with the Wolf profile and a Crux SSH composition interface |
+| Health supervision | Crux System (reset cause, one hardware watchdog activation, `crux_system_reset()`), Zephyr task watchdog | [Specification section 4](controller-framework-spec.md#4-operating-model) | Crux service threads supervised indirectly ([C8](#c8-crux-service-threads-and-supervision)) | Every Crux service thread supervised by progress |
+| Time | Crux Time (monotonic clock, time authority), Zephyr SNTP | Wall time for logs, records and status; every timing decision uses the monotonic clock | Available | Unchanged |
+| Logging | Crux Logging (UART logger) | Framework log modules; the application uses Crux Logging directly | Available | Unchanged |
+| Configuration | Crux configuration service over the Crux Configuration Settings File provider | Framework and application parameters, shown in device management | Not persistent ([C4](#c4-configuration-saving-needs-a-power-cut-safe-file-system)) | Saved on LittleFS |
+| Network | Zephyr network configuration library, Crux Netif, Crux Sockets profile | Interface up before `main()`; link state for health and status | Available | Unchanged |
+| Storage | Crux File, one provider, one mount ([C1](#c1-one-storage-provider-per-image)) | Application data root, credential store roots, settings file | microSD FatFs provider (C4) | LittleFS on the reference board's microSD card |
+| Factory reset | Crux credential store erase (`<crux/credential_store_zephyr.h>`) | Erase of accounts, then the settings file, then a reset ([specification section 5.3](controller-framework-spec.md#53-storage-or-access-failure-and-factory-reset-d15)) | Device preparation only ([C9](#c9-access-and-an-unusable-store)) | An erase that keeps the device identity |
+| Update | Crux image state contract | Health verdict for the confirmation of a test image | Images prepared for MCUboot, no confirmation ([C10](#c10-image-state)) | Health-gated confirmation |
 
 ## Storage and configuration
 
@@ -16,26 +56,39 @@ When the pin moves, each constraint is checked again, and a constraint whose Cru
 
 ### C4. Configuration saving needs a power-cut-safe file system
 
-- Evidence: Crux's Settings File provider of Configuration exists in two selections (`zephyr/Kconfig:438-470`):
+- Evidence: Crux's Settings File provider of Configuration exists in two selections (`zephyr/Kconfig:471-503`):
   - `CRUX_CONFIGURATION_SETTINGS_FILE` needs Reliance Edge (west group `crux-reliance`, source under GPLv2, test images only);
   - `CRUX_CONFIGURATION_SETTINGS_FILE_ANY_FS` refuses, at CMake and in its source, any image that has `FAT_FILESYSTEM_ELM`, because a FatFs rename removes the destination first and can lose the settings file at a power cut.
-- Evidence: Configuration on LittleFS over a block device runs on `native_sim` in Crux (`tests/native/configuration_settings_littlefs`), and Crux's File core runs over LittleFS on a flash simulator partition (`tests/native/file_littlefs`); Crux has no selectable LittleFS File provider for a target, at the pin or on Crux `main`.
-- Effect: an image with the microSD FatFs provider has no save provider, and an image cannot keep FatFs for files and another file system for settings.
-- Crux change: a LittleFS File provider with Configuration saving on it. State: planned in Crux. Priority 1.
+- Evidence: Crux has no selectable LittleFS File provider for a target at the pin.
+- Crux `main`: `CRUX_FILE_LITTLEFS_BLK_DEV` is a File provider on LittleFS over an SD card or eMMC disk on any board (`zephyr/Kconfig:461-486`); it mounts and formats nothing, so the composition mounts the volume, and `CRUX_CONFIGURATION_SETTINGS_FILE_ANY_FS` saves Configuration on it, shown on `native_sim` (`zephyr/Kconfig:571-587`).
+- Effect at the pin: an image with the microSD FatFs provider has no save provider, and an image cannot keep FatFs for files and another file system for settings.
+- Crux change: a LittleFS File provider with Configuration saving on it. State: Crux `main`. Priority 1.
 - Interim state: the microSD FatFs provider serves files and the credential store, Configuration has no save provider, and the status service reports that parameters are not persistent.
 - Replacement criterion: criteria 12 and 24 are replaced by: a save answers not supported, and the status service says that parameters are not persistent.
 
 ### C5. Settings File sources under a Crux `tests/` path
 
 - Evidence: both Settings File selections build corrected copies of Zephyr's Settings File backend from Crux's `tests/native/configuration_settings_file`, so a product build reaches a file under Crux's `tests/` (`zephyr/CMakeLists.txt:158-170`).
-- Crux change: move those sources out of `tests/`. State: planned in Crux. Priority 1.
+- Crux `main`: the module prepares the corrected copies with `zephyr/settings_file.cmake` and `zephyr/prepare_settings_file.py` from `patches/zephyr/settings-file-error.patch` and `patches/zephyr/settings-store-error.patch` (`zephyr/CMakeLists.txt:161-176`; `patches/zephyr/README.md`).
+- Crux change: move those sources out of `tests/`. State: Crux `main`. Priority 1.
 - Interim state: the product build reaches Crux's `tests/` for the Settings File sources. Replacement criterion: none.
+- Acceptance: criterion 32, at a pin that contains the change.
 
 ### C9. Access and an unusable store
 
-- Evidence: a credential store that reports itself unusable cannot reopen Crux Access in the same boot (`components/access/include/crux/access.h:91-93`), and Access offers no erase operation.
-- Crux change: an Access erase operation. State: planned in Crux. Priority 2.
+- Evidence: a credential store that reports itself unusable cannot reopen Crux Access in the same boot (`components/access/include/crux/access.h:91-93`), and Crux offers no erase operation at the pin.
+- Crux `main`: `crux_credential_erase()` (`components/credential/ports/zephyr/include/crux/credential_store_zephyr.h`, target `crux::credential_store_zephyr`) is a composition interface that erases the credential store for a factory reset; it checks no permission, so the caller's trigger is the protection, the store is unusable until the next reset, and the settings file and files are the product's to remove.
+- Evidence (Crux `main`): the erase removes the accounts, the TLS key and certificate and the SSH host key, and Crux makes the device keys again at the next start, while [specification section 5.3](controller-framework-spec.md#53-storage-or-access-failure-and-factory-reset-d15) keeps the device identity and section 5.5 puts a prepared device without its identity into safe mode.
+- Crux change: an erase for a factory reset. State: Crux `main`. Priority 2.
+- Crux change: an erase that keeps the TLS key and certificate. State: Crux change needed. Priority 2.
 - Interim state: factory reset only by device preparation. Replacement criterion: none.
+
+### C15. Size limit of the application data root
+
+- Evidence: Crux File reports a full volume as `CRUX_FILE_ERR_NO_SPACE` and offers no size limit per root, at the pin or on Crux `main` (Crux `docs/file-contract.md`); with one provider and one mount (C1), the application data, the credential store and the settings file share one volume.
+- Effect: the application calls Crux File directly (specification section 3.2), so the framework cannot enforce the size limit of [specification section 5.4](controller-framework-spec.md#54-storage-and-configuration) without a Crux mechanism; the framework owns the rule, and the product sets the limit.
+- Crux change: a size limit per File root, or a second mount for the application data. State: Crux change needed. Priority 1.
+- Interim state: the application data root has no size limit, and a full volume can stop a configuration save. Replacement criterion: none; criterion 24 needs the change.
 
 ## Supervision and reset
 
@@ -53,15 +106,25 @@ When the pin moves, each constraint is checked again, and a constraint whose Cru
 
 ### C8. Crux service threads and supervision
 
-- Evidence: Crux service threads that block without a timeout cannot be supervised by progress.
-- Crux change: a supervision hook in Crux service threads, for example a poll-with-timeout loop that reports progress. State: planned in Crux. Priority 1.
+- Evidence: Crux service threads that block without a timeout cannot be supervised by progress at the pin.
+- Crux `main`: `crux_service_progress_register()` (`components/service_priority/ports/zephyr/include/crux/service_priority_zephyr.h`, target `crux::service_priority_zephyr`) registers one function that each started Crux service thread calls once per pass of its loop, at least about once a second when idle: the security event drain, the reboot worker, the network settings worker, the web session and web management workers and the console.
+- Evidence (Crux `main`): the HTTP server thread and the SSH threads are not Crux service threads and do not report, so they stay indirectly supervised with Zephyr's network and logging threads.
+- Crux change: a supervision hook in Crux service threads. State: Crux `main`. Priority 1.
 - Interim state: Crux service threads are supervised indirectly ([specification section 4.3](controller-framework-spec.md#43-runtime-supervision)). Replacement criterion: none.
+- Acceptance: criterion 33, at a pin that contains the change.
 
 ### C11. Simulated watchdog on `native_sim`
 
 - Evidence: the simulated watchdog of `native_sim` (`CONFIG_CRUX_SYSTEM_NATIVE_SIM_WATCHDOG`) restarts the process after a missed feed, which then reads the reset cause SOFTWARE, never WATCHDOG (`zephyr/Kconfig:277-288`).
 - Effect: `native_sim` shows only part of the boot counter's watchdog path and never the WATCHDOG cause; host tests and a board show the case with that cause.
 - Crux change: none.
+
+### C14. Operator reset marker and Crux Reboot
+
+- Evidence: Crux Reboot asks the composition's policy callback when a request arrives and again on its worker just before the reset, and the callback "may be called more than once for one request" (`components/reboot/include/crux/reboot.h:20-21`, `:95`, at the pin and on Crux `main`); Crux Reboot offers no call that runs once immediately before the reset.
+- Effect: the framework cannot tell from the callback which call precedes the reset, so the operator reset marker of [specification section 5.1](controller-framework-spec.md#51-retained-region-and-reset-classification-d4) relies on the order of the calls.
+- Crux change: a pre-reset hook, distinct from the policy callback, that Crux Reboot calls once on its worker after the second policy check and immediately before the reset, or an equivalent. State: Crux change needed. Priority 2.
+- Interim state: the framework writes the marker from the policy callback, tracks the order of the calls, and consumes a marker left by a request that never reset. Replacement criterion: none.
 
 ## Console and logging
 
@@ -72,28 +135,29 @@ Crux refuses every form of it, at the pin and on Crux `main`:
 
 | Where | What it refuses |
 |---|---|
-| `components/logging/ports/zephyr/logging_binding.c:58-60` | A build with `CONFIG_CRUX_SERIAL` whose `crux-serial0` UART is the logging UART ("Crux Logging conflicts with Crux Serial") |
-| `components/logging/ports/zephyr/logging_binding.c:55-57` | The Zephyr shell's serial backend on the logging UART |
-| `components/logging/ports/zephyr/logging_binding.c:41-50` | The Zephyr console on the logging UART, except with logging-only routing (no shell, no console input) |
-| `components/logging/ports/zephyr/CMakeLists.txt:18-24` | `CONFIG_SHELL_LOG_BACKEND` and every log backend other than the UART backend |
-| `components/logging/ports/zephyr/logging_binding.c:12-18` | On the RT1060-EVK board, any logging UART other than LPUART1, so the console cannot take LPUART1 and move logging elsewhere |
+| `components/logging/ports/zephyr/logging_binding.c:45` | A build with `CONFIG_CRUX_SERIAL` whose `crux-serial0` UART is the logging UART ("Crux Logging conflicts with Crux Serial") |
+| `components/logging/ports/zephyr/logging_binding.c:42` | The Zephyr shell's serial backend on the logging UART |
+| `components/logging/ports/zephyr/logging_binding.c:31-39` | The Zephyr console on the logging UART, except with logging-only routing (no shell, no console input) |
+| `components/logging/ports/zephyr/CMakeLists.txt:15-24` | `CONFIG_SHELL_LOG_BACKEND` and every log backend other than the UART backend |
 | `components/cli/ports/zephyr/include/crux/cli_zephyr.h:26-27` | Any Zephyr console, log backend, shell or other Crux Serial user on the console's `crux-serial0` UART |
-| `zephyr/Kconfig:184`, `:193` | More than "one explicitly dedicated UART" for Crux Serial |
-| `zephyr/Kconfig:222-224` | A Zephyr shell in an image with the Crux command line, unless the image is marked as a development image |
+| `zephyr/Kconfig:184` | More than "one explicitly dedicated UART" for Crux Serial |
+| `zephyr/Kconfig:193`, `:236-243` | A Zephyr shell in an image with the Crux command line, unless the image is marked as a development image |
 
-- Effect: the console needs a second UART; on the RT1060-EVKB that is LPUART3 on header pins, connected with a USB-serial adapter and named by the alias.
-- Crux change: a build option that selects a separate console UART or one UART shared by the console and Crux Logging. State: planned in Crux. Priority 2.
+- Crux `main`: `CONFIG_CRUX_CLI_CONSOLE_UART_SHARED` puts the console and Crux Logging on one UART through a Crux Logging backend that queues log text and lets the console print it while it waits for input (`zephyr/Kconfig:237-266`); the separate UART stays the default.
+- Effect at the pin: the console needs a second UART; on the RT1060-EVKB that is LPUART3 on header pins, connected with a USB-serial adapter and named by the alias.
+- Crux change: a build option that selects a separate console UART or one UART shared by the console and Crux Logging. State: Crux `main`. Priority 2.
+- A Crux change for the logging UART on `native_sim` is in progress as a Crux Draft.
 - Interim state: the serial console uses a second UART (LPUART3 on header pins, with a USB-serial adapter). Replacement criterion: none.
 
 ## Security profiles
 
 ### C7. SSH and TLS profiles
 
-- Evidence: `CONFIG_CRUX_ACCESS` stops the build without `CONFIG_PSA_CRYPTO_PROVIDER_MBEDTLS` (`zephyr/CMakeLists.txt:197-201`; `zephyr/Kconfig:632-637`; Crux `docs/management-in-a-product.md:154-155`).
+- Evidence: `CONFIG_CRUX_ACCESS` stops the build without `CONFIG_PSA_CRYPTO_PROVIDER_MBEDTLS` (`zephyr/CMakeLists.txt:198-200`; `zephyr/Kconfig:646-670`; Crux `docs/management-in-a-product.md:154-155`).
   So Crux Access, and every management service that depends on it (serial console, configuration service, status service, web sessions, web management, TLS certificate, reboot, File service and network settings), needs the Mbed profile of PSA Crypto, and an image on the Wolf profile, which SSH needs, has none of them through the module.
 - Evidence: Crux SSH has a private provider interface only, with no public header and no `crux::` target, so a composition outside Crux needs a Crux composition interface.
-- Evidence: `CONFIG_CRUX_SSH` needs the Wolf profile, and Crux refuses it together with the Mbed TLS module, because two TLS stacks are not a supported image (`zephyr/CMakeLists.txt:285-290`).
-- Evidence: the Wolf profile needs a Zephyr patch for its TLS socket backend, whose application in a product is open in Crux (Crux `docs/management-in-a-product.md:58`).
+- Evidence: `CONFIG_CRUX_SSH` needs the Wolf profile, and Crux refuses it together with the Mbed TLS module, because two TLS stacks are not a supported image (`zephyr/CMakeLists.txt:286-290`).
+- Evidence: the Wolf profile needs a Zephyr patch for its TLS socket backend, whose application in a product is open in Crux (Crux `docs/management-in-a-product.md:58`); on Crux `main`, whose Zephyr is v4.5.0, the wolfSSL line stays on Zephyr v4.4.2 until a patch for Zephyr 4.5 exists (Crux `patches/zephyr/README.md`).
 - Evidence: wolfSSL and wolfSSH are available under GPL-3.0-or-later or a commercial licence ([dependencies](../dependencies.md), group `crux-secure-management`), and this repository is Apache-2.0.
 - Crux change: Crux Access on the Wolf profile, needed for the Wolf HTTPS profile and for SSH. State: Crux change needed. Priority 2.
 - Crux change: an SSH composition interface. State: deferred by Crux. Priority 3.
@@ -112,17 +176,17 @@ Crux refuses every form of it, at the pin and on Crux `main`:
 
 ### C12. SoC gates
 
-These refuse an SoC other than the RT1062, by reading the source:
+These refuse a board whose logging UART, watchdog or entropy source is not the NXP driver that Crux and this repository accept, or name RT1060 nodes:
 
 | Where | What refuses | Services blocked |
 |---|---|---|
-| `components/logging/ports/zephyr/logging_binding.c:12-31` | "Crux Logging unsupported UART resource": only RT1062 LPUARTs and the `native_sim` UART | Logging, and every configuration on it |
-| `components/system/ports/zephyr/system_binding.c` (the final `#error`) | "Crux System unsupported SoC or watchdog resource": only the RT1062 WDOG1 | Health supervision, device management |
-| `zephyr/Kconfig:307-348` | Every target File provider of FatFs depends on `SOC_MIMXRT1062`; the board-neutral Reliance Edge provider links source under GPLv2 | Storage, device management |
-| `app/management/entropy.cmake:16-20` (this repository) | Needs `CONFIG_ENTROPY_MCUX_TRNG` | Device management |
+| `components/logging/ports/zephyr/logging_binding.c:17-21` | "Crux Logging unsupported UART resource": only an `nxp,lpuart` node and the `native_sim` emulated UART | Logging, and every configuration on it |
+| `components/system/ports/zephyr/system_binding.c:66` | "Crux System unsupported watchdog driver: crux-watchdog0 must be an nxp,imx-wdog node" | Health supervision, device management |
+| `app/management/entropy.cmake:17-21` (this repository) | Needs `CONFIG_ENTROPY_MCUX_TRNG` | Device management |
 | `app/boards/*.overlay`, `app/conf/management.conf` (this repository) | Name RT1060 nodes and RT1060 Ethernet driver options | Network, health supervision, device management |
 
-- Crux change: board-neutral gates. State: Crux change needed when a second board enters the scope (decision D9). Priority: deferred.
+- Evidence: Crux's FatFs providers on a real medium are chosen by generic disk and devicetree facts, not by a SoC or board name (`zephyr/Kconfig:307-310`), and the board-neutral Reliance Edge provider links source under GPLv2.
+- Crux change: board-neutral driver gates. State: Crux change needed when a second board enters the scope (decision D9). Priority: deferred.
 
 ### C13. Linux providers
 
