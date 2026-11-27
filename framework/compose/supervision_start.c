@@ -14,10 +14,10 @@
  *     to zero and asks Crux Reboot for a restart, which carries the operator reset marker, so the
  *     next boot is a normal boot (safe-mode exit). Label: the authorised operator command of
  *     specification section 5.2 is a decision of the specification (D4); carrying it on the serial
- *     command line through Crux Reboot is a project-specific workaround. Crux docs/reboot-service.md
- *     (decision 16) adds no CLI reboot command, because the issue asked for none; its alternative
- *     column names a serial reboot command, which this project uses. The interface is
- *     components/reboot/include/crux/reboot.h.
+ *     command line through Crux Reboot is a project-specific workaround. Crux
+ *     docs/reboot-service.md (decision 16) adds no CLI reboot command, because the issue asked for
+ *     none; its alternative column names a serial reboot command, which this project uses. The
+ *     interface is components/reboot/include/crux/reboot.h.
  *
  * Status: built in CI for the board and run on native_sim; never run on a board.
  */
