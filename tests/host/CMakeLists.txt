@@ -120,3 +120,11 @@ add_executable(test_app_requests test_app_requests.c ../../framework/src/app_req
 target_include_directories(test_app_requests PRIVATE ../../framework/src)
 target_compile_options(test_app_requests PRIVATE -Wall -Wextra -Wpedantic -Werror)
 add_test(NAME app_requests COMMAND test_app_requests)
+
+# The health verdict and the trial deadline of a test image (criterion 25, delivery stage 4), against
+# a fake image state port in the test. ISO C only; no image builds image_trial.c yet, because Crux has
+# no image state provider for Zephyr (gap C10).
+add_executable(test_image_trial test_image_trial.c ../../framework/src/image_trial.c)
+target_include_directories(test_image_trial PRIVATE ../../framework/src)
+target_compile_options(test_image_trial PRIVATE -Wall -Wextra -Wpedantic -Werror)
+add_test(NAME image_trial COMMAND test_image_trial)
