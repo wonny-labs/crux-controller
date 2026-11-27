@@ -41,6 +41,7 @@
 #include <controller/framework_test.h>
 #include <crux/web.h>
 #include <zephyr/kernel.h>
+#include <zephyr/sys/printk.h>
 
 #include "fixture.h"
 #include "https.h"
@@ -346,6 +347,33 @@ static void boot_contract(void)
     }
 }
 
+/* Boot 9: the reboot command stops the running application with the reason planned reset, then
+ * calls safe_state, before Crux Reboot resets (section 3.3). The log lines of that stop would come
+ * too late before the reset, so this thread, of the application thread's priority and above the
+ * reboot thread's, checks the fixture's counts right after that stop and prints. */
+static void planned_reset(void)
+{
+    const unsigned safe_before = fixture_safe_states();
+
+    fixture_expect_stop();
+    if (!command("reboot", "restart requested")) {
+        return;
+    }
+    /* No scenario_say() until the check is done: its log flush can sleep, and the reboot thread
+     * would then reset first. printk() writes at once. */
+    if (!fixture_wait_for_stop(10000) ||
+        fixture_last_stop_reason() != (int)CONTROLLER_APP_STOP_PLANNED_RESET) {
+        fail("the stop before the planned reset");
+        return;
+    }
+    if (fixture_safe_states() != safe_before + 1u) {
+        fail("the safe state before the planned reset");
+        return;
+    }
+    printk("\napplication scenario: planned reset: stop with the reason planned reset, then safe "
+           "state\n");
+}
+
 /* Boots that end in a fault of the application and keep the controller: device management
  * answers, and the reboot command leads to the next boot. */
 static void fault_kept(const char *what, unsigned starts)
@@ -445,9 +473,7 @@ int main(void)
             break;
         }
         say("operator start ran the held application");
-        if (command("reboot", "restart requested")) {
-            say("restart requested");
-        }
+        planned_reset();
         break;
     case 10:
         start_or_fail(FIXTURE_NORMAL);

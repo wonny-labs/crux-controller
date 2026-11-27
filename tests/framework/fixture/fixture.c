@@ -24,7 +24,7 @@
 #include <zephyr/kernel.h>
 
 #define TAG "fixture"
-#define RELOAD_MS 1000u
+#define RELOAD_MS 3000u
 #define LOOP_MS 100
 #define STALL_AFTER 10u
 #define JOIN_MS 1000
@@ -49,6 +49,8 @@ static atomic_t inits;
 static atomic_t starts;
 static atomic_t stops;
 static atomic_t safe_states;
+static atomic_t last_reason = ATOMIC_INIT(-1);
+static K_SEM_DEFINE(stopped, 0, 1);
 
 static void say(crux_log_level_t level, const char *text)
 {
@@ -214,6 +216,7 @@ static int fixture_stop(controller_app_context_t *given, controller_app_stop_rea
 
     (void)given;
     (void)atomic_inc(&stops);
+    atomic_set(&last_reason, (atomic_val_t)reason);
     (void)snprintf(text, sizeof text, "stop reason=%s",
                    reason == CONTROLLER_APP_STOP_FAULT      ? "fault"
                    : reason == CONTROLLER_APP_STOP_OPERATOR ? "operator"
@@ -237,6 +240,7 @@ static int fixture_stop(controller_app_context_t *given, controller_app_stop_rea
         return -1;
     }
     say(CRUX_LOG_INFO, "stop: both threads ended");
+    k_sem_give(&stopped);
     return 0;
 }
 
@@ -272,6 +276,21 @@ const controller_app_t *fixture_descriptor(fixture_behaviour_t chosen)
 const controller_app_t *fixture_incomplete_descriptor(void)
 {
     return &incomplete;
+}
+
+void fixture_expect_stop(void)
+{
+    k_sem_reset(&stopped);
+}
+
+bool fixture_wait_for_stop(int32_t timeout_ms)
+{
+    return k_sem_take(&stopped, K_MSEC(timeout_ms)) == 0;
+}
+
+int fixture_last_stop_reason(void)
+{
+    return (int)atomic_get(&last_reason);
 }
 
 void fixture_report_fault(void)

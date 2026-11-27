@@ -68,8 +68,8 @@ tests:
         - "Crux simulated watchdog expired"
         # Boot 4: start passes its deadline (criterion 20).
         - "application scenario boot 4"
-        - "last fault channel worker"
         - "application scenario: start will pass its deadline"
+        - "last fault channel worker"
         - "start hangs"
         - "application safe state requested by the supervisor"
         - "fault latched reason=deadline name=application"
@@ -113,10 +113,7 @@ tests:
         - "application scenario: held by a start prerequisite, controller degraded"
         - "application started by an operator state=running"
         - "application scenario: operator start ran the held application"
-        - "application scenario: restart requested"
-        - "planned reset: stopping the application"
-        - "stop reason=planned reset"
-        - "application stopped state=stopped"
+        - "application scenario: planned reset: stop with the reason planned reset, then safe state"
         # Boot 10: a normal boot after the planned reset.
         - "application scenario boot 10"
         - "application scenario done"
