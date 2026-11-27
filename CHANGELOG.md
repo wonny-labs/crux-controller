@@ -28,6 +28,10 @@ build configurations by their earlier step ids, S0 to S6.
   the RT1060-EVKB; `budgets/limits.json` has a row for it with the placeholder margin.
 - The boundary check covers the trees of the module (`include`, `framework/src`, `framework/compose`,
   `framework/os`), and a C source under `app/`, `framework/` or `include/` outside every checked tree fails.
+- The base image starts the serial command line: the Crux serial console, with its login and its first-account
+  setup, on LPUART3 of the RT1060-EVKB (alias `crux-serial0` in the board file), after web management. The
+  service symbol is `CRUX_CONTROLLER_FRAMEWORK_CLI_SERIAL`, and `<crux/cli_zephyr.h>` joins the composition
+  zone's allow-list. The `native_sim` scenario types the setup and a login into an emulated UART.
 
 ### Capability names
 

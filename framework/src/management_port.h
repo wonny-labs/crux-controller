@@ -30,7 +30,7 @@
  *   7. web start, with the session authenticate function
  *
  * The guide puts the first account between steps 3 and 4. This port does not create one: that
- * is the serial console's work, in a later change.
+ * is the serial console's work (cli_port.h), which the framework starts after this sequence.
  *
  * management_port_start() runs the whole sequence once, on one thread, before any request.
  */

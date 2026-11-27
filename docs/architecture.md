@@ -98,17 +98,19 @@ Points that the table cannot carry:
 
 The controller framework is a Zephyr module of this repository: `zephyr/module.yml`, `zephyr/Kconfig` and
 `zephyr/CMakeLists.txt`. The Kconfig symbol `CRUX_CONTROLLER_FRAMEWORK` turns it on, and each service under it
-(`CRUX_CONTROLLER_FRAMEWORK_MANAGEMENT`, `CRUX_CONTROLLER_FRAMEWORK_TIME_SYNC`) is on by default when the Crux and
-Zephyr symbols it needs are on. A product's `main()` calls `controller_framework_start()` of
+(`CRUX_CONTROLLER_FRAMEWORK_MANAGEMENT`, `CRUX_CONTROLLER_FRAMEWORK_CLI_SERIAL`, `CRUX_CONTROLLER_FRAMEWORK_TIME_SYNC`)
+is on by default when the Crux and Zephyr symbols it needs are on. A product's `main()` calls `controller_framework_start()` of
 `<controller/framework.h>` once; the start function runs a table of phases with the portable startup sequence of
 `framework/src/startup.c` and logs the name and result of each:
 
 1. clock: the Crux monotonic clock answers. A failure stops startup.
 2. web management: the storage mount, the credential store, Access, the configuration and status services, the TLS
    certificate, sessions, web management and the listener, in the order of `framework/src/management_port.h`.
-3. time synchronisation: the SNTP thread of `framework/src/time_sync.c`.
+3. command line: the Crux serial console on the UART of the devicetree alias `crux-serial0`, with its login and
+   its first-account setup (`framework/src/cli_port.h`). It needs Access, so it runs only after phase 2 succeeded.
+4. time synchronisation: the SNTP thread of `framework/src/time_sync.c`.
 
-A failure of phase 2 or 3 is logged and the controller runs without that service. The framework creates no
+A failure of phase 2, 3 or 4 is logged and the controller runs without that service. The framework creates no
 application thread and takes no application yet. The base image (`base`) is `app/` with `app/conf/base.conf`:
 its `main()` calls the start function, and `app/CMakeLists.txt` links `controller::framework` and calls
 `controller_framework_image()`, which adds the route table and the packaged page to the target `app`. The
@@ -119,7 +121,7 @@ that asks for both.
 |---|---|
 | `include/` | The interface header `<controller/framework.h>` |
 | `framework/src` | The portable core: startup sequence, start function, time synchronisation glue and policy, management policy, port headers |
-| `framework/compose` | The composition zone of the module: storage mount and web management start |
+| `framework/compose` | The composition zone of the module: storage mount, web management start and serial command line start |
 | `framework/os` | The adapter zone of the module: the SNTP query and its thread |
 | `framework/management/` | The build files and data of the web route table: the packaged page, the reviewed route list, `management.cmake` and `entropy.cmake` |
 

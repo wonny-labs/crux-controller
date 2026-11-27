@@ -8,4 +8,4 @@ common:
     - framework
 tests:
   controller.framework.native_sim.base:
-    timeout: 180
+    timeout: 300

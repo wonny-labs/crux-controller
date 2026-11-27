@@ -13,3 +13,20 @@
     current-speed = <115200>;
     parity = "none";
 };
+
+/* The serial command line of the base image: the Crux console owns LPUART3, through the alias
+ * crux-serial0, and nothing else opens it. Logging keeps LPUART1, so the two never share a UART;
+ * a shared console and log UART needs a Crux option that does not exist yet. A configuration
+ * without the console leaves the UART unused. The wiring of LPUART3 to a terminal on this board
+ * has not been checked on a board. */
+/ {
+    aliases {
+        crux-serial0 = &lpuart3;
+    };
+};
+
+&lpuart3 {
+    status = "okay";
+    current-speed = <115200>;
+    parity = "none";
+};

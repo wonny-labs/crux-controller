@@ -12,7 +12,10 @@
  *      the credential store and Access, the configuration service, the status service with the
  *      reset cause it reads once, the TLS certificate, sessions and web management, then the
  *      HTTPS listener (management_port.h has the order inside the phase).
- *   3. time synchronisation: the SNTP thread that sets the Crux Time realtime clock.
+ *   3. command line: the framework's command tables to the Crux registry, then the Crux serial
+ *      console on the UART of the alias crux-serial0, with its first-account setup. It needs
+ *      Access, so it runs only when web management started (cli_port.h).
+ *   4. time synchronisation: the SNTP thread that sets the Crux Time realtime clock.
  * The network interface is up before main() (the Zephyr network configuration library), and
  * Crux Logging needs no start. A phase after the clock that fails is reported and the controller
  * runs without that service.
@@ -44,6 +47,10 @@
 #endif
 #endif
 
+#ifdef CONFIG_CRUX_CONTROLLER_FRAMEWORK_CLI_SERIAL
+#include "cli_port.h"
+#endif
+
 #ifdef CONFIG_CRUX_CONTROLLER_FRAMEWORK_TIME_SYNC
 #include "time_sync.h"
 #endif
@@ -58,6 +65,9 @@ static int phase_clock(void)
 }
 
 #ifdef CONFIG_CRUX_CONTROLLER_FRAMEWORK_MANAGEMENT
+/* True once web management started, and with it Access, which the command line needs. */
+static bool management_started;
+
 static int phase_management(void)
 {
     const management_port_config_t config = {
@@ -65,8 +75,26 @@ static int phase_management(void)
         .platform_version = CONTROLLER_PLATFORM_VERSION,
         .project_version = CONTROLLER_PROJECT_VERSION,
     };
+    const management_port_status_t status = management_port_start(&config);
 
-    return (int)management_port_start(&config);
+    management_started = status == MANAGEMENT_PORT_OK;
+    return (int)status;
+}
+#endif
+
+#ifdef CONFIG_CRUX_CONTROLLER_FRAMEWORK_CLI_SERIAL
+/* The phase result when web management, and so Access, did not start. */
+#define PHASE_COMMAND_LINE_NO_ACCESS (-100)
+
+static int phase_command_line(void)
+{
+    /* The first account gets the role of the management policy that manages accounts. */
+    static const cli_port_config_t config = {.setup_role = MANAGEMENT_ROLE_ADMINISTRATOR};
+
+    if (!management_started) {
+        return PHASE_COMMAND_LINE_NO_ACCESS;
+    }
+    return (int)cli_port_start(&config);
 }
 #endif
 
@@ -81,6 +109,9 @@ static const startup_phase_t phases[] = {
     {"clock", phase_clock, true},
 #ifdef CONFIG_CRUX_CONTROLLER_FRAMEWORK_MANAGEMENT
     {"web management", phase_management, false},
+#endif
+#ifdef CONFIG_CRUX_CONTROLLER_FRAMEWORK_CLI_SERIAL
+    {"command line", phase_command_line, false},
 #endif
 #ifdef CONFIG_CRUX_CONTROLLER_FRAMEWORK_TIME_SYNC
     {"time synchronisation", phase_time_sync, false},

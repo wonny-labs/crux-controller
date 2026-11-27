@@ -95,9 +95,9 @@ and made on the device at its first start. The medium is a RAM disk, so nothing 
   copied nor logged.
 - The route sources, the packaged page and the entropy rules are in `framework/management/`. The page is three files with
   no framework, no external URL and no inline script or style.
-- The image has no account, because the first account needs the serial console and the boundary does not allow
-  `<crux/cli_zephyr.h>`. The save route of the configuration service ends as not supported. There is no reboot,
-  network or file route, no SSH and no command line.
+- The image has no account, because the first account needs the serial console, which only the base image (`base`)
+  starts. The save route of the configuration service ends as not supported. There is no reboot, network or file
+  route, no SSH and no command line.
 - The configuration depends on `net` and excludes `file` and `system`: the status service takes the reset cause once
   and never clears it, and `system` clears it. `sntp` may share the image; CI does not build that combination.
 - The fragment names no Thread, Sync or Queue symbol; the Crux services select them.

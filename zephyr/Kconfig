@@ -33,6 +33,20 @@ config CRUX_CONTROLLER_FRAMEWORK_MANAGEMENT
 	  the packaged page to its target app. The volume is formatted when it does not mount, which
 	  suits only the RAM disk form, and the key and certificate are made at the first start.
 
+config CRUX_CONTROLLER_FRAMEWORK_CLI_SERIAL
+	bool "Serial command line"
+	default y
+	depends on CRUX_CONTROLLER_FRAMEWORK_MANAGEMENT && CRUX_CLI_CONSOLE
+	help
+	  Start the Crux serial console on the UART that the devicetree alias crux-serial0
+	  names, after web management has started Access (framework/compose/cli_start.c). The
+	  console prints a login prompt and nothing before it. With no account, the word !setup
+	  at the prompt creates the first account, with the administrator role of the management
+	  policy; once an account exists, setup is refused and every command needs a login. The
+	  command line has the built-in commands of Crux (help, logout, passwd and account list)
+	  and no command table of the framework yet. The console owns its UART: no Zephyr
+	  console, log backend or shell may use it. SSH is not offered.
+
 config CRUX_CONTROLLER_FRAMEWORK_TIME_SYNC
 	bool "Time synchronisation over SNTP"
 	default y

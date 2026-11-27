@@ -11,8 +11,8 @@
  * The roles, the session limits and the three permission names are the product's policy
  * (management_policy.h, plain C). This file copies the policy into the Crux type member by member
  * and refuses to start when the product's copy of a permission name is not the Crux text. The
- * password rule is left to Crux's reference rule. No account is made here: the first account is
- * made from the serial console, in a later change.
+ * password rule is left to Crux's reference rule. No account is made here: in the base image the
+ * first account is made from the serial console (cli_start.c), which starts after this sequence.
  *
  * The route sources, the packaged page and the route table are not here. They belong to the target
  * `app` and are named by framework/management/management.cmake.

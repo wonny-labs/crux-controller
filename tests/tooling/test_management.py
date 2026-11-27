@@ -703,7 +703,9 @@ class ManagementBuildFiles(unittest.TestCase):
         expected = {"zephyr_interface", "crux::file_zephyr", "crux::web_zephyr", "crux::web_session",
                     "crux::web_management", "crux::access", "crux::credential_store",
                     "crux::security_event", "crux::config_service", "crux::mgmt_status",
-                    "crux::tls_certificate", "crux::system", "crux::time", "crux::logging"}
+                    "crux::tls_certificate", "crux::system", "crux::time", "crux::logging",
+                    # The serial command line of the base image, under its own symbol.
+                    "crux::cli_zephyr", "crux::cli"}
         self.assertEqual(expected, names)
 
     def test_the_zone_keeps_the_application_warnings_on_the_management_source(self):

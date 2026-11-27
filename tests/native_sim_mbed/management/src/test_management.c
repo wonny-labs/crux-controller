@@ -14,7 +14,7 @@
  * request over a new connection.
  *
  * What this scenario cannot show: a successful login, any 200 from an API route, roles, a password
- * change, the first account (a later change makes it, from the serial console), a configuration
+ * change, the first account (the base image makes it, from the serial console), a configuration
  * save, handshake time, stack use, heap peaks (the heap here is larger than the product's), the
  * strength of any key (the entropy is the simulator's fake entropy, a test source), the libc of the
  * target (the libc here is the one that prj.conf names, and the web start checks fnmatch() on it),

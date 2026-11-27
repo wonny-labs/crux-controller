@@ -145,7 +145,7 @@ env = { BOARD = "mimxrt1060_evk@B//qspi", CONFIG = "management", CONF = "conf/wo
 # Mbed TLS group, which its first check switches on in its own workspace.
 [jobs.budget-base]
 description = "Budget base"
-env = { BOARD = "mimxrt1060_evk@B//qspi", CONFIG = "base", CONF = "conf/base.conf", OVERLAY = "boards/net.overlay;boards/management.overlay", REQUIRE = "CONFIG_CRUX_CONTROLLER_FRAMEWORK=y CONFIG_CRUX_CONTROLLER_FRAMEWORK_MANAGEMENT=y CONFIG_CRUX_CONTROLLER_FRAMEWORK_TIME_SYNC=y CONFIG_CRUX_ACCESS=y CONFIG_CRUX_WEB_MANAGEMENT=y" }
+env = { BOARD = "mimxrt1060_evk@B//qspi", CONFIG = "base", CONF = "conf/base.conf", OVERLAY = "boards/net.overlay;boards/management.overlay", REQUIRE = "CONFIG_CRUX_CONTROLLER_FRAMEWORK=y CONFIG_CRUX_CONTROLLER_FRAMEWORK_MANAGEMENT=y CONFIG_CRUX_CONTROLLER_FRAMEWORK_TIME_SYNC=y CONFIG_CRUX_CONTROLLER_FRAMEWORK_CLI_SERIAL=y CONFIG_CRUX_ACCESS=y CONFIG_CRUX_WEB_MANAGEMENT=y CONFIG_CRUX_CLI_CONSOLE=y" }
 
 # The Dev container job builds the image of .devcontainer/ and runs checks in it through
 # scripts/dev-shell.sh. The SEGGER download accepts SEGGER's terms of use, and no check uses a
@@ -1051,7 +1051,7 @@ statuses = [case["status"] for suite in suites for case in suite["testcases"]]
 print([suite["name"] for suite in suites], statuses)
 assert suites, "the base scenario is not in the Twister report"
 assert statuses and all(status == "passed" for status in statuses), statuses
-assert len(statuses) == 4, statuses
+assert len(statuses) == 8, statuses
 PY
 '''
 scope = "always"
@@ -1095,6 +1095,8 @@ build=crux-controller/build/base/zephyr
 # the command line asked for.
 for option in CONFIG_CRUX_CONTROLLER_FRAMEWORK=y CONFIG_CRUX_CONTROLLER_FRAMEWORK_MANAGEMENT=y \
     CONFIG_CRUX_CONTROLLER_FRAMEWORK_TIME_SYNC=y CONFIG_ZEPHYR_CRUX_CONTROLLER_MODULE=y \
+    CONFIG_CRUX_CONTROLLER_FRAMEWORK_CLI_SERIAL=y CONFIG_CRUX_SERIAL=y CONFIG_CRUX_CLI=y \
+    CONFIG_CRUX_CLI_CONSOLE=y CONFIG_CRUX_CLI_CONSOLE_PRIORITY=11 \
     CONFIG_CRUX_LOGGING=y CONFIG_CRUX_TIME=y CONFIG_CRUX_NETIF=y CONFIG_SNTP=y \
     CONFIG_CRUX_PSA_THREADING=y CONFIG_PSA_CRYPTO_PROVIDER_MBEDTLS=y CONFIG_MBEDTLS=y \
     CONFIG_CRUX_ACCESS=y CONFIG_CRUX_CONFIG_SERVICE=y CONFIG_CRUX_MGMT_STATUS=y \
@@ -1118,6 +1120,7 @@ done
 ! grep -q '^CONFIG_WOLF' "$build/.config" || { echo "unexpected wolf option" >&2; exit 1; }
 grep -Eq 'crux-watchdog0 = &?wdog0' "$build/zephyr.dts" || { echo "no crux-watchdog0 alias" >&2; exit 1; }
 grep -q 'controller_storage' "$build/zephyr.dts" || { echo "no fstab entry" >&2; exit 1; }
+grep -Eq 'crux-serial0 = &?lpuart3' "$build/zephyr.dts" || { echo "no crux-serial0 alias on lpuart3" >&2; exit 1; }
 '''
 scope = "always"
 
@@ -1130,7 +1133,8 @@ nm=$(find "$ZEPHYR_SDK_INSTALL_DIR" -name 'arm-zephyr-eabi-nm' -type f | head -n
 test -n "$nm" || { echo "no nm in the SDK" >&2; exit 1; }
 "$nm" crux-controller/build/base/zephyr/zephyr.elf > symbols.txt
 for symbol in controller_framework_start startup_run management_port_start time_sync_start \
-    time_sync_port_query crux_web_start crux_access_init crux_mgmt_status_start sntp_simple; do
+    time_sync_port_query crux_web_start crux_access_init crux_mgmt_status_start sntp_simple \
+    cli_port_start crux_cli_init crux_cli_serial_start crux_cli_console_run; do
   grep -qE " [Tt] ${symbol}$" symbols.txt || { echo "not linked: $symbol" >&2; exit 1; }
 done
 for symbol in workload_thread_start; do

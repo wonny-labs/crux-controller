@@ -163,9 +163,9 @@ have changed since, they are the source of truth.
   `performance` and `portability`; warnings are errors) runs over the 14 sources that the host tests
   build: `scripts/analyze_host.py`, in the same job. `.clang-tidy` also lists
   `readability-identifier-naming` without options, so it checks no naming rule. The script prints the
-  tracked sources that it did not analyse, 18 today: the sources that the host tests do not build,
+  tracked sources that it did not analyse, 19 today: the sources that the host tests do not build,
   because they need Zephyr or Crux headers or Kconfig values. It does so without failing.
-- **The 18 not analysed.** 11 of those 18 are product sources (`app/`, `framework/`), built with
+- **The 19 not analysed.** 12 of those 19 are product sources (`app/`, `framework/`), built with
   `-Wall -Wextra -Werror` as `app/CMakeLists.txt`, `app/os/CMakeLists.txt`, `framework/configurations.cmake`,
   `framework/compose/CMakeLists.txt` and `zephyr/CMakeLists.txt` set. The other 7 are the `native_sim` scenario
   sources (`tests/native_sim*/*/src/test_*.c`, `tests/framework/*/src/test_*.c`): the CMake files of the

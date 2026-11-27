@@ -23,3 +23,13 @@ if(CONFIG_CRUX_WEB_MANAGEMENT)
         crux::access crux::credential_store crux::security_event crux::config_service
         crux::mgmt_status crux::tls_certificate crux::system crux::time crux::logging)
 endif()
+
+# The serial command line: the start of the Crux serial console, with its first-account setup, on the
+# UART of the devicetree alias crux-serial0. The source is built only when the framework's service
+# symbol is on, which needs Crux's console symbol. crux::cli_zephyr, the composition interface of the
+# console start, is linked here and nowhere else; the console itself is selected by Kconfig and
+# appended to the Zephyr link by Crux.
+if(CONFIG_CRUX_CONTROLLER_FRAMEWORK_CLI_SERIAL)
+    target_sources(compose PRIVATE cli_start.c)
+    target_link_libraries(compose PRIVATE crux::cli_zephyr crux::cli crux::logging)
+endif()
