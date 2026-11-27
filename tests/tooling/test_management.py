@@ -17,6 +17,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import check_boundary  # noqa: E402
+import ci_map  # noqa: E402
 import fake_crux  # noqa: E402
 
 REGIONS = {"FLASH", "RAM", "ITCM", "DTCM", "OCRAM", "OCRAM2", "IDT_LIST"}
@@ -1302,12 +1303,28 @@ class ManagementScenario(unittest.TestCase):
                 self.assertNotRegex(text, r"/Users/|/home/|/private/|-----BEGIN", str(path))
 
 
+@ci_map.needs_tomllib
 class ManagementWorkflows(unittest.TestCase):
     """The management job and the budget row. They are the only places that switch the Mbed TLS group on, in
-    their own runner and after the project list was checked, never in west.yml."""
+    their own runner and after the project list was checked, never in west.yml.
+
+    The management job of ci.yml prepares its workspace with scripts/ci/prepare-job.sh and runs the
+    checks of the job management of scripts/ci/checks.toml; STEPS names each step's check."""
 
     BOARD = "mimxrt1060_evk@B//qspi"
     GROUP_ON = "west config --local manifest.group-filter -- +crux-secure-management"
+    STEPS = {
+        "Mbed-only check, default workspace": "management-mbed-default",
+        "Mbed-only check, group on": "management-mbed-group-on",
+        "Fetch the Mbed TLS modules and nothing else": "management-mbed-fetch",
+        "Install the Zephyr SDK": "management-sdk",
+        "Run the management scenario on native_sim": "management-native-sim",
+        "Check that the scenario ran and was not skipped": "management-native-sim-report",
+        "Cross-build management with the baseline gate required": "management-build",
+        "Check the outputs exist": "management-outputs",
+        "Check the resolved management configuration and devicetree": "management-config",
+        "Check what the image links": "management-symbols",
+    }
 
     def ci(self):
         return yaml.safe_load((ROOT / ".github" / "workflows" / "ci.yml").read_text())
@@ -1319,18 +1336,22 @@ class ManagementWorkflows(unittest.TestCase):
         return self.ci()["jobs"]["management"]
 
     def step_names(self):
-        return [step.get("name", step.get("uses", "")) for step in self.job()["steps"]]
+        """The workspace fetch of scripts/ci/prepare-job.sh, then the checks, in run order."""
+        names = {check_id: name for name, check_id in self.STEPS.items()}
+        return ["Fetch the default workspace"] + [names[i] for i in ci_map.ids("management")]
 
     def step(self, name):
-        return next(step for step in self.job()["steps"] if step.get("name") == name)
+        if name == "Fetch the default workspace":
+            return {"name": name, "run": ci_map.prepare_branch("management")}
+        return {"name": name, "run": ci_map.run(self.STEPS[name])}
 
     def commands(self):
-        return "\n".join(step.get("run", "") for step in self.job()["steps"])
+        return ci_map.prepare_branch("management") + "\n" + ci_map.commands("management")
 
     def test_ci_has_a_management_job_named_for_the_step_build_jobs_and_asking_for_no_permission(self):
         job = self.job()
         self.assertRegex(job["name"], r"^management build \(")
-        self.assertEqual(self.BOARD, job["env"]["BOARD"])
+        self.assertEqual(self.BOARD, ci_map.job_env("management")["BOARD"])
         self.assertEqual("ubuntu-24.04", job["runs-on"])
         self.assertNotIn("permissions", job)
         self.assertEqual({"contents": "read"}, self.ci()["permissions"])
@@ -1351,7 +1372,6 @@ class ManagementWorkflows(unittest.TestCase):
             "Mbed-only check, default workspace",
             "Mbed-only check, group on",
             "Fetch the Mbed TLS modules and nothing else",
-            "Restore the Zephyr SDK",
             "Install the Zephyr SDK",
             "Run the management scenario on native_sim",
             "Check that the scenario ran and was not skipped",
@@ -1362,6 +1382,10 @@ class ManagementWorkflows(unittest.TestCase):
         ]
         positions = [names.index(name) for name in order]
         self.assertEqual(sorted(positions), positions)
+        # The runner restores the SDK cache and prepares the workspace before the checks run.
+        steps = [step.get("name", step.get("uses", "")) for step in self.job()["steps"]]
+        self.assertLess(steps.index("Restore the Zephyr SDK"), steps.index("Prepare the workspace"))
+        self.assertLess(steps.index("Prepare the workspace"), steps.index("Run the checks of this tier"))
 
     def test_the_default_update_comes_first_and_the_group_is_switched_on_after_the_project_list_check(self):
         default = self.step("Fetch the default workspace")["run"]
@@ -1389,12 +1413,14 @@ class ManagementWorkflows(unittest.TestCase):
             self.assertIn(requirements, fetch)
 
     def test_the_group_is_switched_on_in_exactly_the_pins_job_the_management_job_and_the_budget_step(self):
-        for name, job in self.ci()["jobs"].items():
-            text = "\n".join(step.get("run", "") for step in job["steps"])
-            self.assertEqual(name in ("pins", "management"), "+crux-secure-management" in text, name)
-        for name, job in self.budget()["jobs"].items():
-            text = "\n".join(step.get("run", "") for step in job["steps"])
-            self.assertIn("+crux-secure-management", text)
+        for path in sorted((ROOT / ".github" / "workflows").glob("*.yml")):
+            self.assertNotIn("+crux-secure-management", path.read_text(), path.name)
+        self.assertNotIn("+crux-secure-management", ci_map.PREPARE.read_text())
+        self.assertNotIn("+crux-secure-management", ci_map.BUDGET.read_text())
+        for name in ci_map.data()["jobs"]:
+            text = ci_map.commands(name)
+            self.assertEqual(name in ("pins", "management", "budget-management"),
+                             "+crux-secure-management" in text, name)
         manifest = (ROOT / "west.yml").read_text()
         self.assertNotIn("group-filter", manifest)
 
@@ -1402,7 +1428,7 @@ class ManagementWorkflows(unittest.TestCase):
         run = self.step("Run the management scenario on native_sim")["run"]
         self.assertIn("west twister -p native_sim/native/64 -T crux-controller/tests/native_sim_mbed", run)
         self.assertIn("-O twister-out-management", run)
-        workload = "\n".join(step.get("run", "") for step in self.ci()["jobs"]["workload"]["steps"])
+        workload = ci_map.commands("workload")
         self.assertIn("-T crux-controller/tests/native_sim \\\n", workload)
         self.assertNotIn("native_sim_mbed", workload)
 
@@ -1420,7 +1446,7 @@ class ManagementWorkflows(unittest.TestCase):
         self.assertIn("conf/workload.conf;conf/net.conf;conf/management.conf", build)
         self.assertIn("boards/net.overlay;boards/management.overlay", build)
         self.assertIn("build/management", build)
-        self.assertIn("-p always -b '${{ env.BOARD }}'", build)
+        self.assertIn('-p always -b "$BOARD"', build)
 
     def test_the_job_checks_the_options_that_must_be_on_in_what_the_build_resolved(self):
         run = self.step("Check the resolved management configuration and devicetree")["run"]
@@ -1489,13 +1515,15 @@ class ManagementWorkflows(unittest.TestCase):
         self.assertIn("No flash, reset or hardware command was run.", commands)
 
     def test_every_west_build_of_the_job_carries_the_gate(self):
-        for step in self.job()["steps"]:
+        for step in [*self.job()["steps"], *ci_map.checks("management")]:
             run = step.get("run", "")
             if "west build" in run:
                 self.assertIn("-DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON", run)
 
     def test_the_pins_job_comment_no_longer_says_that_no_job_fetches_with_the_group_on(self):
-        text = (ROOT / ".github" / "workflows" / "ci.yml").read_text()
+        self.assertNotIn("no job fetches or builds with", (ROOT / ".github" / "workflows" / "ci.yml").read_text())
+        # The comment sits above the Mbed-only checks of the pins job in the CI map file.
+        text = ci_map.MAP.read_text()
         self.assertNotIn("no job fetches or builds with", text)
         words = " ".join(text.replace("#", " ").split())
         self.assertIn("This job fetches nothing with the group on. The management job does, after the same check.", words)
@@ -1515,11 +1543,12 @@ class ManagementWorkflows(unittest.TestCase):
     }
 
     def rows(self):
-        return {row["config"]: row for row in self.budget()["jobs"]["budget"]["strategy"]["matrix"]["include"]}
+        return ci_map.budget_rows()
 
     def test_the_budget_rows_of_base_to_sntp_are_byte_identical_to_the_rows_before_the_step(self):
         rows = self.rows()
         self.assertEqual(["base", "workload", "net", "file", "system", "sntp", "management"], list(rows))
+        self.assertEqual(list(rows), self.budget()["jobs"]["budget"]["strategy"]["matrix"]["config"])
         for step, expected in self.ROWS.items():
             self.assertEqual(expected, rows[step], step)
 
@@ -1537,30 +1566,33 @@ class ManagementWorkflows(unittest.TestCase):
             self.assertEqual(step == "management", "group" in row, step)
 
     def test_the_budget_step_for_the_group_runs_only_for_the_rows_that_ask_and_before_the_sdk(self):
-        steps = self.budget()["jobs"]["budget"]["steps"]
-        names = [step.get("name") for step in steps]
-        name = "Switch the Mbed TLS group on (rows that need it)"
-        self.assertIn(name, names)
-        step = steps[names.index(name)]
-        self.assertEqual("matrix.group == 'mbed'", step["if"])
-        self.assertLess(names.index("Fetch the workspace"), names.index(name))
-        self.assertLess(names.index(name), names.index("Restore the Zephyr SDK"))
-        run = step["run"]
+        # Only the job budget-management has the check, after scripts/ci/prepare-job.sh fetched the
+        # workspace (fetch_workspace) and before the check that installs the SDK.
+        names = ci_map.ids("budget-management")
+        name = "budget-management-mbed"
+        self.assertEqual(0, names.index(name))
+        self.assertIn("fetch_workspace", ci_map.prepare_branch("budget-management"))
+        self.assertLess(names.index(name), names.index("budget-management-sdk"))
+        run = ci_map.run(name)
         self.assertLess(run.index("check_mbed_only.py --mode mbed --baseline list-default.txt"),
                         run.index("west update"))
         self.assertLess(run.index("--mode default"), run.index(self.GROUP_ON))
         self.assertLess(run.index(self.GROUP_ON), run.index("--mode mbed"))
         for wolf in ("wolfssl", "wolfssh", "wolfpsa"):
             self.assertIn(wolf, run)
-        for other in steps:
-            if other is not step:
-                self.assertNotIn("matrix.group", yaml.safe_dump(other))
+        for job in ci_map.data()["jobs"]:
+            if job.startswith("budget-") and job != "budget-management":
+                self.assertNotIn("+crux-secure-management", ci_map.commands(job), job)
 
     def test_the_budget_workflow_only_gained_lines(self):
         text = (ROOT / ".github" / "workflows" / "budget.yml").read_text()
-        # The existing steps still read the same matrix keys, which the management row supplies.
-        for key in ("matrix.conf", "matrix.overlay", "matrix.require", "matrix.config"):
-            self.assertIn(key, text, key)
+        # The Budget script reads the same row values, which the management job env supplies.
+        script = ci_map.BUDGET.read_text()
+        for key in ("$CONF", "$OVERLAY", "$REQUIRE", "$CONFIG"):
+            self.assertIn(key, script, key)
+        for key in ("CONFIG", "CONF", "OVERLAY", "REQUIRE"):
+            self.assertIn(key, ci_map.job_env("budget-management"), key)
+        self.assertIn("matrix.config", text)
         self.assertNotIn("upload-artifact", text)
         self.assertNotIn("permissions: write", text)
         self.assertEqual({"contents": "read"}, self.budget()["permissions"])
@@ -1605,7 +1637,7 @@ class ManagementStepNote(unittest.TestCase):
     NOTE = ROOT / "docs" / "findings" / "s6-https-management.md"
     # The note records its results at the pin it was written at; the manifest has moved on since.
     NOTE_PIN = "8e3737d25d048b14a00c01da00494f58a62958c6"
-    PIN = "bd9efbc71c0318db2bbf3ced9932f2d872749e99"
+    PIN = "62ed69f10791695c0350996411676b930a96ce71"
 
     def text(self):
         return self.NOTE.read_text()

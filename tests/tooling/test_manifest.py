@@ -14,6 +14,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import check_mbed_only  # noqa: E402
+import ci_map  # noqa: E402
 
 
 def load_manifest():
@@ -47,7 +48,7 @@ class ManifestIsOptionA(unittest.TestCase):
         # approved on 16 November 2026 and still contains the move of the crypto modules to
         # the Zephyr v4.4-branch revisions (wonny-labs/crux-pilot#416).
         revision = load_manifest()["projects"][0]["revision"]
-        self.assertEqual(revision, "bd9efbc71c0318db2bbf3ced9932f2d872749e99")
+        self.assertEqual(revision, "62ed69f10791695c0350996411676b930a96ce71")
 
     def test_every_pinned_crux_link_of_the_readme_uses_the_manifest_revision(self):
         revision = load_manifest()["projects"][0]["revision"]
@@ -277,11 +278,27 @@ class MbedOnlyListing(unittest.TestCase):
         self.assertIn("Mbed-only check passed (default)", result.stdout)
 
 
+@ci_map.needs_tomllib
 class PinsJobChecksTheResolvedWorkspace(unittest.TestCase):
+    """The West pins job fetches the workspace with scripts/ci/prepare-job.sh, then runs the checks
+    of the job pins of scripts/ci/checks.toml in order; NAMES names each step's check."""
+
+    NAMES = {
+        "pins-contract": "Contract check",
+        "pins-mbed-default": "Mbed-only check, default workspace",
+        "pins-mbed-group-on": "Mbed-only check, group on",
+        "pins-negative-unnarrowed-import": "Negative control, an unnarrowed import must fail",
+        "pins-negative-pin-without-reason": "Negative control, a pin without a reason must fail",
+    }
+
     @classmethod
     def setUpClass(cls):
         jobs = yaml.safe_load((ROOT / ".github" / "workflows" / "ci.yml").read_text())["jobs"]
-        cls.steps = jobs["pins"]["steps"]
+        names = [step.get("name", "") for step in jobs["pins"]["steps"]]
+        assert names.index("Prepare the workspace") < names.index("Run the checks of this tier")
+        fetch = "".join(line.strip() + "\n" for line in ci_map.prepare_branch("pins").splitlines() if line.strip())
+        cls.steps = [{"name": "Fetch the workspace", "run": fetch}]
+        cls.steps += [{"name": cls.NAMES[c["id"]], "run": c["run"]} for c in ci_map.checks("pins")]
         cls.names = [step.get("name", "") for step in cls.steps]
 
     def index(self, fragment):

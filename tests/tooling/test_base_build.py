@@ -1,10 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Checks that the base build job keeps the gate required and publishes no build output."""
+"""Checks that the base build job keeps the gate required and publishes no build output.
+
+The base job of ci.yml runs the checks of the job base of scripts/ci/checks.toml (ci_map)."""
 
 import pathlib
 import unittest
 
 import yaml
+
+import ci_map
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 WORKFLOWS = ROOT / ".github" / "workflows"
@@ -18,33 +22,40 @@ def load_ci():
 def base_commands():
     jobs = load_ci()["jobs"]
     assert "base" in jobs, "ci.yml has no base job"
-    return "\n".join(step.get("run", "") for step in jobs["base"]["steps"])
+    return ci_map.commands("base")
 
 
 class BaseBuildJob(unittest.TestCase):
+    @ci_map.needs_tomllib
     def test_build_requires_the_verified_zephyr_gate(self):
         self.assertIn("-DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON", base_commands())
 
+    @ci_map.needs_tomllib
     def test_build_targets_the_rt1060_evkb_qspi_board(self):
-        job = load_ci()["jobs"]["base"]
-        self.assertEqual(BOARD, job["env"]["BOARD"])
-        self.assertIn("-b '${{ env.BOARD }}'", base_commands())
+        self.assertEqual(BOARD, ci_map.job_env("base")["BOARD"])
+        self.assertIn('-b "$BOARD"', base_commands())
 
+    @ci_map.needs_tomllib
     def test_job_checks_the_binary_and_its_metadata(self):
         commands = base_commands()
         self.assertIn("zephyr.bin", commands)
         self.assertIn("zephyr.meta", commands)
 
+    @ci_map.needs_tomllib
     def test_every_firmware_build_requires_the_gate(self):
+        runs = []
         for path in sorted(WORKFLOWS.glob("*.yml")):
             data = yaml.safe_load(path.read_text())
             for name, job in data["jobs"].items():
                 for step in job["steps"]:
-                    run = step.get("run", "")
-                    if "west build" in run and "-t rom_report" not in run and "-t ram_report" not in run:
-                        self.assertIn(
-                            "-DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON", run, f"{path.name} job {name}"
-                        )
+                    runs.append((f"{path.name} job {name}", step.get("run", "")))
+        runs += [(f"checks.toml check {c['id']}", c["run"]) for c in ci_map.checks()]
+        runs.append(("scripts/ci/budget.sh", ci_map.BUDGET.read_text()))
+        for where, run in runs:
+            if "west build" in run and "-t rom_report" not in run and "-t ram_report" not in run:
+                self.assertIn("-DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON", run, where)
+        # The Budget script also builds with rom_report and ram_report; its board build has the gate.
+        self.assertIn("-DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON", ci_map.BUDGET.read_text())
 
     def test_no_workflow_uploads_build_output(self):
         for path in sorted(WORKFLOWS.glob("*.yml")):

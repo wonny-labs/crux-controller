@@ -65,7 +65,7 @@ class Promises(unittest.TestCase):
         body = text("RELEASE.md")
         self.assertIn("never published", body)
         self.assertIn("approval", body)
-        self.assertIn("bd9efbc7", body)
+        self.assertIn("62ed69f1", body)
         self.assertIn("docs/product-composition.md", body)
 
 
@@ -191,7 +191,7 @@ class Contributing(unittest.TestCase):
 
     def budget_steps(self):
         matrix = self.workflow("budget.yml")["jobs"]["budget"]["strategy"]["matrix"]
-        return [entry["config"] for entry in matrix["include"]]
+        return list(matrix["config"])
 
     def other_job_names(self):
         return [job["name"] for job in self.workflow("ci.yml")["jobs"].values()]

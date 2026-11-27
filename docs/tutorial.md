@@ -86,10 +86,7 @@ both. The `management` scenario needs the Mbed TLS modules:
 Part C builds the image for a board and hands over to the board route. Building needs no board. Running one needs
 the owner's authorisation ([glossary](glossary.md#people-and-board-procedures)). The
 [roadmap](roadmap.md#what-has-run-on-a-board) records the board runs.
-
-| Board | `-b` target | Probe | Board guide |
-|---|---|---|---|
-| NXP RT1060-EVKB Rev B | `mimxrt1060_evk@B//qspi` | SEGGER J-Link | [Board route](board-bring-up.md) |
+The [supported boards](../README.md#supported-boards) are listed in the README, and the [board route](board-bring-up.md) runs an image on one.
 
 ### 4. Build the image for the RT1060-EVKB
 

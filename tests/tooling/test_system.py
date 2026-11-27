@@ -17,6 +17,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 import check  # noqa: E402
 import check_boundary  # noqa: E402
+import ci_map  # noqa: E402
 import fake_crux  # noqa: E402
 
 WORKFLOWS = ROOT / ".github" / "workflows"
@@ -420,21 +421,23 @@ class SystemScenario(unittest.TestCase):
         self.assertIn("test_the_workload_logs_one_line_per_message", source)
 
 
+@ci_map.needs_tomllib
 class SystemWorkflows(unittest.TestCase):
+    """A job of a workflow runs the checks of the job of the same name in scripts/ci/checks.toml."""
+
     def ci(self):
         return yaml.safe_load((WORKFLOWS / "ci.yml").read_text())
 
     def commands(self, job):
-        return "\n".join(step.get("run", "") for step in self.ci()["jobs"][job]["steps"])
+        return ci_map.commands(job)
 
     def budget_rows(self):
-        budget = yaml.safe_load((WORKFLOWS / "budget.yml").read_text())
-        return {row["config"]: row for row in budget["jobs"]["budget"]["strategy"]["matrix"]["include"]}
+        return ci_map.budget_rows()
 
     def test_ci_has_a_system_job_that_builds_the_board_image_with_the_gate_required(self):
         self.assertIn("system", self.ci()["jobs"])
         job = self.ci()["jobs"]["system"]
-        self.assertEqual(BOARD, job["env"]["BOARD"])
+        self.assertEqual(BOARD, ci_map.job_env("system")["BOARD"])
         commands = self.commands("system")
         self.assertIn("-DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON", commands)
         self.assertIn("conf/workload.conf;conf/system.conf", commands)
@@ -450,6 +453,8 @@ class SystemWorkflows(unittest.TestCase):
         )
         self.assertEqual(jobs["file"]["runs-on"], jobs["system"]["runs-on"])
         self.assertEqual(jobs["file"]["env"]["SDK_VERSION"], jobs["system"]["env"]["SDK_VERSION"])
+        # The checks of the two jobs in scripts/ci/checks.toml follow each other the same way.
+        self.assertEqual([i.replace("file", "system") for i in ci_map.ids("file")], ci_map.ids("system"))
 
     def test_the_system_job_checks_what_the_build_resolved(self):
         commands = self.commands("system")
@@ -577,7 +582,7 @@ class SystemFindings(unittest.TestCase):
 
     def test_the_manifest_pins_the_approved_commit(self):
         manifest = (ROOT / "west.yml").read_text()
-        self.assertIn("revision: bd9efbc71c0318db2bbf3ced9932f2d872749e99", manifest)
+        self.assertIn("revision: 62ed69f10791695c0350996411676b930a96ce71", manifest)
 
 
 class SystemStartFailureWording(unittest.TestCase):

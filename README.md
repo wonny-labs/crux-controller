@@ -1,10 +1,19 @@
 # Crux Controller
 
 Crux Controller is an Apache-2.0 reference consumer firmware of
-[Crux](https://github.com/wonny-labs/crux-pilot), an embedded software platform for Zephyr RTOS firmware. It targets
-the NXP RT1060-EVKB Rev B evaluation board (EVKB for short), and its workload is synthetic. It uses Crux through
-public headers, public CMake targets and published composition interfaces only, one capability per build
-configuration, so that a product team can read how each Crux capability is composed.
+[Crux](https://github.com/wonny-labs/crux-pilot), an embedded software platform for Zephyr RTOS firmware.
+Its workload is synthetic.
+It uses Crux through public headers, public CMake targets and published composition interfaces only, one capability
+per build configuration, so that a product team can read how each Crux capability is composed.
+
+## Supported boards
+
+| Board | Board target | Probe | Page |
+|---|---|---|---|
+| NXP RT1060-EVKB Rev B evaluation board (EVKB for short) | `mimxrt1060_evk@B/mimxrt1062/qspi` | SEGGER J-Link | [Board bring-up](docs/board-bring-up.md) |
+
+CI writes the same board target as `mimxrt1060_evk@B//qspi`, with the default SoC left out; Zephyr resolves both to the same target.
+[Other boards](docs/board-bring-up.md#other-boards) says what a second board needs.
 
 ## Quick start
 
@@ -51,7 +60,7 @@ it, and [Adding a capability](docs/adding-a-capability.md) shows how a configura
 | Add a capability | [Adding a capability](docs/adding-a-capability.md) and [the composition zone](docs/composition-zone.md) |
 | Review a change | [Reviewing](docs/reviewing.md) |
 | Run an image on a board | [Board bring-up](docs/board-bring-up.md) |
-| Build a product of your own on Crux | Crux's guides at the pinned revision: [Choosing an API](https://github.com/wonny-labs/crux-pilot/blob/bd9efbc71c0318db2bbf3ced9932f2d872749e99/docs/choosing-an-api.md), [Composition interfaces](https://github.com/wonny-labs/crux-pilot/blob/bd9efbc71c0318db2bbf3ced9932f2d872749e99/docs/composition-interfaces.md), the [Product Composition Guide](https://github.com/wonny-labs/crux-pilot/blob/bd9efbc71c0318db2bbf3ced9932f2d872749e99/docs/product-composition.md) with its [product template](https://github.com/wonny-labs/crux-pilot/blob/bd9efbc71c0318db2bbf3ced9932f2d872749e99/templates/product/README.md), and [Component readiness](https://github.com/wonny-labs/crux-pilot/blob/bd9efbc71c0318db2bbf3ced9932f2d872749e99/docs/component-readiness.md) |
+| Build a product of your own on Crux | Crux's guides at the pinned revision: [Choosing an API](https://github.com/wonny-labs/crux-pilot/blob/62ed69f10791695c0350996411676b930a96ce71/docs/choosing-an-api.md), [Composition interfaces](https://github.com/wonny-labs/crux-pilot/blob/62ed69f10791695c0350996411676b930a96ce71/docs/composition-interfaces.md), the [Product Composition Guide](https://github.com/wonny-labs/crux-pilot/blob/62ed69f10791695c0350996411676b930a96ce71/docs/product-composition.md) with its [product template](https://github.com/wonny-labs/crux-pilot/blob/62ed69f10791695c0350996411676b930a96ce71/templates/product/README.md), and [Component readiness](https://github.com/wonny-labs/crux-pilot/blob/62ed69f10791695c0350996411676b930a96ce71/docs/component-readiness.md) |
 | Find any other page by task | [Documentation map](docs/README.md) |
 
 ## Status

@@ -13,7 +13,7 @@ before touching the board.
 
 **What has been run**: the `net` image on the board, recorded in the
 [roadmap](roadmap.md#what-has-run-on-a-board).
-[Crux's J-Link and usbipd guide](https://github.com/wonny-labs/crux-pilot/blob/bd9efbc71c0318db2bbf3ced9932f2d872749e99/docs/board-jlink-usbipd.md)
+[Crux's J-Link and usbipd guide](https://github.com/wonny-labs/crux-pilot/blob/62ed69f10791695c0350996411676b930a96ce71/docs/board-jlink-usbipd.md)
 records, on Windows with WSL2, a usbipd attach without `--auto-attach`, `west flash` and **Board: Debug** in Crux's Dev Container, and a connection check, `west flash` and `west debugserver` with an earlier, separate board Dev Container configuration.
 
 Not run: step 2 in the form of this page, with this repository's Dev Container, the J-Link software of this repository's image with a probe,
@@ -39,7 +39,7 @@ bash scripts/dev-shell.sh west build -p always -b 'mimxrt1060_evk@B//qspi' -d bu
 The image is `build/net/zephyr/zephyr.bin`, with `zephyr.elf` and `zephyr.meta` next to it. The `workload` image,
 which has no network, is the build of [the Tutorial](tutorial.md#4-build-the-image-for-the-rt1060-evkb). CI uploads
 no image, so the image is built where the board is. In VS Code, the task **Board: Build** builds the same
-configuration in the same `build/net` ([VS Code tasks and debug profiles](#vs-code-tasks-and-debug-profiles)).
+configuration in `build/<board folder>/net` ([VS Code tasks and debug profiles](#vs-code-tasks-and-debug-profiles)).
 
 ## 2. Connect the probe
 
@@ -63,9 +63,9 @@ WSL2 restarts: run `attach` again. While the probe is attached, Windows tools ca
 `usbipd detach --busid <BUSID>` gives it back.
 
 On native Linux there is no attach. The board settings and the udev rule
-([99-crux-jlink.rules](https://github.com/wonny-labs/crux-pilot/blob/bd9efbc71c0318db2bbf3ced9932f2d872749e99/.devcontainer/jlink/99-crux-jlink.rules),
+([99-crux-jlink.rules](https://github.com/wonny-labs/crux-pilot/blob/62ed69f10791695c0350996411676b930a96ce71/.devcontainer/jlink/99-crux-jlink.rules),
 in the Crux checkout, not copied here) are on the
-[Crux board page](https://github.com/wonny-labs/crux-pilot/blob/bd9efbc71c0318db2bbf3ced9932f2d872749e99/docs/boards/mimxrt1060_evkb.md).
+[Crux board page](https://github.com/wonny-labs/crux-pilot/blob/62ed69f10791695c0350996411676b930a96ce71/docs/boards/mimxrt1060_evkb.md).
 
 ## 3. Open the Dev Container with the probe
 
@@ -120,25 +120,26 @@ Should show: `lsusb` lists the probe with ID `1366:<product>`, and `bash scripts
 ## 4. Flash, debug and restore
 
 Flashing with `west flash`, debugging, the read-only compare of the flash and the recovery of the board's previous
-image are on the [Crux board page](https://github.com/wonny-labs/crux-pilot/blob/bd9efbc71c0318db2bbf3ced9932f2d872749e99/docs/boards/mimxrt1060_evkb.md). This repository adds its image (step 1), the network and log
+image are on the [Crux board page](https://github.com/wonny-labs/crux-pilot/blob/62ed69f10791695c0350996411676b930a96ce71/docs/boards/mimxrt1060_evkb.md). This repository adds its image (step 1), the network and log
 values below, and the VS Code tasks and profiles.
 
 ### VS Code tasks and debug profiles
 
 The tasks are in [.vscode/tasks.json](../.vscode/tasks.json) (**Terminal > Run Task**) and the profiles in
 [.vscode/launch.json](../.vscode/launch.json) (**Run and Debug**). **Board: Build** runs
-[`scripts/build-board.sh`](../scripts/build-board.sh) for the build configuration you pick, `net` by default. It
-builds it in `build/<configuration>` with the CMake arguments of the `Budget` job, and after a successful build it
-points the link `build/mimxrt1060_evk_B_qspi--current` at that folder. A failed build leaves the link as it was.
-The other tasks and the profiles use the image behind the link, so one set serves every configuration. The
+[`scripts/build-board.sh`](../scripts/build-board.sh) for the board of the setting `crux.board` and the build configuration you pick, `net` by default.
+It builds in `build/<board folder>/<configuration>`, where the board folder is the board target with `_` for each run of characters other than letters, digits, `_`, `.` and `-` (`build/mimxrt1060_evk_B_mimxrt1062_qspi/net`), with the CMake arguments of the `Budget` job.
+After a successful build it points the link `build/current` at that folder; a failed build leaves the link as it was.
+The other tasks and the profiles use the image behind the link, so one set serves every board and configuration.
+On the command line, the script takes `--board <board target>`; without it, it uses `CRUX_BOARD_TARGET`, then `west config build.board`, then the default board of the [README](../README.md#supported-boards). The
 `management` configuration needs the Mbed TLS group, which the Dev Container does not switch on
 ([the `workload` to `sntp` scenarios](native-setup.md#run-the-workload-to-sntp-scenarios) show how).
 
 | Task or profile | What it does |
 |---|---|
-| **Board: Build** | Builds the configuration you pick, incrementally after the first build |
-| **Board: Flash** | Checks for the probe, then runs `west flash -d build/mimxrt1060_evk_B_qspi--current --runner jlink` in the same process: flashes the last board build. Without a probe it stops before `west flash` |
-| **Board: Clean** | Deletes every `build/<configuration>` and the link; `build/host` and `twister-out` stay |
+| **Board: Build** | Builds the board of `crux.board` and the configuration you pick, incrementally after the first build |
+| **Board: Flash** | Checks for the probe, then runs `west flash -d build/current --runner jlink` in the same process: flashes the last board build, whose board west reads from the build. Without a probe it stops before `west flash` |
+| **Board: Clean** | Deletes the board folder of `crux.board`, and the link if it points into it; `build/host` and `twister-out` stay |
 | **Board: Debug** | Checks for the probe and runs **Board: Build**, then flashes the image through the J-Link GDB Server in the container, resets the board and stops at `main` |
 | **Board: Attach** | Checks for the probe, then connects through the J-Link GDB Server in the container to the image that runs, without build, reset or download. Connecting may halt the target |
 | **Board: Attach (external)** | Like **Board: Attach**, without the probe check, through a GDB server that VS Code does not start, at `localhost:2331`, for example a `JLinkGDBServer` that you start in a terminal of the container |
@@ -146,6 +147,7 @@ The other tasks and the profiles use the image behind the link, so one set serve
 **Board: Flash** runs the probe check in its own command.
 **Board: Debug** and **Board: Attach** run it first as the hidden task **Board: Check probe** (for **Board: Debug**, before **Board: Build**), because a failing `preLaunchTask` stops the session.
 When no J-Link (USB vendor ID `1366`) is visible in the container, the check stops with `No J-Link probe found`, the `usbipd attach` command for Windows with WSL2 and a pointer to [2. Connect the probe](#2-connect-the-probe).
+The board comes from [.vscode/settings.json](../.vscode/settings.json), read through `${config:...}` with the names that Crux's board tasks use: `crux.board`, the board target for **Board: Build** and **Board: Clean**; `crux.boardKey`, the folder name of that board below `build/` (the target with each run of other characters replaced by `_`); and `crux.jlinkDevice`, the J-Link device name of the three profiles. The defaults are the supported board: `mimxrt1060_evk@B/mimxrt1062/qspi`, `mimxrt1060_evk_B_mimxrt1062_qspi` and `MIMXRT1062xxx6A`. Crux's own values for the same board, `mimxrt1060_evk@B//qspi` and `mimxrt1060_evk_B_qspi`, work here too. To use another board, change the three settings together; **Board: Build** asks only for the build configuration, and the profiles ask for nothing. The script derives the folder name from `crux.board` itself, so the three settings must describe one board.
 
 | Build | Optimisation |
 |---|---|
@@ -172,6 +174,13 @@ The log shows `workload:` lines `cycle=10` to `cycle=1750` in steps of 10 and `n
 listening, `net: exchange failed cycle=<n> result=-2` is the expected line, one per message; with a peer,
 `net: exchange ok cycle=<n>`. The record of the two runs is
 [docs/findings/s2-first-board-run.md](findings/s2-first-board-run.md).
+
+## Other boards
+
+`scripts/build-board.sh` and **Board: Build** (with `crux.board`) take any board target, but the build configurations are the RT1060-EVKB's.
+The overlays of `net`, `sntp`, `management` and `system` set the Ethernet, LED and watchdog nodes of this board, and the script passes them for every board.
+`file` depends on a Crux FatFs provider for the RT1062 SoC only; on the RT1060 EVK it needs the QSPI variant at revision B.
+A second board first needs the board-specific fragments and overlays split per board and configuration, which the workflows, the `Budget` job and the script do not support yet.
 
 ## Known limits
 

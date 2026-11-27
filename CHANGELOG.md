@@ -45,7 +45,7 @@ build configurations by their earlier step ids, S0 to S6.
 
 ### Build and manifest
 
-- The west manifest imports `crux-pilot` at a pinned commit (`bd9efbc7`, which contains the File
+- The west manifest imports `crux-pilot` at a pinned commit (`62ed69f1`, which contains the File
   composition interface `<crux/file_zephyr.h>`) and adds `picolibc` as a test-only project. A CI job
   checks the pins with `west crux-pins` and has a negative control that must fail.
 - The `crux-pilot` pin moved from `37c92b18` to `dfd3ad7d`, which adds the public management headers
@@ -128,6 +128,13 @@ build configurations by their earlier step ids, S0 to S6.
   Wayland socket mount, one-line bootstrap failure messages with a documentation pointer, and their tests. The Crux
   manifest, the public headers, the Zephyr module, the board samples and the product template are as before. No
   controller code changes.
+- The `crux-pilot` pin moved from `bd9efbc7` to `62ed69f1`, the head of Crux `main` after its board-neutral Zephyr
+  selection (wonny-labs/crux-pilot#601) and tiered CI (wonny-labs/crux-pilot#602). The File symbols
+  `CRUX_FILE_FATFS_SDMMC`, `CRUX_FILE_FATFS_RAM_DISK` and `CRUX_FILE_FATFS_SDMMC_COMPILE_CHECK` replace the RT1060
+  names, which stay as deprecated aliases, so `app/conf/file.conf` and `app/conf/management.conf` keep the old names
+  and Zephyr's Kconfig prints a deprecation warning for them. Logging, Serial and System select their hardware by
+  devicetree instead of by board or SoC name. The Crux manifest, the Zephyr revision, the public headers and the
+  module name are as before. No controller code changes.
 - The `crux-pilot` import blocks wolfSSL, wolfSSH and wolfPSA by name, so enabling the Mbed TLS group
   would activate Mbed TLS and TF-PSA-Crypto and no GPL stack (checked on the project list; no job
   enables the group or fetches with it on, and it stays off in every job).

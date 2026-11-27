@@ -17,6 +17,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 import check  # noqa: E402
 import check_boundary  # noqa: E402
+import ci_map  # noqa: E402
 import fake_crux  # noqa: E402
 
 WORKFLOWS = ROOT / ".github" / "workflows"
@@ -616,21 +617,23 @@ class SntpScenario(unittest.TestCase):
         self.assertIn("a real server, a real network path and a board are not shown here", text)
 
 
+@ci_map.needs_tomllib
 class SntpWorkflows(unittest.TestCase):
+    """A job of a workflow runs the checks of the job of the same name in scripts/ci/checks.toml."""
+
     def ci(self):
         return yaml.safe_load((WORKFLOWS / "ci.yml").read_text())
 
     def commands(self, job):
-        return "\n".join(step.get("run", "") for step in self.ci()["jobs"][job]["steps"])
+        return ci_map.commands(job)
 
     def budget_rows(self):
-        budget = yaml.safe_load((WORKFLOWS / "budget.yml").read_text())
-        return {row["config"]: row for row in budget["jobs"]["budget"]["strategy"]["matrix"]["include"]}
+        return ci_map.budget_rows()
 
     def test_ci_has_an_sntp_job_that_builds_the_board_image_with_the_gate_required(self):
         self.assertIn("sntp", self.ci()["jobs"])
         job = self.ci()["jobs"]["sntp"]
-        self.assertEqual(BOARD, job["env"]["BOARD"])
+        self.assertEqual(BOARD, ci_map.job_env("sntp")["BOARD"])
         self.assertTrue(job["name"].startswith("sntp build "))
         commands = self.commands("sntp")
         self.assertIn("-DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON", commands)
@@ -645,6 +648,8 @@ class SntpWorkflows(unittest.TestCase):
         self.assertEqual([name.replace("system", "sntp") for name in system][:5], names[:5])
         self.assertEqual(jobs["system"]["runs-on"], jobs["sntp"]["runs-on"])
         self.assertEqual(jobs["system"]["env"]["SDK_VERSION"], jobs["sntp"]["env"]["SDK_VERSION"])
+        # The checks of the two jobs in scripts/ci/checks.toml follow each other the same way.
+        self.assertEqual([i.replace("system", "sntp") for i in ci_map.ids("system")], ci_map.ids("sntp"))
 
     def test_the_sntp_job_checks_what_the_build_resolved(self):
         commands = self.commands("sntp")
@@ -856,7 +861,7 @@ class SntpFindings(unittest.TestCase):
 
     def test_the_manifest_pins_the_approved_commit(self):
         manifest = (ROOT / "west.yml").read_text()
-        self.assertIn("revision: bd9efbc71c0318db2bbf3ced9932f2d872749e99", manifest)
+        self.assertIn("revision: 62ed69f10791695c0350996411676b930a96ce71", manifest)
 
 
 if __name__ == "__main__":

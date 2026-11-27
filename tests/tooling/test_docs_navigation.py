@@ -11,6 +11,8 @@ import subprocess
 import sys
 import unittest
 
+import ci_map
+
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 DOCS = ROOT / "docs"
 NEW_PAGES = ("docs/README.md", "docs/first-change.md", "docs/reviewing.md")
@@ -362,7 +364,7 @@ class AddingACapability(unittest.TestCase):
         self.assertRegex(found[0], r"^\d+\. ")
         part = " ".join(section(self.PAGE, found[0]).split())
         for needle in ("GPIO, I2C and SPI", "roadmap.md", "composition-zone.md", "architecture.md",
-                       "docs/choosing-an-api.md", "bd9efbc71c0318db2bbf3ced9932f2d872749e99"):
+                       "docs/choosing-an-api.md", "62ed69f10791695c0350996411676b930a96ce71"):
             self.assertIn(needle, part, needle)
 
     def test_the_list_of_files_that_need_a_reviewed_change_is_still_there(self):
@@ -483,6 +485,8 @@ class StaticAnalysisLimits(unittest.TestCase):
         for config in (".yamllint", ".shellcheckrc", ".flake8", ".pylintrc", "ruff.toml", ".cmake-format"):
             self.assertNotIn(config, names)
         workflows = " ".join(p.read_text() for p in (ROOT / ".github" / "workflows").glob("*.yml"))
+        # The checks of the workflows are in scripts/ci (the CI map file and its scripts).
+        workflows += " ".join(p.read_text() for p in ci_map.ci_sources())
         for tool in ("shellcheck", "yamllint", "ruff", "flake8", "pylint", "cmake-lint"):
             self.assertNotIn(tool, workflows)
         self.assertIn("no linting of Python, shell, YAML and CMake", part)
