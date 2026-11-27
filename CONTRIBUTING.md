@@ -74,6 +74,7 @@ CI is the reference for the Zephyr builds and the Twister runs.
 and a local result does not replace CI. A change to `app/`, `conf`, overlays or `tests/native_sim` takes
 its evidence from CI, and the pull request says so.
 The checks are in [`scripts/ci/checks.toml`](scripts/ci/checks.toml), in a job for each job below.
+A workflow installs runner packages with [`scripts/ci/apt-install.sh`](scripts/ci/apt-install.sh), which reads only the Ubuntu archive, so a third-party source of the runner image cannot fail the job.
 The workflows in `.github/workflows/` and the [`Jenkinsfile`](Jenkinsfile) only set up a runner and call `scripts/ci/run-tier.sh` ([CI tiers](#ci-tiers)):
 
 | Workflow | Jobs | When |
