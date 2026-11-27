@@ -223,7 +223,7 @@ Crux refuses every form of it, at `62ed69f1` and at the pin; the line references
 ### C16. Security counter
 
 - Evidence: Crux's image state contract has query, test request and confirm operations and no security counter (`components/image_state/include/crux/image_state.h`).
-- Evidence (Crux `main` at `06813519`): MCUboot's downgrade prevention is optional with no default, and the Zephyr port has no non-volatile counter backend; a trusted counter on RT1060 would need fuses (`docs/evidence/boot-update/stage1-pinned-source-findings.md` B13; `docs/boot-update-investigation.md:135`).
+- Evidence (Crux at the pin, read at `06813519`): MCUboot's downgrade prevention is optional with no default, and the Zephyr port has no non-volatile counter backend; a trusted counter on RT1060 would need fuses (`docs/evidence/boot-update/stage1-pinned-source-findings.md` B13; `docs/boot-update-investigation.md:135`).
 - Crux change: a security counter in the image state contract and its storage, with the secure boot work. State: Crux change needed. Priority 2.
 - Contract items for that work: the stored minimum advances only when an image is confirmed, and a reverted trial image leaves the earlier image bootable; whether MCUboot already advances its counter only at confirmation: not read.
 - Interim state: nothing enforces the image security counter. Replacement criterion: none; PR7 needs the change.
