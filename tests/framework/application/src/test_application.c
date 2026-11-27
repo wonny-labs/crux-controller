@@ -8,10 +8,11 @@
  * descriptor and prints what the console harness of testcase.yaml matches, in order:
  *
  *   1. The contract (criteria 4, 5, 6, 21, 23, 8 and 34): a descriptor without an entry and a
- * second start are refused; init, the start prerequisites, then start, last in startup; the status
- * item and the parameter in device management; every route answers 401 without a session except the
- *      public ones; an operator stop and start; a runtime dependency that fails and recovers; a
- *      reported fault; then the reboot command.
+ *      second start are refused; init, the start prerequisites, then start, last in startup; the
+ *      status item and the parameter in device management; every route answers 401 without a
+ *      session except the public ones; an account of the read-only role cannot stop or start the
+ *      application; an operator stop and start; a runtime dependency that fails and recovers, with
+ *      its health item; a reported fault; then the reboot command.
  *   2. stop returns an error: the supervisor stops feeding, calls safe_state, and the image
  * restarts (criterion 8).
  *   3. The worker stops feeding its channel: the expiry is recorded and the image restarts
@@ -24,7 +25,8 @@
  *   8. start returns an error: the activated channels are deleted, fault, safe_state, the
  * controller operational, device management answers (criterion 22).
  *   9. A start prerequisite fails at boot: the application is held and the controller degraded;
- * after the service recovers, an operator start runs it (criterion 23); then the reboot command,
+ * an operator start while it is down stays held; after the service recovers, an operator start runs
+ * it (criterion 23); then the reboot command,
  * which stops the running application with the reason planned reset before the reset (section 3.3).
  *  10. A normal boot after the planned reset.
  *
@@ -39,7 +41,11 @@
 
 #include <controller/framework.h>
 #include <controller/framework_test.h>
+#include <crux/access.h>
 #include <crux/web.h>
+/* Test-only: Crux's session creation for channel adapters, which no product includes, so that this
+ * test can make an account of the read-only role (CMakeLists.txt). */
+#include <crux_access_adapter.h>
 #include <zephyr/kernel.h>
 #include <zephyr/sys/printk.h>
 
@@ -49,6 +55,13 @@
 
 #define USER "operator"
 #define PASSWORD "application scenario password"
+/* An account of the product's read-only role, which holds status.read and not system.reboot. */
+#define READER "reader"
+#define READER_PASSWORD "application scenario reader"
+#define READER_ROLE "read-only"
+#define APPLICATION_IS(state)                                                                      \
+    "{\"name\":\"controller.application\",\"status\":\"ok\",\"type\":\"text\",\"value\":\"" state  \
+    "\"}"
 #define WAIT_STEP_MS 100
 #define WAIT_STEPS 100
 
@@ -112,6 +125,53 @@ static bool account_and_login(void)
     }
     scenario_console_type(PASSWORD);
     return expect("> ");
+}
+
+/* Log in on the serial command line with an existing account. */
+// NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
+static bool login(const char *user, const char *password)
+{
+    if (!expect("login: ")) {
+        return false;
+    }
+    scenario_console_type(user);
+    if (!expect("password: ")) {
+        return false;
+    }
+    scenario_console_type(password);
+    return expect("> ");
+}
+
+/* End the console session and log in with another account. */
+// NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
+static bool relogin(const char *user, const char *password)
+{
+    scenario_console_type("logout");
+    return login(user, password);
+}
+
+/* Make the read-only account in the administrator's name. Crux offers no command or route that
+ * makes a second account, so the test logs in through Crux Access itself. */
+static bool reader_created(void)
+{
+    const crux_access_origin_t origin = {CRUX_ACCESS_CHANNEL_SERIAL, {0}, 0u};
+    crux_access_session_t session = {0u};
+    uint32_t retry_after_ms = 0u;
+
+    if (crux_access_login_password(USER, PASSWORD, strlen(PASSWORD), &origin, &session,
+                                   &retry_after_ms) != CRUX_ACCESS_OK) {
+        fail("the administrator's login for the read-only account");
+        return false;
+    }
+    const crux_access_result_t created = crux_access_account_create(
+        session, READER, READER_ROLE, READER_PASSWORD, strlen(READER_PASSWORD));
+
+    crux_access_logout(&session);
+    if (created != CRUX_ACCESS_OK) {
+        fail("the read-only account");
+        return false;
+    }
+    return true;
 }
 
 /* A command whose output holds reply, and the prompt after it. */
@@ -291,6 +351,23 @@ static void boot_contract(void)
         return;
     }
 
+    /* Criterion 34: the read-only role holds no system.reboot, so its stop is refused as an unknown
+     * command and the application keeps running. */
+    if (!reader_created() || !relogin(READER, READER_PASSWORD) ||
+        !command("application stop", "unknown command")) {
+        return;
+    }
+    k_msleep(1000);
+    if (fixture_stops() != 0u || !worker_counts() ||
+        !command("status", APPLICATION_IS("running"))) {
+        fail("the application after the read-only stop");
+        return;
+    }
+    say("read-only account: application stop refused, application running");
+    if (!relogin(USER, PASSWORD)) {
+        return;
+    }
+
     /* Criterion 21: an operator stop, then an operator start without init. */
     if (!command("application stop", "application stop requested") ||
         !count_reaches(fixture_stops, 1u) || !count_reaches(fixture_safe_states, 1u)) {
@@ -302,6 +379,20 @@ static void boot_contract(void)
         return;
     }
     say("operator stop: stop, then safe state, controller operational");
+
+    /* Criterion 34: the read-only role cannot start the stopped application either. */
+    if (!relogin(READER, READER_PASSWORD) || !command("application start", "unknown command")) {
+        return;
+    }
+    k_msleep(1000);
+    if (fixture_starts() != 1u || !command("status", APPLICATION_IS("stopped"))) {
+        fail("the application after the read-only start");
+        return;
+    }
+    say("read-only account: application start refused, application stopped");
+    if (!relogin(USER, PASSWORD)) {
+        return;
+    }
     if (!command("application start", "application start requested") ||
         !count_reaches(fixture_starts, 2u) || fixture_inits() != 1u || !worker_counts()) {
         fail("the operator start");
@@ -318,6 +409,11 @@ static void boot_contract(void)
         return;
     }
     say("runtime dependency failed: controller degraded, application running");
+    if (!command("status", "{\"name\":\"controller.health.configuration\",\"status\":\"ok\","
+                           "\"type\":\"text\",\"value\":\"failed\"}")) {
+        return;
+    }
+    say("the status service shows controller.health.configuration failed");
     (void)controller_framework_inject(CONTROLLER_FRAMEWORK_FAULT_SERVICE_UP, "configuration");
     if (!controller_is(CONTROLLER_FRAMEWORK_STATE_OPERATIONAL)) {
         fail("the recovered dependency");
@@ -337,8 +433,7 @@ static void boot_contract(void)
         return;
     }
     say("reported fault: stop, then safe state, controller operational");
-    if (!command("status", "{\"name\":\"controller.application\",\"status\":\"ok\",\"type\":"
-                           "\"text\",\"value\":\"fault\"}") ||
+    if (!command("status", APPLICATION_IS("fault")) ||
         !command("status", "{\"name\":\"fixture.counter\",\"status\":\"not_ready\"")) {
         return;
     }
@@ -466,8 +561,18 @@ int main(void)
             break;
         }
         say("held by a start prerequisite, controller degraded");
+        /* An operator start while the prerequisite is still down is held for it. */
+        if (!account_and_login() || !command("application start", "application start requested")) {
+            break;
+        }
+        k_msleep(1000);
+        if (fixture_starts() != 0u || !command("status", APPLICATION_IS("held"))) {
+            fail("the operator start with the prerequisite down");
+            break;
+        }
+        say("operator start with the prerequisite down: held");
         (void)controller_framework_inject(CONTROLLER_FRAMEWORK_FAULT_SERVICE_UP, "configuration");
-        if (!controller_is(CONTROLLER_FRAMEWORK_STATE_OPERATIONAL) || !account_and_login() ||
+        if (!controller_is(CONTROLLER_FRAMEWORK_STATE_OPERATIONAL) ||
             !command("application start", "application start requested") ||
             !count_reaches(fixture_starts, 1u) || !worker_counts()) {
             fail("the operator start after the recovery");

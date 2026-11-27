@@ -23,5 +23,10 @@ endif()
 target_sources(app PRIVATE src/test_application.c ../fixture/fixture.c ../common/scenario.c
     ../common/retained_env.c ../common/https.c)
 target_include_directories(app PRIVATE ../common ../fixture)
-target_link_libraries(app PRIVATE controller::framework crux::file crux::configuration crux::logging)
+target_link_libraries(app PRIVATE controller::framework crux::access crux::file crux::configuration
+    crux::logging)
+# Test-only: the session creation of Crux Access for channel adapters, which no product reaches,
+# so that the test can make an account of the read-only role. Crux offers no command or route for
+# a second account. PRIVATE to this test image; Crux checks only its public targets for this header.
+target_include_directories(app PRIVATE "${ZEPHYR_CRUX_MODULE_DIR}/components/access/adapter")
 controller_framework_image()

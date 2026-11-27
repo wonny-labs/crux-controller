@@ -16,7 +16,8 @@ tests:
       # Only lines whose order the code fixes: a line of the fixture's threads and a line of the
       # supervisor can come in either order, so at most one of them is listed between two fixed ones.
       regex:
-        # Boot 1: the contract (criteria 4, 5, 6, 8, 21, 23 and 34).
+        # Boot 1: the contract (criteria 4, 5, 6, 8, 21, 23 and 34), with the activation of each
+        # channel before start.
         - "application scenario boot 1"
         - "application scenario: a descriptor without safe_state is refused"
         - "init channels=0,0 status=0 parameter=0,.*,0 root=3 file=hello.txt written"
@@ -25,6 +26,8 @@ tests:
         - "phase web management ok"
         - "start prerequisites healthy: storage=healthy configuration=healthy"
         - "phase start prerequisites ok"
+        - "application channel worker activated reload=[0-9]+"
+        - "application channel monitor activated reload=[0-9]+"
         - "start: worker and monitor threads created with Zephyr"
         - "application started state=running"
         - "phase application ok"
@@ -34,15 +37,20 @@ tests:
         - "application scenario: the status service shows fixture.counter"
         - "application scenario: the configuration service shows fixture.period"
         - "application scenario: route sweep routes=[0-9]+ refused=[0-9]+ public=[0-9]+"
+        - "application scenario: read-only account: application stop refused, application running"
         - "stop reason=operator"
         - "stop: both threads ended"
         - "application stopped state=stopped"
         - "application scenario: operator stop: stop, then safe state, controller operational"
+        - "application scenario: read-only account: application start refused, application stopped"
+        - "application channel worker activated reload=[0-9]+"
+        - "application channel monitor activated reload=[0-9]+"
         - "start: worker and monitor threads created with Zephyr"
         - "application started by an operator state=running"
         - "application scenario: operator start: started again without init"
         - "runtime dependency configuration health=failed"
         - "application scenario: runtime dependency failed: controller degraded, application running"
+        - "application scenario: the status service shows controller.health.configuration failed"
         - "runtime dependency configuration health=healthy"
         - "application scenario: runtime dependency recovered: controller operational"
         - "worker reports a fault"
@@ -111,6 +119,8 @@ tests:
         - "application held reason=start prerequisite"
         - "startup supervision ended in step 12 application state=held"
         - "application scenario: held by a start prerequisite, controller degraded"
+        - "application held reason=start prerequisite"
+        - "application scenario: operator start with the prerequisite down: held"
         - "application started by an operator state=running"
         - "application scenario: operator start ran the held application"
         - "application scenario: planned reset: stop with the reason planned reset, then safe state"
