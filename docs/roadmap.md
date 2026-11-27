@@ -18,8 +18,9 @@ and the [changelog](../CHANGELOG.md) are the reference when this page and a comm
   the image has no account, so nobody can log in: the first-account console runs only in `base`. The SSH
   command line, SFTP, network settings, file and reboot routes are not built, and each has a recorded reason.
 - The controller framework is a Zephyr module of this repository, and the base image (`base`) runs it with web
-  management, the serial command line with its first-account setup, and time synchronisation, and no
-  application. Watchdog supervision and the application interface are not in it yet.
+  management, the serial command line with its first-account setup, time synchronisation and health supervision
+  (watchdog, boot counter, safe mode, retained last-fault record), and no application. The application interface
+  is not in it yet.
 - There is no release and no tag.
 
 ## What is built
@@ -33,10 +34,10 @@ and the [changelog](../CHANGELOG.md) are the reference when this page and a comm
 | `system` | The reset cause is logged at boot, and a watchdog is fed once for each pass of the workload that has cycles due, through Crux System | A `native_sim` scenario that shows the boot line and an unavailable watchdog (no feed cycle), host tests of the policy, and a CI build for the board with WDOG1 named by a devicetree alias. | not run |
 | `sntp` | The Crux Time realtime clock is set from an SNTP server on the `net` network, by a low-priority thread, and a product policy decides what an answer may do | `native_sim` scenarios with a UDP responder on loopback, in seven cases (each case is its own image), host tests of the policy, and a CI build for the board on the `net` base. | not run |
 | `management` | HTTPS management on the `net` network: Crux Access, the web server on the Mbed TLS profile, the status and configuration services and a packaged page, on a RAM disk | One `native_sim` image with ten ordered cases (a TLS 1.3 handshake that an in-process client verifies, the page bytes and the login path up to a rejected attempt), host tests of the address parser, and a CI build for the board with the Mbed TLS group switched on in its own runner. No account and no successful login. | not run |
-| `base` | The base image: the controller framework from the Zephyr module, with web management (as `management`), the serial command line on LPUART3 (alias `crux-serial0`) and time synchronisation (as `sntp`) on the network of `net`, on a RAM disk, and no workload | One `native_sim` image with eight ordered cases that builds the framework from the module and runs its start function (each phase reported, a second start refused, the listener accepting a connection, and on an emulated UART the console's prompt, a refused login without accounts, the first-account setup, a refused second setup and a login that runs a command), host tests of the startup sequence, and a CI build for the board with the Mbed TLS group switched on in its own runner. | not run |
+| `base` | The base image: the controller framework from the Zephyr module, with web management (as `management`), the serial command line on LPUART3 (alias `crux-serial0`), time synchronisation (as `sntp`) and health supervision with WDOG1 and a retained region in OCRAM2, on the network of `net`, on a RAM disk, and no workload | One `native_sim` image with eleven ordered cases that builds the framework from the module and runs its start function (each step reported, a second start refused, the listener accepting a connection, on an emulated UART the console's prompt, a refused login without accounts, the first-account setup, a refused second setup and a login that runs a command, and the start order and degraded state of supervision with no watchdog); two `native_sim` scenarios over several restarts of the simulated process (a stalled step, a fatal error, stalled framework threads, safe mode and its exit; a software reset with no watchdog); host tests of the startup sequence, the reset rules, the supervision decisions and the states; and a CI build for the board with the Mbed TLS group switched on in its own runner. | not run |
 
 The pinned Crux has a simulated `native_sim` watchdog (`CONFIG_CRUX_SYSTEM_NATIVE_SIM_WATCHDOG`). The `system`
-scenario does not enable it, so it shows no feed cycle. Using it is not decided or scheduled.
+scenario does not enable it, so it shows no feed cycle; the framework scenario `tests/framework/recovery` uses it.
 
 Around the configurations:
 

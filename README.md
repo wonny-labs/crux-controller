@@ -47,7 +47,7 @@ fragment `app/conf/<name>.conf` and, where it needs one, the overlay `app/boards
 | The reset cause at boot and a watchdog fed by the workload, through Crux System | `system` | `app/src/health.c`, `app/src/health_policy.c` |
 | The Crux Time realtime clock set from an SNTP (Simple Network Time Protocol) server, with a product policy | `sntp` | `framework/src/time_sync.c`, `framework/src/time_sync_policy.c`, `framework/os/time_sync_zephyr.c` |
 | Management over HTTPS: Crux Access, the web server on the Mbed TLS profile, status and configuration services and a packaged page | `management` | `framework/compose/management_start.c`, `framework/management/` |
-| The controller framework: its start function composes web management and time synchronisation, with no application | `base` | `framework/src/framework.c`, `framework/src/startup.c`, `zephyr/`, `include/controller/framework.h` |
+| The controller framework: its start function composes web management, the serial command line and time synchronisation under health supervision (watchdog, boot counter, safe mode), with no application | `base` | `framework/src/framework.c`, `framework/src/startup.c`, `framework/src/boot_record.c`, `framework/os/supervisor_zephyr.c`, `zephyr/`, `include/controller/framework.h` |
 
 [Architecture](docs/architecture.md#how-crux-is-consumed) lists each Crux target and header and the file that uses
 it, and [Adding a capability](docs/adding-a-capability.md) shows how a configuration is put together.
