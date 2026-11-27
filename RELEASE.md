@@ -20,10 +20,11 @@ This section holds the release rules.
   `vX.Y.Z` with an annotated tag. Tags are never moved.
 - Right after a release, `main` moves to the next version in a pull request: `X.(Y+1).0-dev`.
 - Only tags of the form `vX.Y.Z` exist. A release candidate is a version string, not a tag.
-- Before 1.0.0, every release from `main` raises the minor number, breaking changes included.
-- A patch release `X.Y.(Z+1)` comes only from a release branch `v0.Y.x`, cut from the tag when it is needed.
-- From 1.0.0, follow Semantic Versioning 2.0.0: a major number for an incompatible change, a minor number
-  for a compatible addition, a patch number for a fix.
+- Before 1.0.0 (versions `0.Y.Z`), every release from `main` raises the minor number, breaking changes
+  included. A patch release `0.Y.(Z+1)` comes only from a release branch `v0.Y.x`, cut from the tag when it
+  is needed.
+- From 1.0.0, follow [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html): a major number for an
+  incompatible change, a minor number for a compatible addition, a patch number for a fix.
 - Releases happen when they are needed, not on a calendar.
 
 ## The flow

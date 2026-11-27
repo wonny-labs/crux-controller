@@ -242,10 +242,10 @@ CI artefact. No workflow uploads an artefact, and a test fails if one starts to.
 This section applies to people and to automated coding assistants alike. The release steps are in
 [RELEASE.md](RELEASE.md).
 
-- The version follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html). The number is kept
-  only in `include/controller/version.h`.
-- `main` carries the next planned release with `-dev`, now `0.1.0-dev`. No pull request changes the
-  version macros. Code must not test features by version number before 1.0.0.
+- The version follows the rules in [RELEASE.md](RELEASE.md#versions). The number is kept only in
+  `include/controller/version.h`.
+- `main` carries the next planned release with `-dev`, now `0.1.0-dev`. No pull request outside a release
+  task changes the version macros. Code must not test features by version number before 1.0.0.
 - Each pull request records its change and its compatibility effect in [CHANGELOG.md](CHANGELOG.md) under
   Unreleased. Mark a breaking change to a public interface in that entry and in the pull request.
 - Builds are told apart by commit SHA. The version string does not order two snapshots of `main`.
