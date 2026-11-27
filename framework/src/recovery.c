@@ -75,7 +75,9 @@ void recovery_fault(boot_fault_reason_t reason, const char *name, uint32_t uptim
 {
     const unsigned int key = retained_port_lock();
 
-    boot_fault_set(&region, reason, name, uptime_ms, detail);
+    const boot_fault_info_t info = {reason, name, uptime_ms, detail};
+
+    boot_fault_set(&region, &info);
     store();
     retained_port_unlock(key);
 }

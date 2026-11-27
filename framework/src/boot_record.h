@@ -130,13 +130,19 @@ typedef struct {
  */
 bool boot_decide(const boot_input_t *in, boot_decision_t *out);
 
+/* What a new fault record says. */
+typedef struct {
+    boot_fault_reason_t reason;
+    const char *name;   /* NULL for none; cut to BOOT_NAME_SIZE - 1 bytes */
+    uint32_t uptime_ms; /* uptime of the boot that writes it */
+    uint32_t detail;    /* the fatal error reason, otherwise 0 */
+} boot_fault_info_t;
+
 /*
- * Write a fault record into the region: the next sequence number, not consumed. A name longer
- * than BOOT_NAME_SIZE - 1 bytes is cut; NULL is an empty name. Nothing for a NULL region or the
- * reason BOOT_FAULT_NONE.
+ * Write a fault record into the region: the next sequence number, not consumed. Nothing for a
+ * NULL argument or the reason BOOT_FAULT_NONE.
  */
-void boot_fault_set(boot_region_t *region, boot_fault_reason_t reason, const char *name,
-                    uint32_t uptime_ms, uint32_t detail);
+void boot_fault_set(boot_region_t *region, const boot_fault_info_t *info);
 
 /* The counter to zero: a successful boot or an authorised operator command. */
 void boot_counter_clear(boot_region_t *region);

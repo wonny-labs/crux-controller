@@ -25,4 +25,4 @@ curl --fail --silent --show-error --location --retry 3 --output "$archive" \
   "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
 echo "${GITLEAKS_SHA256}  ${archive}" | sha256sum --check --strict -
 tar -xzf "$archive" -C "$tool" gitleaks
-"$tool/gitleaks" dir . --redact --no-banner --exit-code 1
+"$tool/gitleaks" dir . --redact --no-banner --verbose --exit-code 1

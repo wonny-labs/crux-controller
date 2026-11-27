@@ -207,16 +207,16 @@ bool boot_decide(const boot_input_t *in, boot_decision_t *out)
     return true;
 }
 
-void boot_fault_set(boot_region_t *region, boot_fault_reason_t reason, const char *name,
-                    uint32_t uptime_ms, uint32_t detail)
+void boot_fault_set(boot_region_t *region, const boot_fault_info_t *info)
 {
-    if (region == NULL || reason == BOOT_FAULT_NONE || !reason_known((uint32_t)reason)) {
+    if (region == NULL || info == NULL || info->reason == BOOT_FAULT_NONE ||
+        !reason_known((uint32_t)info->reason)) {
         return;
     }
-    region->fault.reason = reason;
-    copy_name(region->fault.name, name);
-    region->fault.uptime_ms = uptime_ms;
-    region->fault.detail = detail;
+    region->fault.reason = info->reason;
+    copy_name(region->fault.name, info->name);
+    region->fault.uptime_ms = info->uptime_ms;
+    region->fault.detail = info->detail;
     region->fault.sequence++;
     region->fault.consumed = false;
 }

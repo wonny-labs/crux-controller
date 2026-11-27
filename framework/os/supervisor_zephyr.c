@@ -159,8 +159,9 @@ static void supervisor_run(void *unused0, void *unused1, void *unused2)
         boot_fault_reason_t reason = BOOT_FAULT_NONE;
         char name[BOOT_NAME_SIZE] = "";
         k_spinlock_key_t key = k_spin_lock(&lock);
-        const supervision_action_t action = supervision_poll(
-            &state, now, (uint32_t)atomic_get(&expired), channel_names, channel_count);
+        const supervision_channels_t channels = {channel_names, channel_count,
+                                                 (uint32_t)atomic_get(&expired)};
+        const supervision_action_t action = supervision_poll(&state, now, &channels);
 
         if (action == SUPERVISION_LATCH) {
             reason = state.reason;
@@ -218,7 +219,7 @@ void supervisor_port_step_begin(const char *name, uint32_t deadline_ms)
 {
     const k_spinlock_key_t key = k_spin_lock(&lock);
 
-    supervision_step_begin(&state, name, deadline_ms, (uint64_t)k_uptime_get());
+    supervision_step_begin(&state, (uint64_t)k_uptime_get(), name, deadline_ms);
     k_spin_unlock(&lock, key);
 }
 

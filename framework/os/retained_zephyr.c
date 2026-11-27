@@ -32,10 +32,11 @@
 #if DT_NODE_HAS_STATUS_OKAY(RETAINED_NODE) && defined(CONFIG_RETENTION)
 #define HAS_REGION 1
 BUILD_ASSERT(!IS_ENABLED(CONFIG_RETENTION_MUTEXES),
-             "the fatal error handler writes the retained region: set CONFIG_RETENTION_MUTEXES=n");
-BUILD_ASSERT(
-    !IS_ENABLED(CONFIG_RETAINED_MEM_MUTEXES),
-    "the fatal error handler writes the retained region: set CONFIG_RETAINED_MEM_MUTEXES=n");
+             "the fatal error handler writes the retained region: set "
+             "CONFIG_RETENTION_MUTEX_FORCE_DISABLE=y");
+BUILD_ASSERT(!IS_ENABLED(CONFIG_RETAINED_MEM_MUTEXES),
+             "the fatal error handler writes the retained region: set "
+             "CONFIG_RETAINED_MEM_MUTEX_FORCE_DISABLE=y");
 static const struct device *const region = DEVICE_DT_GET(RETAINED_NODE);
 #else
 #define HAS_REGION 0

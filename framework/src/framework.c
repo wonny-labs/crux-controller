@@ -157,7 +157,7 @@ static void capture_reset_cause(void)
 static void decide_boot(void)
 {
     char text[CRUX_LOG_TEXT_MAX];
-    char fault[CRUX_LOG_TEXT_MAX];
+    char fault[64];
     const boot_decision_t *decision = &fw.boot.decision;
 
     recovery_boot(fw.cause_status == CRUX_OK, fw.cause.causes,

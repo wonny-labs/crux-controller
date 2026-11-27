@@ -42,20 +42,26 @@ typedef struct {
 
 void supervision_init(supervision_t *state);
 
-/* A startup step begins; its deadline counts from now_ms. A deadline of zero means none. */
-void supervision_step_begin(supervision_t *state, const char *name, uint32_t deadline_ms,
-                            uint64_t now_ms);
+/* A startup step begins at now_ms; its deadline counts from then. A deadline of zero means none. */
+void supervision_step_begin(supervision_t *state, uint64_t now_ms, const char *name,
+                            uint32_t deadline_ms);
 
 /* The step returned within its deadline, or startup ended. */
 void supervision_step_end(supervision_t *state);
 
+/* The task watchdog channels as one pass sees them. */
+typedef struct {
+    const char *const *names; /* names[i] for channel i; may be NULL */
+    size_t count;             /* entries of names */
+    uint32_t expired;         /* bit i: channel i expired since the boot (at most 32 channels) */
+} supervision_channels_t;
+
 /*
- * One supervisor pass. expired holds a bit per channel that expired since the boot (bit i for
- * names[i], at most SUPERVISION_CHANNELS_MAX). The first finding wins: a step past its deadline,
- * else the lowest expired channel.
+ * One supervisor pass. The first finding wins: a step past its deadline, else the lowest expired
+ * channel. channels may be NULL for none.
  */
-supervision_action_t supervision_poll(supervision_t *state, uint64_t now_ms, uint32_t expired,
-                                      const char *const names[], size_t count);
+supervision_action_t supervision_poll(supervision_t *state, uint64_t now_ms,
+                                      const supervision_channels_t *channels);
 
 /* Latch a fault that the supervisor learns of from elsewhere (an application stop that failed).
  * Returns true when this call latched, false when a fault was latched already. */

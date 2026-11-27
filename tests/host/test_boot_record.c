@@ -74,7 +74,7 @@ static void test_the_region_round_trips_through_its_bytes(void)
     boot_region_t region = region_with(2u);
 
     region.marker = true;
-    boot_fault_set(&region, BOOT_FAULT_DEADLINE, "command line", 1234u, 0u);
+    boot_fault_set(&region, &(boot_fault_info_t){BOOT_FAULT_DEADLINE, "command line", 1234u, 0u});
     const boot_region_t back = round_trip(&region);
 
     CHECK(back.image_id == IMAGE_A);
@@ -93,7 +93,7 @@ static void test_the_checksum_rejects_a_damaged_region(void)
     uint8_t bytes[BOOT_REGION_SIZE];
     boot_region_t untouched;
 
-    boot_fault_set(&region, BOOT_FAULT_FATAL, NULL, 9u, 3u);
+    boot_fault_set(&region, &(boot_fault_info_t){BOOT_FAULT_FATAL, NULL, 9u, 3u});
     boot_region_encode(&region, bytes);
     for (size_t index = 0; index < BOOT_REGION_SIZE; index++) {
         for (unsigned bit = 0; bit < 8u; bit++) {
@@ -236,7 +236,7 @@ static void test_por_together_with_other_bits_is_a_power_cycle(void)
 {
     boot_region_t region = region_with(2u);
 
-    boot_fault_set(&region, BOOT_FAULT_CHANNEL, "time", 5u, 0u);
+    boot_fault_set(&region, &(boot_fault_info_t){BOOT_FAULT_CHANNEL, "time", 5u, 0u});
     const boot_decision_t out =
         boot(&region, true, BOOT_CAUSE_POR | BOOT_CAUSE_WATCHDOG | BOOT_CAUSE_SOFTWARE, IMAGE_A);
 
@@ -296,7 +296,7 @@ static void test_the_marker_does_not_hide_a_watchdog_or_a_record(void)
 
     CHECK(watchdog.boot_class == BOOT_CLASS_FAULT);
 
-    boot_fault_set(&region, BOOT_FAULT_FATAL, NULL, 1u, 4u);
+    boot_fault_set(&region, &(boot_fault_info_t){BOOT_FAULT_FATAL, NULL, 1u, 4u});
     const boot_decision_t record = boot(&region, true, BOOT_CAUSE_SOFTWARE, IMAGE_A);
 
     CHECK(record.boot_class == BOOT_CLASS_FAULT);
@@ -311,7 +311,7 @@ static void test_a_fatal_record_makes_a_fault_reset(void)
 {
     boot_region_t region = region_with(0u);
 
-    boot_fault_set(&region, BOOT_FAULT_FATAL, "supervisor", 77u, 3u);
+    boot_fault_set(&region, &(boot_fault_info_t){BOOT_FAULT_FATAL, "supervisor", 77u, 3u});
     const boot_decision_t out = boot(&region, true, BOOT_CAUSE_PIN, IMAGE_A);
 
     CHECK(out.boot_class == BOOT_CLASS_FAULT);
@@ -324,7 +324,7 @@ static void test_a_consumed_record_is_reported_and_counted_once(void)
 {
     boot_region_t region = region_with(0u);
 
-    boot_fault_set(&region, BOOT_FAULT_DEADLINE, "web management", 10u, 0u);
+    boot_fault_set(&region, &(boot_fault_info_t){BOOT_FAULT_DEADLINE, "web management", 10u, 0u});
     const boot_decision_t first = boot(&region, true, BOOT_CAUSE_WATCHDOG, IMAGE_A);
 
     CHECK(first.fault_reported);
@@ -343,13 +343,14 @@ static void test_a_new_record_takes_the_next_sequence_number(void)
 {
     boot_region_t region = region_with(0u);
 
-    boot_fault_set(&region, BOOT_FAULT_DEADLINE, "a", 1u, 0u);
-    boot_fault_set(&region, BOOT_FAULT_CHANNEL, "b", 2u, 0u);
+    boot_fault_set(&region, &(boot_fault_info_t){BOOT_FAULT_DEADLINE, "a", 1u, 0u});
+    boot_fault_set(&region, &(boot_fault_info_t){BOOT_FAULT_CHANNEL, "b", 2u, 0u});
     CHECK(region.fault.sequence == 2u);
     CHECK(region.fault.reason == BOOT_FAULT_CHANNEL);
-    boot_fault_set(&region, BOOT_FAULT_NONE, "c", 3u, 0u);
+    boot_fault_set(&region, &(boot_fault_info_t){BOOT_FAULT_NONE, "c", 3u, 0u});
     CHECK(region.fault.sequence == 2u);
-    boot_fault_set(&region, BOOT_FAULT_STOP, "a name much longer than the field", 4u, 0u);
+    boot_fault_set(&region, &(boot_fault_info_t){BOOT_FAULT_STOP,
+                                                 "a name much longer than the field", 4u, 0u});
     CHECK(strlen(region.fault.name) == BOOT_NAME_SIZE - 1u);
     CHECK(strncmp(region.fault.name, "a name much lon", BOOT_NAME_SIZE - 1u) == 0);
 }
@@ -360,7 +361,7 @@ static void test_a_different_image_clears_the_counter_and_reports_the_last_recor
 {
     boot_region_t region = region_with(N);
 
-    boot_fault_set(&region, BOOT_FAULT_CHANNEL, "time", 50u, 0u);
+    boot_fault_set(&region, &(boot_fault_info_t){BOOT_FAULT_CHANNEL, "time", 50u, 0u});
     const boot_decision_t update = boot(&region, true, BOOT_CAUSE_WATCHDOG, IMAGE_B);
 
     CHECK(update.boot_class == BOOT_CLASS_NEW_IMAGE);
@@ -398,7 +399,7 @@ static void test_without_a_captured_cause_only_the_record_counts(void)
     CHECK(out.boot_class == BOOT_CLASS_NOT_FAULT);
     CHECK(out.region.counter == 1u);
 
-    boot_fault_set(&in.region, BOOT_FAULT_DEADLINE, "x", 1u, 0u);
+    boot_fault_set(&in.region, &(boot_fault_info_t){BOOT_FAULT_DEADLINE, "x", 1u, 0u});
     CHECK(boot_decide(&in, &out));
     CHECK(out.boot_class == BOOT_CLASS_FAULT);
     CHECK(out.region.counter == 2u);
@@ -413,7 +414,8 @@ static void test_invalid_arguments_are_refused(void)
     in.threshold = N;
     CHECK(!boot_decide(NULL, &out));
     CHECK(!boot_decide(&in, NULL));
-    boot_fault_set(NULL, BOOT_FAULT_FATAL, "x", 1u, 1u);
+    boot_fault_set(NULL, &(boot_fault_info_t){BOOT_FAULT_FATAL, "x", 1u, 1u});
+    boot_fault_set(&(boot_region_t){0}, NULL);
     boot_counter_clear(NULL);
     boot_marker_set(NULL, true);
 }
@@ -453,11 +455,13 @@ static void test_the_names(void)
     CHECK(strcmp(boot_fault_reason_name(BOOT_FAULT_FATAL), "fatal") == 0);
     CHECK(strcmp(boot_fault_reason_name(BOOT_FAULT_STOP), "stop") == 0);
     CHECK(strcmp(boot_fault_reason_name(BOOT_FAULT_NONE), "none") == 0);
+    // NOLINTNEXTLINE(clang-analyzer-optin.core.EnumCastOutOfRange): deliberate out-of-range value
     CHECK(strcmp(boot_fault_reason_name((boot_fault_reason_t)99), "unknown") == 0);
     CHECK(strcmp(boot_class_name(BOOT_CLASS_FAULT), "fault") == 0);
     CHECK(strcmp(boot_class_name(BOOT_CLASS_NOT_FAULT), "normal") == 0);
     CHECK(strcmp(boot_class_name(BOOT_CLASS_POWER_CYCLE), "power") == 0);
     CHECK(strcmp(boot_class_name(BOOT_CLASS_NEW_IMAGE), "image") == 0);
+    // NOLINTNEXTLINE(clang-analyzer-optin.core.EnumCastOutOfRange): deliberate out-of-range value
     CHECK(strcmp(boot_class_name((boot_class_t)99), "unknown") == 0);
 }
 

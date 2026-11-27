@@ -24,8 +24,8 @@ void supervision_init(supervision_t *state)
     }
 }
 
-void supervision_step_begin(supervision_t *state, const char *name, uint32_t deadline_ms,
-                            uint64_t now_ms)
+void supervision_step_begin(supervision_t *state, uint64_t now_ms, const char *name,
+                            uint32_t deadline_ms)
 {
     if (state == NULL) {
         return;
@@ -60,9 +60,13 @@ static bool step_overdue(const supervision_t *state, uint64_t now_ms)
            now_ms - state->step_started_ms > (uint64_t)state->step_deadline_ms;
 }
 
-supervision_action_t supervision_poll(supervision_t *state, uint64_t now_ms, uint32_t expired,
-                                      const char *const names[], size_t count)
+supervision_action_t supervision_poll(supervision_t *state, uint64_t now_ms,
+                                      const supervision_channels_t *channels)
 {
+    const uint32_t expired = channels != NULL ? channels->expired : 0u;
+    const char *const *names = channels != NULL ? channels->names : NULL;
+    const size_t count = channels != NULL ? channels->count : 0u;
+
     if (state == NULL || state->latched) {
         return SUPERVISION_STOPPED;
     }

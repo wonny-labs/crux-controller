@@ -217,14 +217,17 @@ static void test_the_names(void)
     CHECK(strcmp(controller_state_name(CONTROLLER_OPERATIONAL), "operational") == 0);
     CHECK(strcmp(controller_state_name(CONTROLLER_DEGRADED), "degraded") == 0);
     CHECK(strcmp(controller_state_name(CONTROLLER_RECOVERY), "recovery") == 0);
+    // NOLINTNEXTLINE(clang-analyzer-optin.core.EnumCastOutOfRange): deliberate out-of-range value
     CHECK(strcmp(controller_state_name((controller_state_t)9), "unknown") == 0);
     CHECK(strcmp(app_state_name(APP_ABSENT), "absent") == 0);
     CHECK(strcmp(app_state_name(APP_NOT_INITIALISED), "not-initialised") == 0);
     CHECK(strcmp(app_state_name(APP_HELD), "held") == 0);
     CHECK(strcmp(app_state_name(APP_FAULT), "fault") == 0);
+    // NOLINTNEXTLINE(clang-analyzer-optin.core.EnumCastOutOfRange): deliberate out-of-range value
     CHECK(strcmp(app_state_name((app_state_t)99), "unknown") == 0);
     CHECK(strcmp(service_health_name(SERVICE_HEALTHY), "healthy") == 0);
     CHECK(strcmp(service_health_name(SERVICE_ABSENT), "absent") == 0);
+    // NOLINTNEXTLINE(clang-analyzer-optin.core.EnumCastOutOfRange): deliberate out-of-range value
     CHECK(strcmp(service_health_name((service_health_t)9), "unknown") == 0);
 }
 
