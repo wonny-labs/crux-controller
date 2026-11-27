@@ -5,6 +5,7 @@ The product keeps its application, the application's threads and their timing, i
 The framework is a Zephyr module of this repository, which the product imports with west.
 This page explains what the framework gives, who does what and how a product joins it.
 The [specification](controller-framework-spec.md) holds the requirements, the application interface, the operating model and the decisions, and the [platform gaps](controller-framework-platform-gaps.md) hold the Crux constraints at the pin and the Crux interface of each service.
+The [threat model](controller-framework-threat-model.md) holds the assets, interfaces and threats that the security requirements answer.
 
 ## What it is
 
@@ -40,6 +41,7 @@ The [startup sequence](controller-framework-spec.md#41-startup-steps) shows how 
   It is not responsible for the startup of the platform services or the hardware watchdog.
 - **The product** is responsible for the recovery policy choices that the framework offers (start prerequisites, runtime dependencies and the application's response to them, safe-mode threshold, watchdog policy), the output safe state and output protection during a reset with their hardware, the storage medium, device preparation and its board files.
   It is not responsible for the framework's internal policy.
+- **The manufacturer**, the organisation that places the end product on the market, holds the organisational duties of the EU Cyber Resilience Act, such as vulnerability reporting, the risk sign-off and the support period ([specification section 6.6](controller-framework-spec.md#66-organisational-duties)).
 
 ## Capabilities
 

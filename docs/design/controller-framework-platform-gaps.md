@@ -1,7 +1,7 @@
 # Controller framework: platform gaps
 
 This page lists the constraints that Crux and Zephyr put on the [controller framework](controller-framework.md) at the Crux revision that [`west.yml`](../../west.yml) pins, the Crux change that lifts each one, and the Crux interface behind each framework service.
-It is the appendix of the [specification](controller-framework-spec.md), which refers to the constraints as C1 to C15.
+It is the appendix of the [specification](controller-framework-spec.md), which refers to the constraints as C1 to C19.
 A statement holds at the pin unless it carries a Crux status word of [specification section 1](controller-framework-spec.md#1-scope-and-conventions).
 Priority 1 is the most urgent Crux change, and the delivery dependency names the first delivery stage or milestone that needs the change; the two are independent.
 The [interim states](controller-framework-spec.md#85-interim-states) say which states each milestone accepts.
@@ -19,13 +19,17 @@ When the pin moves, each gap is checked again; a gap whose Crux change is at the
 | [C6](#c6-console-and-logging-uart) | A shared console and Logging UART | Crux `main` | 2 | None; a build option |
 | [C7](#c7-ssh-and-tls-profiles) | Access on the Wolf profile; an SSH composition interface; two TLS stacks | Crux change needed; deferred by Crux; deferred by Crux | 2; 3; — | Product Ready of a product that selects SSH or the Wolf profile |
 | [C8](#c8-crux-service-threads-and-supervision) | A progress hook in Crux service threads | Crux `main` | 1 | Delivery stage 4 (criterion 33); Framework Complete |
-| [C9](#c9-access-and-an-unusable-store) | A credential store erase; an erase that keeps the device identity | Crux `main`; Crux change needed | 2 | Delivery stage 5 (PR4) |
+| [C9](#c9-access-and-an-unusable-store) | A credential store erase; an erase that keeps the device identity | Crux `main`; Crux change needed | 2 | Delivery stage 4 (criterion 42) for the erase; delivery stage 5 (PR4) for keeping the device identity |
 | [C10](#c10-image-state) | An image state provider for the update path | Crux change needed | 2 | Delivery stage 5 (PR3) |
 | [C11](#c11-simulated-watchdog-on-native_sim) | None | — | — | None |
 | [C12](#c12-soc-gates) | Board-neutral driver gates | Crux change needed when a second board enters the scope (D9) | Deferred | A second board |
 | [C13](#c13-linux-providers) | Linux providers | Designed with Crux's first Linux product | — | Delivery stage 6 |
 | [C14](#c14-operator-reset-marker-and-crux-reboot) | A pre-reset hook in Crux Reboot | Crux change needed | 2 | None; the interim rule serves every delivery stage, including Product Ready |
 | [C15](#c15-size-limit-of-the-application-data-root) | A size limit per File root | Crux change needed | 1 | Delivery stage 4 (criterion 24); Framework Complete |
+| [C16](#c16-security-counter) | A security counter in the image state contract and its storage | Crux change needed | 2 | Delivery stage 5 (PR7) |
+| [C17](#c17-security-event-persistence) | A composition-level reader of security events | Crux change needed | 2 | Delivery stage 4 (criterion 44); Framework Complete |
+| [C18](#c18-request-rate-limit) | A request rate limit in Crux Web | Crux change needed | 3 | Delivery stage 4 (criterion 45); Framework Complete |
+| [C19](#c19-credential-store-at-rest) | A hardware-bound key basis for the credential store | Crux change needed when a product's record (S9) asks for it | 3 | Product Ready of that product |
 | [Web adapter](#other-crux-changes) | A web adapter for the File service | Crux change needed | 3 | Product Ready of a product that offers HTTPS file transfer |
 
 The pin is Crux `62ed69f1`; the Crux `main` changes above are at `05a50475` and not at the pin.
@@ -44,7 +48,23 @@ The pin is Crux `62ed69f1`; the Crux `main` changes above are at `05a50475` and 
 | Network | Zephyr network configuration library, Crux Netif, Crux Sockets profile | Interface up before `main()`; link state for health and status | Available | Unchanged |
 | Storage | Crux File, one provider, one mount ([C1](#c1-one-storage-provider-per-image)) | Application data root, credential store roots, settings file | microSD FatFs provider (C4) | LittleFS on the reference board's microSD card |
 | Factory reset | Crux credential store erase (`<crux/credential_store_zephyr.h>`) | Erase of accounts, then the settings file, then a reset ([specification section 5.3](controller-framework-spec.md#53-storage-or-access-failure-and-factory-reset-d15)) | Device preparation only ([C9](#c9-access-and-an-unusable-store)) | An erase that keeps the device identity |
-| Update | Crux image state contract | Health verdict for the confirmation of a test image | Images prepared for MCUboot, no confirmation ([C10](#c10-image-state)) | Health-gated confirmation |
+| Update | Crux image state contract | Health verdict for the confirmation of a test image | Images prepared for MCUboot, no confirmation ([C10](#c10-image-state)) | Health-gated confirmation with a security counter ([C16](#c16-security-counter)) |
+| Security events | Crux security events (`<crux/security_event.h>`) | The event list of [specification section 6.2](controller-framework-spec.md#62-security-items), with framework identifiers from 0x8000 | A RAM ring drained to the log ([C17](#c17-security-event-persistence)) | Persisted, with an opt-out |
+
+## Access controls at the pin
+
+These Crux facts back [specification section 6.2](controller-framework-spec.md#62-security-items); Crux Access is the same on Crux `main` at `06813519`.
+
+| Control | Crux at the pin | Source |
+|---|---|---|
+| Failed logins | Delay buckets per source and per name: 5 free attempts, then a window that doubles from 1 s to 60 s, cleared after 15 minutes without a failure; a success clears the name bucket; no account lockout | `docs/access-contract.md` "Bounds"; `components/access/src/access_delay.c` |
+| Login events | `access.login_failed`, `access.delayed`, `access.permission_denied`, account and provisioning events | `components/security_event/src/security_event_ids.inc` |
+| Roles | Named roles with exact permission lists from the product policy, with no wildcards or inheritance; at least one role holds `access.manage`; the last enabled administrator cannot be removed | `components/access/include/crux/access.h` |
+| Sessions | Idle and absolute limits from the product policy; 8 sessions with slot 0 reserved for serial, 3 per account, as compile-time defaults | `access.h`; `docs/access-contract.md` "Bounds" |
+| Password rule | 12 to 128 bytes by default, or a product function; a PBKDF2-HMAC-SHA256 verifier with a default of 10,000 iterations, which the product measures and sets | `access.h`; `docs/access-contract.md` "Bounds" |
+| Web route access | Each route declares an access class, enforced before the handler; `@public` is reserved for the login, its attempt result and static sign-in assets; the session module owns the CSRF and Origin rules | `components/web/include/crux/web.h:32-35`, `:74-80` |
+| Request limits | A body limit per route up to `CRUX_WEB_BODY_BUFFER`, with 413 above it; a request deadline; `CONFIG_HTTP_SERVER_MAX_CLIENTS` and `CONFIG_CRUX_WEB_BACKLOG`; no request rate limit ([C18](#c18-request-rate-limit)) | `web.h`; `components/web/ports/zephyr/web_http_server.c:97-130` |
+| TLS policy | The listener asks for TLS 1.3 alone with `TLS_AES_128_GCM_SHA256`, on both TLS profiles | `web_http_server.c:102-121` |
 
 ## Storage and configuration
 
@@ -171,6 +191,35 @@ Crux refuses every form of it, at the pin and on Crux `main`; the line reference
 - Evidence: Crux's image state contract (`components/image_state`) has a host provider only, with no Zephyr or MCUboot provider.
 - Crux change: an image state provider for the update path ([crux-pilot#297](https://github.com/wonny-labs/crux-pilot/issues/297)). State: Crux change needed. Priority 2.
 - Interim state: the images are prepared for MCUboot, with no health-gated confirmation. Replacement criterion: criterion 25 stays a host test.
+
+### C16. Security counter
+
+- Evidence: Crux's image state contract has query, test request and confirm operations and no security counter (`components/image_state/include/crux/image_state.h`).
+- Evidence (Crux `main` at `06813519`): MCUboot's downgrade prevention is optional with no default, and the Zephyr port has no non-volatile counter backend; a trusted counter on RT1060 would need fuses (`docs/evidence/boot-update/stage1-pinned-source-findings.md` B13; `docs/boot-update-investigation.md:135`).
+- Crux change: a security counter in the image state contract and its storage, with the secure boot work. State: Crux change needed. Priority 2.
+- Interim state: nothing enforces the image security counter. Replacement criterion: none; PR7 needs the change.
+
+## Security events and at-rest protection
+
+### C17. Security event persistence
+
+- Evidence: Crux security events go to a RAM ring that a reset loses, and a low-priority thread hands the ring to Logging; the records are not tamper-proof (`components/security_event/include/crux/security_event.h:8-15`).
+- Evidence: the only reader, `crux_security_event_read()`, needs an Access session with `events.read` (`security_event.h:252-276`), and the framework has no session of its own.
+- Crux change: a composition-level reader or sink that the framework uses to persist events. State: Crux change needed. Priority 2.
+- Interim state: security events reach the log only. Replacement criterion: none; criterion 44 needs the change.
+
+### C18. Request rate limit
+
+- Evidence: Crux Web bounds connections, backlog, request body and request time, and has no request rate limit; the login delay covers logins only ([Access controls at the pin](#access-controls-at-the-pin)).
+- Effect: the framework cannot add a rate limit without wrapping the web server, which the repository rule against pass-through wrappers forbids.
+- Crux change: a request rate limit per source in Crux Web. State: Crux change needed. Priority 3.
+- Interim state: web management has no request rate limit. Replacement criterion: none; criterion 45 needs the change.
+
+### C19. Credential store at rest
+
+- Evidence: the PSA provider declares the basis `BASIS_DEVICE_ID_KEY` with no confidentiality against the medium and the chip ID; a card moved to another board reads unusable; rollback is not detected; a writer without the chip ID can overwrite both headers so that the store reads empty, which reopens provisioning (`docs/credential-store.md`, "Limits").
+- Effect: S9 is a mandatory product record, and first-account setup on the serial command line (S1) is the barrier after a blanked store.
+- Crux change: a hardware-bound key basis per SoC. State: Crux change needed when a product's record asks for it. Priority 3.
 
 ## Boards and operating systems
 

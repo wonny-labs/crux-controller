@@ -14,6 +14,7 @@
     "docs/dependencies.md": "reference",
     "docs/design/controller-framework-platform-gaps.md": "reference",
     "docs/design/controller-framework-spec.md": "reference",
+    "docs/design/controller-framework-threat-model.md": "reference",
     "docs/design/controller-framework.md": "explanation",
     "docs/dev-container.md": "reference",
     "docs/documentation-guidelines.md": "reference",

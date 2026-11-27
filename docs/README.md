@@ -74,6 +74,7 @@ The [capabilities](capabilities.md), the [findings](findings/README.md), the [ro
 | [design/controller-framework.md](design/controller-framework.md) | Explanation | The controller framework: what it is, who does what, its services and how a product joins it. |
 | [design/controller-framework-spec.md](design/controller-framework-spec.md) | Reference | The controller framework's requirements, application interface, operating model, verification and decisions. |
 | [design/controller-framework-platform-gaps.md](design/controller-framework-platform-gaps.md) | Reference | The Crux constraints on the controller framework at the pin, with the Crux change that lifts each one. |
+| [design/controller-framework-threat-model.md](design/controller-framework-threat-model.md) | Reference | The controller framework's assets, interfaces, threats and Annex I applicability. |
 
 ### In `docs/findings/`
 

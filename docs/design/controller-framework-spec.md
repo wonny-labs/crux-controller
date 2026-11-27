@@ -2,7 +2,8 @@
 
 This page specifies the controller framework: its requirements, application interface, operating model, recovery, build options, verification and decisions.
 The [overview](controller-framework.md) explains what the framework is, who does what and how a product joins it.
-The [platform gaps](controller-framework-platform-gaps.md) hold the Crux and Zephyr constraints C1 to C15 and the Crux interface behind each service.
+The [platform gaps](controller-framework-platform-gaps.md) hold the Crux and Zephyr constraints C1 to C19 and the Crux interface behind each service.
+The [threat model](controller-framework-threat-model.md) holds the assets, interfaces, threats and Annex I applicability.
 The page changes no source code; the [architecture](../architecture.md) and the [capabilities](../capabilities.md) describe the current images.
 
 ## 1. Scope and conventions
@@ -32,6 +33,16 @@ Each rule carries one label:
 
 A heading's label applies to every rule under it that carries no label of its own.
 Where a decision lets a product choose differently, the text says so.
+Requirements use the indicative mood throughout instead of the "shall" of ISO/IEC/IEEE 29148 (`not verified`), and each traces to verifiable criteria.
+Each security, vulnerability handling and quality requirement carries a practice label in [section 6.4](#64-practice-basis):
+
+| Practice label | Meaning |
+|---|---|
+| Standard | Required or recommended by a standard, regulation or upstream project for this kind of product |
+| Documented but optional | A mechanism that upstream documents and leaves to the integrator |
+| Project-specific workaround | A choice of these pages that fills a gap of a tool or platform |
+
+A source is cited only when its text was read for these pages; `not verified` marks a cited source whose text was not read, including the standards texts and the unofficial text of the EU Cyber Resilience Act.
 [Section 10](#10-terms) defines the terms of these pages; the [glossary](../glossary.md) defines the others.
 
 ## 2. Requirements
@@ -62,8 +73,28 @@ The criteria are in [section 8.4](#84-criteria).
 | S1 | No default password exists, and the first account is created over a trusted path (IEC 62443-4-2 CR 1.5; ETSI EN 303 645 provision 5.1). | 28 |
 | S2 | A factory reset needs an authorised operator or a physical presence that the product defines, and no unauthenticated serial command erases the device. | 29, PR4 |
 | S3 | The items of section 6.2 are decided before the Product Ready milestone. | PR5 |
+| S4 | Every web route and serial command needs an Access login, except the login, its sign-in assets and first-account setup (section 6.2). | 34 |
+| S5 | Failed logins on every interface are delayed and recorded as security events (section 6.2). | 43 |
+| S6 | A product build refuses the development and test options and has the stack hardening options (section 6.2). | 38 |
+| S7 | Web management uses at least TLS 1.2, only forward-secret cipher suites with authenticated encryption, and a stated key type (section 6.2). | 39 |
+| S8 | A factory reset removes credentials, configuration, application data and persisted security events, keeps the device identity, and uses the erase method that the product records (section 5.3). | 42, PR4 |
+| S9 | The product records how the credential store's confidentiality and device binding are protected (section 6.2). | PR5 |
+| U1 | The update path refuses an image whose security counter is below the running image's (section 6.1). | PR7 |
+| L1 | The framework records the security events of section 6.2, and a product option turns their persistence off. | 44 |
+| A1 | Connection, session, request size and request rate limits are build options with defaults, and overload degrades device management without affecting supervision (section 6.2). | 45 |
+| M1 | The threat model states the data that the framework holds and the outbound traffic of the base image. | 46 |
 
-IEC 62443-4-2 and the EU Cyber Resilience Act give the security items their direction; these pages claim compliance with neither.
+| # | Vulnerability handling and quality requirement | Criteria |
+|---|---|---|
+| V1 | Every nightly and release build of the base image and of the product integration image produces an SPDX 2.3 SBOM of the application, Zephyr and every module, kept with the internal release record (section 6.3). | 35 |
+| V2 | The SBOM is matched against a public vulnerability database nightly and at release, and a release with a known unresolved vulnerability needs a triage record (section 6.3). | 36 |
+| V3 | The repository states a coordinated vulnerability disclosure policy, an advisory template and a Security section in its release notes (section 6.3). | 40 |
+| V4 | The release manifest is signed and comes with a build provenance attestation (section 6.3). | PR8 |
+| T1 | The [threat model](controller-framework-threat-model.md) covers each delivery stage, and products extend it. | 37 |
+| T2 | A product security documentation template covers the user information that the framework affects (section 6.3). | PR9 |
+| Q1 | CI reports host-test coverage, analyses the Zephyr sources, fuzzes the portable parsers and scans for secrets (section 6.3). | 41 |
+
+[Section 6.5](#65-cra-annex-i-traceability) traces these requirements to Annex I of the EU Cyber Resilience Act; these pages claim compliance with no standard or regulation.
 
 | # | Portability requirement | Criteria |
 |---|---|---|
@@ -338,7 +369,7 @@ Outputs keep a safe state during and across a reset only through the board's har
   For Crux Reboot, the framework needs a hook that Crux calls once, immediately before the reset, distinct from the policy callback ([C14](controller-framework-platform-gaps.md#c14-operator-reset-marker-and-crux-reboot)).
   Interim rule: the framework writes the marker from the policy callback, which Crux Reboot asks at the request and again on its worker before the reset without saying which check it is, so the framework tracks the order of the calls, or consumes a marker left by a request that never reset.
 - **Power cycle**: a captured POR cause, or a region whose prefix or checksum is invalid, means that the region did not survive: the counter starts at zero and no record is reported, whatever other cause bits are latched.
-  On the RT1062 a POR cause is never captured and a power-on reads as PIN, so detection of a power cycle there relies on the invalid-region rule.
+  On the RT1062 a POR cause is expected never to be captured and a power-on to read as PIN, which the board check of section 5.6 shows, so detection of a power cycle there relies on the invalid-region rule.
 - **Interrupted write**: the record and counter are written with their checksum last; a write that a reset interrupts fails the checksum on the next boot and counts as an empty region, while the captured reset cause still decides whether the reset was a fault reset.
 - **Stale record**: each record carries a sequence number; the next boot reads it once, passes it to the status service and marks it consumed, so a later reset does not count or report it again.
 - **Image identity**: the region stores an identifier of the image that wrote it; a boot whose image differs, after an update or after the boot loader reverted an image, clears the counter and reports the previous image's last record.
@@ -360,8 +391,9 @@ Comparable mechanisms: U-Boot's boot count limit (`CONFIG_BOOTCOUNT_LIMIT`, `boo
 
 - **Storage or Access failure**: device management that needs accounts stays off; the controller is degraded when storage or Access is a required service (section 4.7), or in recovery, and the serial log and the status service (where it runs) show the cause.
   Access cannot reopen in the same boot (C9), so a replaced medium takes effect after a reset; recovery is device preparation again, or a factory reset by a physical-presence input if the product defines one.
-- **Factory reset**: an authorised operator command erases credentials (accounts) and configuration through Crux's credential store erase (Crux `main`) and the removal of the settings file, resets, and returns to first-account provisioning ([C9](controller-framework-platform-gaps.md#c9-access-and-an-unusable-store)).
-  It keeps the device identity, which only device preparation replaces; Crux's erase removes the TLS key and certificate as well, which C9 records.
+- **Factory reset** (S8): an authorised operator command erases the credentials (accounts) through Crux's credential store erase (Crux `main`), removes the settings file, the files of the application data root and the persisted security events, resets, and returns to first-account provisioning ([C9](controller-framework-platform-gaps.md#c9-access-and-an-unusable-store)).
+  It keeps the device identity, because only device preparation makes it and operators know the device by its certificate fingerprint (section 6.2); Crux's erase removes the TLS key and certificate as well, which C9 records.
+  Removing a file frees its blocks on LittleFS and on an SD card without erasing them (`not verified`), so the erase method (file removal, block erase or discard, or erasure of an encryption key) is a product decision recorded at product readiness (PR4).
   A product may add a physical-presence input, such as a button held at boot; no unauthenticated serial command erases the device.
 
 ### 5.4 Storage and configuration
@@ -415,19 +447,131 @@ MCUboot reverts a test image that is not confirmed only when the device next res
 - **Confirmation** (update component): when the verdict is healthy, the update component confirms the image through Crux's image state contract ([C10](controller-framework-platform-gaps.md#c10-image-state)).
 - **Trial deadline** (update component, on the framework's verdict): when the verdict is not healthy by the trial deadline (Kconfig, counted on the monotonic clock from the start of the boot), the update component requests a planned reset, and the boot loader reverts the image at that reset; the configuration rules after a rollback are in section 5.4.
   This planned reset carries no operator reset marker, so it counts as a fault reset, which has no effect because the reverted image clears the counter (section 5.1).
+- **Anti-rollback** (U1): the update component refuses to request a test boot of an image whose security counter is below the running image's, and the boot loader refuses such an image through MCUboot's downgrade prevention with a security counter, which MCUboot leaves optional and off by default.
+  The counter's storage comes from Crux's secure boot work ([C16](controller-framework-platform-gaps.md#c16-security-counter)), and the release manifest carries the counter (`security_counter` in `release/release-manifest.schema.json`).
+- **Update transport** (D17): open, decided with Crux's secure boot work at product readiness.
 
 The verdict needs no particular device management service: a build without web management is confirmed on the same conditions.
 
 ### 6.2 Security items
 
+The [Access controls at the pin](controller-framework-platform-gaps.md#access-controls-at-the-pin) hold the Crux facts that these rules rely on.
+
 | Item | Rule | Kind | Label |
 |---|---|---|---|
 | First trusted enrolment of the self-signed certificate | Device preparation records the certificate fingerprint (on a label or in the preparation record), and the serial command line shows it, so the operator checks it at the first connection instead of trusting on first use (RFC 7435); a product may install a certificate from its own CA instead | Mandatory | D11 |
-| Serial command line login | Every command needs an Access login after the first account (requirement S2) | Mandatory | Established mechanism (Crux console contract) |
-| Serial command line in production | The product chooses whether the console is composed in production, for provisioning only, or always; physical access to the port is part of the trust model | Product choice | Product decision (D16) |
+| Authentication on every interface (S4) | Every web route has an access class other than `@public`, except the login, its attempt result and static sign-in assets, and Crux Web enforces it before the handler runs; every serial command needs an Access login, except the login and first-account setup | Mandatory | Established mechanism (Crux web and console contracts) |
+| Failed logins (S5) | Crux Access delays further logins per source and per name after the free attempts and records each failure and delay as a security event; the framework keeps Crux's values unless the product sets its own, and adds no account lockout | Mandatory | Established mechanism (Crux Access contract) |
+| Production configuration (S6) | A product build refuses the development and test options of criterion 38 and has stack canaries and, where the SoC supports it, hardware stack protection | Mandatory | Established mechanism (Zephyr Kconfig) |
+| TLS policy (S7) | At least TLS 1.2, and only ECDHE or TLS 1.3 suites with authenticated encryption; at the pin the Crux web listener asks for TLS 1.3 alone with `TLS_AES_128_GCM_SHA256`, and the reference configuration's device key is ECDSA P-256; a product states its key type | Mandatory | Established mechanism (Crux web contract) |
+| Security event list (L1) | Login, logout and session expiry, account and role changes, configuration changes, factory reset, update request and confirmation, safe-mode entry and a step of the wall time; Crux emits the Access, configuration, credential and reboot events, and the framework declares its own identifiers for the rest | Mandatory | Established mechanism (Crux security event contract) |
+| Audit persistence | With persistence on (section 7.1), the product chooses when events reach storage (for example at once for authentication failures and account changes, batched for others), weighing loss at a power cut against medium wear; persistence needs a Crux reader ([C17](controller-framework-platform-gaps.md#c17-security-event-persistence)); timestamps come from unauthenticated SNTP ([threat model](controller-framework-threat-model.md#4-threats), threat 10) | Product choice | Product decision (D16) |
+| Network limits (A1) | Connections, backlog, sessions, request body and request deadline are build options with Crux's and Zephyr's defaults; a request rate limit needs a Crux change ([C18](controller-framework-platform-gaps.md#c18-request-rate-limit)); device management runs in a lower priority band than the supervisor (section 7.4), so overload does not starve supervision | Mandatory | Established mechanism (Zephyr HTTP server; Crux Web and Access bounds) |
+| Credential store at rest (S9) | The Crux store detects tampering and refuses a medium from another device, but it is not confidential against a person who holds the medium and the chip ID, and a blanked store reads empty and reopens first-account setup ([C19](controller-framework-platform-gaps.md#c19-credential-store-at-rest)); the product records its protection, for example a non-removable medium, a hardware-bound key or physical protection | Mandatory product record | Product decision |
+| Serial command line and debug port in production | The product chooses whether the console is composed in production, for provisioning only, or always, and records the lockdown of the debug port in its security documentation (T2); physical access to the ports is part of the trust model | Product choice | Product decision (D16) |
 | Factory reset authority | Section 5.3 | Mandatory | D15 |
 | HTTPS file transfer | Confined to the application data root, with limits on file size, total size, concurrent transfers and file names; it needs Crux's web adapter for the File service ([crux-pilot#188](https://github.com/wonny-labs/crux-pilot/issues/188)) | Mandatory when the product offers file transfer | D10 |
-| Audit persistence | Crux security events are drained to the log at the pin; the product chooses when they reach storage (for example at once for authentication failures and account changes, batched for others), weighing loss at a power cut against medium wear; timestamps come from unauthenticated SNTP (IEC 62443-4-2 CR 2.8 to 2.11, as direction) | Product choice | Product decision (D16) |
+
+### 6.3 Vulnerability handling and release evidence
+
+The repository supplies the mechanisms and templates; publishing, commitments and sign-off are organisational duties (section 6.6).
+
+- **SBOM** (V1): the release dry run builds the `net` image at the pin (`scripts/ci/checks.toml`), which leaves out Mbed TLS, web management and Access, so it moves to the base image, and the product integration job adds its own SBOM.
+  At the pin, `west spdx` (Zephyr v4.4.2, `scripts/west_commands/zspdx/`) writes tag-value SPDX 2.2 or 2.3 in the documents `app`, `zephyr`, `build` and `modules-deps`.
+  Zephyr gets a version and a CPE only from an exact `vX.Y.Z` tag, and a purl only from a `git@` or `http(s)://` URL.
+  A module carries its revision as its version and a download location, and an identifier only when its `zephyr/module.yml` declares `security: external-references`.
+  No package gets a supplier.
+  So the release step adds the supplier and the missing identifiers from a table in this repository before the completeness check of criterion 35.
+- **Vulnerability matching** (V2): the tool is open, decided at implementation; a package without a CPE or purl is reported, not skipped; each match gets a triage record with a VEX status before a release.
+- **Disclosure policy** (V3): the policy states the scope, the private reporting channel, the target times for acknowledgement and fix, coordinated disclosure, advisory and CVE publication, and the supported versions; the target times are values that the repository's maintainers set.
+  This repository gives no support period; a product supplies its own (T2, D19).
+- **Release integrity** (V4): the signing and attestation tools are open, decided at implementation; the custody of the signing key is an organisational duty.
+- **Threat model** (T1): the [threat model](controller-framework-threat-model.md) is updated at the end of each delivery stage, and its section 6 says what a product adds.
+- **Product security documentation** (T2): secure commissioning, the update procedure and the update default, decommissioning and data removal, the support period, and the lockdown of the console and the debug port.
+- **Quality gates** (Q1): the coverage threshold is set by project policy; clang-tidy covers only the host-built sources at the pin (`scripts/analyze_host.py` prints the sources it does not analyse); the fuzz and secret-scan tools are open, decided at implementation.
+
+| Deliverable | Requirement | Delivery stage |
+|---|---|---|
+| [Threat model](controller-framework-threat-model.md) | T1, M1 | 1, updated in each stage |
+| Disclosure policy text in `SECURITY.md` | V3 | Any |
+| Security advisory template | V3 | Any |
+| Security section of the release notes | V3 | Any |
+| Product threat model template | T1 | 5 |
+| Product security documentation template | T2 | 5 |
+
+### 6.4 Practice basis
+
+| Requirement | Practice | Source read for these pages | Source `not verified` |
+|---|---|---|---|
+| S4 | Standard | Secondary mapping of IEC 62443-4-2 CR 1.1 (CIP Security Requirements); Crux `components/web/include/crux/web.h` | IEC 62443-4-2 text |
+| S5 | Standard | Crux `docs/access-contract.md` (delay and events) | IEC 62443-4-2 CR 1.11; ETSI EN 303 645 provision 5.1-5 |
+| S6 | Documented but optional | Zephyr `kernel/Kconfig` (`STACK_CANARIES`), `arch/Kconfig` (`HW_STACK_PROTECTION`) | CRA Annex I Part I (2)(k) |
+| S7 | Standard | Crux `components/web/ports/zephyr/web_http_server.c` | RFC 8446 |
+| S8 | Standard | littlefs design notes (copy-on-write) | CRA Annex I Part I (2)(m); erase behaviour of a freed block |
+| S9 | Project-specific workaround | Crux `docs/credential-store.md` (limits) | — |
+| U1 | Documented but optional | Crux `main` `docs/evidence/boot-update/stage1-pinned-source-findings.md` (B13); MCUboot design | CRA Annex I Part I (2)(c) |
+| L1 | Standard | Crux `components/security_event/include/crux/security_event.h` | CRA Annex I Part I (2)(l); IEC 62443-4-2 CR 2.8 |
+| A1 | Standard | Crux `web.h` and `docs/access-contract.md` (bounds) | ETSI EN 303 645 provision 5.9; CRA Annex I Part I (2)(h) |
+| M1 | Standard | — | CRA Annex I Part I (2)(g) and (2)(i) |
+| V1 | Standard | Zephyr v4.4.2 `scripts/west_commands/zspdx/`; Crux `docs/product-composition.md` (SBOM) | CRA Annex I Part II (1); NTIA minimum elements |
+| V1 supplier table | Project-specific workaround | Zephyr `zspdx/walker.py` sets no supplier | — |
+| V2 | Standard | — | NIST SP 800-218 RV.1; VEX status values |
+| V3 | Standard | GitHub private vulnerability reporting, as `SECURITY.md` uses it | CRA Annex I Part II (4) to (6); ISO/IEC 29147 |
+| V4 | Documented but optional | — | Signing and provenance practice |
+| T1 | Standard | — | IEC 62443-4-1 SR-2; CRA Article 13(2) to (4); STRIDE |
+| T2 | Standard | — | CRA Annex II |
+| Q1 | Documented but optional | — | IEC 62443-4-1 SVV-3; NIST SP 800-218; gate thresholds |
+| D17 | Documented but optional | MCUboot design | — |
+| D18, D19 | Standard, with legal confirmation | — | CRA Articles 13 and 24 |
+
+### 6.5 CRA Annex I traceability
+
+The framework is documented as a component that products integrate, and it is designed to the product-level requirements of Annex I so that a product can meet them (D18); whether the framework itself carries obligations needs legal confirmation.
+The point texts come from an unofficial reproduction of Regulation (EU) 2024/2847, `not verified` against the Official Journal.
+Holder: Framework (requirements and criteria of these pages), Product (a product decision or record), Organisational (section 6.6), or GAP (no requirement).
+
+| Point | Requirements (criteria) | Holder |
+|---|---|---|
+| Part I (1) risk-based design | T1 (37) | Framework; sign-off Organisational |
+| Part I (2)(a) no known exploitable vulnerabilities | V1, V2 (35, 36) | Framework |
+| Part I (2)(b) secure by default, reset to the original state | S1, S6, S7, S8 (28, 38, 39, 42) | Framework |
+| Part I (2)(c) security updates, automatic by default with an opt-out | D7, U1 (25, PR3, PR7) | Framework; the update default and its reason Product |
+| Part I (2)(d) protection from unauthorised access, reporting | S1, S2, S4, S5, L1 (28, 29, 34, 43, 44) | Framework |
+| Part I (2)(e) confidentiality at rest and in transit | S7 (39); S9 (PR5) | Framework; at rest Product |
+| Part I (2)(f) integrity, reporting corruption | Retained record checksum (18), configuration type and schema check (section 5.4), U1, V4 (PR7, PR8); image signature from Crux's secure boot work (D7) | Framework, Crux |
+| Part I (2)(g) data minimisation | M1 (46) | Framework |
+| Part I (2)(h) availability, resilience to denial of service | R1 to R3, A1 (45) | Framework |
+| Part I (2)(i) impact on other networks | M1 (46) | Framework |
+| Part I (2)(j) limit attack surfaces | S6 (38), service removal (section 7.1), D16; debug port T2 (PR9) | Framework, Product |
+| Part I (2)(k) reduce the impact of an incident | S6 (38) | Framework; GAP: no memory partition between application and framework (section 7.4) |
+| Part I (2)(l) record internal activity, with an opt-out | L1 (44) | Framework; opt-out Product |
+| Part I (2)(m) remove all data and settings | S8 (42, PR4) | Framework; erase method Product |
+| Part II (1) identify components, SBOM | V1 (35) | Framework; retention Organisational |
+| Part II (2) remediate without delay, separate security updates | V2, V3 (36, 40) | Framework; separate security releases Organisational |
+| Part II (3) regular security tests and reviews | Q1 (41), criteria 34 and 38 to 45, independent review (CONTRIBUTING) | Framework |
+| Part II (4) disclose fixed vulnerabilities | V3 (40) | Framework (template); publishing Organisational |
+| Part II (5) coordinated vulnerability disclosure policy | V3 (40) | Framework (text); commitment Organisational |
+| Part II (6) contact for reporting | V3 (40) | Framework (text); Organisational |
+| Part II (7) secure distribution of updates | D7, U1, V4 (PR3, PR7, PR8) | Framework, Crux |
+| Part II (8) security updates without delay and free of charge | — | Organisational |
+
+### 6.6 Organisational duties
+
+These duties belong to the manufacturer, the organisation that places the end product on the market; this repository lists them and implements none.
+The article texts come from the same unofficial reproduction, `not verified`.
+
+| Duty | Source | Duty holder | Input from this repository |
+|---|---|---|---|
+| Report actively exploited vulnerabilities and severe incidents (early warning, notification, final report) | Article 14; applies from 11 September 2026 (Commission CRA page) | Incident response function | Advisory template (V3), SBOM (V1) |
+| Sign off the risk assessment and keep it in the technical documentation | Article 13(2) to (4) | Product security | Threat model (T1) |
+| Due diligence on integrated components, and reporting their vulnerabilities to their maintainers | Article 13(5) and (6) | Product security | SBOM and matching (V1, V2) |
+| Set the support period and keep each security update available | Article 13(8) and (9) | Product management | Support-period field (T2, D19) |
+| Technical documentation, conformity assessment, EU declaration of conformity, CE marking and their retention | Article 13(12) to (14) | Compliance | SBOM, threat model, test evidence |
+| Identification, contact, single point of contact and user information | Article 13(15) to (18); Annex II | Product management | Product security documentation template (T2) |
+| Disseminate security updates without delay and free of charge, separate from functionality updates where feasible | Annex I Part II (2) and (8) | Product management | Security section of the release notes (V3) |
+| Product class | Annexes III and IV | Legal and compliance | — |
+| The CRA role of this repository | D18 | Legal | Section 6.5 |
+| Custody of the release signing key | V4 | Release management | Signed manifest (V4) |
 
 ## 7. Build options, boards, source zones and priority bands
 
@@ -450,6 +594,8 @@ The last column names the decision or constraint that defines the option.
 | Image trial deadline | seconds | open, decided at implementation | Section 6.1 | D7 |
 | TLS identity at boot | off, on | off | On only in development and reference builds; a product build refuses it (section 5.5) | D11 |
 | Leave out a device management service | per service | all built | Least functionality | IEC 62443-4-2 CR 7.7, as direction |
+| Security event persistence | on, off | on | Off keeps the events in the RAM ring and the log (section 6.2) | L1, D16 |
+| Network limits | connections, backlog, sessions, request body, request deadline, request rate | Crux and Zephyr defaults | Overload degrades device management only; the rate limit needs [C18](controller-framework-platform-gaps.md#c18-request-rate-limit) | A1 |
 
 ### 7.2 Boards and variants
 
@@ -535,6 +681,7 @@ Zephyr priorities, where a lower number is a higher priority; a product tunes th
 | Framework integration | Composition, startup order, startup and runtime supervision, safe mode, the application contract through the fixture application, the scenarios of section 8.4 | `native_sim`, every pull request |
 | Reference image | The base image builds for the board within its budget and runs on `native_sim`, with image-level regression tests | CI, every pull request |
 | Product integration | An independent west workspace imports the framework as a product would (T2), builds and runs on `native_sim` | The nightly tier of a tiered CI as Crux documents it (Crux at the pin, `docs/ci.md`, "Use in a product repository") |
+| Release and quality gates | SBOM, vulnerability matching, coverage, fuzzing and secret scan (section 6.3) | CI: every pull request, the nightly tier and the release dry run |
 | Hardware | The board facts of section 5.6 (early in delivery stage 2); power cut on the medium, timing and jitter of application threads, TLS sessions under application load, output state during a reset | The board, in approved runs only |
 
 - The image keeps essential system-level regression tests even where Crux tests the component: an HTTPS login, the TLS-only listener and the start order in the base image.
@@ -548,15 +695,16 @@ Zephyr priorities, where a lower number is a higher priority; a product tunes th
 
 | Stage | Content | Ends with |
 |---|---|---|
-| 1. Foundation | The Zephyr module, the repository role (D12), service composition, the base image, the boundary check of section 7.3 and the consumer integration job; it shows that a product imports the module and that the base services compose | Criteria 1 to 3, 13, 26, 28 to 30, and the part of criterion 14 with no descriptor |
-| 2. Reliability | First, the board check of section 5.6; then the startup and runtime watchdog, the channel lifecycle, the supervisor, boot counter, safe mode, retained record and diagnostics | Criteria 7, 10, 11, 16 to 18, and the base image parts of criteria 6 and 19 |
-| 3. Application integration | The application contract of sections 3 and 4, shown through the fixture application | Criteria 4, 5, 8, 9, 20 to 23, and the application parts of criteria 6, 14 and 19 |
-| 4. Framework completion | Persistence on LittleFS and the interim states of section 8.5 | Criteria 12 and 24 on LittleFS, criteria 25, 32 and 33, and the end of every interim state that section 8.5 does not accept for Framework Complete |
-| 5. Product readiness | Per product: secure boot and update, factory reset, hardware validation, security hardening, and validation of the application interface with a first real runtime consumer | PR1 to PR6 and criterion 31 |
+| 1. Foundation | The Zephyr module, the repository role (D12), service composition, the base image, the boundary check of section 7.3 and the consumer integration job; it shows that a product imports the module and that the base services compose | Criteria 1 to 3, 13, 26, 28 to 30, 37, 39 and 40, the part of criterion 14 with no descriptor, and the stage 1 parts of criteria 34, 35 and 38 |
+| 2. Reliability | First, the board check of section 5.6; then the startup and runtime watchdog, the channel lifecycle, the supervisor, boot counter, safe mode, retained record and diagnostics | Criteria 7, 10, 11, 16 to 18, the base image parts of criteria 6 and 19, and the stage 2 parts of criteria 36, 38 and 41 |
+| 3. Application integration | The application contract of sections 3 and 4, shown through the fixture application | Criteria 4, 5, 8, 9, 20 to 23, the application parts of criteria 6, 14 and 19, and the stage 3 parts of criteria 34 and 41 |
+| 4. Framework completion | Persistence on LittleFS and the interim states of section 8.5 | Criteria 12 and 24 on LittleFS, criteria 25, 32, 33 and 42 to 46, the stage 4 parts of criteria 35, 36 and 41, and the end of every interim state that section 8.5 does not accept for Framework Complete |
+| 5. Product readiness | Per product: secure boot and update, factory reset, hardware validation, security hardening, release integrity, product security documentation, and validation of the application interface with a first real runtime consumer | PR1 to PR9 and criterion 31 |
 | 6. Linux functions (later) | A Linux adapter over Crux's Linux providers, coordinated with Crux | A later specification |
 
 The application interface exists from delivery stage 3 on, so a criterion part that names the application is checked with the fixture application from that stage, and the earlier part of criteria 6, 14 and 19 runs with no descriptor.
 Criterion 15 holds in every delivery stage.
+Criterion 37 is checked again at the end of each delivery stage, and criterion 40 depends on no stage.
 Criterion 27 is checked in each delivery stage for the options of section 7.1 that the stage adds.
 Later items:
 
@@ -573,9 +721,9 @@ Later items:
 
 | Milestone | Reached when | Interim states |
 |---|---|---|
-| Framework MVP | Delivery stages 1 to 3 end: criteria 1 to 11, 13 to 23 and 26 to 30, with criterion 27 for the options that these stages add | Every interim state of section 8.5 is accepted |
-| Framework Complete | Delivery stage 4 ends: every mandatory function and platform dependency, including persistence on LittleFS; criteria 1 to 30, 32 and 33 | Only the interim states that section 8.5 accepts for Framework Complete |
-| Product Ready | Delivery stage 5 ends, per product on its board: PR1 to PR6 and criterion 31 | None of section 8.5 for the functions the product uses, except those that section 8.5 accepts for Product Ready |
+| Framework MVP | Delivery stages 1 to 3 end: criteria 1 to 11, 13 to 23, 26 to 30, 34 and 37 to 40, the stage 1 to 3 parts of criteria 35, 36 and 41, with criterion 27 for the options that these stages add | Every interim state of section 8.5 is accepted |
+| Framework Complete | Delivery stage 4 ends: every mandatory function and platform dependency, including persistence on LittleFS; criteria 1 to 30 and 32 to 46 | Only the interim states that section 8.5 accepts for Framework Complete |
+| Product Ready | Delivery stage 5 ends, per product on its board: PR1 to PR9 and criterion 31 | None of section 8.5 for the functions the product uses, except those that section 8.5 accepts for Product Ready |
 
 ### 8.4 Criteria
 
@@ -608,8 +756,16 @@ Framework MVP:
 | 26 | F4 | Device management: a `native_sim` scenario of the base image answers an HTTPS login through web management and a command through the serial command line; an image with SSH is checked once Crux offers the conditions of D6. |
 | 27 | F6 | Build options: a build test sets each option of section 7.1 to a value other than its default that the pinned Crux supports and builds; a value that needs a Crux change that is not at the pin (the SSH command line transport and the Wolf TLS profile, [C7](controller-framework-platform-gaps.md#c7-ssh-and-tls-profiles); the shared console and logging UART, [C6](controller-framework-platform-gaps.md#c6-console-and-logging-uart)) fails the build with a clear message, as does a value that the rule column refuses (the TLS identity option in a product build); each option is checked in the delivery stage that adds it. |
 | 28 | S1 | First account: a `native_sim` scenario shows that a new image has no account and accepts no login, that first-account setup over the serial command line creates the first account, and that setup is refused after that first save. |
-| 29 | S2 | No unauthenticated erase: a `native_sim` scenario shows that, before the first account exists, no unauthenticated serial command erases credentials or configuration, and that, after it exists, the serial command line accepts the login command and refuses every other command without an Access login, so no unauthenticated command erases credentials or configuration. |
+| 29 | S2 | No unauthenticated erase: a `native_sim` scenario shows that, before and after the first account exists, no serial command without an Access login erases credentials or configuration. |
 | 30 | P1 | No board name: a check fails when a C source or header of the framework module, the base image or the application interface names a board or an SoC; board files are outside the check, and board names in Kconfig and CMake stay under [C12](controller-framework-platform-gaps.md#c12-soc-gates) until a second board enters the scope (D9). |
+| 34 | S4 | Authentication on every interface: a `native_sim` scenario sends every registered serial command without an Access login, and each one except the login and first-account setup is refused (delivery stage 1); it sends a request without a session to every route of the generated web route table, and each route whose access class is not `@public` answers 401, while the `@public` routes are only the login, its attempt result and static sign-in assets (delivery stage 3). |
+| 35 | V1 | SBOM: the release dry run builds the base image and runs `west spdx` on it (delivery stage 1); a checker fails on a package without a name, a version, a supplier, a unique identifier (purl or CPE) where one exists, or a relationship to the image; the SBOM is kept with the internal release record, and the release manifest records the hash of each SPDX file (delivery stage 4). |
+| 36 | V2 | Known vulnerabilities: a nightly job matches the SBOM against a public vulnerability database and reports each match and each package without an identifier (delivery stage 2); the release check fails when a match has no triage record with a VEX status (delivery stage 4). |
+| 37 | T1 | Threat model: the [threat model](controller-framework-threat-model.md) lists the assets, interfaces, threats and Annex I applicability of the base image, and at the end of each delivery stage it covers the interfaces that the stage adds. |
+| 38 | S6 | Production configuration: a build test shows that a product build refuses `CONFIG_CRUX_DEVELOPMENT_IMAGE`, `CONFIG_SHELL`, `CONFIG_CRUX_WEB_PLAIN_HTTP_FOR_TESTS`, `CONFIG_TEST_RANDOM_GENERATOR`, `CONFIG_FAKE_ENTROPY_NATIVE_SIM` and the debug snippet (delivery stage 1), and that it has `CONFIG_STACK_CANARIES` and, where the SoC supports it, `CONFIG_HW_STACK_PROTECTION` (delivery stage 2); criterion 19 holds the watchdog part. |
+| 39 | S7 | TLS policy: a build test reads the resolved configuration of the base image and fails when a protocol below TLS 1.2, or a cipher suite other than an ECDHE or TLS 1.3 suite with authenticated encryption, is enabled; the reference configuration states the key type of the device identity. |
+| 40 | V3 | Disclosure policy: `SECURITY.md` states the items of section 6.3, an advisory template exists, and the release notes have a Security section. |
+| 41 | Q1 | Quality gates: host-test coverage is reported against the threshold of project policy, and a secret scan runs on every pull request (delivery stage 2); clang-tidy also analyses the Zephyr sources from the `native_sim` compile database (delivery stage 3); host fuzz targets for the retained-record decode and the parameter-table parse run in the nightly tier (delivery stage 4). |
 
 Framework Complete adds:
 
@@ -620,6 +776,11 @@ Framework Complete adds:
 | 25 | D7 | Unconfirmed image timeout: host tests of the health verdict and the trial deadline with a fake image state port: a verdict that is not healthy by the deadline requests a planned reset, a healthy verdict leads to confirmation, an application that an operator stopped keeps the verdict not healthy, and a build without web management is confirmed on the same conditions. |
 | 32 | F1, R7 | Settings File sources: a build test of an image with configuration saving lists the sources that the build compiles for the Settings File backend and fails when one is under Crux's `tests/` path ([C5](controller-framework-platform-gaps.md#c5-settings-file-sources-under-a-crux-tests-path)). |
 | 33 | R1, R2 | Crux service thread supervision: the framework registers one Crux progress function, each started Crux service thread has its own task watchdog channel fed from it, and a `native_sim` scenario in which one started Crux service thread stops reporting shows the expiry recorded, the supervisor stops feeding, and the image restarts; host tests show that a thread that is not started has no active channel ([C8](controller-framework-platform-gaps.md#c8-crux-service-threads-and-supervision)). |
+| 42 | S8 | Factory reset scope: a `native_sim` scenario on LittleFS runs a factory reset and shows that the accounts, the settings file, the files of the application data root and the persisted security events are gone and that first-account setup is open after the reset; keeping the device identity belongs to PR4 ([C9](controller-framework-platform-gaps.md#c9-access-and-an-unusable-store)). |
+| 43 | S5 | Failed logins: a `native_sim` scenario sends wrong passwords through web management and the serial command line; after the free attempts, a further attempt is answered "retry later" without verification, and the security events `access.login_failed` and `access.delayed` are recorded. |
+| 44 | L1 | Security events: a `native_sim` scenario performs each action of the event list of section 6.2 and finds its event; with persistence on, the events survive a reset; with persistence off, no event is written to storage. |
+| 45 | A1 | Overload: a `native_sim` scenario exceeds the connection, session, request body and request rate limits; the excess is refused, device management answers again when the load ends, and no channel expires and no reset occurs. |
+| 46 | M1 | Data and traffic inventory: the threat model lists every data item that the framework stores and every outbound connection of the base image, and a `native_sim` capture of the base image shows no outbound traffic outside that list. |
 
 Product Ready adds, per product on its board:
 
@@ -628,9 +789,12 @@ Product Ready adds, per product on its board:
 | PR1 | R1, R2, R7 | Hardware tests: a watchdog reset reads the reset cause WATCHDOG and advances the boot counter; the retained region survives a WDOG1 reset and a pin reset and does not survive a power cycle; power cuts on the product medium keep the settings file and the credential store; application thread timing and jitter meet the product's deadlines under TLS sessions and network load; outputs hold their safe state during a reset. |
 | PR2 | R7 | Configuration persists on the product medium, and the compatibility rules of section 5.4 hold across an update and a rollback. |
 | PR3 | D7 | Secure boot and update with the health-gated confirmation and the trial deadline of section 6.1, including the revert of an unconfirmed image at the reset after the deadline. |
-| PR4 | S2 | Factory reset with the authority and scope of sections 5.3 and 5.5. |
-| PR5 | S3 | The mandatory security items of section 6.2 are implemented, and the product records its choice for each product choice item. |
+| PR4 | S2, S8 | Factory reset with the authority, scope and erase method of sections 5.3 and 5.5, keeping the device identity, on the product medium. |
+| PR5 | S3, S9 | The mandatory security items of section 6.2 are implemented, and the product records its choice for each product choice item and each mandatory product record. |
 | PR6 | F3 | Product integration with the product's own application, which is also the first real runtime consumer that validates the application interface before its stability tier is raised (section 3.4). |
+| PR7 | U1 | Anti-rollback: host tests with a fake image state port show that the update component refuses to request a test boot of an image whose security counter is below the running image's; on the board, the boot loader refuses such an image ([C16](controller-framework-platform-gaps.md#c16-security-counter)). |
+| PR8 | V4 | Release integrity: the release manifest, which carries the SBOM hashes of criterion 35, is signed, a build provenance attestation is produced, and a verification step checks both before the release record is kept. |
+| PR9 | T2 | Product security documentation: the product fills the template of section 6.3 and its extension of the threat model, including the support period and the update default. |
 | 31 | R6 | Startup duration: on the product's board, each startup step of a normal boot is measured; steps 3 to 12 stay within their deadlines, which are set from that measurement, and the measured durations of steps 1 and 2 are reported. |
 
 ### 8.5 Interim states
@@ -648,10 +812,13 @@ Each interim state is accepted until its Crux change is at the pin; the [platfor
 | No SSH and no Wolf profile | C7 | Yes; both are build options |
 | Factory reset only by device preparation | C9 | Yes; factory reset belongs to Product Ready |
 | The images are prepared for MCUboot, with no health-gated confirmation | C10 | Yes; confirmation on the board belongs to Product Ready |
+| Security events reach the log only | [C17](controller-framework-platform-gaps.md#c17-security-event-persistence) | No |
+| Web management has no request rate limit | [C18](controller-framework-platform-gaps.md#c18-request-rate-limit) | No |
+| Nothing enforces the image security counter | [C16](controller-framework-platform-gaps.md#c16-security-counter) | Yes; anti-rollback belongs to Product Ready |
 
 ## 9. Decision register
 
-D1 to D16 are decided, except D9, which is deferred, and D16, which is a product decision whose direction is decided and whose details each product settles at product readiness.
+D1 to D19 are decided, except D9, which is deferred, D16, which is a product decision whose direction is decided and whose details each product settles at product readiness, and D17, which is open.
 
 | # | Decision | State | Chosen | Not chosen | Source |
 |---|---|---|---|---|---|
@@ -671,6 +838,9 @@ D1 to D16 are decided, except D9, which is deferred, and D16, which is a product
 | D14 | Application start without a hardware watchdog | Decided | In product builds the application does not start; development, bench and `native_sim` builds may allow it by an explicit build option, and in them a hang ends in a software reset (section 4.3) | Start the application and report "watchdog not armed" | Crux System reports an unavailable watchdog as not supported |
 | D15 | Recovery and factory reset authority | Decided | Factory reset by an authorised operator through Crux's credential store erase (Crux `main`, C9), with an optional product-defined physical-presence input, and device preparation as the recovery when Access is unusable; it erases credentials and configuration and keeps the device identity (section 5.3) | An unauthenticated serial wipe | IEC 62443-4-2 CR 4.2, as direction |
 | D16 | Serial command line in production and audit persistence | Product decision | Direction in section 6.2; each product settles the details at product readiness | — | IEC 62443-4-2 CR 2.8 to 2.11 and CR 7.7, as direction |
+| D17 | Update transport | Open | Decided with Crux's secure boot work at product readiness (section 6.1) | — | MCUboot design; C10 |
+| D18 | Role under the EU Cyber Resilience Act | Decided, legal confirmation needed | A component that products integrate, designed to the product-level requirements of Annex I; organisational duties are listed with their holder and not implemented (sections 6.5 and 6.6) | This repository as a product placed on the market | Regulation (EU) 2024/2847, unofficial text, `not verified` |
+| D19 | Support period | Decided | A field that each product supplies (T2); this repository fixes none | A support period fixed by this repository | Regulation (EU) 2024/2847 Article 13(8), unofficial text, `not verified` |
 
 ## 10. Terms
 
@@ -705,6 +875,10 @@ D1 to D16 are decided, except D9, which is deferred, and D16, which is a product
 | Safe state | The defined output state on stop, fault or reset | IEC 61508-4 |
 | Update component, trial deadline | The component from Crux's secure boot work that confirms an image through Crux's image state contract; the time after which an unconfirmed test image leads to a reset request | These pages; MCUboot |
 | Priority band | A reserved range of thread priorities for one group of threads | Common RTOS usage |
+| Manufacturer | The organisation that places the end product on the market and holds the organisational duties of section 6.6 | Regulation (EU) 2024/2847, `not verified` |
+| Security counter | A number in a signed image that the boot loader compares with a stored minimum to refuse an older image | MCUboot, `not verified` |
+| VEX status | A statement whether a product is affected by a known vulnerability in one of its components | Common SBOM usage, `not verified` |
+| Coordinated vulnerability disclosure | Private reporting, fixing and then publishing a vulnerability on an agreed schedule | Common usage, `not verified` |
 
 ## Sources
 
@@ -723,4 +897,9 @@ These sources cover this page, the [overview](controller-framework.md) and the [
 - Crux `main` at `05a50475`: `west.yml` (Zephyr v4.5.0), `zephyr/Kconfig` (`CRUX_FILE_LITTLEFS_BLK_DEV`, `CRUX_CONFIGURATION_SETTINGS_FILE_ANY_FS`, `CRUX_CLI_CONSOLE_UART_SHARED`), `zephyr/CMakeLists.txt`, `zephyr/settings_file.cmake`, `patches/zephyr/README.md`, `components/credential/ports/zephyr/include/crux/credential_store_zephyr.h`, `components/service_priority/ports/zephyr/include/crux/service_priority_zephyr.h`, `components/reboot/include/crux/reboot.h`, `docs/configuration-contract.md`, `docs/file-contract.md`, `docs/management-in-a-product.md`.
 - Crux issues [#188](https://github.com/wonny-labs/crux-pilot/issues/188) and [#297](https://github.com/wonny-labs/crux-pilot/issues/297).
 - This repository: `scripts/check_boundary.py`, `scripts/build-board.sh`, `budgets/limits.json`, `docs/dependencies.md`, `docs/glossary.md`, `docs/roadmap.md`.
-- IEC 61508-4 (definition of safe state); IEC 62443-4-2 by clause title (CR 1.5, 2.8 to 2.11, 4.2, 7.3, 7.4, 7.7); ETSI EN 303 645, provision 5.1; the EU Cyber Resilience Act, Annex I; all as direction, not as compliance claims.
+- Zephyr v4.4.2: `scripts/west_commands/zspdx/` (`walker.py`, `writer.py`, `version.py`), `kernel/Kconfig`, `arch/Kconfig`, `subsys/random/Kconfig`.
+- Crux at the pin, security: `docs/access-contract.md`, `docs/credential-store.md`, `docs/product-composition.md` (SBOM), `components/access/include/crux/access.h`, `components/access/src/access_delay.c`, `components/web/include/crux/web.h`, `components/web/ports/zephyr/web_http_server.c`, `components/security_event/include/crux/security_event.h`, `components/security_event/src/security_event_ids.inc`, `components/image_state/include/crux/image_state.h`.
+- Crux `main` at `06813519`: `docs/boot-update-investigation.md`, `docs/evidence/boot-update/stage1-pinned-source-findings.md` (B13).
+- European Commission, Cyber Resilience Act policy page (dates of application).
+- Regulation (EU) 2024/2847, Annex I, Annex II, Articles 13 and 14, read from an unofficial reproduction, `not verified` against the Official Journal.
+- IEC 61508-4 (definition of safe state); IEC 62443-4-2 by clause number (CR 1.1, 1.5, 1.11, 2.8 to 2.11, 4.2, 7.3, 7.4, 7.7); IEC 62443-4-1 (SR-2, SVV-3); ETSI EN 303 645 (provisions 5.1 and 5.9); NIST SP 800-218; NTIA minimum elements for an SBOM; ISO/IEC/IEEE 29148; RFC 8446; all `not verified`, as direction and not as compliance claims; a secondary mapping of IEC 62443-4-2 (CIP Security Requirements) was read.
