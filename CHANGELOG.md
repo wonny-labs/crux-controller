@@ -74,7 +74,7 @@ build configurations by their earlier step ids, S0 to S6.
 
 ### Build and manifest
 
-- The west manifest imports `crux-pilot` at a pinned commit (`05a50475`, which contains the File
+- The west manifest imports `crux-pilot` at a pinned commit (`13301954`, which contains the File
   composition interface `<crux/file_zephyr.h>`) and adds `picolibc` as a test-only project. A CI job
   checks the pins with `west crux-pins` and has a negative control that must fail.
 - The `crux-pilot` pin moved from `37c92b18` to `dfd3ad7d`, which adds the public management headers
@@ -176,6 +176,15 @@ build configurations by their earlier step ids, S0 to S6.
   scenarios and the product-integration fixture set `CONFIG_MBEDTLS_SSL_IN_CONTENT_LEN` and
   `CONFIG_MBEDTLS_SSL_OUT_CONTENT_LEN` to the same 16384 instead. The `West pins` negative control pinned `littlefs` at a newer commit that is now the contract, so it
   pins the parent of the contract commit instead. No controller code or overlay changes.
+- The `crux-pilot` pin moved from `05a50475` to `13301954`, the head of Crux `main` after the native PTY UART for
+  Logging on `native_sim` (wonny-labs/crux-pilot#608), a documentation clean-up (#609), the byte limit of a File root
+  (#610), a direct CI manifest for hardware modules (#611), the CI package sources (#612) and the account-only erase
+  of the credential store with the `require_existing_identity` option of TLS certificate start (#613). The Crux
+  manifest, the Zephyr revision and every module revision are as before. The new option is the last member of
+  `crux_tls_certificate_options_t`, and false keeps the earlier behaviour; `framework/compose/management_start.c`
+  sets the options with designated initialisers, so the option is false there. The other additions are new
+  functions and accepted devicetree nodes that this repository does not use. No controller code, configuration or
+  overlay changes.
 - The `crux-pilot` import blocks wolfSSL, wolfSSH and wolfPSA by name, so enabling the Mbed TLS group
   would activate Mbed TLS and TF-PSA-Crypto and no GPL stack (checked on the project list; no job
   enables the group or fetches with it on, and it stays off in every job).

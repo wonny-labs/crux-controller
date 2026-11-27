@@ -44,11 +44,11 @@ class ManifestIsOptionA(unittest.TestCase):
 
     def test_crux_is_pinned_to_the_approved_commit(self):
         # Moving the pin is a reviewed change of this test and of west.yml together.
-        # The project owner approved the move of Crux to Zephyr v4.5.0 on 27 November 2026. This
-        # commit of crux-pilot main contains it (wonny-labs/crux-pilot#603) and its follow-ups up to
-        # wonny-labs/crux-pilot#606; the crypto modules follow Zephyr's own manifest at v4.5.0.
+        # The project owner approved this pin update on 27 November 2026. This commit of crux-pilot
+        # main keeps Zephyr v4.5.0 (wonny-labs/crux-pilot#603) and adds the follow-ups up to
+        # wonny-labs/crux-pilot#613; the crypto modules follow Zephyr's own manifest at v4.5.0.
         revision = load_manifest()["projects"][0]["revision"]
-        self.assertEqual(revision, "05a50475653becf7e4867686f4f88747173e1c21")
+        self.assertEqual(revision, "1330195487c34c8df6046d41ae030d3cdf8a5138")
 
     def test_every_pinned_crux_link_of_the_readme_uses_the_manifest_revision(self):
         revision = load_manifest()["projects"][0]["revision"]
