@@ -76,11 +76,12 @@ if(CONFIG_CRUX_CONTROLLER_FRAMEWORK)
 
     # Health supervision: the portable rules (boot record, supervision, states), the framework's
     # copy of the retained region, and the adapter zone's supervisor thread, retained region and
-    # fatal error handler. The image identity is the commit of this repository and the hash of the
-    # resolved configuration, so another image or another configuration clears the boot counter
-    # (project-specific workaround: the specification asks for an identifier of the image and names
-    # no source for it; a product whose update changes only its application code needs another
-    # source from delivery stage 3 on).
+    # fatal error handler, and the application contract with its thread. The image identity is the
+    # commit of this repository, the commit of the application's repository (the product's, whose
+    # update may change only its application code) and the hash of the resolved configuration, so
+    # another image or another configuration clears the boot counter (project-specific workaround:
+    # the specification asks for an identifier of the image and names no source for it; uncommitted
+    # changes do not change the identity).
     if(CONFIG_CRUX_CONTROLLER_FRAMEWORK_SUPERVISION)
         zephyr_library_sources(
             "${controller_root}/framework/src/app_contract.c"
@@ -131,9 +132,18 @@ if(CONFIG_CRUX_CONTROLLER_FRAMEWORK)
                 set(controller_commit "unknown")
             endif()
         endif()
+        set(controller_application_commit "unknown")
+        if(GIT_FOUND)
+            execute_process(COMMAND "${GIT_EXECUTABLE}" -C "${APPLICATION_SOURCE_DIR}" rev-parse HEAD
+                OUTPUT_VARIABLE controller_application_commit OUTPUT_STRIP_TRAILING_WHITESPACE
+                ERROR_QUIET RESULT_VARIABLE controller_git_result)
+            if(NOT controller_git_result EQUAL 0)
+                set(controller_application_commit "unknown")
+            endif()
+        endif()
         file(SHA256 "${DOTCONFIG}" controller_config_hash)
         zephyr_library_compile_definitions(
-            CONTROLLER_IMAGE_ID_TEXT="${controller_commit}-${controller_config_hash}")
+            CONTROLLER_IMAGE_ID_TEXT="${controller_commit}-${controller_application_commit}-${controller_config_hash}")
         if(CONFIG_CRUX_CONTROLLER_FRAMEWORK_REBOOT)
             zephyr_library_sources(
                 "${controller_root}/framework/src/reboot_policy.c"

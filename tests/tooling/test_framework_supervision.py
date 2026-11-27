@@ -64,5 +64,16 @@ class TaskWatchdogChannels(unittest.TestCase):
         self.assertIn("fault injection is for the native_sim scenarios only", cmake)
 
 
+class ImageIdentity(unittest.TestCase):
+    # Specification section 5.1: another image clears the boot counter. A product's update can change
+    # only its application code, so the identity also names the application's commit (delivery stage 3).
+    def test_the_identity_names_both_commits_and_the_configuration(self):
+        cmake = (ROOT / "zephyr" / "CMakeLists.txt").read_text()
+        self.assertIn('rev-parse HEAD', cmake)
+        self.assertIn('-C "${APPLICATION_SOURCE_DIR}"', cmake)
+        self.assertIn('CONTROLLER_IMAGE_ID_TEXT="${controller_commit}-${controller_application_commit}-'
+                      '${controller_config_hash}"', cmake)
+
+
 if __name__ == "__main__":
     unittest.main()
