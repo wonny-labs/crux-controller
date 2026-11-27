@@ -66,8 +66,8 @@ class Configuration(unittest.TestCase):
         # The start function runs below the supervisor's priority (<controller/framework.h>).
         self.assertEqual("8", self.values.get("CONFIG_MAIN_THREAD_PRIORITY"))
         self.assertNotEqual("y", self.values.get("CONFIG_CRUX_CONTROLLER_FRAMEWORK_FAULT_INJECTION"))
-        self.assertIn("startup done phases=6 failed=0", read(f"{SCENARIO}/pytest/test_interactive.py"))
-        self.assertIn("startup done phases=6 failed=0", read(PAGE))
+        self.assertIn("startup done phases=7 failed=0", read(f"{SCENARIO}/pytest/test_interactive.py"))
+        self.assertIn("startup done phases=7 failed=0", read(PAGE))
 
     def test_a_restart_request_restarts_the_program(self):
         # Without it a restart request ends the program in place of starting it again.
@@ -139,7 +139,7 @@ class Build(unittest.TestCase):
 
     def test_the_bridge_moves_bytes_between_the_pty_and_the_emulated_uart(self):
         code = code_of(read(f"{SCENARIO}/src/interactive.c"))
-        for call in ("controller_framework_start()", "uart_poll_in(", "uart_poll_out(", "uart_emul_put_rx_data(",
+        for call in ("controller_framework_start(NULL)", "uart_poll_in(", "uart_poll_out(", "uart_emul_put_rx_data(",
                      "uart_emul_get_tx_data("):
             self.assertIn(call, code)
 

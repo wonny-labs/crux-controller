@@ -26,7 +26,7 @@ int main(void)
     if (boot == 1) {
         (void)controller_framework_inject(CONTROLLER_FRAMEWORK_FAULT_STEP_STALL, "application");
     }
-    if (controller_framework_start() != CONTROLLER_FRAMEWORK_OK) {
+    if (controller_framework_start(NULL) != CONTROLLER_FRAMEWORK_OK) {
         scenario_say("no watchdog scenario FAILED: the start function");
     }
     if (boot == 2) {

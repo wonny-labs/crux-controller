@@ -125,7 +125,7 @@ int main(void)
     default:
         break;
     }
-    if (controller_framework_start() != CONTROLLER_FRAMEWORK_OK) {
+    if (controller_framework_start(NULL) != CONTROLLER_FRAMEWORK_OK) {
         fail("the start function");
     }
     if (boot == 5) {

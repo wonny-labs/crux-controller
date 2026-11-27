@@ -57,11 +57,14 @@ static crux_watchdog_t watchdog;
 static bool armed;
 static bool started;
 
-/* The channel table: a name and a task watchdog identifier per handle. */
+/* The channel table: a name and a task watchdog identifier per handle. A slot is free when its name
+ * is NULL; a deleted application channel frees its slot (specification section 4.4). The names that
+ * the supervisor passes to its poll cover every slot, so channel_count is the table's size. */
 static const char *channel_names[SUPERVISION_CHANNELS_MAX];
 static int channel_ids[SUPERVISION_CHANNELS_MAX];
-static size_t channel_count;
-/* One bit per handle whose channel expired; set in the timer callback, read by the thread. */
+static const size_t channel_count = SUPERVISION_CHANNELS_MAX;
+/* One bit per handle whose channel expired; set in the timer callback, read by the thread. A slot
+ * whose bit is set is never given again before the reset. */
 static atomic_t expired;
 
 /* The last stack measurement. */
@@ -129,12 +132,16 @@ static void measure_stacks(void)
 #endif
 
 /* The latch: feeding has stopped already, because the thread does not feed on this pass. Write the
- * record, best effort, then reset in software when no watchdog will. */
+ * record, best effort, then the latched function (the application's safe_state), then reset in
+ * software when no watchdog will. */
 static void latched(boot_fault_reason_t reason, const char *name)
 {
     char text[CRUX_LOG_TEXT_MAX];
 
     recovery_fault(reason, name, (uint32_t)k_uptime_get(), 0u);
+    if (config.latched != NULL) {
+        config.latched();
+    }
     (void)snprintf(text, sizeof text, "fault latched reason=%s name=%s: feeding stopped, %s",
                    boot_fault_reason_name(reason), name,
                    armed ? "the watchdog resets the device" : "software reset requested");
@@ -162,6 +169,9 @@ static void supervisor_run(void *unused0, void *unused1, void *unused2)
         const supervision_channels_t channels = {channel_names, channel_count,
                                                  (uint32_t)atomic_get(&expired)};
         const supervision_action_t action = supervision_poll(&state, now, &channels);
+        /* A fault latched from outside (supervisor_port_latch()) is carried out here, once. */
+        const bool reported = action == SUPERVISION_STOPPED &&
+                              supervision_take_report(&state, &reason, name);
 
         if (action == SUPERVISION_LATCH) {
             reason = state.reason;
@@ -179,7 +189,7 @@ static void supervisor_run(void *unused0, void *unused1, void *unused2)
             if (pass % STACK_EVERY == 0u) {
                 measure_stacks();
             }
-        } else if (action == SUPERVISION_LATCH) {
+        } else if (action == SUPERVISION_LATCH || reported) {
             latched(reason, name);
         }
         pass++;
@@ -197,6 +207,9 @@ supervisor_port_status_t supervisor_port_start(const supervisor_port_config_t *c
     started = true;
     config = *configuration;
     supervision_init(&state);
+    for (size_t slot = 0; slot < channel_count; slot++) {
+        channel_ids[slot] = -1;
+    }
     /* The task watchdog without hardware: each channel only reports to the supervisor. */
     if (task_wdt_init(NULL) != 0) {
         say(CRUX_LOG_ERROR, "task watchdog not started: framework threads are not supervised");
@@ -231,29 +244,43 @@ void supervisor_port_step_end(void)
     k_spin_unlock(&lock, key);
 }
 
+/* A free slot: no name, and no expiry recorded for it. -1 when the table is full. Under the lock. */
+static int free_slot(void)
+{
+    const uint32_t gone = (uint32_t)atomic_get(&expired);
+
+    for (size_t slot = 0; slot < channel_count; slot++) {
+        if (channel_names[slot] == NULL && (gone & BIT(slot)) == 0u) {
+            return (int)slot;
+        }
+    }
+    return -1;
+}
+
 int supervisor_port_channel_add(const char *name, uint32_t reload_ms)
 {
     k_spinlock_key_t key = k_spin_lock(&lock);
+    const int handle = name != NULL && reload_ms != 0u ? free_slot() : -1;
 
-    if (name == NULL || reload_ms == 0u || channel_count >= SUPERVISION_CHANNELS_MAX) {
+    if (handle < 0) {
         k_spin_unlock(&lock, key);
         return -1;
     }
-    const size_t handle = channel_count++;
-
     channel_names[handle] = name;
+    channel_ids[handle] = -1;
     k_spin_unlock(&lock, key);
 
     /* task_wdt_add() feeds the new channel at once, so timing starts here. */
     const int id = task_wdt_add(reload_ms, channel_expired, (void *)(uintptr_t)handle);
 
     key = k_spin_lock(&lock);
-    channel_ids[handle] = id;
-    k_spin_unlock(&lock, key);
     if (id < 0) {
-        return -1;
+        channel_names[handle] = NULL;
+    } else {
+        channel_ids[handle] = id;
     }
-    return (int)handle;
+    k_spin_unlock(&lock, key);
+    return id < 0 ? -1 : handle;
 }
 
 void supervisor_port_channel_feed(int handle)
@@ -261,6 +288,34 @@ void supervisor_port_channel_feed(int handle)
     if (handle >= 0 && (size_t)handle < channel_count && channel_ids[handle] >= 0) {
         (void)task_wdt_feed(channel_ids[handle]);
     }
+}
+
+void supervisor_port_channel_delete(int handle)
+{
+    if (handle < 0 || (size_t)handle >= channel_count) {
+        return;
+    }
+    k_spinlock_key_t key = k_spin_lock(&lock);
+    const int id = channel_ids[handle];
+
+    channel_ids[handle] = -1;
+    k_spin_unlock(&lock, key);
+    if (id >= 0) {
+        (void)task_wdt_delete(id);
+    }
+    /* The name goes last, so an expiry that the timer recorded before the delete still names the
+     * channel in the record. */
+    key = k_spin_lock(&lock);
+    channel_names[handle] = NULL;
+    k_spin_unlock(&lock, key);
+}
+
+void supervisor_port_latch(boot_fault_reason_t reason, const char *name)
+{
+    const k_spinlock_key_t key = k_spin_lock(&lock);
+
+    (void)supervision_latch(&state, reason, name);
+    k_spin_unlock(&lock, key);
 }
 
 bool supervisor_port_stack_min(char *name, size_t size, uint32_t *unused_bytes)

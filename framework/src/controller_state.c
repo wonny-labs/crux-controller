@@ -183,3 +183,28 @@ const char *service_health_name(service_health_t health)
         return "unknown";
     }
 }
+
+const char *service_id_name(service_id_t service)
+{
+    switch (service) {
+    case SERVICE_NETWORK:
+        return "network";
+    case SERVICE_STORAGE:
+        return "storage";
+    case SERVICE_ACCESS:
+        return "access";
+    case SERVICE_CONFIGURATION:
+        return "configuration";
+    case SERVICE_STATUS:
+        return "status";
+    case SERVICE_TIME:
+        return "time";
+    case SERVICE_WEB:
+        return "web";
+    case SERVICE_COMMAND_LINE:
+        return "command-line";
+    case SERVICE_COUNT:
+    default:
+        return "unknown";
+    }
+}

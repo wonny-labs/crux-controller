@@ -75,4 +75,15 @@ storage_port_status_t storage_port_bind(void);
  */
 storage_port_status_t storage_port_bind_store(void);
 
+/* The File root of the application's data (specification section 3.2): the directory "app" of the
+ * mounted volume. Neither store directory overlaps it. */
+#define STORAGE_PORT_APP_ROOT 3
+
+/*
+ * Create the directory "app" of the mounted volume, if it is not there yet, and bind it as the File
+ * root STORAGE_PORT_APP_ROOT. Same results and rules as storage_port_bind_store(); no size limit is
+ * set (gap C15, delivery stage 4).
+ */
+storage_port_status_t storage_port_bind_app(void);
+
 #endif

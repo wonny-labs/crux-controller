@@ -28,7 +28,7 @@ It builds `tests/framework/interactive` for `native_sim/native/64` into `build/n
 foreground. The log of the image appears in this terminal. Stop it with Ctrl+C. `--no-build` runs the last build,
 and `--reset` deletes the stored state first (see [State](#state)).
 
-Wait for the line `startup done phases=6 failed=0`. Two lines before it matter:
+Wait for the line `startup done phases=7 failed=0`. Two lines before it matter:
 
 - `certificate sha256=<fingerprint> source=generated`: the fingerprint of the self-signed certificate;
 - `https management started on 127.0.0.1 port 8443`.

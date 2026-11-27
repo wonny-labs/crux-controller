@@ -8,9 +8,8 @@
  * whether the framework starts the application. Plain C with ISO C includes only
  * (tests/host/test_controller_state.c).
  *
- * The application interface arrives in delivery stage 3; the lifecycle and the start decision are
- * here so that the portable core holds them with their host tests (criterion 10), and the base
- * image has no application (APP_ABSENT).
+ * The application contract (app_contract.h) moves the application along these transitions; the
+ * base image has no application (APP_ABSENT).
  */
 
 #include <stdbool.h>
@@ -131,5 +130,10 @@ bool controller_successful_boot_conditions(controller_state_t state, app_state_t
 const char *controller_state_name(controller_state_t state);
 const char *app_state_name(app_state_t state);
 const char *service_health_name(service_health_t health);
+
+/* The service's name in the log, the status items and the fault injection of the scenarios:
+ * "network", "storage", "access", "configuration", "status", "time", "web", "command-line";
+ * "unknown" for a value out of range. */
+const char *service_id_name(service_id_t service);
 
 #endif

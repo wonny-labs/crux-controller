@@ -40,6 +40,11 @@ if(CONFIG_CRUX_CONTROLLER_FRAMEWORK)
     add_library(controller_framework_api INTERFACE)
     target_include_directories(controller_framework_api INTERFACE "${controller_root}/include")
     add_library(controller::framework ALIAS controller_framework_api)
+    # <controller/framework_management.h> takes the Crux types of the status and configuration
+    # services, so an image that includes it gets their public headers.
+    if(CONFIG_CRUX_CONTROLLER_FRAMEWORK_MANAGEMENT)
+        target_link_libraries(controller_framework_api INTERFACE crux::mgmt_status crux::config_service)
+    endif()
 
     zephyr_library_named(controller_framework)
     zephyr_library_sources(
@@ -78,14 +83,44 @@ if(CONFIG_CRUX_CONTROLLER_FRAMEWORK)
     # source from delivery stage 3 on).
     if(CONFIG_CRUX_CONTROLLER_FRAMEWORK_SUPERVISION)
         zephyr_library_sources(
+            "${controller_root}/framework/src/app_contract.c"
             "${controller_root}/framework/src/boot_record.c"
             "${controller_root}/framework/src/controller_state.c"
             "${controller_root}/framework/src/recovery.c"
             "${controller_root}/framework/src/supervision.c"
+            "${controller_root}/framework/os/app_zephyr.c"
             "${controller_root}/framework/os/fatal_zephyr.c"
             "${controller_root}/framework/os/retained_zephyr.c"
             "${controller_root}/framework/os/supervisor_zephyr.c")
         zephyr_library_link_libraries(crux::system)
+        # The network's health comes from Crux NetIf where the image has it (section 4.7).
+        if(CONFIG_CRUX_NETIF)
+            zephyr_library_link_libraries(crux::netif)
+        endif()
+        # A start prerequisite or runtime dependency on a service that the build leaves out fails
+        # the build (section 7.1). Kconfig only warns about an assignment whose dependency is not
+        # met, so the symbols have no dependency and the check is here, as Crux's testcases turn an
+        # unsatisfied dependency into an error in CMake.
+        set(controller_services
+            "NETWORK:CRUX_NETIF:network (Crux NetIf)"
+            "STORAGE:CRUX_CONTROLLER_FRAMEWORK_MANAGEMENT:storage (web management)"
+            "ACCESS:CRUX_CONTROLLER_FRAMEWORK_MANAGEMENT:Access (web management)"
+            "CONFIGURATION:CRUX_CONTROLLER_FRAMEWORK_MANAGEMENT:configuration (web management)"
+            "TIME:CRUX_CONTROLLER_FRAMEWORK_TIME_SYNC:time synchronisation"
+            "WEB:CRUX_CONTROLLER_FRAMEWORK_MANAGEMENT:web management"
+            "COMMAND_LINE:CRUX_CONTROLLER_FRAMEWORK_CLI_SERIAL:the serial command line")
+        foreach(entry IN LISTS controller_services)
+            string(REPLACE ":" ";" parts "${entry}")
+            list(GET parts 0 service)
+            list(GET parts 1 needed)
+            list(GET parts 2 words)
+            foreach(kind PREREQUISITE DEPENDENCY)
+                if(CONFIG_CRUX_CONTROLLER_${kind}_${service} AND NOT CONFIG_${needed})
+                    message(FATAL_ERROR "CONFIG_CRUX_CONTROLLER_${kind}_${service} needs ${words}, "
+                                        "which this build leaves out (CONFIG_${needed} is not set)")
+                endif()
+            endforeach()
+        endforeach()
         find_package(Git QUIET)
         set(controller_commit "unknown")
         if(GIT_FOUND)

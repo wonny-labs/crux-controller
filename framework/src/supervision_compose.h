@@ -11,9 +11,16 @@
 
 #include <stddef.h>
 
-/* The framework's status items: an array of crux_mgmt_status_item_t of *count entries, for the
- * status_items of management_port_config_t. */
-const void *supervision_compose_status_items(size_t *count);
+/*
+ * The framework's status items followed by the application's: an array of crux_mgmt_status_item_t
+ * of *count entries, for the status_items of management_port_config_t. app_items is the
+ * application's array of crux_mgmt_status_item_t (NULL with app_count zero for none); each of its
+ * items is shown through a framework item of the same name and permission that answers
+ * CRUX_ERR_NOT_READY once framework_status_application_items() is false. More application items
+ * than the table holds are refused: the result is then NULL.
+ */
+const void *supervision_compose_status_items(const void *app_items, size_t app_count,
+                                             size_t *count);
 
 /*
  * Start Crux Reboot with the framework's callback policy (reboot_policy.h) and no Crux reboot

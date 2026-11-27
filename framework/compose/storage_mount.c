@@ -156,4 +156,26 @@ storage_port_status_t storage_port_bind_store(void)
         return STORAGE_PORT_ERR_BIND;
     }
 }
+/* The directory of the application's data (specification section 3.2). */
+#define APP_DIRECTORY "app"
+
+storage_port_status_t storage_port_bind_app(void)
+{
+    char path[PATH_CAPACITY];
+
+    if (directory_path(path, sizeof path, APP_DIRECTORY) != 0) {
+        return STORAGE_PORT_ERR_BIND;
+    }
+    if (make_directory(path) != 0) {
+        return STORAGE_PORT_ERR_LAYOUT;
+    }
+    switch (crux_file_zephyr_bind_root(STORAGE_PORT_APP_ROOT, path)) {
+    case CRUX_FILE_OK:
+        return STORAGE_PORT_OK;
+    case CRUX_FILE_ERR_INVALID_STATE:
+        return STORAGE_PORT_ERR_ALREADY_BOUND;
+    default:
+        return STORAGE_PORT_ERR_BIND;
+    }
+}
 #endif /* CONFIG_CRUX_WEB_MANAGEMENT */

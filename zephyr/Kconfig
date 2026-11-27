@@ -12,9 +12,9 @@ menuconfig CRUX_CONTROLLER_FRAMEWORK
 	  Build the controller framework: controller_framework_start() in
 	  <controller/framework.h>, which a product's main() calls once to start the Crux
 	  services of a networked controller in a defined order, logging each phase through Crux
-	  Logging. This version takes no application and creates no application thread. The
-	  configurations of app/ that build on the workload (CRUX_CONTROLLER_WORKLOAD) do not combine
-	  with it.
+	  Logging, and the application interface of specification section 3, which needs health
+	  supervision. The configurations of app/ that build on the workload
+	  (CRUX_CONTROLLER_WORKLOAD) do not combine with it.
 
 if CRUX_CONTROLLER_FRAMEWORK
 
@@ -124,13 +124,16 @@ config CRUX_CONTROLLER_STABLE_PERIOD_S
 	  held, without interruption for this long before the boot counter is cleared.
 
 config CRUX_CONTROLLER_DEADLINE_MANAGEMENT_MS
-	int "Deadline of the web management step in milliseconds"
+	int "Deadline of each of the two management steps in milliseconds"
 	default 60000
 	range 1000 600000
 	help
-	  The step mounts the volume, starts the credential store and Access, and makes
-	  the TLS key and certificate when none is stored, which can take long on a board.
-	  A starting value, not measured on a board.
+	  The deadline of the step "storage access" (startup steps 3 and 4: the volume,
+	  the credential store and Access) and of the step "web management" (steps 6, 7
+	  and 10: configuration, status, the TLS key and certificate, which it makes
+	  when none is stored, sessions and the listener), each counted from its start.
+	  Key generation can take long on a board. A starting value, not measured on a
+	  board.
 
 config CRUX_CONTROLLER_DEADLINE_COMMAND_LINE_MS
 	int "Deadline of the command line step in milliseconds"
@@ -147,13 +150,107 @@ config CRUX_CONTROLLER_DEADLINE_TIME_SYNC_MS
 	  A starting value, not measured on a board.
 
 config CRUX_CONTROLLER_DEADLINE_APPLICATION_MS
-	int "Deadline of the application step (step 12) in milliseconds"
+	int "Deadline of the application's start in milliseconds"
 	default 5000
 	range 100 600000
 	help
-	  The step ends startup supervision; from delivery stage 3 on it bounds the
-	  activation of the application's channels and its start. A starting value, not
-	  measured on a board.
+	  The deadline of startup step 12, which activates the application's channels and
+	  calls its start and ends startup supervision, of an operator start, and of
+	  step 11, which checks the start prerequisites. A start that passes it resets
+	  the device. A starting value, not measured on a board.
+
+config CRUX_CONTROLLER_DEADLINE_INIT_MS
+	int "Deadline of the application's init (step 5) in milliseconds"
+	default 5000
+	range 100 600000
+	help
+	  An init that passes it resets the device. A starting value, not measured on a
+	  board.
+
+config CRUX_CONTROLLER_DEADLINE_STOP_MS
+	int "Deadline of the application's stop in milliseconds"
+	default 5000
+	range 100 600000
+	help
+	  A stop that passes it, or returns an error, is a hang and resets the device
+	  (specification section 4.8). A starting value, not measured on a board.
+
+config CRUX_CONTROLLER_APP_THREAD_STACK
+	int "Stack bytes of the application thread"
+	default 4096
+	range 1024 65536
+	help
+	  The framework thread that calls the application's init, start and stop (and
+	  nothing of the application in between). The application's own threads have
+	  their own stacks. A starting value, not measured.
+
+config CRUX_CONTROLLER_APP_STATUS_ITEMS
+	int "Most status items of the application"
+	default 8
+	range 0 16
+	help
+	  The status service holds at most 32 project items, and the framework uses 16.
+
+menu "Start prerequisites of the application"
+
+comment "Each one holds the application while its service is not healthy (section 4.7)"
+
+config CRUX_CONTROLLER_PREREQUISITE_NETWORK
+	bool "Network (Crux NetIf: link up and an address)"
+
+config CRUX_CONTROLLER_PREREQUISITE_STORAGE
+	bool "Storage (volume mounted and roots bound)"
+
+config CRUX_CONTROLLER_PREREQUISITE_ACCESS
+	bool "Access (credential store usable)"
+
+config CRUX_CONTROLLER_PREREQUISITE_CONFIGURATION
+	bool "Configuration service"
+
+config CRUX_CONTROLLER_PREREQUISITE_TIME
+	bool "Time synchronisation (wall time synchronised)"
+
+config CRUX_CONTROLLER_PREREQUISITE_WEB
+	bool "Web management"
+
+config CRUX_CONTROLLER_PREREQUISITE_COMMAND_LINE
+	bool "Serial command line"
+
+endmenu
+
+menu "Runtime dependencies of the application"
+
+comment "Each one is reported to the running application when its health changes (section 4.7)"
+
+config CRUX_CONTROLLER_DEPENDENCY_NETWORK
+	bool "Network"
+	default CRUX_CONTROLLER_PREREQUISITE_NETWORK
+
+config CRUX_CONTROLLER_DEPENDENCY_STORAGE
+	bool "Storage"
+	default CRUX_CONTROLLER_PREREQUISITE_STORAGE
+
+config CRUX_CONTROLLER_DEPENDENCY_ACCESS
+	bool "Access"
+	default CRUX_CONTROLLER_PREREQUISITE_ACCESS
+
+config CRUX_CONTROLLER_DEPENDENCY_CONFIGURATION
+	bool "Configuration service"
+	default CRUX_CONTROLLER_PREREQUISITE_CONFIGURATION
+
+config CRUX_CONTROLLER_DEPENDENCY_TIME
+	bool "Time synchronisation"
+	default CRUX_CONTROLLER_PREREQUISITE_TIME
+
+config CRUX_CONTROLLER_DEPENDENCY_WEB
+	bool "Web management"
+	default CRUX_CONTROLLER_PREREQUISITE_WEB
+
+config CRUX_CONTROLLER_DEPENDENCY_COMMAND_LINE
+	bool "Serial command line"
+	default CRUX_CONTROLLER_PREREQUISITE_COMMAND_LINE
+
+endmenu
 
 config CRUX_CONTROLLER_START_WITHOUT_WATCHDOG
 	bool "Allow operation without a hardware watchdog (development, bench and native_sim builds)"
@@ -169,8 +266,9 @@ config CRUX_CONTROLLER_FRAMEWORK_FAULT_INJECTION
 	depends on BOARD_NATIVE_SIM
 	help
 	  Test only: <controller/framework_test.h> arms a stalled startup step, a stalled
-	  framework thread or a fatal error, for the scenarios under tests/framework.
-	  No board image can select it.
+	  framework thread, a fatal error, a service that reads as failed or a refused
+	  application channel, for the scenarios under tests/framework. No board image
+	  can select it.
 
 endif # CRUX_CONTROLLER_FRAMEWORK_SUPERVISION
 
