@@ -19,9 +19,11 @@ build configurations by their earlier step ids, S0 to S6.
   so the base image logs seven phases. New options: start prerequisites and runtime dependencies per service
   (none by default; one on a service that the build leaves out fails the build), the deadlines of `init` and
   `stop`, the application thread's stack and the most status items. New serial commands: `application stop`
-  and `application start` (permission `system.reboot`). The status service shows each service's health. A
-  planned reset through Crux Reboot stops a running application first. The interface is at the lowest
-  stability tier.
+  and `application start` (permission `system.reboot`). The status service shows each service's health. The
+  newest operator stop or start replaces an older one that has not run yet. A planned reset through Crux
+  Reboot stops a running application first and refuses later operator requests; while the startup steps of
+  an image with an application run, Crux Reboot refuses a restart with the reason "Application startup has
+  not ended". The interface is at the lowest stability tier.
 - A fixture application (`tests/framework/fixture`) and the scenarios `application` and `application_held` show
   the contract on `native_sim`; the boundary check covers the fixture tree, and clang-tidy also analyses the
   sources of the application scenario's `native_sim` compile database (`scripts/analyze_zephyr.py`).

@@ -130,7 +130,9 @@ The application interface (specification section 3) is a descriptor of four entr
 thread, "application", calls `init`, `start` and `stop`, and after startup carries out the operator stop and start
 (serial commands `application stop` and `application start`), the stop of a fault that the application reports,
 and the stop before a planned reset. The order of the calls and the clean-up of each failure are portable C with
-host tests (`framework/src/app_contract.c`); the thread is in `framework/os/app_zephyr.c`. The framework creates no
+host tests (`framework/src/app_contract.c`), and so are the rules of the operator requests: the newest stop or start
+wins, and a planned reset waits for the startup steps, then refuses later requests (`framework/src/app_requests.c`).
+The thread is in `framework/os/app_zephyr.c`. The framework creates no
 thread for the application's own work. The fixture application of `tests/framework/fixture` and the scenarios
 `tests/framework/application` and `application_held` exercise the interface on `native_sim`.
 
