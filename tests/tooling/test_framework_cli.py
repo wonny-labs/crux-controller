@@ -162,6 +162,21 @@ class BaseImage(unittest.TestCase):
         self.assertIn(f"CONFIG_{SYMBOL}=y", ci_map.job_env("budget-base")["REQUIRE"])
 
 
+class ContributingTable(unittest.TestCase):
+    def test_the_boundary_table_names_every_composition_interface(self):
+        import sys
+        sys.path.insert(0, str(ROOT / "scripts"))
+        import check_boundary
+
+        text = read("CONTRIBUTING.md")
+        rows = {line.split("|")[1].strip(): line for line in text.splitlines()
+                if line.startswith("| `app/")}
+        for name in sorted(check_boundary.COMPOSITION_CRUX_HEADERS):
+            with self.subTest(header=name):
+                for tree in ("`app/src`", "`app/compose/` (the composition zone)"):
+                    self.assertIn(f"`<{name}>`", rows[tree], tree)
+
+
 class NativeSimScenario(unittest.TestCase):
     SCENARIO = "tests/framework/base"
 

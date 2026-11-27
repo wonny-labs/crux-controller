@@ -27,16 +27,16 @@ those interfaces shows up here and is reported to `crux-pilot` as an issue.
 
 | Tree | May include | Fails |
 |---|---|---|
-| `app/src` | ISO C, the headers of the Crux Sockets profile, public `<crux/NAME.h>` headers except the frozen three, its own tree, `workload/include`, the headers of `framework/src`, `<controller/NAME.h>` | any Zephyr header, `<crux/thread.h>`, `<crux/sync.h>`, `<crux/serial.h>`, `<crux/file_zephyr.h>`, `<crux/web_zephyr.h>`, a header of a composition or adapter zone |
+| `app/src` | ISO C, the headers of the Crux Sockets profile, public `<crux/NAME.h>` headers except the frozen three, its own tree, `workload/include`, the headers of `framework/src`, `<controller/NAME.h>` | any Zephyr header, `<crux/thread.h>`, `<crux/sync.h>`, `<crux/serial.h>`, `<crux/file_zephyr.h>`, `<crux/web_zephyr.h>`, `<crux/cli_zephyr.h>`, a header of a composition or adapter zone |
 | `workload/` | ISO C and its own tree | Crux, Sockets profile and Zephyr headers |
-| `app/compose/` (the composition zone) | ISO C, public `<crux/NAME.h>` headers, `<crux/file_zephyr.h>`, `<crux/web_zephyr.h>`, `zephyr/fs/fs.h`, `zephyr/devicetree.h`, `zephyr/net/tls_credentials.h`, its own tree, header files (`.h`) of `app/src` | the Sockets profile, a Crux private or port header, any other Zephyr header, vendor and third-party headers |
-| `app/os/` (the adapter zone) | ISO C, public `<crux/NAME.h>` headers except the frozen three, `zephyr/kernel.h`, `zephyr/net/sntp.h`, its own tree, header files (`.h`) of `app/src` | the Sockets profile and other POSIX headers, `<crux/thread.h>`, `<crux/sync.h>`, `<crux/serial.h>`, `<crux/file_zephyr.h>`, `<crux/web_zephyr.h>` or any composition interface, a Crux private or port header, any other Zephyr header, vendor and third-party headers |
+| `app/compose/` (the composition zone) | ISO C, public `<crux/NAME.h>` headers, `<crux/file_zephyr.h>`, `<crux/web_zephyr.h>`, `<crux/cli_zephyr.h>`, `zephyr/fs/fs.h`, `zephyr/devicetree.h`, `zephyr/net/tls_credentials.h`, its own tree, header files (`.h`) of `app/src` | the Sockets profile, a Crux private or port header, any other Zephyr header, vendor and third-party headers |
+| `app/os/` (the adapter zone) | ISO C, public `<crux/NAME.h>` headers except the frozen three, `zephyr/kernel.h`, `zephyr/net/sntp.h`, its own tree, header files (`.h`) of `app/src` | the Sockets profile and other POSIX headers, `<crux/thread.h>`, `<crux/sync.h>`, `<crux/serial.h>`, `<crux/file_zephyr.h>`, `<crux/web_zephyr.h>`, `<crux/cli_zephyr.h>` or any composition interface, a Crux private or port header, any other Zephyr header, vendor and third-party headers |
 | `include/` (the interface header of the framework) | ISO C, public `<crux/NAME.h>` headers except the frozen three, its own tree | any Zephyr header, the Sockets profile, a composition interface, a header of `framework/` |
 | `framework/src` (the portable core) | ISO C, public `<crux/NAME.h>` headers except the frozen three, its own tree, `<controller/NAME.h>` | any Zephyr header, the Sockets profile, a composition interface, the workload, a header of a zone |
 | `framework/compose/` (the composition zone of the module) | the allow-list of `app/compose/`, header files (`.h`) of `framework/src` | as `app/compose/`, and `app/src` |
 | `framework/os/` (the adapter zone of the module) | the allow-list of `app/os/`, header files (`.h`) of `framework/src` | as `app/os/`, and `app/src` |
 
-A C or C++ source or header under `app/`, `framework/` or `include/` that is in none of these trees fails.
+A C or C++ source or header under `app/`, `framework/`, `include/` or `zephyr/` that is in none of these trees fails.
 
 Any other include fails, and so does an include whose operand is a macro, because it cannot be checked.
 The check reads includes only, so do not add include paths in CMake: `app/CMakeLists.txt`,
@@ -83,7 +83,7 @@ The workflows in `.github/workflows/` and the [`Jenkinsfile`](Jenkinsfile) only 
 | `devcontainer.yml` | `Dev container`: builds the image of `.devcontainer/` and runs in it, through `scripts/dev-shell.sh`, the tooling tests, the format check, the static analysis, the host tests (sanitizer off and on), both boundary checks, the `native_sim` scenarios and the RT1060-EVKB cross-build of `workload` with its output and configuration checks. Its pins are those of `ci.yml`, and `tests/tooling/test_devcontainer.py` compares them | pull requests and pushes to `main` that change `.devcontainer/`, `scripts/dev-shell.sh`, `scripts/bootstrap.sh`, `.vscode/`, `west.yml`, `scripts/ci/` or the workflow, nightly, and by hand |
 | `rebuild.yml` | builds `net` twice at different paths and compares `zephyr.bin` and `firmware_identity` | by hand, nightly, and pull requests that change the workflow, `release/` or `scripts/ci/` |
 | `release.yml` | dry run of the release flow, publishes nothing | by hand, nightly, and pull requests that change the workflow, `release/`, `west.yml` or `scripts/ci/` |
-| `scheduled-main.yml` | `net build against crux-pilot main` (a check of the `nightly` tier only) | daily, and by hand |
+| `scheduled-main.yml` | `net build against crux-pilot main` and `product integration (fixture product, native_sim)` (checks of the `nightly` tier only) | daily, and by hand |
 
 The scheduled build is information only: it shows ahead of time that a Crux pin moved or that Crux
 broke the build, and the pinned build stays the gate for pull requests. Every RT1060-EVKB build requires
@@ -183,7 +183,7 @@ or functional-safety compliance. The Crux platform states its own position in it
 [coding guidelines](https://github.com/wonny-labs/crux-pilot/blob/751e04aead779ac08e438ec1e2640e57fc50e9fe/docs/coding-guidelines.md),
 read at that commit.
 
-Known gaps, not scheduled: the 18 sources above have no clang-tidy analysis, and nothing measures how much
+Known gaps, not scheduled: the 20 sources above have no clang-tidy analysis, and nothing measures how much
 of the code the tests run.
 
 The product's own Kconfig symbols use the prefix `CRUX_CONTROLLER_`; they are the product's names, not

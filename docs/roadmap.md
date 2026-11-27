@@ -15,8 +15,8 @@ and the [changelog](../CHANGELOG.md) are the reference when this page and a comm
   ([what has run on a board](#what-has-run-on-a-board)).
 - One management feature is wired: HTTPS management on the Mbed TLS profile (`management`, with Crux Access, the
   status and configuration services and a packaged page). It is built in CI and has never run on a board, and
-  the image has no account, so nobody can log in until the first-account console exists. The serial and SSH
-  command lines, SFTP, network settings, file and reboot routes are not built, and each has a recorded reason.
+  the image has no account, so nobody can log in: the first-account console runs only in `base`. The SSH
+  command line, SFTP, network settings, file and reboot routes are not built, and each has a recorded reason.
 - The controller framework is a Zephyr module of this repository, and the base image (`base`) runs it with web
   management, the serial command line with its first-account setup, and time synchronisation, and no
   application. Watchdog supervision and the application interface are not in it yet.

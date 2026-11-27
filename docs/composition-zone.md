@@ -234,7 +234,7 @@ headers of `framework/src`, because the base image's `main()` calls the start fu
 on the workload compose the framework services that live in the module. No zone of `app/` or of the module may
 include it, and the two zones of the module reach neither `app/src` nor each other.
 
-A C or C++ source or header under `app/`, `framework/` or `include/` that lies in none of the checked trees fails
+A C or C++ source or header under `app/`, `framework/`, `include/` or `zephyr/` that lies in none of the checked trees fails
 the check (`MODULE_TREES` in `scripts/check_boundary.py`), so a source cannot escape the rules by its place. Build
 files, the web assets of `framework/management/` and the data files of `app/conf/` and `app/boards/` are not
 sources. The allow-lists of the zones are those above; the module's trees add no Zephyr header to them.

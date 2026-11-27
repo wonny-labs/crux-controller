@@ -10,7 +10,7 @@ four trees of the controller framework module and its interface header.
 * ``workload/`` is portable code. It may include ISO C headers and headers of its
   own tree, and nothing else.
 * ``app/compose/`` is the composition zone of the configurations of ``app/``, which mounts a file
-  system and binds it to Crux. Its sources now live in ``framework/compose``, which has the same rule. It may include ISO C headers, public ``<crux/NAME.h>`` headers, the
+  system and binds it to Crux. It holds no source; ``framework/compose`` has the same rule and holds the sources. It may include ISO C headers, public ``<crux/NAME.h>`` headers, the
   composition interfaces ``<crux/file_zephyr.h>``, ``<crux/web_zephyr.h>`` and ``<crux/cli_zephyr.h>`` (``COMPOSITION_CRUX_HEADERS``),
   the explicit allow-list of Zephyr headers in ``COMPOSITION_ZEPHYR_HEADERS``, headers of its own tree and the headers of ``app/src``
   (header files only: the product-owned header that ``app/src`` declares and the zone

@@ -39,6 +39,11 @@ fi
 fixture=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 repo=$(git -C "$fixture" rev-parse --show-toplevel)
 folder=$2
+# An absolute folder below the root only: an empty value or / would put the workspace in the wrong place.
+if [[ "$folder" != /?* || "$folder" == / || "$folder" =~ ^/+$ ]]; then
+    printf 'error: FOLDER must be an absolute path below /, and it is %s\n' "${folder:-empty}" >&2
+    exit 2
+fi
 marker=.product-integration
 board=native_sim/native/64
 python=${PYTHON:-python3}

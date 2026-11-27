@@ -163,7 +163,8 @@ class RunScript(unittest.TestCase):
             self.assertTrue((folder / "keep.txt").is_file())
 
     def test_usage_errors_exit_2(self):
-        for arguments in ([], ["unknown", "/tmp/x"], ["workspace"]):
+        for arguments in ([], ["unknown", "/tmp/x"], ["workspace"], ["workspace", ""], ["workspace", "/"],
+                          ["build", "//"], ["run", "relative/folder"]):
             with self.subTest(arguments=arguments):
                 result = subprocess.run(["bash", str(RUN), *arguments], capture_output=True, text=True,
                                         env={**os.environ, "CRUX_PRODUCT_INTEGRATION_ANY_HOST": "1"})
