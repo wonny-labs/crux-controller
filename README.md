@@ -8,6 +8,17 @@ It is a Zephyr module that a product imports, and its base image runs the framew
 It uses Crux only through public headers and approved composition interfaces.
 It is not a product and not Crux, and it adds no public interface to Crux.
 
+## Table of Contents
+
+- [Capabilities](#capabilities)
+- [Status and limits](#status-and-limits)
+- [Supported boards](#supported-boards)
+- [Quick start](#quick-start)
+- [Build a product on Crux](#build-a-product-on-crux)
+- [Where to read next](#where-to-read-next)
+- [Contributing](#contributing)
+- [Licence, support and ownership](#licence-support-and-ownership)
+
 ## Capabilities
 
 The table lists the build configurations, `minimal` to `base`.
@@ -31,10 +42,15 @@ it, and [Adding a capability](docs/adding-a-capability.md) shows how a configura
 ## Status and limits
 
 - There is no release.
-- Only the `net` image has run on a board, on one bench. The other build configurations are built only in continuous integration (CI).
-- The `base` image has no application. Watchdog supervision and the application interface are not in it yet.
-- CI measures static size only. Stack use, heap use and timing are not measured.
-- It is not evidence for any Crux security claim. That evidence is in Crux.
+- Only the `net` image has run on a board, on one bench.
+  No other image has run on a board.
+- CI builds all eight build configurations, `minimal` to `base`, and runs the `native_sim` scenarios of `workload` to `base`.
+- The `base` image has no application.
+  Watchdog supervision and the application interface are not in it yet.
+- CI measures static size only.
+  Stack use, heap use and timing are not measured.
+- It is not evidence for any Crux security claim.
+  That evidence is in Crux.
 
 The [roadmap](docs/roadmap.md) gives the details and the reason for each limit.
 
@@ -95,5 +111,5 @@ Changes come as pull requests, under the rules of [CONTRIBUTING.md](CONTRIBUTING
 
 - Licence: Apache-2.0. See `LICENSE`.
 - Ownership: the repository owner, the account in `CODEOWNERS` ([glossary](docs/glossary.md#people-and-board-procedures)).
-- Support: no support period is promised, and only the latest release, if one exists, is supported.
-  Report security issues privately, as `SECURITY.md` describes. Releases: `RELEASE.md`.
+- Support and private security reports: `SECURITY.md`.
+- Releases: `RELEASE.md`.
