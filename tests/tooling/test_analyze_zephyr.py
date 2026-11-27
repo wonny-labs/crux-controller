@@ -74,5 +74,25 @@ class CiCheck(unittest.TestCase):
         self.assertIn("scripts/analyze_zephyr.py", run)
 
 
+class PrerequisiteRefused(unittest.TestCase):
+    """Criterion 27: a start prerequisite on a service that the build leaves out fails the build."""
+
+    def test_the_module_refuses_it_with_a_clear_message(self):
+        cmake = (ROOT / "zephyr" / "CMakeLists.txt").read_text()
+        self.assertIn('"TIME:CRUX_CONTROLLER_FRAMEWORK_TIME_SYNC:time synchronisation"', cmake)
+        self.assertIn("which this build leaves out", cmake)
+        kconfig = (ROOT / "zephyr" / "Kconfig").read_text()
+        block = kconfig[kconfig.index("config CRUX_CONTROLLER_PREREQUISITE_TIME"):]
+        block = block[:block.index("\nconfig ")]
+        self.assertNotIn("depends on", block)
+
+    @ci_map.needs_tomllib
+    def test_the_base_job_checks_the_refusal(self):
+        run = ci_map.run("base-prerequisite-refused")
+        self.assertIn("-DCONFIG_CRUX_CONTROLLER_PREREQUISITE_TIME=y", run)
+        self.assertIn("-DCONFIG_CRUX_CONTROLLER_FRAMEWORK_TIME_SYNC=n", run)
+        self.assertIn("which this build leaves out", run)
+
+
 if __name__ == "__main__":
     unittest.main()

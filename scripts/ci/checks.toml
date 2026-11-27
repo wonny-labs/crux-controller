@@ -1149,6 +1149,30 @@ python crux-controller/scripts/analyze_zephyr.py --database "$database"
 scope = "always"
 fast = ["framework"]
 
+# Criterion 27, the options of delivery stage 3: a start prerequisite on a service that the build
+# leaves out fails the build with a clear message (zephyr/CMakeLists.txt). The held scenario is
+# configured, not built, with time synchronisation left out and time as a start prerequisite.
+[[check]]
+id = "base-prerequisite-refused"
+job = "base"
+run = '''
+cd ..
+export ZEPHYR_BASE="$PWD/zephyr"
+set +e
+west build -p always -b native_sim/native/64 --cmake-only -d build-prerequisite-refused \
+  crux-controller/tests/framework/application_held -- -DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON \
+  -DCONFIG_CRUX_CONTROLLER_FRAMEWORK_TIME_SYNC=n -DCONFIG_CRUX_CONTROLLER_PREREQUISITE_TIME=y \
+  > prerequisite-refused.log 2>&1
+status=$?
+set -e
+tail -n 20 prerequisite-refused.log
+test "$status" -ne 0 || { echo "the build did not refuse the start prerequisite" >&2; exit 1; }
+grep -q "CONFIG_CRUX_CONTROLLER_PREREQUISITE_TIME needs time synchronisation, which this build leaves out" \
+  prerequisite-refused.log || { echo "no clear message for the refused start prerequisite" >&2; exit 1; }
+'''
+scope = "always"
+fast = ["framework"]
+
 [[check]]
 id = "base-build"
 job = "base"
