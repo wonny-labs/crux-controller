@@ -34,7 +34,7 @@ Each rule carries one label:
 A heading's label applies to every rule under it that carries no label of its own.
 Where a decision lets a product choose differently, the text says so.
 Requirements use the indicative mood throughout instead of the "shall" of ISO/IEC/IEEE 29148 (not read), and each traces to verifiable criteria.
-Each security, vulnerability handling and quality requirement carries a practice label in [section 6.4](#64-practice-basis), and each rule of the application template carries a practice label or its decision in [section 7.5](#75-application-template-d20):
+Each security, vulnerability handling and quality requirement carries a practice label in [section 6.4](#64-practice-basis), and each rule of the application template carries a practice label or its decision in [section 7.5](#75-application-template-d20); each versioning rule in [section 7.6](#76-versioning-d21) carries a practice label or is a decision (D21):
 
 | Practice label | Meaning |
 |---|---|
@@ -662,22 +662,22 @@ The fixture application is a test, not an image or variant: it has no board buil
 
 This section serves requirements P1 and P2.
 The split follows the ports-and-adapters pattern (A. Cockburn, "Hexagonal architecture"): the portable core defines its ports, and the adapter and composition zones implement them for Zephyr.
-`scripts/check_boundary.py` on `main` checks only the trees in its `RULES` (lines 160-236: `app/src`, `workload`, `app/compose`, `app/os`, `include/`, `framework/src`, `framework/compose`, `framework/os`); `check()` (line 388) scans those trees, and `uncovered_sources()` (line 432) fails a source under `MODULE_TREES` (line 133) that no rule covers.
+`scripts/check_boundary.py` on `main` checks only the trees in its `RULES` (lines 160-240: `app/src`, `workload`, `app/compose`, `app/os`, `include/`, `framework/src`, `framework/compose`, `framework/os`); `check()` (line 388) scans those trees, and `uncovered_sources()` (line 432) fails a source under `MODULE_TREES` (line 133) that no rule covers.
 A framework source outside the checked trees would escape the check, so every source of the module, the base image, the fixture application and the application template must lie in a checked tree.
 
 | Tree | Holds | May include |
 |---|---|---|
 | `include/` | The application interface header that a product includes | ISO C and public `<crux/NAME.h>` headers |
-| `framework/src` (portable core) | States, supervision policy, boot counter, safe mode, retained record format, startup step table, time synchronisation and management policy, and the port headers | The current rules of `app/src`, with no Zephyr header |
-| `framework/compose` (composition zone) | Storage mount, management start, command line start | The current rules of `app/compose`, plus `zephyr/fs/littlefs.h` and `<crux/cli_zephyr.h>` |
-| `framework/os` (adapter zone) | Supervisor thread, task watchdog, retained record access, fatal error handler, SNTP adapter | The current rules of `app/os`, plus `zephyr/task_wdt/task_wdt.h`, `zephyr/retention/retention.h`, `zephyr/fatal.h`, `zephyr/devicetree.h` and `zephyr/device.h` |
-| `app/` (base image) | `main()` | ISO C and the header of `include/` |
+| `framework/src` (portable core) | States, supervision policy, boot counter, safe mode, retained record format, startup step table, time synchronisation and management policy, and the port headers | The rules of `framework/src` on `main`: no Zephyr header, no Sockets profile, no workload |
+| `framework/compose` (composition zone) | Storage mount, management start, command line start | The rules of `app/compose` on `main`, including `<crux/cli_zephyr.h>` |
+| `framework/os` (adapter zone) | Supervisor thread, task watchdog, retained record access, fatal error handler, SNTP adapter | The rules of `app/os` on `main` |
+| `app/` (base image) | `main()` | ISO C and the header of `include/` (the target; on `main`, the `app/src` rule is broader) |
 | `tests/` fixture application | The contract test application (section 8.1) | ISO C, the header of `include/`, public `<crux/NAME.h>` headers and the Zephyr headers that its threads need |
 | Application template (section 7.5) | `main()` and the template's tests | For `main()`, the rules of `app/`; the rules for the template's tests are open |
 
-- Each tree has one rule in `RULES` on `main`; a source file of the module that no rule covers fails the check.
+- On `main`, the trees `include/`, `framework/src`, `framework/compose` and `framework/os` each have one rule in `RULES`; `tests/` and the application template have none yet. A source file of the module that no rule covers fails the check.
 - Each new header is a separate reviewed boundary change under CONTRIBUTING "The boundary", with its reason in [composition-zone.md](../composition-zone.md) and a case in `tests/tooling/test_boundary.py`.
-- Not on `main` (proposed, each a reviewed boundary change): `zephyr/fs/littlefs.h` for the composition zone, for the LittleFS mount, because Crux's LittleFS File provider mounts nothing by itself (Crux `main`, `zephyr/Kconfig:461-486`); and for the adapter zone `zephyr/task_wdt/task_wdt.h`, `zephyr/retention/retention.h` (the framework uses the retention API, not the `retained_mem` driver header), `zephyr/fatal.h`, and `zephyr/device.h`, which find the retained region.
+- Not on `main` (proposed, each a reviewed boundary change): `zephyr/fs/littlefs.h` for the composition zone, for the LittleFS mount, because Crux's LittleFS File provider mounts nothing by itself (Crux `main`, `zephyr/Kconfig:461-486`); and for the adapter zone `zephyr/task_wdt/task_wdt.h`, `zephyr/retention/retention.h` (the framework uses the retention API, not the `retained_mem` driver header), `zephyr/fatal.h`, and `zephyr/device.h` and `zephyr/devicetree.h`, which find the retained region.
 
 The portable core runs in host tests with fake ports, and the Zephyr adapter and composition zones are the only OS-specific code.
 The portable core, the separated OS-specific zones and the host tests hold in every delivery stage, and the framework adds no abstraction for Linux before it has a Linux function to serve.
@@ -737,15 +737,15 @@ This section tells the release owner and product teams which version a product n
 Each rule is labelled with its basis.
 
 - The framework uses Semantic Versioning 2.0.0 and starts at 0.y.z, where anything may change at any time. *Standard*: semver.org, rule 4.
-- The public interface is declared: the public headers, the Kconfig symbols and what the application template relies on. *Standard* for the requirement (semver.org, rule 1); the list is project-specific.
-- An image takes its version from the application's Zephyr `VERSION` file, which belongs to the application and is separate from the framework version. *Documented but optional* for the file (Zephyr "Application version management": each application keeps a `VERSION` file); the separation is project-specific.
-- A product pins the framework by commit SHA; the tag is the readable name. *Standard* for the SHA pin: the west manifest documentation says a branch gives no reproducible result and a SHA does. The tag as a name is project-specific.
-- Each version has a CHANGELOG entry that states the compatibility changes, the upgrade steps and the verified Crux and Zephyr revisions. *Project-specific*; no external source checked.
-- The first tag is 0.1.0, after delivery stage 3 (the application interface) with the template. *Project-specific*.
-- 1.0.0 is tagged only when the public interface is declared stable and verified on a board. The meaning of 1.0.0 is *standard* (semver.org, rule 5); the board gate is *project-specific*.
-- Every tag needs the repository owner's approval. *Project-specific*.
+- The public interface is declared: the public headers, the Kconfig symbols and what the application template relies on. *Standard* for the requirement (semver.org, rule 1); Decision (D21) for the list.
+- An image takes its version from the application's Zephyr `VERSION` file. The file belongs to the application and is separate from the framework version. *Documented but optional* for the file (Zephyr "Application version management": an application may keep a `VERSION` file); the separation is Decision (D21).
+- A product pins the framework by commit SHA; the tag is the readable name. *Standard* for the SHA pin: the west manifest documentation says a branch gives no reproducible result and a SHA does. The tag as the readable name is Decision (D21).
+- Each version has a CHANGELOG entry that states the compatibility changes, the upgrade steps and the verified Crux and Zephyr revisions. Decision (D21).
+- The first tag is 0.1.0, after delivery stage 4 (the application interface and the application template). Decision (D21).
+- 1.0.0 is tagged only when the public interface is declared stable and verified on a board. The meaning of 1.0.0 is *standard* (semver.org, rule 5); the board gate is Decision (D21).
+- Every tag needs the repository owner's approval. Decision (D21).
 
-Decided by the owner (2026-11-27): `main` carries the next planned version with the pre-release suffix `dev`, as Crux does (ADR-0008 in the Crux repository), for example `0.1.0-dev`. No tag or release follows from this. Semantic Versioning allows a hyphenated pre-release identifier (rule 9) and does not define `dev`, so the suffix is project-specific. Where the number is kept is decided at implementation, in a separate pull request.
+Decided by the owner (2026-11-27): `main` carries the next planned version with the pre-release suffix `dev`, as Crux does (ADR-0008 in the Crux repository), for example `0.1.0-dev`. No tag or release follows from this. Semantic Versioning allows a hyphenated pre-release identifier (rule 9) and does not define `dev`, so the suffix is Decision (D21). Where the number is kept is decided at implementation, in a separate pull request.
 Open: how a Zephyr module states its version. No source on this point has been read yet; the Zephyr pages read cover applications only.
 
 ## 8. Verification
@@ -901,7 +901,7 @@ Each interim state is accepted until its Crux change is at the pin; the [platfor
 
 ## 9. Decision register
 
-D1 to D20 are decided, except D9, which is deferred, D16, which is a product decision whose direction is decided and whose details each product settles at product readiness, and D17, which is open.
+D1 to D21 are decided, except D9, which is deferred, D16, which is a product decision whose direction is decided and whose details each product settles at product readiness, and D17, which is open.
 
 | # | Decision | State | Chosen | Not chosen | Source |
 |---|---|---|---|---|---|
@@ -925,7 +925,7 @@ D1 to D20 are decided, except D9, which is deferred, D16, which is a product dec
 | D18 | Role under the EU Cyber Resilience Act | Decided, legal confirmation needed | A component that products integrate, designed to the product-level requirements of Annex I; organisational duties are listed with their holder and not implemented (sections 6.5 and 6.6) | This repository as a product placed on the market | Regulation (EU) 2024/2847, unofficial text |
 | D19 | Support period | Decided | A field that each product supplies (H2); this repository fixes none | A support period fixed by this repository | Regulation (EU) 2024/2847 Article 13(8), unofficial text |
 | D20 | Application template | Decided | A folder of this repository that a product team copies once (`main()`, configuration, board files, west manifest and tests), with no framework logic; the copy imports the framework as a module at a pinned revision; CI builds the template from the same commit as the framework; delivered in delivery stage 4, after the application interface (section 7.5) | The fixture application as the only code reference, so that each product writes the same starting files by hand; a separate template repository, whose builds would not run from the framework's commit | Zephyr "Application Development" and `example-application`; west "Workspaces" (T2); GitHub template repositories; Crux `templates/product` |
-| D21 | Framework versioning | Decided | Semantic Versioning 2.0.0 from 0.y.z; the public interface is declared; products pin the framework by commit SHA, with the tag as its readable name; a CHANGELOG entry per version; first tag 0.1.0 after delivery stage 3; 1.0.0 only when the interface is declared stable and verified on a board; every tag needs the repository owner's approval (section 7.6) | A version per product copy; pinning by branch, which the west manifest documentation says is not reproducible | Semantic Versioning 2.0.0; Zephyr "Application version management"; west manifest ("revision") |
+| D21 | Framework versioning | Decided | Semantic Versioning 2.0.0 from 0.y.z; the public interface is declared; products pin the framework by commit SHA, with the tag as its readable name; a CHANGELOG entry per version; first tag 0.1.0 after delivery stage 4; 1.0.0 only when the interface is declared stable and verified on a board; every tag needs the repository owner's approval; an image takes its version from the application's `VERSION` file, separate from the framework version; `main` carries the next version with the suffix `-dev` (section 7.6) | A version per product copy; pinning by branch, which the west manifest documentation says is not reproducible | Semantic Versioning 2.0.0; Zephyr "Application version management"; west manifest ("revision") |
 
 ## 10. Terms
 
