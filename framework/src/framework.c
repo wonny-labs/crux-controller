@@ -90,6 +90,7 @@
 
 #include "app_contract.h"
 #include "app_port.h"
+#include "app_requests.h"
 #include "boot_record.h"
 #include "controller_state.h"
 #include "fault_injection.h"
@@ -222,8 +223,7 @@ static const uint32_t dependencies = 0u
 /* The requests of the application thread (app_port.h). */
 #define REQUEST_INIT 0x01u
 #define REQUEST_START 0x02u
-#define REQUEST_OPERATOR_STOP 0x04u
-#define REQUEST_OPERATOR_START 0x08u
+#define REQUEST_OPERATOR 0x04u /* the request itself is in fw.requests (app_requests.h) */
 #define REQUEST_FAULT 0x10u
 #define REQUEST_PLANNED_STOP 0x20u
 #else
@@ -271,7 +271,8 @@ static struct {
     /* The application. */
     struct controller_app_context context;
     app_contract_t app;
-    app_run_t start_result; /* written by the application thread before it completes a call */
+    app_requests_t requests; /* operator requests and the gate of a planned reset */
+    app_run_t start_result;  /* written by the application thread before it completes a call */
     atomic_int data_root;
     service_health_t reported[SERVICE_COUNT]; /* the supervisor's last report of a dependency */
 } fw;
@@ -530,7 +531,8 @@ static void entry_safe_state(void *argument)
     context->app->safe_state(context);
 }
 
-/* The application's channels through the supervisor's table. A scenario can refuse one. */
+/* The application's channels through the supervisor's table, each activation in the log. A scenario
+ * can refuse one. */
 static int channel_add(void *port, const char *name, uint32_t reload_ms)
 {
     (void)port;
@@ -541,7 +543,16 @@ static int channel_add(void *port, const char *name, uint32_t reload_ms)
         say(CRUX_LOG_WARN, text);
         return -1;
     }
-    return supervisor_port_channel_add(name, reload_ms);
+    const int handle = supervisor_port_channel_add(name, reload_ms);
+
+    if (handle >= 0) {
+        char text[CRUX_LOG_TEXT_MAX];
+
+        (void)snprintf(text, sizeof text, "application channel %s activated reload=%lu", name,
+                       (unsigned long)reload_ms);
+        say(CRUX_LOG_INFO, text);
+    }
+    return handle;
 }
 
 static void channel_remove(void *port, int handle)
@@ -660,13 +671,18 @@ static void application_work(uint32_t requests)
     if ((requests & REQUEST_START) != 0u) {
         fw.start_result = run_start(false);
     }
-    if ((requests & REQUEST_OPERATOR_STOP) != 0u) {
-        run_stop(APP_STOP_OPERATOR);
-    }
+    /* A planned reset first. Its gate closed before it was posted, so no operator request is taken
+     * after it and no start runs between this stop and the reset (app_requests.h). */
     if ((requests & REQUEST_PLANNED_STOP) != 0u && app_contract_state(&fw.app) == APP_RUNNING) {
+        say(CRUX_LOG_INFO, "planned reset: stopping the application");
         run_stop(APP_STOP_PLANNED_RESET);
     }
-    if ((requests & REQUEST_OPERATOR_START) != 0u) {
+    /* Only the newest operator request: a newer stop or start replaced an older one. */
+    const app_request_t operator_request = app_requests_take(&fw.requests);
+
+    if (operator_request == APP_REQUEST_STOP) {
+        run_stop(APP_STOP_OPERATOR);
+    } else if (operator_request == APP_REQUEST_START) {
         supervisor_port_step_begin(CALL_OPERATOR_START, DEADLINE_APPLICATION_MS);
         (void)run_start(true);
         supervisor_port_step_end();
@@ -934,6 +950,7 @@ static controller_framework_status_t prepare_application(const controller_app_t 
                                    &fw.context};
 
     atomic_store(&fw.data_root, -1);
+    app_requests_init(&fw.requests);
     for (int service = 0; service < SERVICE_COUNT; service++) {
         set_health((service_id_t)service, SERVICE_ABSENT);
     }
@@ -981,6 +998,11 @@ controller_framework_status_t controller_framework_start(const controller_app_t 
     const startup_status_t status =
         startup_run_steps(steps, sizeof steps / sizeof steps[0], report, HOOKS, &summary);
 
+#ifdef CONFIG_CRUX_CONTROLLER_FRAMEWORK_SUPERVISION
+    /* No step calls start from here on, so a planned reset may go ahead; operator requests open
+     * only when startup supervision ended in step 12. */
+    app_requests_startup_returned(&fw.requests, status == STARTUP_OK);
+#endif
     if (status != STARTUP_OK) {
         say(CRUX_LOG_ERROR, "startup stopped");
         return CONTROLLER_FRAMEWORK_ERR_STARTUP;
@@ -1068,36 +1090,53 @@ bool framework_status_application_items(void)
 
 /* An operator request from device management, carried out on the application thread. Before the
  * end of startup supervision the step table owns the supervisor's step deadline, so a request is
- * refused then. */
-static framework_control_t control(uint32_t request)
+ * refused then; during a planned reset it is refused too (app_requests.h). */
+static framework_control_t control(app_request_t request)
 {
     if (!application_present()) {
         return FRAMEWORK_CONTROL_NO_APPLICATION;
     }
-    if (!atomic_load(&fw.startup_done)) {
+    switch (app_requests_post(&fw.requests, request)) {
+    case APP_REQUEST_ACCEPTED:
+        app_port_post(REQUEST_OPERATOR);
+        return FRAMEWORK_CONTROL_REQUESTED;
+    case APP_REQUEST_REFUSED_RESET:
+        return FRAMEWORK_CONTROL_RESETTING;
+    case APP_REQUEST_REFUSED_STARTING:
+    case APP_REQUEST_INVALID:
+    default:
         return FRAMEWORK_CONTROL_STARTING;
     }
-    app_port_post(request);
-    return FRAMEWORK_CONTROL_REQUESTED;
 }
 
 framework_control_t framework_control_application_stop(void)
 {
-    return control(REQUEST_OPERATOR_STOP);
+    return control(APP_REQUEST_STOP);
 }
 
 framework_control_t framework_control_application_start(void)
 {
-    return control(REQUEST_OPERATOR_START);
+    return control(APP_REQUEST_START);
+}
+
+bool framework_control_restart_allowed(void)
+{
+    return !application_present() || app_requests_reset_allowed(&fw.requests);
 }
 
 void framework_control_planned_reset(void)
 {
-    if (application_present() && atomic_load(&fw.startup_done) &&
-        app_contract_state(&fw.app) == APP_RUNNING) {
-        say(CRUX_LOG_INFO, "planned reset: stopping the application");
+    /* The gate closes before the request is posted. The application thread then decides whether
+     * the application runs, after any batch that was running, so a start that it carried out
+     * before is stopped and a start that waits is dropped. */
+    if (application_present() && app_requests_plan_reset(&fw.requests)) {
         app_port_call(REQUEST_PLANNED_STOP);
     }
+}
+
+void framework_control_reset_abandoned(void)
+{
+    app_requests_reset_abandoned(&fw.requests);
 }
 
 /* The application interface (<controller/framework.h>). Each call checks that its context is the

@@ -85,6 +85,7 @@ if(CONFIG_CRUX_CONTROLLER_FRAMEWORK)
     if(CONFIG_CRUX_CONTROLLER_FRAMEWORK_SUPERVISION)
         zephyr_library_sources(
             "${controller_root}/framework/src/app_contract.c"
+            "${controller_root}/framework/src/app_requests.c"
             "${controller_root}/framework/src/boot_record.c"
             "${controller_root}/framework/src/controller_state.c"
             "${controller_root}/framework/src/recovery.c"

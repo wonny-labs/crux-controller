@@ -9,7 +9,9 @@
  *
  * The thread has a task watchdog channel and feeds it before and after each call. One call can wait
  * for Crux Reboot's lock, its delay and its settle wait (1 s, 1 s and 15 s at their defaults), plus
- * its polls, the policy call and its event, so the reload period is longer than that bound.
+ * its polls, the policy call and its event, so the reload period is longer than that bound
+ * (specification section 5.1). The policy call on this thread includes the planned stop of the
+ * application, so the reload period adds the longest wait for it, from the deadlines.
  *
  * Status: built in CI for the board and run on native_sim; never run on a board.
  */
@@ -25,6 +27,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #include <zephyr/kernel.h>
 
@@ -34,7 +37,17 @@
 /* The pause between two calls when no request waits. */
 #define REBOOT_IDLE_MS 500
 /* Longer than one call of crux_reboot_work_once() at Crux's defaults (17 s) plus its polls. */
-#define REBOOT_RELOAD_MS 30000u
+#define REBOOT_CALL_MS 30000u
+/*
+ * The planned stop waits for the batch that the application thread is running, at most an operator
+ * start and a stop after a reported fault, and then runs one stop. Each has its deadline, which the
+ * supervisor enforces, so a valid slow stop ends before the channel expires, and a stop that
+ * passes its deadline is recorded as that deadline, not as an expiry of this channel.
+ */
+#define REBOOT_PLANNED_STOP_MS                                                                     \
+    ((uint32_t)CONFIG_CRUX_CONTROLLER_DEADLINE_APPLICATION_MS +                                    \
+     2u * (uint32_t)CONFIG_CRUX_CONTROLLER_DEADLINE_STOP_MS)
+#define REBOOT_RELOAD_MS (REBOOT_CALL_MS + REBOOT_PLANNED_STOP_MS)
 
 static K_THREAD_STACK_DEFINE(reboot_stack, REBOOT_STACK_BYTES);
 static struct k_thread reboot_thread;
@@ -45,12 +58,16 @@ static bool on_reboot_thread(void)
     return k_current_get() == &reboot_thread;
 }
 
-/* The framework allows every restart. On the reboot thread, the last step before the reset, it
- * first stops a running application with the reason planned reset, which runs stop and then
- * safe_state (specification sections 3.1 and 3.3); a stop that fails or hangs is a hang, which the
- * supervisor ends with the same reset. */
+/* The framework allows a restart once no startup step can call the application's start
+ * (framework_control.h). On the reboot thread, the last step before the reset, it first stops a
+ * running application with the reason planned reset, which runs stop and then safe_state
+ * (specification sections 3.1 and 3.3); a stop that fails or hangs is a hang, which the supervisor
+ * ends with the same reset. */
 static bool restart_allowed(void)
 {
+    if (!framework_control_restart_allowed()) {
+        return false;
+    }
     if (on_reboot_thread()) {
         framework_control_planned_reset();
     }
@@ -90,6 +107,8 @@ static void reboot_run(void *unused0, void *unused1, void *unused2)
         k_msleep(REBOOT_IDLE_MS);
         supervisor_port_channel_feed(channel);
         reboot_policy_pass(&port);
+        /* The pass returned, so no reset happened. */
+        framework_control_reset_abandoned();
     }
 }
 

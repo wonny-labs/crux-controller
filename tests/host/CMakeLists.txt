@@ -114,3 +114,9 @@ add_executable(test_app_contract test_app_contract.c ../../framework/src/app_con
 target_include_directories(test_app_contract PRIVATE ../../framework/src)
 target_compile_options(test_app_contract PRIVATE -Wall -Wextra -Wpedantic -Werror)
 add_test(NAME app_contract COMMAND test_app_contract)
+
+# The operator requests of the application thread and the gate of a planned reset: ISO C only.
+add_executable(test_app_requests test_app_requests.c ../../framework/src/app_requests.c)
+target_include_directories(test_app_requests PRIVATE ../../framework/src)
+target_compile_options(test_app_requests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+add_test(NAME app_requests COMMAND test_app_requests)

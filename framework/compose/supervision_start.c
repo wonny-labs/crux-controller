@@ -55,6 +55,8 @@
 #include "../src/recovery.h"
 
 #include <crux/reboot.h>
+
+#include <stdio.h>
 #endif
 
 #define LOG_TAG "recovery"
@@ -184,12 +186,19 @@ const void *supervision_compose_status_items(const void *app_items, size_t app_c
 #ifdef CONFIG_CRUX_CONTROLLER_FRAMEWORK_REBOOT
 /* The Crux Reboot policy callback: the framework's rule for the operator reset marker. Crux calls
  * it on the requesting thread and again on the framework's reboot thread just before the reset. The
- * framework does not refuse, so it writes no reason. */
+ * framework refuses only while the startup steps of an image with an application run
+ * (framework_control.h), and says so in the reason. */
 static bool reboot_policy(void *context, crux_reboot_refusal_t *refusal)
 {
     (void)context;
-    (void)refusal;
-    return reboot_policy_allow(reboot_policy_port());
+    if (reboot_policy_allow(reboot_policy_port())) {
+        return true;
+    }
+    if (refusal != NULL) {
+        (void)snprintf(refusal->reason, sizeof refusal->reason, "%s",
+                       "Application startup has not ended");
+    }
+    return false;
 }
 
 int supervision_compose_reboot_start(void)
@@ -313,6 +322,8 @@ static crux_cli_result_t control_reply(crux_cli_call_t *call, framework_control_
         text = "refused: no application\n";
     } else if (result == FRAMEWORK_CONTROL_STARTING) {
         text = "refused: startup has not ended\n";
+    } else if (result == FRAMEWORK_CONTROL_RESETTING) {
+        text = "refused: a reset is under way\n";
     }
     const crux_cli_result_t written = crux_cli_write(call, text, strlen(text));
 

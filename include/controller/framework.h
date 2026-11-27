@@ -60,15 +60,17 @@ typedef enum {
  *               application needs; nothing is registered later. It may read its data root, and does
  *               not depend on configuration, time, web management or the command line, which start
  *               after it. On failure nothing that it started still runs.
- *   start       on success, the threads that feed the activated channels run and feed within their
- *               reload periods; on failure every thread that it created has ended before it
- * returns. stop        on success every thread of the application has ended. An error return or a
- * missed deadline is a hang: the device resets. A thread's last feed must come less than its reload
- * period before stop returns, because the channel is deleted only then. safe_state  puts the
- * outputs into the product's safe state and never blocks. It can run at the same time as the
- * application's threads (from the supervisor before a reset), so it is idempotent, takes no lock,
- * allocates nothing and logs nothing. An entry returns 0 for success. The descriptor is borrowed
- * for the program's life.
+ *   start       on success, the threads that feed the activated channels run and feed within
+ *               their reload periods; on failure every thread that it created has ended before it
+ *               returns.
+ *   stop        on success every thread of the application has ended. An error return or a
+ *               missed deadline is a hang: the device resets. A thread's last feed must come less
+ *               than its reload period before stop returns, because the channel is deleted only
+ *               then.
+ *   safe_state  puts the outputs into the product's safe state and never blocks. It can run at
+ *               the same time as the application's threads (from the supervisor before a reset),
+ *               so it is idempotent, takes no lock, allocates nothing and logs nothing.
+ * An entry returns 0 for success. The descriptor is borrowed for the program's life.
  */
 typedef struct {
     int (*init)(controller_app_context_t *context);
