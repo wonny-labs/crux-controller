@@ -35,6 +35,10 @@ build configurations by their earlier step ids, S0 to S6.
 - The nightly job `product-integration` builds a fixture product (`tests/product_integration`) in a west workspace
   of its own, which imports this repository at the commit under test, and runs it on `native_sim`
   (`tests/product_integration/run.sh`, a job of `scheduled-main.yml` and a Jenkins stage).
+- The framework has a version, `0.1.0-dev`: the next planned release with `-dev`, as Crux's `main` carries.
+  `<controller/version.h>` is the only place it is kept, with Semantic Versioning macros
+  (`CONTROLLER_VERSION_MAJOR` to `CONTROLLER_VERSION_STRING`), and `tests/tooling/test_version.py` fails when
+  the parts and the string disagree. It is not an image version; no tag exists.
 
 ### Capability names
 

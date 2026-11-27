@@ -41,7 +41,7 @@ Sockets profile or a watchdog through Crux System. Each capability has one *buil
 **Controller framework.** The Zephyr module of this repository (`zephyr/module.yml`): the start function
 `controller_framework_start()` of `<controller/framework.h>`, which composes the Crux services of a networked
 controller in a defined order. One Kconfig symbol, `CRUX_CONTROLLER_FRAMEWORK`, turns it on. Its sources are
-in `framework/` and its interface header in `include/`.
+in `framework/` and its interface headers in `include/`.
 
 **Base image.** The image of this repository that runs the controller framework with no application: the build
 configuration `base`.
