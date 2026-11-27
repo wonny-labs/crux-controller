@@ -120,3 +120,51 @@ add_executable(test_app_requests test_app_requests.c ../../framework/src/app_req
 target_include_directories(test_app_requests PRIVATE ../../framework/src)
 target_compile_options(test_app_requests PRIVATE -Wall -Wextra -Wpedantic -Werror)
 add_test(NAME app_requests COMMAND test_app_requests)
+
+# The health verdict and the trial deadline of a test image (criterion 25, delivery stage 4), against
+# a fake image state port in the test. ISO C only; no image builds image_trial.c yet, because Crux has
+# no image state provider for Zephyr (gap C10).
+add_executable(test_image_trial test_image_trial.c ../../framework/src/image_trial.c)
+target_include_directories(test_image_trial PRIVATE ../../framework/src)
+target_compile_options(test_image_trial PRIVATE -Wall -Wextra -Wpedantic -Werror)
+add_test(NAME image_trial COMMAND test_image_trial)
+
+# The fuzz targets of criterion 41 (delivery stage 4), in fuzz/. Every build links each target with
+# fuzz/fuzz_driver.c and runs it over its seed corpus in fuzz/corpus/NAME (hexadecimal text, as the
+# repository keeps no binary file) as a test. With
+# CRUX_HOST_FUZZ, which needs Clang with libFuzzer, each target is also built as fuzz_NAME with
+# -fsanitize=fuzzer; the check host-fuzz of scripts/ci/checks.toml runs those in the nightly tier.
+option(CRUX_HOST_FUZZ "Build the fuzz targets with libFuzzer (Clang only)" OFF)
+set(fuzz_sources_boot_record fuzz/fuzz_boot_record.c ../../framework/src/boot_record.c)
+set(fuzz_sources_management_text fuzz/fuzz_management_text.c ../../framework/src/management_policy.c)
+if(CRUX_HOST_FUZZ)
+    include(CheckCSourceCompiles)
+    set(CMAKE_REQUIRED_FLAGS -fsanitize=fuzzer)
+    set(CMAKE_REQUIRED_LINK_OPTIONS -fsanitize=fuzzer)
+    check_c_source_compiles([=[
+#include <stddef.h>
+#include <stdint.h>
+int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) { (void)data; (void)size; return 0; }
+]=] CRUX_HAVE_LIBFUZZER)
+    unset(CMAKE_REQUIRED_FLAGS)
+    unset(CMAKE_REQUIRED_LINK_OPTIONS)
+    if(NOT CMAKE_C_COMPILER_ID MATCHES "Clang" OR NOT CRUX_HAVE_LIBFUZZER)
+        message(FATAL_ERROR "CRUX_HOST_FUZZ needs Clang with libFuzzer (-fsanitize=fuzzer); "
+                            "${CMAKE_C_COMPILER} has none. On Ubuntu install clang-18 and libclang-rt-18-dev, "
+                            "then configure with -DCMAKE_C_COMPILER=clang-18.")
+    endif()
+endif()
+foreach(name boot_record management_text)
+    add_executable(fuzz_${name}_corpus fuzz/fuzz_driver.c ${fuzz_sources_${name}})
+    target_include_directories(fuzz_${name}_corpus PRIVATE ../../framework/src fuzz)
+    target_compile_options(fuzz_${name}_corpus PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    file(GLOB fuzz_seeds CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/fuzz/corpus/${name}/*.hex)
+    add_test(NAME fuzz_${name}_corpus COMMAND fuzz_${name}_corpus ${fuzz_seeds})
+    if(CRUX_HOST_FUZZ)
+        add_executable(fuzz_${name} ${fuzz_sources_${name}})
+        target_include_directories(fuzz_${name} PRIVATE ../../framework/src fuzz)
+        target_compile_options(fuzz_${name} PRIVATE -Wall -Wextra -Wpedantic -Werror -g
+            -fsanitize=fuzzer,address,undefined -fno-sanitize-recover=all)
+        target_link_options(fuzz_${name} PRIVATE -fsanitize=fuzzer,address,undefined)
+    endif()
+endforeach()

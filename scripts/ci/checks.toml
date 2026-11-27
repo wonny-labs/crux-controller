@@ -363,6 +363,37 @@ echo "No coverage threshold is set yet (an owner decision): this check reports a
 scope = "always"
 fast = ["product", "host-tests"]
 
+# The fuzz targets of criterion 41 (delivery stage 4), every night: tests/host built with
+# CRUX_HOST_FUZZ by clang-18 with libFuzzer, AddressSanitizer and UndefinedBehaviorSanitizer, then
+# each target fuzzes for a bounded time from its seed corpus. The seeds are hexadecimal text (the
+# repository keeps no binary file), written here as raw files. New inputs go to a folder of the
+# build, never to the seeds. A crash, a sanitizer finding or a broken property fails the check, and
+# the input is saved as build/host-fuzz/crash-* (libFuzzer prints small inputs in the log too). The
+# host job of ci.yml installs clang-18 and libclang-rt-18-dev, which holds libFuzzer. Label: standard
+# (LLVM libFuzzer documentation: -fsanitize=fuzzer with a sanitizer, -max_total_time, new inputs
+# written to the first corpus folder).
+[[check]]
+id = "host-fuzz"
+job = "host-OFF"
+run = '''
+cmake -S tests/host -B build/host-fuzz -G Ninja -DCMAKE_C_COMPILER=clang-18 -DCRUX_HOST_FUZZ=ON
+cmake --build build/host-fuzz --target fuzz_boot_record fuzz_management_text
+for name in boot_record management_text; do
+  rm -rf "build/host-fuzz/seeds-$name"
+  mkdir -p "build/host-fuzz/seeds-$name" "build/host-fuzz/corpus-$name"
+  python3 - "tests/host/fuzz/corpus/$name" "build/host-fuzz/seeds-$name" <<'PY'
+import pathlib, sys
+
+source, target = map(pathlib.Path, sys.argv[1:])
+for seed in sorted(source.glob("*.hex")):
+    (target / seed.stem).write_bytes(bytes.fromhex(seed.read_text()))
+PY
+  "build/host-fuzz/fuzz_$name" -max_total_time=120 -print_final_stats=1 \
+    -artifact_prefix=build/host-fuzz/ "build/host-fuzz/corpus-$name" "build/host-fuzz/seeds-$name"
+done
+'''
+tiers = ["nightly"]
+
 # --- host-ON -------------------------------------------------------------------------------------
 
 [[check]]
