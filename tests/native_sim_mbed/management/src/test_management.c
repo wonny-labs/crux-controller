@@ -1,10 +1,10 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
-/* Runs the product's own start sequence for HTTPS management (app/compose/management_start.c,
- * through the port of app/src/management_port.h), its route wiring and its packaged page, on the
- * real Crux services and Zephyr's HTTP server with Mbed TLS, in one native_sim image. A TLS client
- * of this test, in the same process, connects to the listener over Zephyr's loopback interface and
- * verifies the server with the certificate that the product registered.
+/* Runs the product's own start sequence for HTTPS management (framework/compose/management_start.c,
+ * through the port of framework/src/management_port.h), its route wiring and its packaged page, on
+ * the real Crux services and Zephyr's HTTP server with Mbed TLS, in one native_sim image. A TLS
+ * client of this test, in the same process, connects to the listener over Zephyr's loopback
+ * interface and verifies the server with the certificate that the product registered.
  *
  * One image runs all cases in order, because the start sequence runs once per program: Crux's init
  * calls cannot be repeated, and a case that needs the running server cannot restart it. The first
@@ -14,7 +14,7 @@
  * request over a new connection.
  *
  * What this scenario cannot show: a successful login, any 200 from an API route, roles, a password
- * change, the first account (a later change makes it, from the serial console), a configuration
+ * change, the first account (the base image makes it, from the serial console), a configuration
  * save, handshake time, stack use, heap peaks (the heap here is larger than the product's), the
  * strength of any key (the entropy is the simulator's fake entropy, a test source), the libc of the
  * target (the libc here is the one that prj.conf names, and the web start checks fnmatch() on it),
@@ -317,7 +317,7 @@ ZTEST(management, test_03_tls13_handshake_verifies)
  * because the client and the server share the TLS library, the credentials and the clock, and
  * Zephyr maps both an alert from the server and a local failure to a failed connect. Crux checks
  * the version refusal on the wire with openssl s_client against its own listener, which offers one
- * version at a time and reads the alert (docs/https-composition.md of crux-pilot, "Checked on the
+ * version at a time and reads the alert (docs/https-composition.md of Crux, "Checked on the
  * wire"), and this case does not replace that. */
 ZTEST(management, test_04_tls12_only_refused)
 {

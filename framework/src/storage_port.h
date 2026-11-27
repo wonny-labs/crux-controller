@@ -3,10 +3,10 @@
 #define STORAGE_PORT_H
 
 /*
- * The product-owned port to the storage composition. The application declares it and the
- * composition zone (app/compose) implements it, so the application never includes a Zephyr or a
- * Crux composition header: the link joins the two, no include does. This header has no include
- * of its own, so it stays inside the rules of app/src.
+ * The product-owned port to the storage composition. The framework core declares it and the
+ * composition zone (framework/compose) implements it, so the application never includes a Zephyr or
+ * a Crux composition header: the link joins the two, no include does. This header has no include of
+ * its own, so it stays inside the rules of framework/src.
  *
  * Two calls, in this order, once each, from thread context before any other thread calls File:
  *

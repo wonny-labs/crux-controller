@@ -7,6 +7,35 @@ build configurations by their earlier step ids, S0 to S6.
 
 ## Unreleased
 
+### Controller framework
+
+- The repository is a controller framework for products built on Crux: a Zephyr module (`zephyr/module.yml`)
+  that one Kconfig symbol, `CRUX_CONTROLLER_FRAMEWORK`, turns on, with a base image. The role section of
+  `CONTRIBUTING.md` and the glossary entry "Product" say so; "product" now means a firmware repository outside
+  this one, in Crux's sense.
+- The framework's start function, `controller_framework_start()` in `<controller/framework.h>`, runs a table
+  of phases with the portable startup sequence of `framework/src/startup.c` (host tests in
+  `tests/host/test_startup.c`): the clock, web management and time synchronisation, each logged with its result.
+- The sources of time synchronisation, of the management policy and port, and of the composition zone move from
+  `app/` to the module's trees `framework/src`, `framework/os` and `framework/compose`, and the web route files
+  from `app/management/` to `framework/management/`. The configurations `sntp`, `file` and `management` build
+  them from there (`framework/configurations.cmake` adds the sources, and `app/CMakeLists.txt` adds the
+  composition zone `framework/compose`) and are otherwise unchanged.
+- The build configuration `base` is the base image (`app/conf/base.conf`): the framework with web management
+  and time synchronisation, on a RAM disk, with no application. The configuration of `app/prj.conf` alone is
+  renamed `minimal`, with its CI job and `Budget` row. The `base build` job runs the scenario
+  `tests/framework/base`, which builds the framework from the module on `native_sim`, then builds the image for
+  the RT1060-EVKB; `budgets/limits.json` has a row for it with the placeholder margin.
+- The boundary check covers the trees of the module (`include`, `framework/src`, `framework/compose`,
+  `framework/os`), and a C source under `app/`, `framework/` or `include/` outside every checked tree fails.
+- The base image starts the serial command line: the Crux serial console, with its login and its first-account
+  setup, on LPUART3 of the RT1060-EVKB (alias `crux-serial0` in the board file), after web management. The
+  service symbol is `CRUX_CONTROLLER_FRAMEWORK_CLI_SERIAL`, and `<crux/cli_zephyr.h>` joins the composition
+  zone's allow-list. The `native_sim` scenario types the setup and a login into an emulated UART.
+- The nightly job `product-integration` builds a fixture product (`tests/product_integration`) in a west workspace
+  of its own, which imports this repository at the commit under test, and runs it on `native_sim`
+  (`tests/product_integration/run.sh`, a job of `scheduled-main.yml` and a Jenkins stage).
+
 ### Capability names
 
 - The step ids S0 to S6 are replaced by capability names: S0 `base`, S1 `workload`, S2 `net`, S3 `file`,
@@ -45,7 +74,7 @@ build configurations by their earlier step ids, S0 to S6.
 
 ### Build and manifest
 
-- The west manifest imports `crux-pilot` at a pinned commit (`62ed69f1`, which contains the File
+- The west manifest imports `crux-pilot` at a pinned commit (`05a50475`, which contains the File
   composition interface `<crux/file_zephyr.h>`) and adds `picolibc` as a test-only project. A CI job
   checks the pins with `west crux-pins` and has a negative control that must fail.
 - The `crux-pilot` pin moved from `37c92b18` to `dfd3ad7d`, which adds the public management headers
@@ -135,6 +164,24 @@ build configurations by their earlier step ids, S0 to S6.
   and Zephyr's Kconfig prints a deprecation warning for them. Logging, Serial and System select their hardware by
   devicetree instead of by board or SoC name. The Crux manifest, the Zephyr revision, the public headers and the
   module name are as before. No controller code changes.
+- The `crux-pilot` pin moved from `62ed69f1` to `05a50475`, the head of Crux `main` after its move to Zephyr v4.5.0
+  (wonny-labs/crux-pilot#603), its CI sharding (#604), the fail-closed TCP initial sequence number (#605), LittleFS
+  storage for products (#607) and the service-thread progress hook and shared console (#606). Zephyr's manifest moves
+  `hal_nxp`, `cmsis_6`, `littlefs` and `fatfs`; `picolibc` keeps its revision. The `management` and `base` images,
+  which have Zephyr's TCP with the RFC 6528 sequence number, now build Crux's copy of `tcp.c` that refuses a
+  connection when the key or the hash fails. The new Crux features stay off here. The comment of
+  `framework/os/time_sync_zephyr.c` now says what changed in Zephyr's SNTP library up to v4.5.0. Zephyr v4.5.0
+  deprecates `CONFIG_MBEDTLS_SSL_MAX_CONTENT_LEN`, and the Twister build of the `management` scenario stops on that
+  warning, so `app/conf/management.conf`, `app/conf/base.conf`, the `management` and `tests/framework/base`
+  scenarios and the product-integration fixture set `CONFIG_MBEDTLS_SSL_IN_CONTENT_LEN` and
+  `CONFIG_MBEDTLS_SSL_OUT_CONTENT_LEN` to the same 16384 instead. The `West pins` negative control pinned `littlefs` at a newer commit that is now the contract, so it
+  pins the parent of the contract commit instead. No controller code or overlay changes.
+- Crux's repository was renamed from `wonny-labs/crux-pilot` to `wonny-labs/crux`, and the west project is now
+  `crux`, so west checks Crux out in `crux/`. The pinned commit and the Zephyr module name (`crux`) are as before.
+  Scripts, CI, tests and documents use the new name; the local include check still accepts a Crux checkout folder named
+  `crux-pilot` beside the repository. Earlier entries and findings keep the old name. An existing workspace needs
+  `west update` once, then a pristine build (`-p always`); its `crux-pilot/` folder is no longer used. No controller
+  code changes.
 - The `crux-pilot` import blocks wolfSSL, wolfSSH and wolfPSA by name, so enabling the Mbed TLS group
   would activate Mbed TLS and TF-PSA-Crypto and no GPL stack (checked on the project list; no job
   enables the group or fetches with it on, and it stays off in every job).

@@ -72,8 +72,8 @@ class SystemLimits(unittest.TestCase):
     def test_the_system_row_equals_the_file_row_and_no_other_row_changed(self):
         rows = self.limits()["min_free_percent"]
         # Steps sntp and management later added their own rows, which test_sntp.py and test_management.py pin.
-        self.assertEqual(["base", "workload", "net", "file", "system", "sntp", "management"], list(rows))
-        for step in ("base", "workload", "net", "file"):
+        self.assertEqual(["minimal", "workload", "net", "file", "system", "sntp", "management", "base"], list(rows))
+        for step in ("minimal", "workload", "net", "file"):
             self.assertEqual(rows["file"], rows[step], step)
         self.assertEqual(rows["file"], rows["system"])
 
@@ -327,7 +327,8 @@ class SystemSources(unittest.TestCase):
         # <zephyr/sys/reboot.h> inside Crux. A product never needs them, and no zone lists them.
         for header in ("zephyr/drivers/watchdog.h", "zephyr/drivers/hwinfo.h",
                        "zephyr/sys/reboot.h", "fsl_wdog.h"):
-            for tree in ("app/src", "app/os", "app/compose", "workload"):
+            for tree in ("app/src", "app/os", "app/compose", "workload", "framework/src",
+                         "framework/compose", "framework/os", "include"):
                 with tempfile.TemporaryDirectory() as directory:
                     path = pathlib.Path(directory) / tree / "x.c"
                     path.parent.mkdir(parents=True)
@@ -338,25 +339,26 @@ class SystemSources(unittest.TestCase):
     def test_the_zone_allow_lists_are_unchanged_by_this_step(self):
         # The system capability left every zone list as it was. The adapter zone list later grew by
         # zephyr/net/sntp.h in its own reviewed boundary change, and the composition zone's
-        # lists grew by crux/web_zephyr.h and zephyr/net/tls_credentials.h in another. This pin
-        # follows both.
+        # lists grew by crux/web_zephyr.h and zephyr/net/tls_credentials.h in another, and by
+        # crux/cli_zephyr.h in a third. This pin follows all three.
         self.assertEqual(
             frozenset({"zephyr/fs/fs.h", "zephyr/devicetree.h", "zephyr/net/tls_credentials.h"}),
             check_boundary.COMPOSITION_ZEPHYR_HEADERS)
         self.assertEqual(frozenset({"zephyr/kernel.h", "zephyr/net/sntp.h"}),
                          check_boundary.OS_ADAPTER_ZEPHYR_HEADERS)
-        self.assertEqual(frozenset({"crux/file_zephyr.h", "crux/web_zephyr.h"}),
+        self.assertEqual(frozenset({"crux/file_zephyr.h", "crux/web_zephyr.h", "crux/cli_zephyr.h"}),
                          check_boundary.COMPOSITION_CRUX_HEADERS)
         self.assertEqual(
             frozenset({"crux/thread.h", "crux/sync.h", "crux/serial.h"}),
             check_boundary.FROZEN_CRUX_HEADERS,
         )
-        self.assertEqual(["app/src", "workload", "app/compose", "app/os"],
+        self.assertEqual(["app/src", "workload", "app/compose", "app/os", "include", "framework/src", "framework/compose", "framework/os"],
                          [rule.directory for rule in check_boundary.RULES])
 
     def test_a_private_system_header_fails_in_every_tree(self):
         for name in ("crux/system_zephyr.h", "crux/system_port.h", "system_port.h"):
-            for tree in ("app/src", "app/os", "app/compose"):
+            for tree in ("app/src", "app/os", "app/compose", "framework/src", "framework/compose",
+                         "framework/os"):
                 with tempfile.TemporaryDirectory() as directory:
                     path = pathlib.Path(directory) / tree / "x.c"
                     path.parent.mkdir(parents=True)
@@ -506,8 +508,8 @@ class SystemWorkflows(unittest.TestCase):
     def test_the_budget_rows_of_the_other_steps_are_unchanged(self):
         rows = self.budget_rows()
         # Steps sntp and management later added their own rows, which test_sntp.py and test_management.py pin.
-        self.assertEqual(["base", "workload", "net", "file", "system", "sntp", "management"], list(rows))
-        self.assertEqual(("", "", ""), (rows["base"]["conf"], rows["base"]["overlay"], rows["base"]["require"]))
+        self.assertEqual(["minimal", "workload", "net", "file", "system", "sntp", "management", "base"], list(rows))
+        self.assertEqual(("", "", ""), (rows["minimal"]["conf"], rows["minimal"]["overlay"], rows["minimal"]["require"]))
         self.assertEqual("conf/workload.conf", rows["workload"]["conf"])
         self.assertEqual("conf/workload.conf;conf/net.conf", rows["net"]["conf"])
         self.assertEqual("boards/net.overlay", rows["net"]["overlay"])
@@ -582,7 +584,7 @@ class SystemFindings(unittest.TestCase):
 
     def test_the_manifest_pins_the_approved_commit(self):
         manifest = (ROOT / "west.yml").read_text()
-        self.assertIn("revision: 62ed69f10791695c0350996411676b930a96ce71", manifest)
+        self.assertIn("revision: 05a50475653becf7e4867686f4f88747173e1c21", manifest)
 
 
 class SystemStartFailureWording(unittest.TestCase):

@@ -3,15 +3,16 @@
 #define MANAGEMENT_PORT_H
 
 /*
- * The product-owned port of HTTPS management. app/src declares it, and the composition zone
- * (app/compose) is the place where an implementation would call the Crux services and the Zephyr
- * web server, so this header names no Crux, Zephyr or composition header. It includes only ISO C
- * and the policy header of this repository, so that it needs nothing from Crux to be read or
+ * The product-owned port of HTTPS management. framework/src declares it, and the composition zone
+ * (framework/compose) is the place where an implementation would call the Crux services and the
+ * Zephyr web server, so this header names no Crux, Zephyr or composition header. It includes only
+ * ISO C and the policy header of this repository, so that it needs nothing from Crux to be read or
  * tested. The implementation copies the policy into the Crux type and sets no password rule, so
  * that Crux uses its reference rule.
  *
- * The composition zone implements this port in app/compose/management_start.c, and
- * app/src/composition.c calls it when management is built. The order below is a reading of
+ * The composition zone implements this port in framework/compose/management_start.c. The
+ * framework start (framework/src/framework.c) calls it in the base image, and
+ * app/src/composition.c calls it in the management configuration. The order below is a reading of
  * three Crux sources at the pinned revision, and it has not run on a board: the "Boot order"
  * section of docs/management-in-a-product.md, the start calls of the module test
  * tests/native/management_module/src/main.c (configuration service, management status and security
@@ -29,7 +30,7 @@
  *   7. web start, with the session authenticate function
  *
  * The guide puts the first account between steps 3 and 4. This port does not create one: that
- * is the serial console's work, in a later change.
+ * is the serial console's work (cli_port.h), which the framework starts after this sequence.
  *
  * management_port_start() runs the whole sequence once, on one thread, before any request.
  */

@@ -4,7 +4,7 @@ Status: no release exists and no tag has been made. The only release flow that r
 CI. It builds, assembles the bundle and checks it, and it publishes nothing.
 
 The general rules for releasing a product on Crux are in the Crux composition guide, section
-"Release": [`docs/product-composition.md` at the pinned revision `62ed69f1`](https://github.com/wonny-labs/crux-pilot/blob/62ed69f10791695c0350996411676b930a96ce71/docs/product-composition.md).
+"Release": [`docs/product-composition.md` at the pinned revision `05a50475`](https://github.com/wonny-labs/crux/blob/05a50475653becf7e4867686f4f88747173e1c21/docs/product-composition.md).
 This page does not copy it. It says only what this repository does.
 
 ## The flow
@@ -28,7 +28,7 @@ flowchart TD
 
 | Step | Tool | What fails the run |
 |---|---|---|
-| Pins | `west crux-pins` | no `CONTRACT crux-pilot` line, or any `MISMATCH` |
+| Pins | `west crux-pins` | no `CONTRACT crux` line, or any `MISMATCH` |
 | Freeze | `west manifest --freeze` | a manifest west cannot freeze |
 | Fresh workspace | `west init --mf`, `west update` | a revision that cannot be fetched |
 | Build | `west build` with `-DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON` | a Zephyr that is not the verified baseline, or a build error |

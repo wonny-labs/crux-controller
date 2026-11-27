@@ -514,7 +514,7 @@ class Proxy(RefPage):
 class CopyAndLayout(RefPage):
     def test_the_layout_section_explains_the_mount_and_the_two_cache_volumes(self):
         layout = section(self.text, "Layout")
-        for word in (".west", "zephyr/", "modules/", "crux-pilot", "empty", "/workspaces/ws"):
+        for word in (".west", "zephyr/", "modules/", "crux/", "empty", "/workspaces/ws"):
             self.assertIn(word, layout)
         self.assertIn("docker volume ls --filter name=crux-controller-dev-cache", layout)
         self.assertIn("docker volume rm", layout)
@@ -797,9 +797,10 @@ class Troubleshooting(unittest.TestCase):
 
     @ci_map.needs_tomllib
     def test_the_strong_boundary_form_is_the_one_that_ci_runs(self):
-        strong = "check_boundary.py --repo crux-controller --crux-root crux-pilot"
-        self.assertIn(strong, self.text)
-        self.assertIn(strong, norm(ci_map.run("boundary-check")))
+        strong = "check_boundary.py --repo crux-controller --crux-root crux"
+        exact = re.escape(strong) + r"(?![-\w])"
+        self.assertRegex(self.text, exact)
+        self.assertRegex(norm(ci_map.run("boundary-check")), exact)
 
     def test_the_doc_pinned_tests_it_names_exist(self):
         for name in ("test_text_accuracy.py", "test_system.py", "test_sntp.py", "test_management.py"):

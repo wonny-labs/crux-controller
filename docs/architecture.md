@@ -7,14 +7,16 @@ are used as the [glossary](glossary.md#product-platform-and-composition) explain
 
 ## What the controller is and does
 
-Crux Controller (this repository, `crux-controller`) is firmware for one board, the NXP RT1060-EVKB
-Rev B, built on the Zephyr RTOS. It is the reference consumer firmware of Crux, an embedded software
-platform that lives in the repository [`crux-pilot`](https://github.com/wonny-labs/crux-pilot). Crux
+Crux Controller (this repository, `crux-controller`) is a controller framework for products built on Crux,
+an embedded software platform that lives in the repository [`crux`](https://github.com/wonny-labs/crux):
+a Zephyr module that products import, with a base image that runs its services and no application. Its images are
+built for one board, the NXP RT1060-EVKB Rev B, on the Zephyr RTOS. Crux
 publishes components such as Time, Logging, a Sockets profile, File and System as public headers and
 CMake targets (`crux::time`, `crux::logging` and so on). This repository takes those components the
 way an outside product would, through public headers and public targets only, and it checks that rule
 in CI. Where a product cannot reach something, the gap is written down as a *finding* instead of being
-worked around. It is not a product, it adds no Crux interface, and it has no real control logic.
+worked around. It is not a product (a product imports it), it adds no Crux interface, and it has no real
+control logic.
 
 What the firmware does is deliberately small. A synthetic *workload* runs on two Zephyr threads: a
 producer counts cycles (every 100 ms by default) and queues one numbered message every tenth cycle,
@@ -28,7 +30,8 @@ resource budget. Nothing else runs on the board, and little of it has run on a b
 
 ## Layers and zones
 
-Source is split into four trees. A script, `scripts/check_boundary.py`, reads every `#include` in each
+Source is split into the four trees below and the four trees of the framework module (see
+[The controller framework](#the-controller-framework)). A script, `scripts/check_boundary.py`, reads every `#include` in each
 tree and fails the CI job `Boundary check` when a tree includes something it may not. The exact lists
 are in `scripts/check_boundary.py` and are explained in [composition-zone.md](composition-zone.md);
 this table is a summary of the lists on `main`.
@@ -38,29 +41,30 @@ flowchart TD
     SRC["app/src<br/>application: behaviour in plain C<br/>declares the port headers"]
     WL["workload/<br/>portable core, ISO C only"]
     OS["app/os<br/>adapter zone<br/>threads, queue, sleep"]
-    COMP["app/compose<br/>composition zone<br/>mount and bind File, start management"]
+    COMP["framework/compose<br/>composition zone of the module<br/>mount and bind File, start management"]
     CRUX["Crux public targets<br/>crux::time, logging, sockets, netif, file, system,<br/>access, config_service, mgmt_status, tls_certificate;<br/>web: crux::web, web_session, web_management,<br/>credential_store, security_event;<br/>composition: crux::file_zephyr, crux::web_zephyr"]
     ZEPHYR["Zephyr kernel and file system"]
     SRC -->|includes| WL
     SRC -->|includes| CRUX
     OS -->|implements workload_os.h| SRC
-    COMP -->|implements storage_port.h| SRC
+    COMP -->|implements storage_port.h of framework/src| SRC
     OS --> ZEPHYR
     COMP --> ZEPHYR
     COMP -->|crux::file_zephyr| CRUX
 ```
 
-The arrows from `app/os` and `app/compose` to `app/src` mean that the zone implements a port header that
-`app/src` declares. The application calls the port and the zone implements it; the two are joined by
+The arrows from `app/os` and `framework/compose` to `app/src` mean that the zone implements a port header that
+the application uses: `app/os` implements `app/src/workload_os.h`, and `framework/compose` implements the port
+headers of `framework/src`, which `app/src` includes. The application calls the port and the zone implements it; the two are joined by
 the linker, and no `#include` crosses the line the other way. `management` adds a third directory that is not a
-zone, `app/management`, which holds build files and data for the web route table (see below).
+zone, `framework/management`, which holds build files and data for the web route table (see below).
 
 | Tree | Role | May include | Fails on, among others |
 |---|---|---|---|
 | `workload/` | The portable core of the workload: configuration record, periodic cycle, message wire form. Built for the image and for the host tests. | ISO C and its own tree | any Crux, Sockets profile or Zephyr header |
-| `app/src` | The application: composition, thread glue, and the code of each capability. Plain C. | ISO C, the Sockets profile headers, public `<crux/NAME.h>` headers except the frozen three, its own tree, `workload/include` | any Zephyr header, the *frozen headers*, `<crux/file_zephyr.h>`, `<crux/web_zephyr.h>`, a quoted include of a header of a zone |
-| `app/os` | The adapter zone. The one place that creates threads, queues messages and sleeps, with Zephyr kernel calls, and the one place that queries an SNTP server (`sntp`). | ISO C, public `<crux/NAME.h>` headers except the frozen three, `zephyr/kernel.h`, `zephyr/net/sntp.h`, its own tree, header files (`.h`) of `app/src` | the Sockets profile and other POSIX headers, any composition interface, every other Zephyr header, vendor headers, the frozen three |
-| `app/compose` | The composition zone. The one place that mounts a file system and binds it to Crux File, and the one place that starts HTTPS management with the Web composition interface and registers its TLS material (`management`). | ISO C, public `<crux/NAME.h>` headers, `<crux/file_zephyr.h>`, `<crux/web_zephyr.h>`, `zephyr/fs/fs.h`, `zephyr/devicetree.h`, `zephyr/net/tls_credentials.h`, its own tree, header files (`.h`) of `app/src` | the Sockets profile, Crux private or port headers, every other Zephyr header, vendor headers |
+| `app/src` | The application: composition, thread glue, and the code of each capability. Plain C. | ISO C, the Sockets profile headers, public `<crux/NAME.h>` headers except the frozen three, its own tree, `workload/include`, the headers of `framework/src`, `<controller/NAME.h>` | any Zephyr header, the *frozen headers*, `<crux/file_zephyr.h>`, `<crux/web_zephyr.h>`, `<crux/cli_zephyr.h>`, a quoted include of a header of a zone |
+| `app/os` | The adapter zone. The one place that creates threads, queues messages and sleeps, with Zephyr kernel calls, for the configurations of the workload. `framework/os` is the adapter zone of the module and queries the SNTP server. | ISO C, public `<crux/NAME.h>` headers except the frozen three, `zephyr/kernel.h`, `zephyr/net/sntp.h`, its own tree, header files (`.h`) of `app/src` | the Sockets profile and other POSIX headers, any composition interface, every other Zephyr header, vendor headers, the frozen three |
+| `framework/compose` | The composition zone of the module. The one place that mounts a file system and binds it to Crux File, the one place that starts HTTPS management with the Web composition interface and registers its TLS material (`management`, `base`), and the one place that starts the serial command line (`base`). `app/compose` keeps the same rule and holds no source. | ISO C, public `<crux/NAME.h>` headers, `<crux/file_zephyr.h>`, `<crux/web_zephyr.h>`, `<crux/cli_zephyr.h>`, `zephyr/fs/fs.h`, `zephyr/devicetree.h`, `zephyr/net/tls_credentials.h`, its own tree, header files (`.h`) of `framework/src` | the Sockets profile, Crux private or port headers, every other Zephyr header, vendor headers |
 
 Points that the table cannot carry:
 
@@ -73,32 +77,71 @@ Points that the table cannot carry:
   `scripts/check_boundary.py` are sets of names with no wildcards. Changing one is a change of the script,
   of `tests/tooling/test_boundary.py` and of [composition-zone.md](composition-zone.md) in one reviewed
   pull request.
-- **`zephyr/net/sntp.h` is allowed in `app/os`, and one source includes it:
-  `app/os/time_sync_zephyr.c` (`sntp`).** That file calls the Zephyr SNTP library's string-based
+- **`zephyr/net/sntp.h` is allowed in the adapter zones `app/os` and `framework/os`, and one source includes it:
+  `framework/os/time_sync_zephyr.c` (`sntp`, `base`).** That file calls the Zephyr SNTP library's string-based
   `sntp_simple()` and nothing else of it, so it includes no socket header.
 - **The frozen-header rule covers `app/src` and `app/os`.** `<crux/thread.h>`, `<crux/sync.h>` and
   `<crux/serial.h>` are public Crux headers, and the product does not use them: threads and queues come
   from Zephyr in `app/os`. The check keeps that from being undone silently. The rule is not applied to
-  `workload/` (which may include no Crux header at all) or to `app/compose`. Crux removed `<crux/queue.h>`
+  `workload/` (which may include no Crux header at all) or to `framework/compose`. Crux removed `<crux/queue.h>`
   at the pinned revision, so the check refuses it as a name that Crux does not publish, not as a frozen
   header.
 - **The check reads includes only.** It cannot see include paths that CMake adds, so no build file here
   adds one, and `tests/tooling` checks that. An include whose operand is a macro fails, because it cannot
   be checked.
-- **Inside the checked trees.** `app/os` holds two sources, `workload_os_zephyr.c` (every configuration) and
-  `time_sync_zephyr.c` (`sntp` only, added to the build by `app/os/CMakeLists.txt` when
-  `CONFIG_CRUX_CONTROLLER_SNTP` is on). Both are part of the application target and not a library of their own. `app/compose` is a static library, the only target
-  that links `crux::file_zephyr`.
+- **Inside the checked trees.** `app/os` holds `workload_os_zephyr.c` (every configuration of the workload), and
+  `framework/os` holds `time_sync_zephyr.c` (added to the application target of `sntp` by
+  `framework/configurations.cmake`, and built into the framework library for `base`). `framework/compose` is a
+  static library, the only target that links `crux::file_zephyr`.
+
+## The controller framework
+
+The controller framework is a Zephyr module of this repository: `zephyr/module.yml`, `zephyr/Kconfig` and
+`zephyr/CMakeLists.txt`. The Kconfig symbol `CRUX_CONTROLLER_FRAMEWORK` turns it on, and each service under it
+(`CRUX_CONTROLLER_FRAMEWORK_MANAGEMENT`, `CRUX_CONTROLLER_FRAMEWORK_CLI_SERIAL`, `CRUX_CONTROLLER_FRAMEWORK_TIME_SYNC`)
+is on by default when the Crux and Zephyr symbols it needs are on. A product's `main()` calls `controller_framework_start()` of
+`<controller/framework.h>` once; the start function runs a table of phases with the portable startup sequence of
+`framework/src/startup.c` and logs the name and result of each:
+
+1. clock: the Crux monotonic clock answers. A failure stops startup.
+2. web management: the storage mount, the credential store, Access, the configuration and status services, the TLS
+   certificate, sessions, web management and the listener, in the order of `framework/src/management_port.h`.
+3. command line: the Crux serial console on the UART of the devicetree alias `crux-serial0`, with its login and
+   its first-account setup (`framework/src/cli_port.h`). It needs Access, so it runs only after phase 2 succeeded.
+4. time synchronisation: the SNTP thread of `framework/src/time_sync.c`.
+
+A failure of phase 2, 3 or 4 is logged and the controller runs without that service. The framework creates no
+application thread and takes no application yet. The base image (`base`) is `app/` with `app/conf/base.conf`:
+its `main()` calls the start function, and `app/CMakeLists.txt` links `controller::framework` and calls
+`controller_framework_image()`, which adds the route table and the packaged page to the target `app`. The
+configurations built on the workload do not combine with the framework, and `app/CMakeLists.txt` stops a build
+that asks for both.
+
+| Tree | Role |
+|---|---|
+| `include/` | The interface header `<controller/framework.h>` |
+| `framework/src` | The portable core: startup sequence, start function, time synchronisation glue and policy, management policy, port headers |
+| `framework/compose` | The composition zone of the module: storage mount, web management start and serial command line start |
+| `framework/os` | The adapter zone of the module: the SNTP query and its thread |
+| `framework/management/` | The build files and data of the web route table: the packaged page, the reviewed route list, `management.cmake` and `entropy.cmake` |
+
+The include rules of these trees are in [composition-zone.md](composition-zone.md#the-trees-of-the-framework-module).
+
+A product imports the framework as a project of its own west workspace. The nightly check `product-integration`
+shows that with a fixture product, `tests/product_integration`: its manifest lists `crux-controller` at the commit
+under test and imports its manifest, so Crux comes at the pin of this repository; its CMake file names no path of
+`crux-controller`, and west finds the module. `tests/product_integration/run.sh` makes the workspace, builds the
+fixture for `native_sim` and runs it.
 
 ## How Crux is consumed
 
 Crux states the general rules for a product in its own guides at the pinned revision:
-[Choosing an API](https://github.com/wonny-labs/crux-pilot/blob/62ed69f10791695c0350996411676b930a96ce71/docs/choosing-an-api.md)
+[Choosing an API](https://github.com/wonny-labs/crux/blob/05a50475653becf7e4867686f4f88747173e1c21/docs/choosing-an-api.md)
 (Zephyr, Crux or product code) and
-[Composition interfaces](https://github.com/wonny-labs/crux-pilot/blob/62ed69f10791695c0350996411676b930a96ce71/docs/composition-interfaces.md).
+[Composition interfaces](https://github.com/wonny-labs/crux/blob/05a50475653becf7e4867686f4f88747173e1c21/docs/composition-interfaces.md).
 This section shows how this repository applies them.
 
-- **Manifest.** `west.yml` makes this repository the west manifest repository. It imports `crux-pilot`
+- **Manifest.** `west.yml` makes this repository the west manifest repository. It imports `crux`
   at a pinned full commit (the `revision` in `west.yml`), never a branch or tag, and adds one
   test-only project, `picolibc`, for the `native_sim` scenario of `net`. Crux's own manifest brings Zephyr and
   the Zephyr modules, so this repository does not name them. The import blocks the three GPL or commercial
@@ -108,7 +151,7 @@ This section shows how this repository applies them.
   `tests/tooling/test_manifest.py` (the approved commit), [dependencies.md](dependencies.md),
   [RELEASE.md](../RELEASE.md) and [CHANGELOG.md](../CHANGELOG.md), and a test (`tests/tooling/test_docs.py`)
   checks that the last three carry the short hash. The `West pins` job runs `west crux-pins`, which must
-  print a `CONTRACT crux-pilot` line and no `MISMATCH`. Moving the *pin* is its own small pull request; the
+  print a `CONTRACT crux` line and no `MISMATCH`. Moving the *pin* is its own small pull request; the
   steps are in [CONTRIBUTING.md](../CONTRIBUTING.md). Notes under `docs/findings/` keep the revision they
   were read at and are not updated when the pin moves.
 - **Crux pieces used, and in which configuration.** Each is a public target linked in `app/CMakeLists.txt`, plus
@@ -116,15 +159,15 @@ This section shows how this repository applies them.
 
   | Crux piece | Header or target | Configuration | Used from |
   |---|---|---|---|
-  | Time | `crux::time`, `<crux/time.h>`, `<crux/status.h>`; `sntp` also `<crux/time_authority.h>`, which `crux::time` provides | `base` and later; `sntp` sets the realtime clock | `app/src/composition.c`, `app/src/workload_thread.c`; `sntp`: `app/src/time_sync.c`, the one file that calls the Time authority |
+  | Time | `crux::time`, `<crux/time.h>`, `<crux/status.h>`; `sntp` also `<crux/time_authority.h>`, which `crux::time` provides | `minimal` and later; `sntp` sets the realtime clock | `app/src/composition.c`, `app/src/workload_thread.c`; `sntp`: `framework/src/time_sync.c`, the one file that calls the Time authority |
   | Logging | `crux::logging`, `<crux/logging.h>` | `workload` and later | `app/src/workload_thread.c` and the code of each capability |
   | Sockets profile and network interface | `crux::sockets`, `crux::netif`, POSIX socket headers | `net` | `app/src/net_client.c` |
-  | File | `crux::file`, `<crux/file.h>` in the application; `crux::file_zephyr` and `<crux/file_zephyr.h>` in the composition zone only | `file` | `app/src/config_store.c`, `app/compose/storage_mount.c` |
+  | File | `crux::file`, `<crux/file.h>` in the application; `crux::file_zephyr` and `<crux/file_zephyr.h>` in the composition zone only | `file` | `app/src/config_store.c`, `framework/compose/storage_mount.c` |
   | System | `crux::system`, `<crux/system.h>` | `system` | `app/src/health.c` |
-  | Access, credential store, security events | `crux::access`, `crux::credential_store`, `crux::security_event`, `<crux/access.h>`, `<crux/credential_store.h>`, `<crux/security_event.h>` | `management` | `app/compose/management_start.c` |
-  | Configuration service, status service | `crux::config_service`, `crux::mgmt_status` | `management` | `app/compose/management_start.c` |
-  | TLS certificate | `crux::tls_certificate`, `<crux/tls_certificate_start.h>` | `management` | `app/compose/management_start.c`, the one file that takes the key material |
-  | Web server, sessions, management | `crux::web`, `crux::web_session`, `crux::web_management`; `crux::web_zephyr` and `<crux/web_zephyr.h>` in the composition zone only | `management` | `app/compose/management_start.c`; the route sources are Crux's own, named in `app/management/management.cmake` |
+  | Access, credential store, security events | `crux::access`, `crux::credential_store`, `crux::security_event`, `<crux/access.h>`, `<crux/credential_store.h>`, `<crux/security_event.h>` | `management` | `framework/compose/management_start.c` |
+  | Configuration service, status service | `crux::config_service`, `crux::mgmt_status` | `management` | `framework/compose/management_start.c` |
+  | TLS certificate | `crux::tls_certificate`, `<crux/tls_certificate_start.h>` | `management` | `framework/compose/management_start.c`, the one file that takes the key material |
+  | Web server, sessions, management | `crux::web`, `crux::web_session`, `crux::web_management`; `crux::web_zephyr` and `<crux/web_zephyr.h>` in the composition zone only | `management` | `framework/compose/management_start.c`; the route sources are Crux's own, named in `framework/management/management.cmake` |
 
   Product code includes no Crux Thread, Sync, Queue or Serial header, in any configuration, and no fragment of this
   repository names their symbols. In `workload` to `sntp` nothing selects them. The Crux services of `management` need Thread and Sync
@@ -139,7 +182,7 @@ This section shows how this repository applies them.
 `main()` calls `composition_start()` in `app/src/composition.c` and returns. What
 `composition_start()` starts depends on the Kconfig options of the build. In this order:
 
-1. `base`: reads the Crux monotonic clock once, and fails if it does not answer.
+1. `minimal`: reads the Crux monotonic clock once, and fails if it does not answer.
 2. `workload`: builds the default workload configuration. With `file` on, it first mounts the volume, binds File and
    loads the saved record, or saves the default when none exists. A volume that does not mount leaves
    the default in use and is never formatted.
@@ -148,10 +191,10 @@ This section shows how this repository applies them.
    cannot cost a reset.
 4. `net`: registers a sink so that each logged message is also sent to the TCP peer.
 5. `sntp`: calls `time_sync_start()`, which prepares the realtime provider of Crux Time and starts the
-   time synchronisation thread through the port `app/src/time_sync_port.h`. A failure is logged and the
+   time synchronisation thread through the port `framework/src/time_sync_port.h`. A failure is logged and the
    workload starts either way. `sntp` depends on `net` in Kconfig.
 6. `management`: calls `management_port_start()`, which runs on this thread, in the order that
-   `app/src/management_port.h` documents, the Crux services and the web server, and returns. A refusal at any
+   `framework/src/management_port.h` documents, the Crux services and the web server, and returns. A refusal at any
    step is logged under the tag `mgmt` and leaves management off; the workload starts either way. The sequence
    makes a key and formats the RAM disk on the main thread, and the time that takes has not been measured.
 7. `workload`: starts the two workload threads through the port `app/src/workload_os.h`.
@@ -161,9 +204,9 @@ This section shows how this repository applies them.
 | main | Zephyr | not set by this repository | 4096 bytes (`CONFIG_MAIN_STACK_SIZE` in `app/conf/workload.conf`), 16384 in `management` | Runs `composition_start()`, then ends. |
 | producer | `app/os`, through `workload_os_start()` | 5 | `CONFIG_CRUX_CONTROLLER_WORKER_STACK`: 4096 bytes by default, 8192 in `net` | Counts cycles on the Crux monotonic clock, sleeping in slices of at most 50 ms. For each pass with cycles due it calls the cycle hook (`system` feeds the watchdog here), then queues a message for every `message_every`-th cycle. |
 | consumer | `app/os` | 5 | the same size | Waits on the queue for up to 50 ms, logs `cycle=<n> value=<v>` under the tag `workload`, then calls the sink (`net` does its TCP exchange here, on this thread). |
-| time synchronisation (`sntp` only) | `app/os`, through `time_sync_port_start()` | 10 | `CONFIG_CRUX_CONTROLLER_TIME_STACK`: 8192 bytes by default | Waits 5 seconds, then queries the SNTP server once and again after every `CONFIG_CRUX_CONTROLLER_TIME_INTERVAL_S` seconds (600 by default); the policy decides whether the answer sets the Crux Time realtime clock. |
-| web session worker, web management worker, security event drain (`management` only) | Crux services, started by the composition zone | 11 | `CRUX_THREAD_STACK_BYTES` of Crux, 8192 by default with the web session | Verify a login (password hashing), run a configuration save, write security events to Logging. Starting values, not measured. |
-| HTTP server (`management` only) | Zephyr | the lowest preemptive priority; Crux has no setting for it | `CONFIG_HTTP_SERVER_STACK_SIZE`: 16384 bytes | Accepts connections, runs each TLS handshake inside accept and serves requests. Not measured. |
+| time synchronisation (`sntp`, `base`) | `framework/os`, through `time_sync_port_start()` | 10 | `CONFIG_CRUX_CONTROLLER_TIME_STACK`: 8192 bytes by default | Waits 5 seconds, then queries the SNTP server once and again after every `CONFIG_CRUX_CONTROLLER_TIME_INTERVAL_S` seconds (600 by default); the policy decides whether the answer sets the Crux Time realtime clock. |
+| web session worker, web management worker, security event drain (`management`, `base`) | Crux services, started by the composition zone | 11 | `CRUX_THREAD_STACK_BYTES` of Crux, 8192 by default with the web session | Verify a login (password hashing), run a configuration save, write security events to Logging. Starting values, not measured. |
+| HTTP server (`management`, `base`) | Zephyr | the lowest preemptive priority; Crux has no setting for it | `CONFIG_HTTP_SERVER_STACK_SIZE`: 16384 bytes | Accepts connections, runs each TLS handshake inside accept and serves requests. Not measured. |
 | log processing | Zephyr, deferred logging | 14 | 2048 bytes | Writes the log lines to LPUART1 at 115200 baud. |
 
 Priority numbers are Zephyr's, where a lower number is a higher priority, so the workload threads
@@ -172,7 +215,7 @@ first. The queue is a Zephyr `k_msgq` of 8 messages of 8 bytes. When it is full 
 warning and drops the message. The default configuration is a 100 ms period and a message every 10
 cycles, so about one message per second. The watchdog is hardware (WDOG1 on this board), not a thread,
 and only the producer feeds it. The numbers come from `app/os/workload_os_zephyr.c`,
-`app/conf/workload.conf`, `app/src/workload_thread.c`, `workload/include/workload.h`, `app/os/time_sync_zephyr.c`
+`app/conf/workload.conf`, `app/src/workload_thread.c`, `workload/include/workload.h`, `framework/os/time_sync_zephyr.c`
 and `app/Kconfig`. The stack sizes are declared values; stack use has not been measured, and the `sntp` thread's
 priority and stack are starting values.
 
@@ -216,11 +259,11 @@ Top-level directories and files:
 | `app/` | The Zephyr application, described below. |
 | `workload/` | The portable workload core (`include/workload.h`, `src/config_record.c`, `src/cycle.c`, `src/message.c`) and its `CMakeLists.txt`. |
 | `tests/` | `host/` (C tests that run on the build host), `native_sim/` (one Zephyr test application per configuration, `workload` to `sntp`), `native_sim_mbed/` (the `management` test application, which needs the Mbed TLS modules), `tooling/` (Python tests of the scripts, workflows, documents and build files). |
-| `scripts/` | `check_boundary.py` (the include check), `check_mbed_only.py` (checks that the Crux import cannot activate the GPL stacks), `check-format.sh` (clang-format over every C file), `analyze_host.py` (clang-tidy over the host-built sources, then the list of sources it did not analyse), `check_spdx.py` (checks that the first-party C, CMake, Kconfig, Python and shell files start with the licence identifier line), `check-patch.sh` (Zephyr's checkpatch, rule BRACES, on the C lines of a Git range; a copy of the checkpatch wrapper that `crux-pilot` publishes for product repositories), `check_include_domains.py` (runs the product include check and its wrapper from a local Crux checkout after checking their pinned SHA-256, which it reads from `ci.yml` or, without it, from `include-check-pins.json`; see [dependencies.md](dependencies.md#include-check-from-a-local-crux-checkout)), `bootstrap.sh` (the one entry that prepares a clone: the layout check and the workspace setup, run by the Dev Container after it is created), `build-board.sh` (the board build of one build configuration for the VS Code tasks and debug profiles, see [the board route](board-bring-up.md#vs-code-tasks-and-debug-profiles)), `dev-shell.sh` (runs a shell or one command in the Dev Container, see the [Dev Container reference](dev-container.md#without-vs-code)), which also passes the USB bus of the host for a J-Link probe (what has been run is listed on [the board page](board-bring-up.md#board-route-for-the-rt1060-evkb-rev-b)). |
+| `scripts/` | `check_boundary.py` (the include check), `check_mbed_only.py` (checks that the Crux import cannot activate the GPL stacks), `check-format.sh` (clang-format over every C file), `analyze_host.py` (clang-tidy over the host-built sources, then the list of sources it did not analyse), `check_spdx.py` (checks that the first-party C, CMake, Kconfig, Python and shell files start with the licence identifier line), `check-patch.sh` (Zephyr's checkpatch, rule BRACES, on the C lines of a Git range; a copy of the checkpatch wrapper that Crux publishes for product repositories), `check_include_domains.py` (runs the product include check and its wrapper from a local Crux checkout after checking their pinned SHA-256, which it reads from `ci.yml` or, without it, from `include-check-pins.json`; see [dependencies.md](dependencies.md#include-check-from-a-local-crux-checkout)), `bootstrap.sh` (the one entry that prepares a clone: the layout check and the workspace setup, run by the Dev Container after it is created), `build-board.sh` (the board build of one build configuration for the VS Code tasks and debug profiles, see [the board route](board-bring-up.md#vs-code-tasks-and-debug-profiles)), `dev-shell.sh` (runs a shell or one command in the Dev Container, see the [Dev Container reference](dev-container.md#without-vs-code)), which also passes the USB bus of the host for a J-Link probe (what has been run is listed on [the board page](board-bring-up.md#board-route-for-the-rt1060-evkb-rev-b)). |
 | `budgets/` | `limits.json` (declared minimum free percent per memory region and configuration), `collect.py` (reads a build log into a measurement), `check.py` (compares a measurement with the limits). |
 | `release/` | The release bundle tools: `assemble_bundle.py`, `check_bundle.py`, `rebuild_compare.py`, `parse_spdx.py` and `release-manifest.schema.json`. Hashes and identities only; no image is ever published. |
 | `docs/` | This documentation: [architecture.md](architecture.md), [glossary.md](glossary.md), [adding-a-capability.md](adding-a-capability.md), [roadmap.md](roadmap.md), the [Tutorial](tutorial.md), [Getting started](getting-started.md), [board-bring-up.md](board-bring-up.md), [composition-zone.md](composition-zone.md), [dependencies.md](dependencies.md), `findings/` and `history/` (the project history). |
-| `.github/workflows/` | `ci.yml` (tooling tests, west pins, host tests, the `base` to `management` builds, the boundary check and static analysis), `budget.yml`, `rebuild.yml`, `release.yml`, `scheduled-main.yml`. |
+| `.github/workflows/` | `ci.yml` (tooling tests, west pins, host tests, the `minimal` to `base` builds, the boundary check and static analysis), `budget.yml`, `rebuild.yml`, `release.yml`, `scheduled-main.yml` (the nightly jobs: the build against Crux `main` and the product integration check). |
 | `west.yml` | The west manifest and the pin. |
 | `README.md`, `CONTRIBUTING.md`, `CHANGELOG.md`, `RELEASE.md`, `SECURITY.md`, `LICENSE`, `CODEOWNERS` | Role and status, contribution rules, changes, release flow, vulnerability reporting, licence, ownership. |
 

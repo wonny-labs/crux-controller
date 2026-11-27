@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: Apache-2.0
+# The west manifest of the fixture product: a product repository that imports this repository the way
+# a product does, as the manifest repository of its own workspace (west's T2 topology). It lists
+# crux-controller and imports its manifest, which brings Crux at the commit that west.yml of
+# crux-controller pins, its narrowed import and its other projects. The framework is found as a
+# Zephyr module of the workspace; the product names no path of crux-controller.
+#
+# run.sh copies this folder into a new workspace and writes the commit under test into the copy as
+# the revision of crux-controller. The value below is only what a product would start from.
+manifest:
+  version: "1.2"
+
+  remotes:
+    - name: wonny-labs
+      url-base: https://github.com/wonny-labs
+
+  projects:
+    - name: crux-controller
+      remote: wonny-labs
+      revision: main
+      import: true
+
+  self:
+    path: product

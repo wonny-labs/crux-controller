@@ -434,7 +434,8 @@ class CiJob(unittest.TestCase):
         self.assertIn(f"pip install clang-format=={CLANG_FORMAT_VERSION}", self.commands())
 
     def test_clang_tidy_is_installed_at_the_pinned_package_version(self):
-        self.assertIn(f"apt-get install -y {CLANG_TIDY_PACKAGE}", self.commands())
+        # scripts/ci/apt-install.sh runs `apt-get install -y` with the arguments (test_apt_install.py).
+        self.assertIn(f"scripts/ci/apt-install.sh {CLANG_TIDY_PACKAGE}", self.commands())
 
     def test_both_scripts_run_in_the_job(self):
         commands = self.commands()

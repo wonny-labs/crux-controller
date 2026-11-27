@@ -14,7 +14,7 @@
 #               it installs nothing
 #   board-host  only for a board: prepare the Linux system that the J-Link probe is attached to (the WSL2
 #               distribution or native Linux) so that the Dev Container can open the probe. It is the step of
-#               the Crux checkout in the workspace folder (crux-pilot/scripts/bootstrap.sh board-host) and is
+#               the Crux checkout in the workspace folder (crux/scripts/bootstrap.sh board-host) and is
 #               never run automatically. Run it outside the container.
 #
 # It only chooses and orders; the work, its markers and its messages stay in the scripts it calls. Without
@@ -68,7 +68,7 @@ if [[ "$mode" == board-host ]]; then
         printf 'bootstrap: run "scripts/bootstrap.sh board-host" on the Linux system that has the probe (the WSL2 distribution or native Linux), not in the Dev Container.\n'
         exit 2
     fi
-    crux_entry="$workspace/crux-pilot/scripts/bootstrap.sh"
+    crux_entry="$workspace/crux/scripts/bootstrap.sh"
     if [[ ! -f "$crux_entry" ]]; then
         printf 'bootstrap: %s does not exist. Open the Dev Container once, then run this again. See docs/troubleshooting.md.\n' "$crux_entry"
         exit 1

@@ -7,12 +7,12 @@
  * file includes is <zephyr/kernel.h>, an entry on the allow-list of docs/composition-zone.md for
  * this zone (the allow-list also names zephyr/net/sntp.h, which only time_sync_zephyr.c includes).
  *
- * The numbers below are the ones that the Crux providers gave this workload, read at crux-pilot
+ * The numbers below are the ones that the Crux providers gave this workload, read at Crux
  * revision 37c92b18b44b7dfb95c2109f036f23d00f05cb4c (the revision that west.yml pins when this
  * file was written). This file may not include <crux/thread.h> or <crux/queue.h>, so it cannot
  * compare against them: each BUILD_ASSERT below compares a name to the literal copied from the
  * provider, so that a change of either side is a visible edit. The provider paths are relative to
- * the crux-pilot repository.
+ * the Crux repository.
  *
  *   thread priority  components/thread/ports/zephyr/thread_native.c:99
  *                    native_priority = 6 - options->priority, and CRUX_THREAD_PRIORITY_NORMAL is 1

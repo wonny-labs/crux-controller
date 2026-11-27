@@ -10,11 +10,12 @@ import unittest
 import yaml
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
+# Approved behaviour change: the repository is the controller framework module that products import,
+# with one base image, and no longer the reference consumer firmware.
 ROLE = (
-    "Crux Controller is the official reference consumer firmware for ongoing integration, "
-    "evaluation and regression testing of Crux Platform capabilities through public and approved "
-    "composition interfaces. It may provide supporting evidence for relevant platform milestones, "
-    "but it is not a mandatory exit criterion for any of them."
+    "Crux Controller is a controller framework for products built on Crux: a Zephyr module that "
+    "composes the Crux services of a networked controller, with a base image that runs those services "
+    "and no application. Products import the module and add their application."
 )
 DOCS = (
     "README.md", "SECURITY.md", "RELEASE.md", "CHANGELOG.md", "docs/dependencies.md",
@@ -65,7 +66,7 @@ class Promises(unittest.TestCase):
         body = text("RELEASE.md")
         self.assertIn("never published", body)
         self.assertIn("approval", body)
-        self.assertIn("62ed69f1", body)
+        self.assertIn("05a50475", body)
         self.assertIn("docs/product-composition.md", body)
 
 
@@ -85,7 +86,7 @@ class Dependencies(unittest.TestCase):
             if len(cells) == 5 and cells[0].startswith("`"):
                 match = re.search(r"`([0-9a-f]{40})`", cells[1])
                 rows[cells[0].strip("`")] = match.group(1) if match else None
-        for name in ("zephyr", "cmsis", "cmsis_6", "hal_nxp", "littlefs", "fatfs", "crux-pilot", "picolibc"):
+        for name in ("zephyr", "cmsis", "cmsis_6", "hal_nxp", "littlefs", "fatfs", "crux", "picolibc"):
             self.assertIn(name, rows)
             self.assertIsNotNone(rows[name], f"{name} has no 40-digit revision in its row")
 
@@ -122,7 +123,7 @@ class Dependencies(unittest.TestCase):
 
     def test_the_pinned_crux_revision_matches_the_manifest(self):
         manifest = yaml.safe_load((ROOT / "west.yml").read_text())["manifest"]
-        crux = next(p for p in manifest["projects"] if p["name"] == "crux-pilot")
+        crux = next(p for p in manifest["projects"] if p["name"] == "crux")
         short = crux["revision"][:8]
         for name in ("RELEASE.md", "docs/dependencies.md", "CHANGELOG.md"):
             self.assertIn(short, text(name), name)
@@ -141,7 +142,7 @@ class Tracking(unittest.TestCase):
     def test_the_main_documents_point_at_the_tracking_history(self):
         for name in ("docs/roadmap.md", "docs/README.md", "docs/glossary.md"):
             self.assertIn("history/board-runs-and-tracking.md", text(name), name)
-        self.assertIn("Nothing has been filed in `crux-pilot`", text("docs/roadmap.md"))
+        self.assertIn("Nothing has been filed in Crux", text("docs/roadmap.md"))
 
 
 class CiEvidenceRationale(unittest.TestCase):
@@ -203,9 +204,9 @@ class Contributing(unittest.TestCase):
 
     def test_the_budget_row_covers_the_steps_of_the_budget_matrix(self):
         steps = self.budget_steps()
-        self.assertEqual(steps[0], "base", "the budget matrix must start at base")
+        self.assertEqual(steps[0], "minimal", "the budget matrix must start at minimal")
         self.assertEqual(len(steps), len(set(steps)))
-        self.assertIn(f"`Budget` for `base` to `{steps[-1]}`:", text("CONTRIBUTING.md"))
+        self.assertIn(f"`Budget` for `minimal` to `{steps[-1]}`:", text("CONTRIBUTING.md"))
 
     def test_the_ci_row_names_the_other_jobs_of_ci_yml(self):
         row = next(
@@ -257,7 +258,7 @@ class GenericWording(unittest.TestCase):
         "docs/first-change.md", "docs/reviewing.md", "docs/roadmap.md",
     )
     NUMBER = re.compile(
-        r"pull request \d+|\bPR \d+|crux-pilot#\d+|crux-controller#\d+|/pull/\d+|/issues/\d+"
+        r"pull request \d+|\bPR \d+|crux(?:-pilot)?#\d+|crux-controller#\d+|/pull/\d+|/issues/\d+"
         r"|\bissue #?\d+|(?<![\w&])#\d{1,4}\b"
     )
 

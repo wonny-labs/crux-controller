@@ -33,7 +33,7 @@ install_sdk() {
 }
 
 case "$job" in
-    tooling | host-OFF | host-ON | static | patch-style | devcontainer | rebuild | release | scheduled-main)
+    tooling | host-OFF | host-ON | static | patch-style | devcontainer | rebuild | release | scheduled-main | product-integration)
         ;;
     pins)
         west init -l crux-controller
@@ -41,23 +41,23 @@ case "$job" in
         ;;
     boundary)
         west init -l crux-controller
-        west update crux-pilot
+        west update crux
         ;;
     workload)
         fetch_workspace -r zephyr/scripts/requirements-build-test.txt -r zephyr/scripts/requirements-run-test.txt
         install_sdk
         ;;
-    management)
+    management | base)
         # The default update only. The checks switch the Mbed TLS group on after they checked the
         # project list, fetch the modules with the Zephyr requirements, then install the SDK.
         west init -l crux-controller
         west update
         ;;
-    budget-management)
+    budget-management | budget-base)
         # The checks switch the Mbed TLS group on and fetch its modules, then install the SDK.
         fetch_workspace
         ;;
-    net | file | system | sntp | base | budget-*)
+    net | file | system | sntp | minimal | budget-*)
         fetch_workspace
         install_sdk
         ;;

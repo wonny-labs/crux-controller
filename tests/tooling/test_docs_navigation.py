@@ -206,8 +206,9 @@ class Glossary(unittest.TestCase):
 
     def test_the_glossary_says_what_product_means_and_does_not_mean(self):
         body = flat("docs/glossary.md")
-        self.assertIn("the firmware that this repository holds", body)
-        self.assertIn("not a product in the commercial sense", body)
+        # Approved behaviour change: the entry takes Crux's sense of the word.
+        self.assertIn("a firmware repository outside this repository that is built on Crux", body)
+        self.assertIn("This repository is not a product.", body)
 
     def test_the_composition_entry_lists_four_meanings(self):
         part = re.search(r"\*\*Composition\.\*\*(.*?)\n\n\*\*", read("docs/glossary.md"), re.S)
@@ -297,11 +298,11 @@ class Terminology(unittest.TestCase):
     # Approved behaviour change: the README is an entry page. The role sentence lives in CONTRIBUTING.md,
     # the README keeps "no release" in its one status line, and the board status is on the roadmap.
     def test_the_role_sentence_and_the_pinned_readme_facts_stay(self):
-        self.assertIn("Crux Controller is the official reference consumer firmware", flat("CONTRIBUTING.md"))
+        self.assertIn("Crux Controller is a controller framework for products built on Crux", flat("CONTRIBUTING.md"))
         text = flat("README.md")
         self.assertIn("There is no release.", text)
         self.assertIn("docs/roadmap.md", text)
-        self.assertIn("No `base`, `workload`-only, `file`, `system`, `sntp` or `management` image has run on a board.",
+        self.assertIn("No `minimal`, `workload`-only, `file`, `system`, `sntp`, `management` or `base` image has run on a board.",
                       flat("docs/roadmap.md"))
 
 
@@ -364,7 +365,7 @@ class AddingACapability(unittest.TestCase):
         self.assertRegex(found[0], r"^\d+\. ")
         part = " ".join(section(self.PAGE, found[0]).split())
         for needle in ("GPIO, I2C and SPI", "roadmap.md", "composition-zone.md", "architecture.md",
-                       "docs/choosing-an-api.md", "62ed69f10791695c0350996411676b930a96ce71"):
+                       "docs/choosing-an-api.md", "05a50475653becf7e4867686f4f88747173e1c21"):
             self.assertIn(needle, part, needle)
 
     def test_the_list_of_files_that_need_a_reviewed_change_is_still_there(self):

@@ -2,7 +2,7 @@
 
 /*
  * The composition zone of management: the one place that starts Crux's HTTPS management. It
- * implements the port that app/src declares (management_port.h) in the order that the port
+ * implements the port that framework/src declares (management_port.h) in the order that the port
  * documents, with the public headers of the Crux services, the two composition interfaces the zone
  * may name (<crux/file_zephyr.h> through the storage port, and <crux/web_zephyr.h>) and one Zephyr
  * header on the zone's allow-list, <zephyr/net/tls_credentials.h>, because Crux takes no part in
@@ -11,11 +11,11 @@
  * The roles, the session limits and the three permission names are the product's policy
  * (management_policy.h, plain C). This file copies the policy into the Crux type member by member
  * and refuses to start when the product's copy of a permission name is not the Crux text. The
- * password rule is left to Crux's reference rule. No account is made here: the first account is
- * made from the serial console, in a later change.
+ * password rule is left to Crux's reference rule. No account is made here: in the base image the
+ * first account is made from the serial console (cli_start.c), which starts after this sequence.
  *
  * The route sources, the packaged page and the route table are not here. They belong to the target
- * `app` and are named by app/management/management.cmake.
+ * `app` and are named by framework/management/management.cmake.
  *
  * Status: built in CI for the board and run on native_sim; never run on a board. The order below
  * is the one of management_port.h, which was read in Crux's guide, module fixture and web start

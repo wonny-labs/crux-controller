@@ -1,0 +1,8 @@
+# The controller framework of this repository as a Zephyr module. One Kconfig symbol,
+# CONFIG_CRUX_CONTROLLER_FRAMEWORK, turns it on; without it the module builds nothing.
+name: crux-controller
+build:
+  depends:
+    - crux
+  cmake: zephyr
+  kconfig: zephyr/Kconfig

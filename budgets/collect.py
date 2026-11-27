@@ -22,7 +22,7 @@ import sys
 
 TARGET = "mimxrt1060_evk@B//qspi"
 
-# Same definition as firmware_identity in crux-pilot's scripts/record-build-provenance.py and
+# Same definition as firmware_identity in Crux's scripts/record-build-provenance.py and
 # the guide's build-record section: the target, the hash of zephyr.bin and the hash of .config
 # without comments or blank lines, but with "# CONFIG_X is not set" lines.
 IDENTITY_ALGORITHM = "crux-firmware-identity-v1"

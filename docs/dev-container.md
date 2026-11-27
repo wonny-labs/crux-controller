@@ -87,7 +87,7 @@ Nothing in the files uses `host.docker.internal`, the Docker socket or a mount o
 The setup contacts these hosts. Only `mcr.microsoft.com` (the `FROM` line of `.devcontainer/Dockerfile`),
 `www.segger.com` (`.devcontainer/jlink/install-jlink.sh`) and the `github.com` remotes of `west.yml` are read from
 the files. The other names are the usual ones and were not looked
-up, and Zephyr's own manifest, which the pinned `crux-pilot` imports, was not read for this page: it may name
+up, and Zephyr's own manifest, which the pinned Crux imports, was not read for this page: it may name
 more hosts. A firewall or proxy must allow them.
 
 | Host | What for | When |
@@ -236,7 +236,7 @@ openssl x509 -noout -issuer -subject -in company.crt
 ## Layout
 
 The Dev Container mounts the parent folder of the clone as the west workspace, so that `.west/`, `zephyr/`,
-`modules/`, `crux-pilot/` and the other projects of the manifest (several GiB together; no size was measured)
+`modules/`, `crux/` and the other projects of the manifest (several GiB together; no size was measured)
 are on your Linux file system and survive a rebuild of the image. Use a folder of its own, empty apart from the clone, and name the clone `crux-controller`,
 because `west.yml` requires that name. The setup script stops with a message if the clone has another name or if
 the parent folder is a home directory, and the VS Code route checks the layout earlier still, with `check-host.sh`. The reason for an empty folder: `west init -l` puts `.west/` there and
@@ -338,7 +338,7 @@ cmake --build build/host && ctest --test-dir build/host --output-on-failure
 python -m unittest discover -s tests/tooling -v
 bash scripts/check-format.sh
 python scripts/analyze_host.py
-cd .. && python crux-controller/scripts/check_boundary.py --repo crux-controller --crux-root crux-pilot
+cd .. && python crux-controller/scripts/check_boundary.py --repo crux-controller --crux-root crux
 ```
 
 The board build of `workload`, as the `workload` job runs it (the SDK is already installed):
@@ -351,7 +351,7 @@ west build -p always -b 'mimxrt1060_evk@B//qspi' -d crux-controller/build/worklo
 
 `CLANG_TIDY` is set in the image, as the static analysis job needs it. The optional `management` job steps, the stronger boundary
 check and the product include check of [Set up without the Dev Container](native-setup.md) work unchanged from `/workspaces/ws` (the pinned
-`crux-pilot` contains the product include check); the container does not switch the Mbed TLS group on by itself. The container mounts the USB bus of the host and can have the J-Link software
+Crux contains the product include check); the container does not switch the Mbed TLS group on by itself. The container mounts the USB bus of the host and can have the J-Link software
 (`.devcontainer/jlink/`), so a probe can be reached from it after the host steps of
 [board-bring-up.md](board-bring-up.md), whose run list says what has been run; a `native_sim` run is not a board run.
 
@@ -361,10 +361,14 @@ push or share the image. Git ignores a placed package file.
 
 ## After a pin or SDK change
 
-A pin change is a new revision of `crux-pilot` in `west.yml`; it arrives with a `git pull`. The
+A pin change is a new revision of Crux in `west.yml`; it arrives with a `git pull`. The
 setup script runs `west update` only for a workspace that does not exist yet, so run it yourself, then run the
 setup script again: it installs Zephyr's Python requirements again when their files changed (the next call of
 `scripts/dev-shell.sh` would run it too).
+
+A workspace that has no `crux/` folder yet needs the same command once, because the commands of these pages expect
+the Crux checkout there. Any other Crux folder in that workspace is then unused and you can remove it. Build once with
+a pristine build directory (`-p always`).
 
 ```bash
 bash scripts/dev-shell.sh bash -c 'cd /workspaces/ws && west update && cd crux-controller && bash .devcontainer/setup.sh'

@@ -18,14 +18,15 @@ A file, job or option that a note names with a step id has the new name in the s
 
 A finding records what building a step or asking a question taught about using Crux through its public
 interfaces. Findings are kept as written. A later result is added as a dated update or a banner, and the
-reading of the earlier revision is not rewritten, so each note names the revision of `crux-pilot` (the Crux
-repository) that it was read at. The labels that a note uses (Measured, Inferred, Verified, Recorded, Open and
+reading of the earlier revision is not rewritten, so each note names the revision of Crux that it was
+read at. Notes written before Crux's repository was renamed to `wonny-labs/crux` call it `crux-pilot`; its commit
+hashes did not change. The labels that a note uses (Measured, Inferred, Verified, Recorded, Open and
 others) are listed in the [glossary](../glossary.md), under "Finding". Hashes and numbers in these notes name the
 history of the public repositories on GitHub; see the [glossary](../glossary.md#build-pin-and-evidence).
 
 A path in a finding that does not exist in this repository (for example under `components/`, `samples/`,
 `tests/native/` or `cmake/`, or a `docs/` page that this repository does not have) is a path in
-`crux-pilot` at the revision that the note names. A header such as `<zephyr/net/sntp.h>` belongs to Zephyr.
+Crux at the revision that the note names. A header such as `<zephyr/net/sntp.h>` belongs to Zephyr.
 
 | Note | What it records | Crux revision read |
 |---|---|---|
@@ -38,5 +39,5 @@ A path in a finding that does not exist in this repository (for example under `c
 | [s6-https-management-gaps.md](s6-https-management-gaps.md) | Groundwork for `management`: the three gaps found by reading before HTTPS management was wired. Superseded by the next note and kept as recorded. | `8e3737d2` and `dfd3ad7d` |
 | [s6-https-management.md](s6-https-management.md) | `management`: what the product had to write for HTTPS management, the CI results at a named revision, and what is open. | `8e3737d2` |
 
-The current pin is `62ed69f10791695c0350996411676b930a96ce71` (see `west.yml`). A note read at an earlier
+The current pin is `05a50475653becf7e4867686f4f88747173e1c21` (see `west.yml`). A note read at an earlier
 revision may no longer describe Crux at the pin.
