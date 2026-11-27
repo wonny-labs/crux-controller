@@ -43,9 +43,11 @@ build configurations by their earlier step ids, S0 to S6.
   [RELEASE.md](RELEASE.md#versions). No compatibility effect.
 - Health supervision (delivery stage 2): a boot record in a retained region of the base image, the reset cause
   read once, a supervisor thread that feeds the Crux watchdog only while each step meets its deadline, a fault
-  record for a hang or fatal error, and a safe-mode boot after repeated faults. The serial commands `recovery
-  clear`, `recovery exit` and `status` join the base image. Verified on `native_sim` and by host tests only;
-  nothing ran on a board, and the board check of the retained region is open.
+  record for a hang or fatal error, and a safe-mode boot after repeated faults. The serial commands `status`,
+  `reboot`, `recovery clear` and `recovery exit` join the base image; the last three need the permission
+  `system.reboot`, which exists only in an image with Crux Reboot. Compatibility: additive; no existing command,
+  public interface or stored format changes. Verified on `native_sim` and by host tests only; nothing ran on a
+  board, and the board check of the retained region is open.
 
 ### Capability names
 
