@@ -78,7 +78,7 @@ The criteria are in [section 8.4](#84-criteria).
 
 | # | Security requirement | Criteria |
 |---|---|---|
-| S1 | No default password exists, and the first account is created over a trusted path (IEC 62443-4-2 CR 1.5; ETSI EN 303 645 provision 5.1). | 28 |
+| S1 | No default password exists, and the first account is created over a trusted path (IEC 62443-4-2 CR 1.5 (not read); ETSI EN 303 645 provision 5.1 (not read)). | 28 |
 | S2 | A factory reset needs an authorised operator or a physical presence that the product defines, and no unauthenticated serial command erases the device. | 29, PR4 |
 | S3 | The items of section 6.2 are decided before the Product Ready milestone. | PR5 |
 | S4 | Every web route and serial command needs an Access login, except the login, its sign-in assets and first-account setup (section 6.2). | 34 |
@@ -514,6 +514,9 @@ The repository supplies the mechanisms and templates; publishing, commitments an
 
 | Requirement | Practice | Source read for these pages | Source not read |
 |---|---|---|---|
+| S1 | Standard | CRA Annex I Part I (2)(b) and (2)(d) (unofficial text), as mapped in section 6.5 | IEC 62443-4-2 CR 1.5; ETSI EN 303 645 provision 5.1 |
+| S2 | Standard | CRA Annex I Part I (2)(d) (unofficial text), as mapped in section 6.5 | IEC 62443-4-2 CR 4.2 |
+| S3 | Project-specific workaround | This page's choice that the section 6.2 items are decided by criterion PR5 (section 8.4); no external source | — |
 | S4 | Standard | Secondary mapping of IEC 62443-4-2 CR 1.1 (CIP Security Requirements); CRA Annex I Part I (2)(d) (unofficial text); Crux `components/web/include/crux/web.h` | IEC 62443-4-2 text |
 | S5 | Standard | CRA Annex I Part I (2)(d), protection from unauthorised access and its reporting (unofficial text); Crux `docs/access-contract.md` (delay and events) | IEC 62443-4-2 CR 1.11; ETSI EN 303 645 provision 5.1-5 |
 | S6 | Documented but optional | Zephyr `kernel/Kconfig` (`STACK_CANARIES`), `arch/Kconfig` (`HW_STACK_PROTECTION`); CRA Annex I Part I (2)(k) (unofficial text) | — |
@@ -604,7 +607,7 @@ The last column names the decision or constraint that defines the option.
 | Startup step deadlines | milliseconds per step, including `init`, `start` and `stop` | from board measurement | Section 4.1 | Reference configuration |
 | Image trial deadline | seconds | open, decided at implementation | Section 6.1 | D7 |
 | TLS identity at boot | off, on | off | On only in development and reference builds; a product build refuses it (section 5.5) | D11 |
-| Leave out a device management service | per service | all built | Least functionality | IEC 62443-4-2 CR 7.7, as direction |
+| Leave out a device management service | per service | all built | Least functionality | IEC 62443-4-2 CR 7.7 (not read), as direction |
 | Security event persistence | on, off | on | Off keeps the events in the RAM ring and the log (section 6.2) | L1, D16 |
 | Network limits | connections, backlog, sessions, request body, request deadline, request rate | Crux and Zephyr defaults | Overload degrades device management only; the rate limit needs [C18](controller-framework-platform-gaps.md#c18-request-rate-limit) | A1 |
 
@@ -848,8 +851,8 @@ D1 to D19 are decided, except D9, which is deferred, D16, which is a product dec
 | D12 | Repository role | Decided | The role sentence of CONTRIBUTING changes to a controller framework module with a base image that products import, as a reviewed change of the files that state the role; the glossary entry "Product" then takes Crux's sense; with D2 | Keep "reference consumer firmware" | CONTRIBUTING role section; [glossary](../glossary.md) |
 | D13 | Names | Decided | "Controller framework" for the module and "base image" for the one image, with no example image; Crux is the platform, and the documents reserve "the reference controller" for Crux's sample; the build configuration `base` (`prj.conf` alone) takes another name, for example `minimal`, as a reviewed change of the files that name it | Names with "platform" or "reference controller" | `tests/tooling/test_docs.py` |
 | D14 | Application start without a hardware watchdog | Decided | In product builds the application does not start; development, bench and `native_sim` builds may allow it by an explicit build option, and in them a hang ends in a software reset (section 4.3) | Start the application and report "watchdog not armed" | Crux System reports an unavailable watchdog as not supported |
-| D15 | Recovery and factory reset authority | Decided | Factory reset by an authorised operator through Crux's credential store erase (Crux `main`, C9), with an optional product-defined physical-presence input, and device preparation as the recovery when Access is unusable; it erases credentials, configuration, application data and persisted security events and keeps the device identity (section 5.3) | An unauthenticated serial wipe | IEC 62443-4-2 CR 4.2, as direction |
-| D16 | Serial command line in production and audit persistence | Product decision | Direction in section 6.2; each product settles the details at product readiness | — | IEC 62443-4-2 CR 2.8 to 2.11 and CR 7.7, as direction |
+| D15 | Recovery and factory reset authority | Decided | Factory reset by an authorised operator through Crux's credential store erase (Crux `main`, C9), with an optional product-defined physical-presence input, and device preparation as the recovery when Access is unusable; it erases credentials, configuration, application data and persisted security events and keeps the device identity (section 5.3) | An unauthenticated serial wipe | IEC 62443-4-2 CR 4.2 (not read), as direction |
+| D16 | Serial command line in production and audit persistence | Product decision | Direction in section 6.2; each product settles the details at product readiness | — | IEC 62443-4-2 CR 2.8 to 2.11 and CR 7.7 (not read), as direction |
 | D17 | Update transport | Open | Decided with Crux's secure boot work at product readiness (section 6.1) | — | MCUboot design; C10 |
 | D18 | Role under the EU Cyber Resilience Act | Decided, legal confirmation needed | A component that products integrate, designed to the product-level requirements of Annex I; organisational duties are listed with their holder and not implemented (sections 6.5 and 6.6) | This repository as a product placed on the market | Regulation (EU) 2024/2847, unofficial text |
 | D19 | Support period | Decided | A field that each product supplies (H2); this repository fixes none | A support period fixed by this repository | Regulation (EU) 2024/2847 Article 13(8), unofficial text |
