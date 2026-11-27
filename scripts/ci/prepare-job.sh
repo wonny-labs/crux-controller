@@ -41,7 +41,7 @@ case "$job" in
         ;;
     boundary)
         west init -l crux-controller
-        west update crux-pilot
+        west update crux
         ;;
     workload)
         fetch_workspace -r zephyr/scripts/requirements-build-test.txt -r zephyr/scripts/requirements-run-test.txt

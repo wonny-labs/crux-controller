@@ -101,7 +101,7 @@ class JlinkFolder(unittest.TestCase):
         self.assertFalse((JLINK / "99-crux-jlink.rules").exists())
         pin = re.search(r"revision: ([0-9a-f]{40})", (ROOT / "west.yml").read_text()).group(1)
         page = (ROOT / "docs" / "board-bring-up.md").read_text()
-        self.assertIn(f"crux-pilot/blob/{pin}/.devcontainer/jlink/99-crux-jlink.rules", page)
+        self.assertIn(f"crux/blob/{pin}/.devcontainer/jlink/99-crux-jlink.rules", page)
         for name in ("install-jlink.sh",):
             self.assertNotIn("from 99-crux-jlink.rules on the Linux host", (JLINK / name).read_text())
 

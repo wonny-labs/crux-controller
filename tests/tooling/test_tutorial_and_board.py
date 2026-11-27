@@ -170,14 +170,14 @@ class Tutorial(Common, unittest.TestCase):
         for command in ("cmake -S tests/host -B build/host -G Ninja -DWORKLOAD_SANITIZE=OFF",
                         "ctest --test-dir build/host --output-on-failure",
                         "python -m unittest discover -s tests/tooling",
-                        "python scripts/check_boundary.py --crux-root ../crux-pilot"):
-            self.assertIn(command, body, command)
+                        "python scripts/check_boundary.py --crux-root ../crux"):
+            self.assertRegex(body, re.escape(command) + r"(?![-\w])", command)
         # CI runs the boundary check from the workspace folder with workspace-relative paths.
-        ci = "python crux-controller/scripts/check_boundary.py --repo crux-controller --crux-root crux-pilot"
-        self.assertIn(ci, norm(ci_map.run("boundary-check")))
-        self.assertEqual("python scripts/check_boundary.py --crux-root ../crux-pilot",
-                         from_root(ci).replace(" --repo crux-controller", "").replace("--crux-root crux-pilot",
-                                                                                      "--crux-root ../crux-pilot"))
+        ci = "python crux-controller/scripts/check_boundary.py --repo crux-controller --crux-root crux"
+        self.assertRegex(norm(ci_map.run("boundary-check")), re.escape(ci) + r"(?![-\w])")
+        self.assertEqual("python scripts/check_boundary.py --crux-root ../crux",
+                         from_root(ci).replace(" --repo crux-controller", "").replace("--crux-root crux",
+                                                                                      "--crux-root ../crux"))
 
     def test_the_clone_address_is_generic(self):
         # The tutorial starts from a working Dev Container; the clone is step 3 of Getting started.
@@ -264,7 +264,7 @@ class BoardPage(Common, unittest.TestCase):
         pin = re.search(r"revision: ([0-9a-f]{40})", read("west.yml")).group(1)
         body = read(BOARD_PAGE)
         for page in ("docs/boards/mimxrt1060_evkb.md", "docs/board-jlink-usbipd.md"):
-            self.assertIn(f"https://github.com/wonny-labs/crux-pilot/blob/{pin}/{page}", body, page)
+            self.assertIn(f"https://github.com/wonny-labs/crux/blob/{pin}/{page}", body, page)
 
     def test_no_privileged_container_and_the_usb_access_is_narrow(self):
         body = read(BOARD_PAGE)

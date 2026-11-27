@@ -5,16 +5,16 @@ repository. It is short on purpose. For what the repository is, read the [README
 
 ## What this repository is, and is not
 
-Crux Controller is built on [Crux](https://github.com/wonny-labs/crux-pilot) (the `crux-pilot`
+Crux Controller is built on [Crux](https://github.com/wonny-labs/crux) (the `crux`
 repository) and uses Crux only through its public and approved composition interfaces, so that a gap in
-those interfaces shows up here and is reported to `crux-pilot` as an issue.
+those interfaces shows up here and is reported to Crux as an issue.
 
 - Crux Controller is a controller framework for products built on Crux: a Zephyr module that composes
   the Crux services of a networked controller, with a base image that runs those services and no
   application. Products import the module and add their application.
 - It is not a product and not Crux, and it adds no Crux public interface. A product is a firmware
   repository outside this one that imports Crux and the framework module.
-- It is not evidence for any Crux security claim. That evidence lives in `crux-pilot`.
+- It is not evidence for any Crux security claim. That evidence lives in Crux.
 - The configurations from `workload` to `management` build on a synthetic workload written for this
   repository. The build configurations `minimal`, `workload`, `net`, `file`, `system`, `sntp`, `management`
   and `base` are built in CI. Only the `net` image has run on a board (twice, on one bench; see
@@ -84,7 +84,7 @@ The workflows in `.github/workflows/` and the [`Jenkinsfile`](Jenkinsfile) only 
 | `devcontainer.yml` | `Dev container`: builds the image of `.devcontainer/` and runs in it, through `scripts/dev-shell.sh`, the tooling tests, the format check, the static analysis, the host tests (sanitizer off and on), both boundary checks, the `native_sim` scenarios and the RT1060-EVKB cross-build of `workload` with its output and configuration checks. Its pins are those of `ci.yml`, and `tests/tooling/test_devcontainer.py` compares them | pull requests and pushes to `main` that change `.devcontainer/`, `scripts/dev-shell.sh`, `scripts/bootstrap.sh`, `.vscode/`, `west.yml`, `scripts/ci/` or the workflow, nightly, and by hand |
 | `rebuild.yml` | builds `net` twice at different paths and compares `zephyr.bin` and `firmware_identity` | by hand, nightly, and pull requests that change the workflow, `release/` or `scripts/ci/` |
 | `release.yml` | dry run of the release flow, publishes nothing | by hand, nightly, and pull requests that change the workflow, `release/`, `west.yml` or `scripts/ci/` |
-| `scheduled-main.yml` | `net build against crux-pilot main` and `product integration (fixture product, native_sim)` (checks of the `nightly` tier only) | daily, and by hand |
+| `scheduled-main.yml` | `net build against Crux main` and `product integration (fixture product, native_sim)` (checks of the `nightly` tier only) | daily, and by hand |
 
 The scheduled build is information only: it shows ahead of time that a Crux pin moved or that Crux
 broke the build, and the pinned build stays the gate for pull requests. Every RT1060-EVKB build requires
@@ -93,14 +93,14 @@ review, and a build in CI is not a run on a board.
 
 ### CI tiers
 
-CI runs in the three tiers of Crux, with its entry point, tier names, map file format and Jenkins parameters, as the [Crux CI page](https://github.com/wonny-labs/crux-pilot/blob/05a50475653becf7e4867686f4f88747173e1c21/docs/ci.md) describes.
+CI runs in the three tiers of Crux, with its entry point, tier names, map file format and Jenkins parameters, as the [Crux CI page](https://github.com/wonny-labs/crux/blob/05a50475653becf7e4867686f4f88747173e1c21/docs/ci.md) describes.
 `scripts/ci/tiers.py` is a copy of the Crux selector.
 
 | Tier | When | What runs |
 |---|---|---|
 | `fast` | every push to a draft pull request, a Jenkins branch build | the tooling tests, and the checks of the parts of the repository that the change touches; a change to a CI, build or script file, `west.yml`, a CMake, Kconfig, `.conf` or overlay file, `budgets/`, a path outside the parts, or more than three parts runs `full` instead |
 | `full` | a pull request that is ready for review and every push to it, a push to `main`, a Jenkins change request | every check of the table above, under the path filters of its workflow |
-| `nightly` | daily on `main` | every check whatever the change, the build against `crux-pilot` main, and the product integration check: a fixture product (`tests/product_integration`) imports this repository at the commit under test into a west workspace of its own and builds and runs on `native_sim` |
+| `nightly` | daily on `main` | every check whatever the change, the build against Crux `main`, and the product integration check: a fixture product (`tests/product_integration`) imports this repository at the commit under test into a west workspace of its own and builds and runs on `native_sim` |
 
 The parts and their checks are the `[components]` and `fast` entries of `scripts/ci/checks.toml`.
 Mark a draft pull request ready for review to run the `full` tier.
@@ -117,8 +117,8 @@ A new check goes into `scripts/ci/checks.toml`, and its id into `EXPECTED_FULL` 
 
 ## The pin and the manifest
 
-`west.yml` imports `crux-pilot` at a pinned commit, a full SHA and never a branch or a tag. `west
-crux-pins` must print a `CONTRACT crux-pilot` line and no `MISMATCH`; the `West pins` job checks this
+`west.yml` imports `crux` at a pinned commit, a full SHA and never a branch or a tag. `west
+crux-pins` must print a `CONTRACT crux` line and no `MISMATCH`; the `West pins` job checks this
 and has a negative control that must fail. Another project is added to `west.yml` only with a comment
 that says why it is there and where its revision comes from, and `docs/dependencies.md` is updated. The
 optional groups of the Crux manifest stay off in `west.yml` and in every job except `management build`, `base build`
@@ -181,7 +181,7 @@ have changed since, they are the source of truth.
 
 These are the configured automated checks of this repository, not a claim of MISRA C, CERT C, security
 or functional-safety compliance. The Crux platform states its own position in its
-[coding guidelines](https://github.com/wonny-labs/crux-pilot/blob/751e04aead779ac08e438ec1e2640e57fc50e9fe/docs/coding-guidelines.md),
+[coding guidelines](https://github.com/wonny-labs/crux/blob/751e04aead779ac08e438ec1e2640e57fc50e9fe/docs/coding-guidelines.md),
 read at that commit.
 
 Known gaps, not scheduled: the 20 sources above have no clang-tidy analysis, and nothing measures how much
@@ -194,7 +194,7 @@ Crux's former controller sample used the same prefix, and a Crux test image
 (`tests/board_images/integration_probe/Kconfig`) still defines `CONFIG_CRUX_CONTROLLER_M3`. Crux System still refuses a configuration that enables
 `CONFIG_CRUX_CONTROLLER_M3`, as a further owner of the native watchdog next to `WDT_SHELL`,
 `HWINFO_SHELL` and `TASK_WDT_HW_FALLBACK`, not because of the prefix. The note
-`docs/findings/s4-system-composition.md` records this as read at `crux-pilot` `37c92b18`, and the same
+`docs/findings/s4-system-composition.md` records this as read at Crux `37c92b18`, and the same
 check was in the Crux source at `8e3737d2`, `1c4cf284`, `c5439c51`, `ea16f99f`, `ce2eb313`, `13c950bb`, `bd9efbc7` and `62ed69f1` and is at `05a50475`
 (`components/system/ports/zephyr/CMakeLists.txt`). This repository never defines that symbol.
 
@@ -246,7 +246,7 @@ if one exists, is supported.
 ## Security and licence
 
 Report a suspected vulnerability privately as [SECURITY.md](SECURITY.md) describes, and not in a public
-issue or pull request. A weakness in Crux itself belongs in `crux-pilot`.
+issue or pull request. A weakness in Crux itself belongs in Crux.
 
 The licence is Apache-2.0 ([LICENSE](LICENSE)). Section 5 of the licence applies to a contribution
 that you submit, unless you state otherwise.

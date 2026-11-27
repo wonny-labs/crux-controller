@@ -24,7 +24,7 @@ def load_manifest():
 class ManifestIsOptionA(unittest.TestCase):
     def test_projects_are_crux_and_the_test_only_libc(self):
         projects = load_manifest()["projects"]
-        self.assertEqual([p["name"] for p in projects], ["crux-pilot", "picolibc"])
+        self.assertEqual([p["name"] for p in projects], ["crux", "picolibc"])
         # The Crux import is narrowed: the three GPL stacks are blocked by name, so enabling the
         # Mbed TLS group would activate Mbed TLS and TF-PSA-Crypto and none of them (project list
         # only: no job fetches or builds with the group on).
@@ -45,8 +45,8 @@ class ManifestIsOptionA(unittest.TestCase):
     def test_crux_is_pinned_to_the_approved_commit(self):
         # Moving the pin is a reviewed change of this test and of west.yml together.
         # The project owner approved the move of Crux to Zephyr v4.5.0 on 27 November 2026. This
-        # commit of crux-pilot main contains it (wonny-labs/crux-pilot#603) and its follow-ups up to
-        # wonny-labs/crux-pilot#606; the crypto modules follow Zephyr's own manifest at v4.5.0.
+        # commit of Crux main contains it (wonny-labs/crux#603) and its follow-ups up to
+        # wonny-labs/crux#606; the crypto modules follow Zephyr's own manifest at v4.5.0.
         revision = load_manifest()["projects"][0]["revision"]
         self.assertEqual(revision, "05a50475653becf7e4867686f4f88747173e1c21")
 
@@ -85,7 +85,7 @@ class ManifestIsOptionA(unittest.TestCase):
 # `active` or `inactive`). The Crux
 # manifest filters both optional groups out, so `all` lists their projects as inactive.
 BASE = [
-    ("manifest", True), ("crux-pilot", True), ("zephyr", True), ("cmsis", True),
+    ("manifest", True), ("crux", True), ("zephyr", True), ("cmsis", True),
     ("cmsis_6", True), ("hal_nxp", True), ("littlefs", True), ("fatfs", True),
     ("picolibc", True), ("reliance-edge", False),
 ]
@@ -236,18 +236,18 @@ class MbedOnlyListing(unittest.TestCase):
             self.assertEqual(2, wrong_mode.returncode)
 
     def test_an_empty_or_unresolved_listing_does_not_pass(self):
-        for text in ("", "manifest active\n", "manifest active\ncrux-pilot active\n"):
+        for text in ("", "manifest active\n", "manifest active\ncrux active\n"):
             for mode in ("default", "mbed"):
                 self.assertTrue(check_mbed_only.check_listing(text, mode), (text, mode))
 
     def test_a_line_that_is_not_name_and_state_is_rejected(self):
         with self.assertRaises(ValueError):
-            check_mbed_only.parse_listing("crux-pilot\n")
+            check_mbed_only.parse_listing("crux\n")
         with self.assertRaises(ValueError):
-            check_mbed_only.parse_listing("crux-pilot maybe\n")
+            check_mbed_only.parse_listing("crux maybe\n")
         # `west list` prints the word active or inactive, not a Python boolean.
         with self.assertRaises(ValueError):
-            check_mbed_only.parse_listing("crux-pilot True\n")
+            check_mbed_only.parse_listing("crux True\n")
 
     def test_an_unknown_mode_is_rejected(self):
         with self.assertRaises(ValueError):
