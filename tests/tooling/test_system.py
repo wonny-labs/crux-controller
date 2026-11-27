@@ -354,8 +354,9 @@ class SystemSources(unittest.TestCase):
         )
         self.assertEqual(["app/src", "workload", "app/compose", "app/os", "include", "framework/src", "framework/compose", "framework/os",
                           # Added with the fixture application (delivery stage 3); the zone
-                          # allow-lists above stay as they were.
-                          "tests/framework/fixture"],
+                          # allow-lists above stay as they were. The application template
+                          # (delivery stage 4) adds a rule and no zone header.
+                          "tests/framework/fixture", "template"],
                          [rule.directory for rule in check_boundary.RULES])
 
     def test_a_private_system_header_fails_in_every_tree(self):

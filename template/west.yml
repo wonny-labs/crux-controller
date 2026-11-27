@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: Apache-2.0
+# The west manifest of the product. The product repository is the manifest repository, and the
+# controller framework is one of its projects (west's T2 topology). The framework's manifest is
+# imported, so Crux, Zephyr and the modules come at the commits that the framework verified, with
+# the framework's narrowed Crux import. See README.md.
+manifest:
+  version: "1.2"
+
+  # Fetch the optional Mbed TLS and TF-PSA-Crypto modules, which web management needs. The
+  # framework's import of Crux blocks the wolf projects of the same group by name, so this fetches
+  # no GPL stack. Check the licences of the modules before you distribute a binary.
+  group-filter: [+crux-secure-management]
+
+  remotes:
+    - name: wonny-labs
+      url-base: https://github.com/wonny-labs
+
+  projects:
+    - name: crux-controller
+      remote: wonny-labs
+      # A template cannot name the commit that holds it, so it follows main here. The joining
+      # steps of README.md write the full commit SHA of your clone (scripts/pin_framework.py of
+      # crux-controller); move it the same way. Never build a release from a branch.
+      revision: main
+      import: true
+
+  self:
+    path: product
+    userdata:
+      # The framework commit that this copy was made from, written by the first pin. Later changes
+      # of the template never reach a copy.
+      template-revision: none

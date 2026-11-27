@@ -33,7 +33,7 @@ install_sdk() {
 }
 
 case "$job" in
-    tooling | host-OFF | host-ON | static | patch-style | devcontainer | rebuild | release | scheduled-main | product-integration)
+    tooling | host-OFF | host-ON | static | patch-style | devcontainer | rebuild | release | scheduled-main | product-integration | template)
         ;;
     pins)
         west init -l crux-controller

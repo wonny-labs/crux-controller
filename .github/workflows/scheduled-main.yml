@@ -2,11 +2,12 @@ name: scheduled-main
 
 # The nightly jobs of scripts/ci/checks.toml (CONTRIBUTING.md, CI tiers), each run by
 # scripts/ci/run-tier.sh: scheduled-main, a daily build against the current main of Crux,
-# information only, and product-integration, a fixture product that imports this repository at
-# the commit under test into a west workspace of its own and runs on native_sim. The pinned build in
+# information only; product-integration, a fixture product that imports this repository at
+# the commit under test into a west workspace of its own and runs on native_sim; and template, a
+# copy of the application template that does the same by the joining steps of its README. The pinned build in
 # ci.yml stays the gate for pull requests. The workflow commits nothing, publishes nothing and
-# uploads no artefact. A manual run on a branch (workflow_dispatch with the tier nightly) runs both
-# jobs on the head of that branch.
+# uploads no artefact. A manual run on a branch (workflow_dispatch with the tier nightly) runs every
+# job on the head of that branch.
 
 on:
   schedule:
@@ -137,6 +138,57 @@ jobs:
               echo "The job was cancelled before it finished. It says nothing about the import."
             else
               echo "The job failed. Open the failing step in the log: the workspace, the build or the run."
+            fi
+            echo
+            echo "Published nothing, uploaded no artefact, used no board."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  template:
+    name: application template (a copy joins its own workspace, native_sim)
+    runs-on: ubuntu-24.04
+    if: github.event_name != 'schedule' || github.repository == 'wonny-labs/crux-controller'
+    timeout-minutes: 60
+    env:
+      TIER: ${{ inputs.tier || 'auto' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: crux-controller
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Plan the checks of this tier
+        id: plan
+        working-directory: crux-controller
+        run: |
+          scripts/ci/run-tier.sh "$TIER" --job template --plan
+          echo "checks=$(scripts/ci/run-tier.sh "$TIER" --job template --count)" >> "$GITHUB_OUTPUT"
+      - name: Install host packages
+        if: steps.plan.outputs.checks != '0'
+        run: |
+          crux-controller/scripts/ci/apt-install.sh --no-install-recommends \
+            build-essential ca-certificates device-tree-compiler file gperf git \
+            libmagic1 pkg-config wget xz-utils
+      - name: Install pinned build tools
+        if: steps.plan.outputs.checks != '0'
+        run: python -m pip install cmake==3.28.4 ninja==1.11.1 west==1.4.0 pyyaml
+      - name: Run the checks of this tier
+        if: steps.plan.outputs.checks != '0'
+        working-directory: crux-controller
+        run: scripts/ci/run-tier.sh "$TIER" --job template
+      - name: Write the result summary
+        if: always()
+        run: |
+          {
+            echo "### Result"
+            echo
+            if [ "${{ job.status }}" = "success" ]; then
+              echo "A copy of the application template imported the framework at the commit under test, built, ran and passed its test on native_sim, and its joining steps passed."
+            elif [ "${{ job.status }}" = "cancelled" ]; then
+              echo "The job was cancelled before it finished. It says nothing about the template."
+            else
+              echo "The job failed. Open the failing step in the log: the workspace, the build, the run, the test or the joining steps."
             fi
             echo
             echo "Published nothing, uploaded no artefact, used no board."

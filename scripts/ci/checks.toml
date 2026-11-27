@@ -170,6 +170,13 @@ env = { BOARD = "mimxrt1060_evk@B//qspi" }
 # runs. Its checks make that workspace in the runner's temporary folder.
 [jobs.product-integration]
 description = "Product integration: a fixture product imports the framework, native_sim"
+# The application template check (criterion 47): a copy of template/ joins a west workspace of its
+# own with the framework at the commit under test, builds, runs and runs its first test on
+# native_sim, and the joining steps of its README run against local repositories (criterion 49).
+# Its checks make that workspace in the runner's temporary folder. The board build of the copy
+# needs the Zephyr SDK, so it runs in the job base.
+[jobs.template]
+description = "Application template: a copy joins its own workspace, native_sim, and its joining steps"
 
 # --- tooling -------------------------------------------------------------------------------------
 
@@ -1008,6 +1015,18 @@ bash "$kit/style/check-includes.sh"
 scope = "always"
 fast = ["product", "management"]
 
+# Criterion 48: the build files of the application template add no source, subdirectory, include
+# path or module from outside template/, and no file of the folder holds an absolute path or a path
+# that leaves it. The includes of the template sources are part of boundary-check.
+[[check]]
+id = "template-check"
+job = "boundary"
+run = '''
+python scripts/check_template.py
+'''
+scope = "always"
+fast = ["product", "management"]
+
 # --- minimal -------------------------------------------------------------------------------------
 
 [[check]]
@@ -1346,6 +1365,27 @@ id = "base-vulnerabilities"
 job = "base"
 run = '''
 scripts/ci/match-vulnerabilities.sh build/base/spdx | tee -a "${GITHUB_STEP_SUMMARY:-/dev/stdout}"
+'''
+tiers = ["nightly"]
+
+# The board build of the application template (criterion 47): a copy of template/ in a new west
+# workspace with the framework at the commit under test, built for the board with the Zephyr SDK of
+# this job and the verified Zephyr gate. west update takes the repositories of this job's workspace
+# as its cache (--path-cache), so the copy's workspace has the same revisions without a second
+# download. It flashes nothing.
+[[check]]
+id = "template-board-workspace"
+job = "base"
+run = '''
+CRUX_TEMPLATE_WEST_CACHE="$(cd .. && pwd)" tests/template/run.sh workspace "${RUNNER_TEMP:-/tmp}/template-board"
+'''
+tiers = ["nightly"]
+
+[[check]]
+id = "template-board-build"
+job = "base"
+run = '''
+CRUX_TEMPLATE_BOARD="$BOARD" tests/template/run.sh board "${RUNNER_TEMP:-/tmp}/template-board"
 '''
 tiers = ["nightly"]
 
@@ -2203,5 +2243,54 @@ job = "product-integration"
 run = '''
 tests/product_integration/run.sh vulnerabilities "${RUNNER_TEMP:-/tmp}/product-integration" \
   | tee -a "${GITHUB_STEP_SUMMARY:-/dev/stdout}"
+'''
+tiers = ["nightly"]
+
+# --- template ------------------------------------------------------------------------------------
+# A copy of the application template joins a west workspace of its own by the joining steps of
+# template/README.md, at the commit under test, with Crux at the pin of this repository through the
+# import (criterion 47). tests/template/run.sh does each step and refuses a folder that it did not
+# make. It flashes nothing and operates no board. Locally, from the clone on a Linux host:
+#   scripts/ci/run-tier.sh nightly --job template
+
+[[check]]
+id = "template-workspace"
+job = "template"
+run = '''
+tests/template/run.sh workspace "${RUNNER_TEMP:-/tmp}/template"
+'''
+tiers = ["nightly"]
+
+[[check]]
+id = "template-build"
+job = "template"
+run = '''
+tests/template/run.sh build "${RUNNER_TEMP:-/tmp}/template"
+'''
+tiers = ["nightly"]
+
+[[check]]
+id = "template-run"
+job = "template"
+run = '''
+tests/template/run.sh run "${RUNNER_TEMP:-/tmp}/template"
+'''
+tiers = ["nightly"]
+
+[[check]]
+id = "template-test"
+job = "template"
+run = '''
+tests/template/run.sh test "${RUNNER_TEMP:-/tmp}/template"
+'''
+tiers = ["nightly"]
+
+# Criterion 49: the joining steps of template/README.md, run as written against local repositories.
+# The tooling job has no west, so the test skips there; here it must run.
+[[check]]
+id = "template-joining-steps"
+job = "template"
+run = '''
+CRUX_TEMPLATE_REQUIRE_WEST=1 python -m unittest discover -s tests/tooling -p test_template_joining.py -v
 '''
 tiers = ["nightly"]

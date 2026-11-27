@@ -1,0 +1,50 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* The devicetree of the product on native_sim, for development and CI only.
+ *
+ * - Crux Logging writes to uart0, which boards/native_sim.conf connects to standard output.
+ * - The Crux serial console owns an emulated UART through the alias crux-serial0, because Crux
+ *   Serial accepts only an emulated UART on native_sim. Nothing is attached to it.
+ * - The store is a RAM disk with the fstab entry controller_storage, which the framework mounts and
+ *   formats at every start. */
+&uart0 {
+    current-speed = <115200>;
+};
+
+/ {
+    aliases {
+        crux-serial0 = &console_emul;
+    };
+
+    chosen {
+        zephyr,log-uart = &logging_uarts;
+    };
+
+    logging_uarts: logging-uarts {
+        compatible = "zephyr,log-uart";
+        uarts = <&uart0>;
+    };
+
+    console_emul: console-emul {
+        compatible = "zephyr,uart-emul";
+        current-speed = <115200>;
+        rx-fifo-size = <1024>;
+        tx-fifo-size = <1024>;
+        status = "okay";
+    };
+
+    ramdisk0 {
+        compatible = "zephyr,ram-disk";
+        disk-name = "RAM";
+        sector-size = <512>;
+        sector-count = <1024>;
+    };
+
+    fstab {
+        compatible = "zephyr,fstab";
+        controller_storage: controller-storage {
+            compatible = "zephyr,fstab,fatfs";
+            mount-point = "/RAM:";
+            disk-access;
+        };
+    };
+};

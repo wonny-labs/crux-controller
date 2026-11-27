@@ -1,0 +1,106 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* The devicetree of the product on the reference board, the RT1060-EVKB. The nodes are those of the
+ * framework's base image on this board (the overlays of app/boards of crux-controller at the commit
+ * that the copy was made from). The wiring of LPUART3 to a terminal and the retained region's
+ * behaviour across resets have not been checked on a board. */
+
+/* Crux Logging writes to LPUART1; the Crux serial console owns LPUART3 through the alias
+ * crux-serial0. The two never share a UART. */
+/ {
+    aliases {
+        crux-serial0 = &lpuart3;
+        crux-watchdog0 = &wdog0;
+        /delete-property/ led0;
+    };
+
+    chosen {
+        zephyr,log-uart = &logging_uarts;
+    };
+
+    logging_uarts: logging-uarts {
+        compatible = "zephyr,log-uart";
+        uarts = <&lpuart1>;
+    };
+};
+
+&lpuart1 {
+    status = "okay";
+    current-speed = <115200>;
+    parity = "none";
+};
+
+&lpuart3 {
+    status = "okay";
+    current-speed = <115200>;
+    parity = "none";
+};
+
+/* Crux System owns WDOG1 through the alias crux-watchdog0; the framework arms it. */
+&wdog0 {
+    status = "okay";
+};
+
+/* The Ethernet composition of this board, with a locally administered MAC address. Replace the
+ * address with the product's own. GPIO1.9 belongs to the PHY reset, and the PHY uses the native
+ * 500 ms monitor. */
+/delete-node/ &green_led;
+
+&enet_mac {
+    /delete-property/ zephyr,random-mac-address;
+    local-mac-address = [02 43 52 55 58 20];
+};
+
+&phy {
+    /delete-property/ int-gpios;
+};
+
+/* The store: a FAT volume on a RAM disk of 524,288 bytes in the SDRAM, through the fstab entry
+ * controller_storage, which the framework mounts and formats at every start. */
+/ {
+    ramdisk0 {
+        compatible = "zephyr,ram-disk";
+        disk-name = "RAM";
+        sector-size = <512>;
+        sector-count = <1024>;
+    };
+
+    fstab {
+        compatible = "zephyr,fstab";
+        controller_storage: controller-storage {
+            compatible = "zephyr,fstab,fatfs";
+            mount-point = "/RAM:";
+            disk-access;
+        };
+    };
+};
+
+/* The retained region of health supervision: the boot counter, the operator reset marker and the
+ * last-fault record, as a Zephyr retention area of 48 bytes with a prefix and a CRC-32, over a
+ * retained RAM area at the end of OCRAM2. OCRAM2 shrinks by the 256 bytes of the area, so that the
+ * link never places anything there. */
+&ocram2 {
+    reg = <0x20200000 0x7ff00>;
+};
+
+/ {
+    controller_retained_ram: retained-ram@2027ff00 {
+        compatible = "mmio-sram";
+        reg = <0x2027ff00 0x100>;
+        status = "okay";
+
+        retainedmem {
+            compatible = "zephyr,retained-ram";
+            status = "okay";
+            #address-cells = <1>;
+            #size-cells = <1>;
+
+            controller_retained: retention@0 {
+                compatible = "zephyr,retention";
+                status = "okay";
+                reg = <0x0 0x30>;
+                prefix = [43 52 43 31];
+                checksum = <4>;
+            };
+        };
+    };
+};

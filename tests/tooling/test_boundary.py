@@ -709,7 +709,7 @@ class CompositionZone(unittest.TestCase):
         self.assertEqual(
             ["app/src", "workload", "app/compose", "app/os",
              "include", "framework/src", "framework/compose", "framework/os",
-             "tests/framework/fixture"],
+             "tests/framework/fixture", "template"],
             directories,
         )
 
@@ -1593,6 +1593,72 @@ class FixtureApplication(unittest.TestCase):
         # The scenarios' own sources (tests/framework/<scenario>/src) are tests, not the fixture.
         files = {"tests/framework/application/src/main.c": "#include <zephyr/drivers/uart.h>\n",
                  "tests/framework/fixture/fixture.c": "#include <stdint.h>\n"}
+        self.assertEqual([], run(files))
+
+
+class TemplateApplication(unittest.TestCase):
+    """template/ holds the application template that a product copies (specification section 7.5).
+
+    Criterion 48 and section 7.3: every source of the template lies in a checked tree, and it reaches
+    the framework only through the interface headers of include/. It may include ISO C headers, the
+    interface headers (<controller/NAME.h>), public <crux/NAME.h> headers except the frozen three, and
+    its own tree. Every Zephyr header, every Crux composition interface (<crux/NAME_zephyr.h> and
+    <crux/NAME_linux.h>, listed or not), the Sockets profile and a header of the framework's source
+    trees fail.
+    """
+
+    def in_template(self, text, name="app/src/main.c"):
+        return run({f"template/{name}": text, "include/controller/framework.h": ""})
+
+    def test_the_template_may_include_the_interface_crux_iso_c_and_its_own_tree(self):
+        files = {"template/app/src/main.c": ("#include <controller/framework.h>\n#include <crux/logging.h>\n"
+                                             "#include <stddef.h>\n#include \"product.h\"\n"),
+                 "template/app/src/product.h": "#include <stdint.h>\n",
+                 "include/controller/framework.h": ""}
+        self.assertEqual([], run(files))
+
+    def test_the_template_may_include_no_zephyr_header(self):
+        for header in ("zephyr/kernel.h", "zephyr/drivers/uart.h", "zephyr.h"):
+            with self.subTest(header=header):
+                self.assertEqual([header], reasons(self.in_template(f"#include <{header}>\n")))
+
+    def test_the_template_may_include_no_composition_interface(self):
+        # The listed ones, and any other <crux/NAME_zephyr.h> or <crux/NAME_linux.h> by its name, even
+        # without --crux-root.
+        for header in ("crux/file_zephyr.h", "crux/web_zephyr.h", "crux/cli_zephyr.h",
+                       "crux/file_reliance_edge_zephyr.h", "crux/netif_linux.h"):
+            with self.subTest(header=header):
+                self.assertEqual([header], reasons(self.in_template(f"#include <{header}>\n")))
+
+    def test_the_template_may_include_no_frozen_header_and_no_sockets_profile(self):
+        for header in ("crux/thread.h", "crux/sync.h", "crux/serial.h", "sys/socket.h", "unistd.h"):
+            with self.subTest(header=header):
+                self.assertEqual([header], reasons(self.in_template(f"#include <{header}>\n")))
+
+    def test_the_template_may_include_no_header_of_the_framework_sources(self):
+        files = {"template/app/src/main.c": '#include "../../../framework/src/app_contract.h"\n',
+                 "framework/src/app_contract.h": ""}
+        self.assertEqual(["../../../framework/src/app_contract.h"], reasons(run(files)))
+
+    def test_the_template_may_include_no_header_of_another_tree_of_this_repository(self):
+        files = {"template/app/src/main.c": '#include "../../../tests/framework/fixture/fixture.h"\n',
+                 "tests/framework/fixture/fixture.h": ""}
+        self.assertEqual(["../../../tests/framework/fixture/fixture.h"], reasons(run(files)))
+
+    def test_the_template_may_include_no_unknown_or_nested_interface_header(self):
+        self.assertEqual(["controller/missing.h"], reasons(self.in_template("#include <controller/missing.h>\n")))
+        self.assertEqual(["crux/a/b.h"], reasons(self.in_template("#include <crux/a/b.h>\n")))
+
+    def test_every_source_of_the_template_is_in_the_checked_tree(self):
+        # The test sources of a copy are template sources too, and a header of any suffix is read.
+        for name in ("app/tests/test_product.c", "app/src/product.hpp", "other/helper.inc"):
+            with self.subTest(name=name):
+                self.assertEqual(["zephyr/kernel.h"], reasons(self.in_template("#include <zephyr/kernel.h>\n", name)))
+        self.assertIn("template", check_boundary.MODULE_TREES)
+
+    def test_the_composition_names_stay_allowed_in_the_composition_zone(self):
+        # The name rule belongs to the template: the zone keeps its allow-list.
+        files = {"framework/compose/mount.c": "#include <crux/file_zephyr.h>\n"}
         self.assertEqual([], run(files))
 
 

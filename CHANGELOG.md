@@ -9,6 +9,14 @@ build configurations by their earlier step ids, S0 to S6.
 
 ### Controller framework
 
+- The application template (delivery stage 4, specification section 7.5): `template/` is the folder that a
+  product team copies once to start a product repository. Its `west.yml` imports the framework, and with it
+  Crux, at the full commit that `scripts/pin_framework.py` writes, and records that commit as
+  `template-revision`; later template changes never reach a copy. `app/` has `main()` with a descriptor of the
+  four entries, a development `prj.conf`, board files for `native_sim` and the RT1060-EVKB, and a Twister test.
+  The boundary check covers the folder, and `scripts/check_template.py` checks its build files and paths for
+  every change. A nightly job builds, runs and tests a copy on `native_sim` and runs the README joining steps
+  against local repositories; the nightly part of the base job builds the copy for the RT1060-EVKB.
 - The application interface (delivery stage 3, specification sections 3 and 4). **Breaking:**
   `controller_framework_start()` takes the product's descriptor, `const controller_app_t *`, or `NULL` for no
   application (the base image passes `NULL`). The descriptor has four mandatory entries (`init`, `start`,
