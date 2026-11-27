@@ -97,7 +97,8 @@ class FixtureProduct(unittest.TestCase):
 
     def test_the_product_writes_the_build_metadata_that_west_spdx_needs(self):
         # Zephyr deletes zephyr.meta when CONFIG_BUILD_OUTPUT_META is off, and west spdx then stops
-        # with "cannot find a valid zephyr.meta" (Zephyr v4.4.2, doc/develop/west/zephyr-cmds.rst).
+        # with "cannot find a valid zephyr.meta" (Zephyr v4.5.0, doc/develop/west/zephyr-cmds.rst and
+        # scripts/pylib/zspdx/walker.py).
         self.assertIn("CONFIG_BUILD_OUTPUT_META=y", (FIXTURE / "prj.conf").read_text().splitlines())
         # The build step checks it too, so a missing option fails before the SBOM step.
         self.assertIn("CONFIG_BUILD_OUTPUT_META=y", RUN.read_text())
