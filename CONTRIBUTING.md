@@ -34,7 +34,7 @@ those interfaces shows up here and is reported to `crux-pilot` as an issue.
 | `include/` (the interface header of the framework) | ISO C, public `<crux/NAME.h>` headers except the frozen three, its own tree | any Zephyr header, the Sockets profile, a composition interface, a header of `framework/` |
 | `framework/src` (the portable core) | ISO C, public `<crux/NAME.h>` headers except the frozen three, its own tree, `<controller/NAME.h>` | any Zephyr header, the Sockets profile, a composition interface, the workload, a header of a zone |
 | `framework/compose/` (the composition zone of the module) | the allow-list of `app/compose/`, header files (`.h`) of `framework/src` | as `app/compose/`, and `app/src` |
-| `framework/os/` (the adapter zone of the module) | the allow-list of `app/os/`, header files (`.h`) of `framework/src` | as `app/os/`, and `app/src` |
+| `framework/os/` (the adapter zone of the module) | the allow-list of `app/os/`, `zephyr/task_wdt/task_wdt.h`, `zephyr/retention/retention.h`, `zephyr/fatal.h`, `zephyr/device.h`, `zephyr/devicetree.h`, header files (`.h`) of `framework/src` | as `app/os/` for every other header, and `app/src` |
 
 A C or C++ source or header under `app/`, `framework/`, `include/` or `zephyr/` that is in none of these trees fails.
 

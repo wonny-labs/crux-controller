@@ -1324,7 +1324,7 @@ class FrameworkTrees(unittest.TestCase):
                 check_boundary.COMPOSITION_CRUX_HEADERS, ("framework/src",), True, frozenset(), False,
             ),
             "framework/os": (
-                False, True, check_boundary.OS_ADAPTER_ZEPHYR_HEADERS, frozenset(),
+                False, True, check_boundary.FRAMEWORK_OS_ZEPHYR_HEADERS, frozenset(),
                 ("framework/src",), True, frozen, False,
             ),
         }
@@ -1408,6 +1408,12 @@ class FrameworkTrees(unittest.TestCase):
             reasons(run(files)),
         )
 
+    def test_the_module_adapter_zone_has_its_supervision_headers(self):
+        text = "".join(f"#include <{n}>\n" for n in sorted(check_boundary.FRAMEWORK_OS_ZEPHYR_HEADERS))
+        files = {"framework/os/supervisor.c": text + '#include "../src/supervisor_port.h"\n',
+                 "framework/src/supervisor_port.h": "#include <stdint.h>\n"}
+        self.assertEqual([], run(files))
+
     def test_the_zones_of_the_module_reach_header_files_of_the_core_only(self):
         for zone in ("framework/compose", "framework/os"):
             files = {f"{zone}/x.c": '#include "../src/core.c"\n', "framework/src/core.c": ""}
@@ -1485,6 +1491,63 @@ class FrameworkTrees(unittest.TestCase):
 
     def test_the_module_trees_alone_are_a_checked_layout(self):
         self.assertEqual([], run({"framework/src/core.c": "#include <stdint.h>\n"}))
+
+
+class FrameworkAdapterSupervision(unittest.TestCase):
+    """The adapter zone of the module, framework/os, holds the health supervision of the framework.
+
+    Its list is the list of app/os plus the Zephyr headers that the supervisor thread, the task
+    watchdog, the retained region and the fatal error handler need (FRAMEWORK_OS_ZEPHYR_HEADERS).
+    app/os keeps its two headers, and no other tree gains any of the new ones.
+    """
+
+    SUPERVISION = {
+        "zephyr/task_wdt/task_wdt.h",
+        "zephyr/retention/retention.h",
+        "zephyr/fatal.h",
+        "zephyr/device.h",
+        "zephyr/devicetree.h",
+    }
+
+    def test_the_module_adapter_allow_list_is_the_reviewed_set(self):
+        # Changing this set changes what the boundary lets through: it is a reviewed change of
+        # this test, of docs/composition-zone.md and of the pull request that justifies it.
+        self.assertEqual(
+            {"zephyr/kernel.h", "zephyr/net/sntp.h"} | self.SUPERVISION,
+            set(check_boundary.FRAMEWORK_OS_ZEPHYR_HEADERS),
+        )
+        self.assertIsInstance(check_boundary.FRAMEWORK_OS_ZEPHYR_HEADERS, frozenset)
+
+    def test_the_list_of_app_os_is_unchanged(self):
+        self.assertEqual(
+            {"zephyr/kernel.h", "zephyr/net/sntp.h"}, set(check_boundary.OS_ADAPTER_ZEPHYR_HEADERS)
+        )
+        adapter = next(r for r in check_boundary.RULES if r.directory == "app/os")
+        self.assertEqual(check_boundary.OS_ADAPTER_ZEPHYR_HEADERS, adapter.zephyr_allow)
+
+    def test_each_supervision_header_passes_in_the_module_adapter_zone(self):
+        for name in sorted(self.SUPERVISION):
+            files = {"framework/os/supervisor.c": f"#include <{name}>\n"}
+            self.assertEqual([], run(files), name)
+
+    def test_each_supervision_header_fails_in_every_other_tree(self):
+        for name in sorted(self.SUPERVISION):
+            for tree in ("app/src", "app/os", "workload", "include", "framework/src"):
+                files = {f"{tree}/x.c": f"#include <{name}>\n"}
+                self.assertEqual([name], reasons(run(files)), (tree, name))
+
+    def test_the_composition_zones_gain_only_the_devicetree_header_they_already_had(self):
+        for name in sorted(self.SUPERVISION - {"zephyr/devicetree.h"}):
+            for tree in ("app/compose", "framework/compose"):
+                files = {f"{tree}/x.c": f"#include <{name}>\n"}
+                self.assertEqual([name], reasons(run(files)), (tree, name))
+
+    def test_the_retained_memory_driver_header_stays_out(self):
+        # The framework uses the retention API, not the retained memory driver underneath it.
+        for name in ("zephyr/drivers/retained_mem.h", "zephyr/drivers/watchdog.h",
+                     "zephyr/drivers/hwinfo.h", "zephyr/sys/reboot.h", "zephyr/logging/log.h"):
+            files = {"framework/os/supervisor.c": f"#include <{name}>\n"}
+            self.assertEqual([name], reasons(run(files)), name)
 
 
 class BuildFiles(unittest.TestCase):
