@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Checks the scheduled build against crux-pilot main: it is read-only, publishes nothing and
+"""Checks the scheduled build against Crux main: it is read-only, publishes nothing and
 keeps the pinned tool versions and the gate of ci.yml. The workflow job runs the checks of the
 nightly job scheduled-main of scripts/ci/checks.toml."""
 
@@ -83,10 +83,10 @@ class ScheduledBuild(unittest.TestCase):
             self.assertEqual(0, result.returncode, result.stderr)
             rewritten = yaml.safe_load((work / "crux-controller" / "west.yml").read_text())
         projects = {p["name"]: p for p in rewritten["manifest"]["projects"]}
-        self.assertEqual("main", projects["crux-pilot"]["revision"])
+        self.assertEqual("main", projects["crux"]["revision"])
         original = {p["name"]: p for p in yaml.safe_load(manifest)["manifest"]["projects"]}
         self.assertEqual(original["picolibc"], projects["picolibc"])
-        self.assertEqual(original["crux-pilot"].get("import"), projects["crux-pilot"].get("import"))
+        self.assertEqual(original["crux"].get("import"), projects["crux"].get("import"))
         for step in [*self.job["steps"], *checks()]:
             self.assertNotIn("git commit", step.get("run", ""))
             self.assertNotIn("git push", step.get("run", ""))
@@ -133,7 +133,7 @@ class ScheduledBuild(unittest.TestCase):
 
     def test_a_pin_mismatch_is_reported_in_the_summary_and_does_not_stop_the_run(self):
         result, summary = self.run_pins_step(
-            "echo 'CONTRACT crux-pilot a47c1590a252'\n"
+            "echo 'CONTRACT crux a47c1590a252'\n"
             "echo 'MISMATCH littlefs 111111111111 (contract 8f5ca3478433)'\nexit 1\n"
         )
         self.assertEqual(0, result.returncode, result.stderr)
@@ -142,7 +142,7 @@ class ScheduledBuild(unittest.TestCase):
         self.assertIn("::warning::", result.stdout)
 
     def test_matching_pins_are_recorded_without_a_mismatch_note(self):
-        result, summary = self.run_pins_step("echo 'CONTRACT crux-pilot a47c1590a252'\necho 'OK zephyr dccb09599635'\n")
+        result, summary = self.run_pins_step("echo 'CONTRACT crux a47c1590a252'\necho 'OK zephyr dccb09599635'\n")
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertIn("OK zephyr dccb09599635", summary)
         self.assertNotIn("MISMATCH", summary)

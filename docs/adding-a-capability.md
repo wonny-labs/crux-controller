@@ -123,7 +123,7 @@ python -m unittest discover -s tests/tooling -v
 python scripts/check_boundary.py
 ```
 
-`scripts/check_boundary.py` with `--crux-root <a crux-pilot checkout at the pin>` is the stronger form
+`scripts/check_boundary.py` with `--crux-root <a Crux checkout at the pin>` is the stronger form
 that CI runs: it also requires every `<crux/NAME.h>` to be a header Crux publishes. If the boundary
 check fails, do not look for an exception. There is none; read
 [composition-zone.md](composition-zone.md).
@@ -181,7 +181,7 @@ uploads an artifact. No job flashes, resets or runs anything on a board.
 ### 2.6 The documents
 
 - **Findings note**, `docs/findings/s4-system-composition.md`. Label each statement Measured (you ran it
-  and name the command), Inferred (read from `crux-pilot` source at the pinned commit, not run) or Open.
+  and name the command), Inferred (read from Crux source at the pinned commit, not run) or Open.
   Results that only CI can produce are written as Open with the CI job named, and recorded in the pull
   request afterwards; once CI has run, update the note with the result, the revision it was read at and the label
   Recorded, as the `management` note does. The note lists what the product had to write, the friction, the decisions made
@@ -305,10 +305,10 @@ change of `scripts/check_boundary.py`, `tests/tooling/test_boundary.py` and `doc
 - In this repository: [composition-zone.md](composition-zone.md) ("Why a zone", "The adapter zone"),
   [architecture.md](architecture.md) ("Why zones exist") and the findings notes of `file`, `system` and `sntp`.
 - In the platform repository, read at the pinned commit `05a50475653becf7e4867686f4f88747173e1c21`:
-  [`docs/choosing-an-api.md`](https://github.com/wonny-labs/crux-pilot/blob/05a50475653becf7e4867686f4f88747173e1c21/docs/choosing-an-api.md)
+  [`docs/choosing-an-api.md`](https://github.com/wonny-labs/crux/blob/05a50475653becf7e4867686f4f88747173e1c21/docs/choosing-an-api.md)
   asks three questions in order (an OS or hardware facility, a platform service that Crux provides, the product's own
   behaviour) and sends each kind of code to a place, and
-  [`docs/composition-interfaces.md`](https://github.com/wonny-labs/crux-pilot/blob/05a50475653becf7e4867686f4f88747173e1c21/docs/composition-interfaces.md)
+  [`docs/composition-interfaces.md`](https://github.com/wonny-labs/crux/blob/05a50475653becf7e4867686f4f88747173e1c21/docs/composition-interfaces.md)
   describes the two routes to Zephyr for a product. That guidance is general. The Zephyr headers that this
   repository allows are the lists of its own boundary check.
 

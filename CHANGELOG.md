@@ -176,6 +176,12 @@ build configurations by their earlier step ids, S0 to S6.
   scenarios and the product-integration fixture set `CONFIG_MBEDTLS_SSL_IN_CONTENT_LEN` and
   `CONFIG_MBEDTLS_SSL_OUT_CONTENT_LEN` to the same 16384 instead. The `West pins` negative control pinned `littlefs` at a newer commit that is now the contract, so it
   pins the parent of the contract commit instead. No controller code or overlay changes.
+- Crux's repository was renamed from `wonny-labs/crux-pilot` to `wonny-labs/crux`, and the west project is now
+  `crux`, so west checks Crux out in `crux/`. The pinned commit and the Zephyr module name (`crux`) are as before.
+  Scripts, CI, tests and documents use the new name; the local include check still accepts a Crux checkout folder named
+  `crux-pilot` beside the repository. Earlier entries and findings keep the old name. An existing workspace needs
+  `west update` once, then a pristine build (`-p always`); its `crux-pilot/` folder is no longer used. No controller
+  code changes.
 - The `crux-pilot` import blocks wolfSSL, wolfSSH and wolfPSA by name, so enabling the Mbed TLS group
   would activate Mbed TLS and TF-PSA-Crypto and no GPL stack (checked on the project list; no job
   enables the group or fetches with it on, and it stays off in every job).

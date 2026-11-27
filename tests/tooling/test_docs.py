@@ -86,7 +86,7 @@ class Dependencies(unittest.TestCase):
             if len(cells) == 5 and cells[0].startswith("`"):
                 match = re.search(r"`([0-9a-f]{40})`", cells[1])
                 rows[cells[0].strip("`")] = match.group(1) if match else None
-        for name in ("zephyr", "cmsis", "cmsis_6", "hal_nxp", "littlefs", "fatfs", "crux-pilot", "picolibc"):
+        for name in ("zephyr", "cmsis", "cmsis_6", "hal_nxp", "littlefs", "fatfs", "crux", "picolibc"):
             self.assertIn(name, rows)
             self.assertIsNotNone(rows[name], f"{name} has no 40-digit revision in its row")
 
@@ -123,7 +123,7 @@ class Dependencies(unittest.TestCase):
 
     def test_the_pinned_crux_revision_matches_the_manifest(self):
         manifest = yaml.safe_load((ROOT / "west.yml").read_text())["manifest"]
-        crux = next(p for p in manifest["projects"] if p["name"] == "crux-pilot")
+        crux = next(p for p in manifest["projects"] if p["name"] == "crux")
         short = crux["revision"][:8]
         for name in ("RELEASE.md", "docs/dependencies.md", "CHANGELOG.md"):
             self.assertIn(short, text(name), name)
@@ -142,7 +142,7 @@ class Tracking(unittest.TestCase):
     def test_the_main_documents_point_at_the_tracking_history(self):
         for name in ("docs/roadmap.md", "docs/README.md", "docs/glossary.md"):
             self.assertIn("history/board-runs-and-tracking.md", text(name), name)
-        self.assertIn("Nothing has been filed in `crux-pilot`", text("docs/roadmap.md"))
+        self.assertIn("Nothing has been filed in Crux", text("docs/roadmap.md"))
 
 
 class CiEvidenceRationale(unittest.TestCase):
@@ -258,7 +258,7 @@ class GenericWording(unittest.TestCase):
         "docs/first-change.md", "docs/reviewing.md", "docs/roadmap.md",
     )
     NUMBER = re.compile(
-        r"pull request \d+|\bPR \d+|crux-pilot#\d+|crux-controller#\d+|/pull/\d+|/issues/\d+"
+        r"pull request \d+|\bPR \d+|crux(?:-pilot)?#\d+|crux-controller#\d+|/pull/\d+|/issues/\d+"
         r"|\bissue #?\d+|(?<![\w&])#\d{1,4}\b"
     )
 
