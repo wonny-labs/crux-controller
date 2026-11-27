@@ -37,8 +37,8 @@ PackageLicenseDeclared: Apache-2.0
 PackageCopyrightText: <text>Copyright (c) Zephyr contributors
 Second line of the notice</text>
 
-PackageName: crux-pilot
-SPDXID: SPDXRef-crux-pilot
+PackageName: crux
+SPDXID: SPDXRef-crux
 PackageDownloadLocation: NOASSERTION
 PackageLicenseConcluded: NOASSERTION
 
@@ -68,7 +68,7 @@ class ParseValid(unittest.TestCase):
         document = parse(HEADER + PACKAGES)
         self.assertEqual(2, document.package_count)
         self.assertEqual(1, document.file_count)
-        self.assertEqual(["zephyr", "crux-pilot"], document.package_names)
+        self.assertEqual(["zephyr", "crux"], document.package_names)
 
     def test_a_multi_line_text_value_is_one_value(self):
         document = parse(HEADER + PACKAGES)

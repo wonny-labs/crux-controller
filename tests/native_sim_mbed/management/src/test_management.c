@@ -317,7 +317,7 @@ ZTEST(management, test_03_tls13_handshake_verifies)
  * because the client and the server share the TLS library, the credentials and the clock, and
  * Zephyr maps both an alert from the server and a local failure to a failed connect. Crux checks
  * the version refusal on the wire with openssl s_client against its own listener, which offers one
- * version at a time and reads the alert (docs/https-composition.md of crux-pilot, "Checked on the
+ * version at a time and reads the alert (docs/https-composition.md of Crux, "Checked on the
  * wire"), and this case does not replace that. */
 ZTEST(management, test_04_tls12_only_refused)
 {

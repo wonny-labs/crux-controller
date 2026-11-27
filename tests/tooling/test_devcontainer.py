@@ -266,7 +266,7 @@ class CheckHostScript(unittest.TestCase):
         self.assertTrue(os.access(self.path, os.X_OK))
 
     def test_it_accepts_the_layout_of_the_documentation_without_a_word(self):
-        for name in ("crux-controller", ".west", "zephyr", "modules", "bootloader", "tools", "crux-pilot",
+        for name in ("crux-controller", ".west", "zephyr", "modules", "bootloader", "tools", "crux",
                      "twister-out", "twister-out-workload"):
             (self.fixture.workspace / name).mkdir(exist_ok=True)
         result = self.fixture.check_host()
@@ -1176,7 +1176,7 @@ class DevcontainerWorkflow(unittest.TestCase):
     def test_it_runs_the_checks_inside_the_container_through_the_script(self):
         self.assertIn("scripts/dev-shell.sh", self.commands)
         self.assertIn("python -m unittest discover -s tests/tooling", self.commands)
-        self.assertIn("check_boundary.py --repo crux-controller --crux-root crux-pilot", self.commands)
+        self.assertRegex(self.commands, r"check_boundary\.py --repo crux-controller --crux-root crux(?![-\w])")
         self.assertIn("west twister -p native_sim/native/64 -T crux-controller/tests/native_sim", self.commands)
         self.assertIn("--inline-logs --clobber-output", self.commands)
 
@@ -1185,7 +1185,7 @@ class DevcontainerWorkflow(unittest.TestCase):
         self.assertIn(run, " ".join(self.commands.replace("\\", " ").split()))
 
     def test_the_product_include_check_runs_the_script_of_the_pin_after_checking_its_hash(self):
-        # The pinned crux-pilot contains the script, with the hash that ci.yml checks the download
+        # The pinned Crux contains the script, with the hash that ci.yml checks the download
         # against. The container job runs that copy instead of downloading a second one.
         expected = ci_job("boundary")["env"]["CHECK_SHA256"]
         steps = [c for c in ci_map.checks("devcontainer") if "product-include-check" in c["id"]]
@@ -1194,7 +1194,7 @@ class DevcontainerWorkflow(unittest.TestCase):
         run = steps[0]["run"]
         self.assertNotIn("curl", run)
         self.assertLess(run.index("sha256sum --check"), run.index("dev-shell.sh"))
-        self.assertIn("crux-pilot/templates/product/check_domain_includes.py", run)
+        self.assertIn("crux/templates/product/check_domain_includes.py", run)
         self.assertIn("--product", run)
 
     def test_the_workload_steps_after_twister_are_those_of_the_workload_job(self):
@@ -1660,7 +1660,7 @@ class Documentation(unittest.TestCase):
         self.assertNotIn("predates", read(WORKFLOW))
 
     def test_the_product_include_check_is_not_said_to_predate_the_pin_in_ci(self):
-        # The pinned crux-pilot contains the script with the hash that ci.yml checks, so the comment
+        # The pinned Crux contains the script with the hash that ci.yml checks, so the comment
         # above the download check says so instead of claiming that the pin predates the script.
         self.assertNotIn("predates", read(CI))
         text = read(ci_map.MAP)
@@ -1671,7 +1671,7 @@ class Documentation(unittest.TestCase):
             .splitlines()[-6:]
             if line.strip().startswith("#")
         )
-        self.assertIn("The crux-pilot revision pinned in west.yml contains the same script", comment)
+        self.assertIn("The Crux revision pinned in west.yml contains the same script", comment)
 
 
 if __name__ == "__main__":

@@ -29,8 +29,8 @@ METADATA = {
     "runner_image": "ubuntu-24.04",
     "target": TARGET,
 }
-LOCK = "manifest:\n  projects:\n    - name: crux-pilot\n      revision: db5adca\n"
-PINS = "CONTRACT crux-pilot db5adca28bd3\nOK zephyr dccb09599635\n"
+LOCK = "manifest:\n  projects:\n    - name: crux\n      revision: db5adca\n"
+PINS = "CONTRACT crux db5adca28bd3\nOK zephyr dccb09599635\n"
 
 
 def make_build_dir(base, image=IMAGE, config=CONFIG):

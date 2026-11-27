@@ -1,7 +1,7 @@
 name: scheduled-main
 
 # The nightly jobs of scripts/ci/checks.toml (CONTRIBUTING.md, CI tiers), each run by
-# scripts/ci/run-tier.sh: scheduled-main, a daily build against the current main of crux-pilot,
+# scripts/ci/run-tier.sh: scheduled-main, a daily build against the current main of Crux,
 # information only, and product-integration, a fixture product that imports this repository at
 # the commit under test into a west workspace of its own and runs on native_sim. The pinned build in
 # ci.yml stays the gate for pull requests. The workflow commits nothing, publishes nothing and
@@ -28,7 +28,7 @@ permissions:
 
 jobs:
   build:
-    name: net build against crux-pilot main
+    name: net build against Crux main
     runs-on: ubuntu-24.04
     if: github.event_name != 'schedule' || github.repository == 'wonny-labs/crux-controller'
     timeout-minutes: 60
@@ -79,9 +79,9 @@ jobs:
             echo "### Result"
             echo
             if [ "${{ job.status }}" = "success" ]; then
-              echo "The net build against crux-pilot main passed with the gate required."
+              echo "The net build against Crux main passed with the gate required."
             elif [ "${{ job.status }}" = "cancelled" ]; then
-              echo "The job was cancelled before it finished. It says nothing about crux-pilot main."
+              echo "The job was cancelled before it finished. It says nothing about Crux main."
             else
               echo "The job failed. Open the failing step in the log. A fetch or pin failure"
               echo "means Crux main changed something this product has to follow. A build failure"

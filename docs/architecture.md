@@ -8,7 +8,7 @@ are used as the [glossary](glossary.md#product-platform-and-composition) explain
 ## What the controller is and does
 
 Crux Controller (this repository, `crux-controller`) is a controller framework for products built on Crux,
-an embedded software platform that lives in the repository [`crux-pilot`](https://github.com/wonny-labs/crux-pilot):
+an embedded software platform that lives in the repository [`crux`](https://github.com/wonny-labs/crux):
 a Zephyr module that products import, with a base image that runs its services and no application. Its images are
 built for one board, the NXP RT1060-EVKB Rev B, on the Zephyr RTOS. Crux
 publishes components such as Time, Logging, a Sockets profile, File and System as public headers and
@@ -136,12 +136,12 @@ fixture for `native_sim` and runs it.
 ## How Crux is consumed
 
 Crux states the general rules for a product in its own guides at the pinned revision:
-[Choosing an API](https://github.com/wonny-labs/crux-pilot/blob/05a50475653becf7e4867686f4f88747173e1c21/docs/choosing-an-api.md)
+[Choosing an API](https://github.com/wonny-labs/crux/blob/05a50475653becf7e4867686f4f88747173e1c21/docs/choosing-an-api.md)
 (Zephyr, Crux or product code) and
-[Composition interfaces](https://github.com/wonny-labs/crux-pilot/blob/05a50475653becf7e4867686f4f88747173e1c21/docs/composition-interfaces.md).
+[Composition interfaces](https://github.com/wonny-labs/crux/blob/05a50475653becf7e4867686f4f88747173e1c21/docs/composition-interfaces.md).
 This section shows how this repository applies them.
 
-- **Manifest.** `west.yml` makes this repository the west manifest repository. It imports `crux-pilot`
+- **Manifest.** `west.yml` makes this repository the west manifest repository. It imports `crux`
   at a pinned full commit (the `revision` in `west.yml`), never a branch or tag, and adds one
   test-only project, `picolibc`, for the `native_sim` scenario of `net`. Crux's own manifest brings Zephyr and
   the Zephyr modules, so this repository does not name them. The import blocks the three GPL or commercial
@@ -151,7 +151,7 @@ This section shows how this repository applies them.
   `tests/tooling/test_manifest.py` (the approved commit), [dependencies.md](dependencies.md),
   [RELEASE.md](../RELEASE.md) and [CHANGELOG.md](../CHANGELOG.md), and a test (`tests/tooling/test_docs.py`)
   checks that the last three carry the short hash. The `West pins` job runs `west crux-pins`, which must
-  print a `CONTRACT crux-pilot` line and no `MISMATCH`. Moving the *pin* is its own small pull request; the
+  print a `CONTRACT crux` line and no `MISMATCH`. Moving the *pin* is its own small pull request; the
   steps are in [CONTRIBUTING.md](../CONTRIBUTING.md). Notes under `docs/findings/` keep the revision they
   were read at and are not updated when the pin moves.
 - **Crux pieces used, and in which configuration.** Each is a public target linked in `app/CMakeLists.txt`, plus
@@ -259,11 +259,11 @@ Top-level directories and files:
 | `app/` | The Zephyr application, described below. |
 | `workload/` | The portable workload core (`include/workload.h`, `src/config_record.c`, `src/cycle.c`, `src/message.c`) and its `CMakeLists.txt`. |
 | `tests/` | `host/` (C tests that run on the build host), `native_sim/` (one Zephyr test application per configuration, `workload` to `sntp`), `native_sim_mbed/` (the `management` test application, which needs the Mbed TLS modules), `tooling/` (Python tests of the scripts, workflows, documents and build files). |
-| `scripts/` | `check_boundary.py` (the include check), `check_mbed_only.py` (checks that the Crux import cannot activate the GPL stacks), `check-format.sh` (clang-format over every C file), `analyze_host.py` (clang-tidy over the host-built sources, then the list of sources it did not analyse), `check_spdx.py` (checks that the first-party C, CMake, Kconfig, Python and shell files start with the licence identifier line), `check-patch.sh` (Zephyr's checkpatch, rule BRACES, on the C lines of a Git range; a copy of the checkpatch wrapper that `crux-pilot` publishes for product repositories), `check_include_domains.py` (runs the product include check and its wrapper from a local Crux checkout after checking their pinned SHA-256, which it reads from `ci.yml` or, without it, from `include-check-pins.json`; see [dependencies.md](dependencies.md#include-check-from-a-local-crux-checkout)), `bootstrap.sh` (the one entry that prepares a clone: the layout check and the workspace setup, run by the Dev Container after it is created), `build-board.sh` (the board build of one build configuration for the VS Code tasks and debug profiles, see [the board route](board-bring-up.md#vs-code-tasks-and-debug-profiles)), `dev-shell.sh` (runs a shell or one command in the Dev Container, see the [Dev Container reference](dev-container.md#without-vs-code)), which also passes the USB bus of the host for a J-Link probe (what has been run is listed on [the board page](board-bring-up.md#board-route-for-the-rt1060-evkb-rev-b)). |
+| `scripts/` | `check_boundary.py` (the include check), `check_mbed_only.py` (checks that the Crux import cannot activate the GPL stacks), `check-format.sh` (clang-format over every C file), `analyze_host.py` (clang-tidy over the host-built sources, then the list of sources it did not analyse), `check_spdx.py` (checks that the first-party C, CMake, Kconfig, Python and shell files start with the licence identifier line), `check-patch.sh` (Zephyr's checkpatch, rule BRACES, on the C lines of a Git range; a copy of the checkpatch wrapper that Crux publishes for product repositories), `check_include_domains.py` (runs the product include check and its wrapper from a local Crux checkout after checking their pinned SHA-256, which it reads from `ci.yml` or, without it, from `include-check-pins.json`; see [dependencies.md](dependencies.md#include-check-from-a-local-crux-checkout)), `bootstrap.sh` (the one entry that prepares a clone: the layout check and the workspace setup, run by the Dev Container after it is created), `build-board.sh` (the board build of one build configuration for the VS Code tasks and debug profiles, see [the board route](board-bring-up.md#vs-code-tasks-and-debug-profiles)), `dev-shell.sh` (runs a shell or one command in the Dev Container, see the [Dev Container reference](dev-container.md#without-vs-code)), which also passes the USB bus of the host for a J-Link probe (what has been run is listed on [the board page](board-bring-up.md#board-route-for-the-rt1060-evkb-rev-b)). |
 | `budgets/` | `limits.json` (declared minimum free percent per memory region and configuration), `collect.py` (reads a build log into a measurement), `check.py` (compares a measurement with the limits). |
 | `release/` | The release bundle tools: `assemble_bundle.py`, `check_bundle.py`, `rebuild_compare.py`, `parse_spdx.py` and `release-manifest.schema.json`. Hashes and identities only; no image is ever published. |
 | `docs/` | This documentation: [architecture.md](architecture.md), [glossary.md](glossary.md), [adding-a-capability.md](adding-a-capability.md), [roadmap.md](roadmap.md), the [Tutorial](tutorial.md), [Getting started](getting-started.md), [board-bring-up.md](board-bring-up.md), [composition-zone.md](composition-zone.md), [dependencies.md](dependencies.md), `findings/` and `history/` (the project history). |
-| `.github/workflows/` | `ci.yml` (tooling tests, west pins, host tests, the `minimal` to `base` builds, the boundary check and static analysis), `budget.yml`, `rebuild.yml`, `release.yml`, `scheduled-main.yml` (the nightly jobs: the build against `crux-pilot` main and the product integration check). |
+| `.github/workflows/` | `ci.yml` (tooling tests, west pins, host tests, the `minimal` to `base` builds, the boundary check and static analysis), `budget.yml`, `rebuild.yml`, `release.yml`, `scheduled-main.yml` (the nightly jobs: the build against Crux `main` and the product integration check). |
 | `west.yml` | The west manifest and the pin. |
 | `README.md`, `CONTRIBUTING.md`, `CHANGELOG.md`, `RELEASE.md`, `SECURITY.md`, `LICENSE`, `CODEOWNERS` | Role and status, contribution rules, changes, release flow, vulnerability reporting, licence, ownership. |
 

@@ -9,26 +9,26 @@ start of the serial command line, see [The serial command line](#the-serial-comm
 ## Running the check
 
 CI runs two checks in the `Boundary check` job: this repository's `scripts/check_boundary.py`, with the headers
-that the pinned Crux publishes, and the product include check, which comes from `crux-pilot`. Run them from the
-repository root; the west workspace holds `crux-pilot` beside the clone:
+that the pinned Crux publishes, and the product include check, which comes from Crux. Run them from the
+repository root; the west workspace holds `crux/` beside the clone:
 
 ```bash
-python scripts/check_boundary.py --crux-root ../crux-pilot
-python ../crux-pilot/templates/product/check_domain_includes.py --product .
+python scripts/check_boundary.py --crux-root ../crux
+python ../crux/templates/product/check_domain_includes.py --product .
 ```
 
 The first command checks `app/src`, `app/compose`, `app/os`, `workload` and the trees of the framework module
 (`include`, `framework/src`, `framework/compose`, `framework/os`) against the public `<crux/NAME.h>`
 headers of the checkout. The second is the product include check, the script
-`templates/product/check_domain_includes.py` of `crux-pilot` (see [the glossary](glossary.md#boundary-and-zones)).
+`templates/product/check_domain_includes.py` of Crux (see [the glossary](glossary.md#boundary-and-zones)).
 In product mode (`--product`) it reads every C and C++ source under the repository, the tests included, and fails on
 an include of `<crux/thread.h>`, `<crux/sync.h>`, `<crux/serial.h>` or `<crux/queue.h>`. Its stricter rules apply only
 to a directory named `domain/`, which this repository does not have.
 
-CI downloads that script from a fixed commit of `crux-pilot` and checks its SHA-256 before it runs it (the step
+CI downloads that script from a fixed commit of Crux and checks its SHA-256 before it runs it (the step
 `Run the product include check` of the `Boundary check` job). A second step of the job runs the same
-script through the wrapper `check-includes.sh` of `crux-pilot`, downloaded and checked the same way. The pinned
-`crux-pilot` contains the same script with the same SHA-256, so a local run uses the pinned copy. Both commands print
+script through the wrapper `check-includes.sh` of Crux, downloaded and checked the same way. The pinned
+Crux contains the same script with the same SHA-256, so a local run uses the pinned copy. Both commands print
 nothing but a pass line on success.
 
 Without `--crux-root`, `scripts/check_boundary.py` checks the same rules but cannot tell that a `<crux/NAME.h>` name
@@ -39,7 +39,7 @@ report a pass.
 ## Why a zone
 
 Crux publishes the File root binding as a composition interface, `<crux/file_zephyr.h>` with the
-CMake target `crux::file_zephyr` (`docs/file-composition-interface.md` in `crux-pilot`). It names a provider on purpose and it is for the code that also mounts the file
+CMake target `crux::file_zephyr` (`docs/file-composition-interface.md` in Crux). It names a provider on purpose and it is for the code that also mounts the file
 system. Application code stays on `<crux/file.h>`. A boundary that lets `app/src` include the
 interface would let the application name a provider, and a boundary without any way to include it
 would leave File unusable. So the include is allowed in one directory and nowhere else. The Web
@@ -69,7 +69,7 @@ trigraph, comments removed, and a macro operand is a violation.
 Without `--crux-root` any `<crux/NAME.h>` passes the shape test, as it does for `app/src`, and the
 three composition interfaces are denied outside the zone by name (`COMPOSITION_CRUX_HEADERS`); with
 it (CI always passes it), a `<crux/NAME.h>` that is not a header Crux publishes fails, including
-`<crux/file_native.h>`. Against a `crux-pilot` checkout, `<crux/file_zephyr.h>`,
+`<crux/file_native.h>`. Against a Crux checkout, `<crux/file_zephyr.h>`,
 `<crux/web_zephyr.h>` and `<crux/cli_zephyr.h>` must be headers that Crux publishes under
 `components/*/ports/*/include/crux/`, and any header found there is a composition interface that
 `app/src` and the workload cannot include, whether or not this file names it. Any other composition
