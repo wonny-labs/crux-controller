@@ -73,6 +73,7 @@ product/                 the west manifest repository
 
 The manifest below is the reference configuration on Crux's Mbed TLS profile: it imports the Crux manifest, which brings in Zephyr, and blocks the three wolf projects.
 A product on the Wolf profile needs another manifest ([C7](controller-framework-platform-gaps.md#c7-ssh-and-tls-profiles)).
+`<crux-repository>` is a placeholder for the Crux repository named in this repository's [`west.yml`](../../west.yml).
 
 ```yaml
 manifest:
@@ -80,7 +81,8 @@ manifest:
     - name: crux
       url-base: https://github.com/wonny-labs
   projects:
-    - name: crux-pilot          # Crux, at a pinned commit
+    - name: crux                # Crux, at a pinned commit
+      repo-path: <crux-repository>  # placeholder
       remote: crux
       revision: <commit>
       import:

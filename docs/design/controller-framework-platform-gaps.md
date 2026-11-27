@@ -203,7 +203,7 @@ Crux refuses every form of it, at the pin and on Crux `main`; the line reference
 ### C10. Image state
 
 - Evidence: Crux's image state contract (`components/image_state`) has a host provider only, with no Zephyr or MCUboot provider.
-- Crux change: an image state provider for the update path ([crux-pilot#297](https://github.com/wonny-labs/crux-pilot/issues/297)). State: Crux change needed. Priority 2.
+- Crux change: an image state provider for the update path (Crux issue #297). State: Crux change needed. Priority 2.
 - Interim state: the images are prepared for MCUboot, with no health-gated confirmation. Replacement criterion: criterion 25 stays a host test.
 
 ### C16. Security counter
@@ -261,4 +261,4 @@ These refuse a board whose logging UART, watchdog or entropy source is not the N
 
 ## Other Crux changes
 
-- A web adapter for the File service, which HTTPS file transfer needs ([specification section 6.2](controller-framework-spec.md#62-security-items)). [crux-pilot#188](https://github.com/wonny-labs/crux-pilot/issues/188). State: Crux change needed. Priority 3.
+- A web adapter for the File service, which HTTPS file transfer needs ([specification section 6.2](controller-framework-spec.md#62-security-items)). Crux issue #188. State: Crux change needed. Priority 3.
