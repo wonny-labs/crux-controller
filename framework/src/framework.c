@@ -793,8 +793,10 @@ static const startup_hooks_t hooks = {hook_begin, hook_end, hook_skipped};
 #endif
 
 #ifdef CONFIG_CRUX_CONTROLLER_FRAMEWORK_MANAGEMENT
-/* True once web management started, and with it Access, which the command line needs. */
-static bool management_started;
+/* True once the services part started the configuration and status services, with or without web
+ * management: the command line needs them and Access, and it is the operator's path to recover a
+ * refused TLS certificate (section 4.1). */
+static bool management_services_started;
 /* True once the core part started storage and Access. */
 static bool core_started;
 
@@ -847,16 +849,18 @@ static int phase_management(void)
     const management_port_status_t status =
         core_started ? management_port_start_services(&config) : MANAGEMENT_PORT_ERR_NOT_READY;
 
-    management_started = status == MANAGEMENT_PORT_OK;
+    /* A refused TLS certificate turns only web management off (section 4.1). */
+    management_services_started =
+        status == MANAGEMENT_PORT_OK || status == MANAGEMENT_PORT_ERR_TLS_CERTIFICATE;
 #ifdef CONFIG_CRUX_CONTROLLER_FRAMEWORK_SUPERVISION
-    const service_health_t health = management_started ? SERVICE_HEALTHY : SERVICE_FAILED;
+    const service_health_t health = management_services_started ? SERVICE_HEALTHY : SERVICE_FAILED;
 
     set_health(SERVICE_CONFIGURATION, health);
     set_health(SERVICE_STATUS, health);
-    set_health(SERVICE_WEB, health);
+    set_health(SERVICE_WEB, status == MANAGEMENT_PORT_OK ? SERVICE_HEALTHY : SERVICE_FAILED);
 #endif
 #ifdef CONFIG_CRUX_CONTROLLER_FRAMEWORK_REBOOT
-    if (management_started) {
+    if (management_services_started) {
         (void)reboot_port_start();
     }
 #endif
@@ -865,7 +869,7 @@ static int phase_management(void)
 #endif
 
 #ifdef CONFIG_CRUX_CONTROLLER_FRAMEWORK_CLI_SERIAL
-/* The phase result when web management, and so Access, did not start. */
+/* The phase result when the management services, or Access before them, did not start. */
 #define PHASE_COMMAND_LINE_NO_ACCESS (-100)
 
 static int phase_command_line(void)
@@ -876,7 +880,7 @@ static int phase_command_line(void)
 #ifdef CONFIG_CRUX_CONTROLLER_FRAMEWORK_SUPERVISION
     config.framework_commands = true;
 #endif
-    if (!management_started) {
+    if (!management_services_started) {
         return PHASE_COMMAND_LINE_NO_ACCESS;
     }
     const int result = (int)cli_port_start(&config);

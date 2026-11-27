@@ -113,10 +113,11 @@ name and result of each:
    left out with no application, and the application is held in safe mode.
 5. web management: Crux Reboot, the configuration service with the application's parameter table, the status service
    with the framework's and the application's items, the TLS certificate, sessions, web management and the
-   listener (the services part of the port); then the framework's reboot thread.
+   listener (the services part of the port); then the framework's reboot thread. A refused TLS certificate turns
+   only web management off: the services before it and the reboot thread stay started.
 6. command line: the Crux serial console on the UART of the devicetree alias `crux-serial0`, with its login, its
-   first-account setup and the framework's commands (`framework/src/cli_port.h`). It needs Access, so it runs only
-   after step 5 succeeded.
+   first-account setup and the framework's commands (`framework/src/cli_port.h`). It needs Access and the
+   configuration and status services, so it runs only after step 5 started them, with or without web management.
 7. time synchronisation: the SNTP thread of `framework/src/time_sync.c`; left out in safe mode.
 8. start prerequisites: the health of the services that the build selects as start prerequisites; left out with no
    application.

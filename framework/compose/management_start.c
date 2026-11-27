@@ -302,10 +302,18 @@ management_port_status_t management_port_start_services(const management_port_co
     }
 
     /* 4. The TLS certificate. The device key is made inside this call, from the hardware random
-     * source, when the store holds none. */
+     * source, when the store holds none. A refusal, such as a stored certificate of another key,
+     * turns only web management off: the services above stay started, and the serial console is
+     * the operator's path to recover the certificate (specification sections 4.1 and 5.5). */
     set_certificate_options(octets);
-    if (crux_tls_certificate_start(&certificate_options, &how) != CRUX_TLS_CERTIFICATE_OK) {
-        return failed("tls certificate");
+    const crux_tls_certificate_result_t certificate =
+        crux_tls_certificate_start(&certificate_options, &how);
+    if (certificate != CRUX_TLS_CERTIFICATE_OK) {
+        (void)snprintf(text, sizeof text,
+                       "tls certificate start refused result=%d: web management stays off",
+                       (int)certificate);
+        note(CRUX_LOG_ERROR, text);
+        return MANAGEMENT_PORT_ERR_TLS_CERTIFICATE;
     }
 
     /* 5. The material to Zephyr's credentials, before the listener, and the fingerprint to the log

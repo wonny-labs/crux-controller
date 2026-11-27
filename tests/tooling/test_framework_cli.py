@@ -116,12 +116,17 @@ class PortAndZone(unittest.TestCase):
         code = code_of(read("framework/src/framework.c"))
         self.assertIn("MANAGEMENT_ROLE_ADMINISTRATOR", code)
 
-    def test_the_command_line_needs_web_management_to_have_started(self):
-        # Access is started by the web management phase; the console must not start without it.
+    def test_the_command_line_needs_the_management_services_to_have_started(self):
+        # Access and the configuration and status services are started before the command line; the
+        # console must not start without them. A refused TLS certificate leaves them started and
+        # turns only web management off (specification section 4.1), so the console still starts.
         code = code_of(read("framework/src/framework.c"))
         phase = code[code.index("static int phase_command_line"):]
         phase = phase[:phase.index("\n}\n")]
-        self.assertIn("management_started", phase)
+        self.assertIn("management_services_started", phase)
+        management = code[code.index("static int phase_management"):]
+        management = management[:management.index("\n}\n")]
+        self.assertIn("MANAGEMENT_PORT_ERR_TLS_CERTIFICATE", management)
 
 
 class BaseImage(unittest.TestCase):

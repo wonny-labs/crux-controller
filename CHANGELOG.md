@@ -24,6 +24,10 @@ build configurations by their earlier step ids, S0 to S6.
   Reboot stops a running application first and refuses later operator requests; while the startup steps of
   an image with an application run, Crux Reboot refuses a restart with the reason "Application startup has
   not ended". The interface is at the lowest stability tier.
+- A refused TLS certificate start, such as `CRUX_TLS_CERTIFICATE_ERR_KEY_MISMATCH`, turns only web management
+  off. The configuration and status services, the serial command line, the reboot thread and the start
+  prerequisites behave as after a successful start (specification section 4.1). Boot 11 of the scenario
+  `application` shows it on `native_sim`.
 - A fixture application (`tests/framework/fixture`) and the scenarios `application` and `application_held` show
   the contract on `native_sim`; the boundary check covers the fixture tree, and clang-tidy also analyses the
   sources of the application scenario's `native_sim` compile database (`scripts/analyze_zephyr.py`).
