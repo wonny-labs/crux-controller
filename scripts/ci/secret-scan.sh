@@ -7,11 +7,11 @@
 # The secret scan of specification criterion 41 (requirement Q1), on every change: Gitleaks, at a
 # pinned release whose archive is checked against its SHA-256, scans the working tree with its
 # default rules (private keys, API tokens, passwords in known formats) and prints each finding with
-# the secret redacted. A finding fails the check. Gitleaks reads the configuration .gitleaks.toml
-# of the repository root when one exists; there is none, so no rule is turned off. Run from the
-# repository root. Nothing is uploaded. Label: a secret scan is documented but optional (GitHub
-# documentation, secret scanning; specification section 6.4, Q1), and the tool is the choice of this
-# repository, which the specification leaves open (section 6.3); Gitleaks documents the dir command
+# the secret redacted. A finding fails the check. There is no .gitleaks.toml, so no rule is turned
+# off; .gitleaksignore at the repository root lists the fingerprints of reviewed false positives,
+# and tests/tooling/test_secret_scan.py keeps that list fixed. Run from the repository root. Nothing is uploaded. Label: a secret scan is documented but optional (GitHub
+# documentation, secret scanning; specification section 6.4, Q1), and the tool is a project-specific
+# workaround, as the specification leaves it open (section 6.3); Gitleaks documents the dir command
 # and its default rules in its README.
 set -euo pipefail
 

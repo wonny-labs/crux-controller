@@ -328,7 +328,7 @@ three boundary files together.
   quote the pin.
 - `budgets/limits.json`: its own `_comment` says that a change there is a reviewed change; CONTRIBUTING says a
   limit is not changed in a pin-bump pull request.
-- `scripts/ci/` (the CI map file `checks.toml` and its scripts), `.github/workflows/*.yml`, `Jenkinsfile`, `scripts/check_mbed_only.py` and `CODEOWNERS`: CONTRIBUTING does not state a rule for them.
+- `scripts/ci/` (the CI map file `checks.toml` and its scripts), `.gitleaksignore` (the reviewed false positives of the secret scan), `.github/workflows/*.yml`, `Jenkinsfile`, `scripts/check_mbed_only.py` and `CODEOWNERS`: CONTRIBUTING does not state a rule for them.
   They are listed because they hold the checks, the licence gate of the Mbed TLS group and the ownership, and a reviewer should look at a change to them.
 - `CONTRIBUTING.md` itself.
 

@@ -13,7 +13,7 @@
 # when the tool cannot run. A release check that fails on an untriaged match belongs to delivery
 # stage 4. Nothing is uploaded. Label: matching the SBOM against a public database is standard
 # (specification section 6.4, V2, from CRA Annex I Part II (1) and (2), unofficial text); the tool is
-# the choice of this repository, which the specification leaves open (section 6.3). Grype's README
+# a project-specific workaround, as the specification leaves it open (section 6.3). Grype's README
 # documents the sbom: input, and the SBOM decoders of Syft, which Grype uses, include SPDX tag-value
 # (syft/format/decoders.go).
 set -euo pipefail

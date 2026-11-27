@@ -1348,6 +1348,12 @@ class OrganisationCertificateFolder(unittest.TestCase):
             self.assertIn(fragment, text)
 
 
+def pem_block(label, body):
+    """A PEM block (RFC 7468) with this label. The key fixtures are built from the label so that the
+    source holds no literal private key header, which the secret scan would report."""
+    return f"-----BEGIN {label}-----\n{body}\n-----END {label}-----\n"
+
+
 class InstallOrgCertsScript(unittest.TestCase):
     """The real install-org-certs.sh in temporary folders, with a stand-in for update-ca-certificates.
 
@@ -1514,7 +1520,7 @@ class InstallOrgCertsScript(unittest.TestCase):
         self.assertIn("skipping notes.txt", result.stderr)
 
     def test_a_file_that_holds_a_private_key_stops_the_build(self):
-        (self.source / "bundle.pem").write_text(self.PEM + "-----BEGIN PRIVATE KEY-----\nMIIE\n-----END PRIVATE KEY-----\n")
+        (self.source / "bundle.pem").write_text(self.PEM + pem_block("PRIVATE KEY", "MIIE"))
         result = self.run_script()
         self.assert_stopped(result, "error: .devcontainer/certs/bundle.pem: holds a private key. "
                                     "Put only the CA certificate here, never a key.")
@@ -1557,7 +1563,7 @@ class InstallOrgCertsScript(unittest.TestCase):
     def test_a_private_key_stops_the_build_whatever_the_file_ending(self):
         for name in ("org.key", "notes.txt"):
             with self.subTest(name):
-                (self.source / name).write_text("-----BEGIN EC PRIVATE KEY-----\nMHcC\n-----END EC PRIVATE KEY-----\n")
+                (self.source / name).write_text(pem_block("EC PRIVATE KEY", "MHcC"))
                 result = self.run_script()
                 self.assert_stopped(result, f"error: .devcontainer/certs/{name}: holds a private key.")
                 (self.source / name).unlink()
