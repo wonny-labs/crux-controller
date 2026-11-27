@@ -43,7 +43,7 @@ void supervision_step_end(supervision_t *state)
     }
 }
 
-bool supervision_latch(supervision_t *state, boot_fault_reason_t reason, const char *name)
+static bool latch_now(supervision_t *state, boot_fault_reason_t reason, const char *name)
 {
     if (state == NULL || state->latched) {
         return false;
@@ -51,6 +51,32 @@ bool supervision_latch(supervision_t *state, boot_fault_reason_t reason, const c
     state->latched = true;
     state->reason = reason;
     copy_name(state->name, name);
+    return true;
+}
+
+bool supervision_latch(supervision_t *state, boot_fault_reason_t reason, const char *name)
+{
+    const bool latched = latch_now(state, reason, name);
+
+    if (latched) {
+        state->report_due = true;
+    }
+    return latched;
+}
+
+bool supervision_take_report(supervision_t *state, boot_fault_reason_t *reason,
+                             char name[BOOT_NAME_SIZE])
+{
+    if (state == NULL || !state->report_due) {
+        return false;
+    }
+    state->report_due = false;
+    if (reason != NULL) {
+        *reason = state->reason;
+    }
+    if (name != NULL) {
+        memcpy(name, state->name, BOOT_NAME_SIZE);
+    }
     return true;
 }
 
@@ -71,7 +97,7 @@ supervision_action_t supervision_poll(supervision_t *state, uint64_t now_ms,
         return SUPERVISION_STOPPED;
     }
     if (step_overdue(state, now_ms)) {
-        (void)supervision_latch(state, BOOT_FAULT_DEADLINE, state->step);
+        (void)latch_now(state, BOOT_FAULT_DEADLINE, state->step);
         return SUPERVISION_LATCH;
     }
     for (unsigned channel = 0; channel < 32u; channel++) {
@@ -79,12 +105,12 @@ supervision_action_t supervision_poll(supervision_t *state, uint64_t now_ms,
             continue;
         }
         if (names != NULL && channel < count && names[channel] != NULL) {
-            (void)supervision_latch(state, BOOT_FAULT_CHANNEL, names[channel]);
+            (void)latch_now(state, BOOT_FAULT_CHANNEL, names[channel]);
         } else {
             char unnamed[BOOT_NAME_SIZE];
 
             (void)snprintf(unnamed, sizeof unnamed, "channel %u", channel);
-            (void)supervision_latch(state, BOOT_FAULT_CHANNEL, unnamed);
+            (void)latch_now(state, BOOT_FAULT_CHANNEL, unnamed);
         }
         return SUPERVISION_LATCH;
     }

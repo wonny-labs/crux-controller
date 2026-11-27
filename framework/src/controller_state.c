@@ -61,6 +61,11 @@ static bool next_state(app_state_t from, app_event_t event, app_hold_t hold, app
             *to = APP_RUNNING;
             return true;
         }
+        /* That operator start's activation or start failed (section 3.3). */
+        if (event == APP_EVENT_START_FAILED && hold == APP_HOLD_PREREQUISITE) {
+            *to = APP_FAULT;
+            return true;
+        }
         return false;
     case APP_RUNNING:
         if (event == APP_EVENT_STOPPED) {

@@ -38,6 +38,7 @@ typedef struct {
     bool latched;
     boot_fault_reason_t reason; /* with latched */
     char name[BOOT_NAME_SIZE];  /* with latched: the step or the channel */
+    bool report_due;            /* latched from outside and not yet taken by the supervisor */
 } supervision_t;
 
 void supervision_init(supervision_t *state);
@@ -66,6 +67,15 @@ supervision_action_t supervision_poll(supervision_t *state, uint64_t now_ms,
 /* Latch a fault that the supervisor learns of from elsewhere (an application stop that failed).
  * Returns true when this call latched, false when a fault was latched already. */
 bool supervision_latch(supervision_t *state, boot_fault_reason_t reason, const char *name);
+
+/*
+ * The supervisor's side of an outside latch: true once after supervision_latch() latched, with the
+ * reason and the name, so that the supervisor writes the record, calls safe_state and resets as it
+ * does for a fault that its own poll found. A latch that a poll found was reported by that poll's
+ * SUPERVISION_LATCH and is not reported again here.
+ */
+bool supervision_take_report(supervision_t *state, boot_fault_reason_t *reason,
+                             char name[BOOT_NAME_SIZE]);
 
 /*
  * Whether one watchdog timeout T covers the feed period with a margin: T at least twice the
