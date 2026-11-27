@@ -76,6 +76,7 @@ start makes a new key and has no account. `west build -p always` or deleting `bu
 | Serial command line | The console stays on an emulated UART (`crux-serial0`). A thread of the image (`src/interactive.c`) copies bytes between it and `uart1`, a PTY UART on its own pseudo-terminal. The run command links that pseudo-terminal to `build/native-sim/console` with `--uart_1_attach_uart_cmd`. | Project-specific workaround | Crux Serial accepts only an emulated UART on `native_sim` (`components/serial/ports/zephyr/serial_binding.c` at the pinned Crux). The PTY UART and its options are standard (native_sim page, "PTY UART"). |
 | State | A `zephyr,flash-disk` on the flash simulator, kept in a host file with `--flash` | Standard | native_sim page, "Flash simulator"; Crux's `CRUX_FILE_FATFS_SIMULATOR` accepts a file-backed flash disk |
 | Restart | `CONFIG_NATIVE_SIM_REBOOT`: a restart request starts the program again | Standard | Zephyr v4.5.0 `boards/native/native_sim/Kconfig`, `NATIVE_SIM_REBOOT` |
+| Supervision | The base image's health supervision with no watchdog and no retained region, so the watchdog is not armed and the boot counter is in RAM (see [Limits](#limits)) | Project-specific workaround | `zephyr/Kconfig`, `CRUX_CONTROLLER_FRAMEWORK_SUPERVISION` |
 | Entropy seed | The run command passes a new `--seed` from `/dev/urandom` each run, because the test source repeats for the same seed | Documented but optional | native_sim page, "Entropy device" |
 | Browser | VS Code forwards the container's port to the host. A forwarded port looks like `localhost` to the image, so the `127.0.0.1` listener accepts it; a port that Docker publishes does not. | Documented but optional | VS Code documentation, [Developing inside a Container](https://code.visualstudio.com/docs/devcontainers/containers), "Forwarding or publishing a port" |
 | Abrupt close | The build makes a copy of native_sim's offload driver (`nsos_adapt.c`) that reports a client's FIN as `POLLHUP`, so a close without a TLS `close_notify` does not spin the web server. See [Limits](#limits). | Project-specific workaround | `tests/framework/interactive/nsos_rdhup.cmake`, adapted from Crux `tests/native/web_https/nsos_rdhup.cmake`; Crux `docs/https-composition.md`, "Abrupt close and the CPU spin", at the pinned Crux |
@@ -90,10 +91,11 @@ Its result is in the `base` job of each CI run.
 ## Limits
 
 - **Supervision without a watchdog.** The image has no watchdog and no retained region on `native_sim`, so after
-  startup it logs `controller state=degraded`, and the boot counter lives in RAM: a restart sets it to zero, so
-  safe mode cannot be reached by hand. The `reboot` and `recovery exit` commands, and a fault that the supervisor
-  sees, restart the program. No check runs such a restart in this configuration; afterwards, connect miniterm
-  again.
+  startup it logs `controller state=degraded`. The boot counter lives in RAM for one run of the program: a fresh
+  start begins at 0. A restart from inside the program (such as `reboot`, `recovery exit` or a fault that the
+  supervisor sees) begins at 1 and logs `boot class=fault`, because the operator reset marker also needs the
+  retained region. The counter never reaches the threshold of 3, so safe mode cannot be reached by hand. No check
+  runs such a restart in this configuration; afterwards, connect miniterm again.
 - **What CI covers.** CI runs only the Twister scenario above, on x86_64 Linux, with Python's `ssl` module as the
   client. No check runs `scripts/run-native-sim.sh` itself or its `--no-build` and `--reset` options, miniterm, a
   browser, VS Code's port forwarding, an arm64 host, the route without VS Code, or a start with port 8443 in use.

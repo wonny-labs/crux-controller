@@ -70,7 +70,7 @@ class Configuration(unittest.TestCase):
         self.assertIn("startup done phases=6 failed=0", read(PAGE))
 
     def test_a_restart_request_restarts_the_program(self):
-        # Without it native_sim's reboot does nothing and the image stops answering.
+        # Without it a restart request ends the program in place of starting it again.
         self.assertEqual("y", self.values.get("CONFIG_NATIVE_SIM_REBOOT"))
 
     def test_the_network_is_the_hosts_through_offloaded_sockets(self):
