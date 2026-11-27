@@ -85,8 +85,27 @@ class BaseApplication(unittest.TestCase):
         links = [line for line in cmake.splitlines() if "target_link_libraries" in line]
         self.assertTrue(links)
         for line in links:
-            # The workload is this repository's own portable library.
-            self.assertTrue("crux::" in line or "workload" in line, line)
+            # The workload is this repository's own portable library, and controller::framework is
+            # the interface header of the framework module of this repository.
+            self.assertTrue("crux::" in line or "workload" in line or "controller::framework" in line, line)
+
+
+class FrameworkImageFunction(unittest.TestCase):
+    """controller_framework_image() of zephyr/CMakeLists.txt adds the web route table to `app`."""
+
+    def function_body(self):
+        text = (ROOT / "zephyr" / "CMakeLists.txt").read_text()
+        start = text.index("function(controller_framework_image)")
+        return text[start:text.index("endfunction()", start)]
+
+    def test_the_target_that_compiles_the_route_table_links_the_web_api(self):
+        # The generated route table includes <crux/web.h>; without the public web target on `app`
+        # the base image and its native_sim scenario do not compile.
+        body = self.function_body()
+        code = "\n".join(line.split("#", 1)[0] for line in body.splitlines())
+        self.assertIn("management.cmake", code)
+        self.assertIn("target_link_libraries(app PRIVATE crux::web)", code)
+        self.assertLess(code.index("management.cmake"), code.index("crux::web"))
 
 
 if __name__ == "__main__":

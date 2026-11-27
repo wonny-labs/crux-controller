@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
-/* Runs the application's own config_store.c and the composition zone (app/compose) on the
+/* Runs the application's own config_store.c and the composition zone (framework/compose) on the
  * simulator provider of Crux File, over a RAM disk. One case per image, chosen by FILE_CASE,
  * because File is bound once per program and has no unbind. This is test code, so it may use
  * Zephyr's file system API directly, for example to remove a directory behind File's back. */

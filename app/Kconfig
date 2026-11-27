@@ -163,8 +163,8 @@ config CRUX_CONTROLLER_MANAGEMENT
 	  because the services select those themselves.
 	  The medium is a RAM disk, so nothing persists across a reset: the key, the certificate, the
 	  accounts and the security events are made again at each start. The image has no account, and
-	  nobody can log in: the first account is made from the serial console, in a later change, and
-	  the pages and routes that need a session answer as refused until then. The save route of the
+	  nobody can log in: the first account is made from the serial console, which only the base
+	  image starts, so the pages and routes that need a session answer as refused here. The save route of the
 	  configuration service exists and always ends as not supported, because the image has no
 	  Settings File backend. The image offers no reboot, network or file route, no SSH and no
 	  command line. It does not combine with file, which owns another file provider, or with system,

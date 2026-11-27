@@ -5,8 +5,8 @@
 /*
  * The product's policy for HTTPS management, as data and plain C with ISO C includes only, so the
  * host builds and tests it with no Crux or Zephyr header. The management capability compiles
- * management_policy.c into its image, and the composition zone (app/compose/management_start.c)
- * copies this data into the Crux types.
+ * management_policy.c into its image, and the composition zone
+ * (framework/compose/management_start.c) copies this data into the Crux types.
  *
  * The permission names below are copies, because this file has no Crux include. What backs each
  * one: "access.manage"  CRUX_ACCESS_PERMISSION_MANAGE, defined in crux/access.h, which also defines

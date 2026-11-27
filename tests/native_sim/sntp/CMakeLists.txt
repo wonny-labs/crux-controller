@@ -12,10 +12,10 @@ project(controller_sntp_native_sim LANGUAGES C)
 # and a stale age of two seconds keep the cases fast.
 get_filename_component(controller_root "${CMAKE_CURRENT_LIST_DIR}/../../.." ABSOLUTE)
 target_sources(app PRIVATE src/test_sntp.c
-               ${controller_root}/app/src/time_sync.c
-               ${controller_root}/app/src/time_sync_policy.c
-               ${controller_root}/app/os/time_sync_zephyr.c)
-target_include_directories(app PRIVATE ${controller_root}/app/src)
+               ${controller_root}/framework/src/time_sync.c
+               ${controller_root}/framework/src/time_sync_policy.c
+               ${controller_root}/framework/os/time_sync_zephyr.c)
+target_include_directories(app PRIVATE ${controller_root}/framework/src)
 target_link_libraries(app PRIVATE crux::time crux::logging)
 if(NOT DEFINED SNTP_CASE)
     message(FATAL_ERROR "SNTP_CASE is not set: run this test through its testcase.yaml")
@@ -31,7 +31,7 @@ target_compile_definitions(app PRIVATE
     CONFIG_CRUX_CONTROLLER_TIME_STACK=8192)
 
 # The application's own sources keep the application's warning level.
-set_source_files_properties(${controller_root}/app/src/time_sync.c
-                            ${controller_root}/app/src/time_sync_policy.c
-                            ${controller_root}/app/os/time_sync_zephyr.c
+set_source_files_properties(${controller_root}/framework/src/time_sync.c
+                            ${controller_root}/framework/src/time_sync_policy.c
+                            ${controller_root}/framework/os/time_sync_zephyr.c
                             PROPERTIES COMPILE_OPTIONS "-Wall;-Wextra;-Werror")

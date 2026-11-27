@@ -7,6 +7,35 @@ build configurations by their earlier step ids, S0 to S6.
 
 ## Unreleased
 
+### Controller framework
+
+- The repository is a controller framework for products built on Crux: a Zephyr module (`zephyr/module.yml`)
+  that one Kconfig symbol, `CRUX_CONTROLLER_FRAMEWORK`, turns on, with a base image. The role section of
+  `CONTRIBUTING.md` and the glossary entry "Product" say so; "product" now means a firmware repository outside
+  this one, in Crux's sense.
+- The framework's start function, `controller_framework_start()` in `<controller/framework.h>`, runs a table
+  of phases with the portable startup sequence of `framework/src/startup.c` (host tests in
+  `tests/host/test_startup.c`): the clock, web management and time synchronisation, each logged with its result.
+- The sources of time synchronisation, of the management policy and port, and of the composition zone move from
+  `app/` to the module's trees `framework/src`, `framework/os` and `framework/compose`, and the web route files
+  from `app/management/` to `framework/management/`. The configurations `sntp`, `file` and `management` build
+  them from there (`framework/configurations.cmake` adds the sources, and `app/CMakeLists.txt` adds the
+  composition zone `framework/compose`) and are otherwise unchanged.
+- The build configuration `base` is the base image (`app/conf/base.conf`): the framework with web management
+  and time synchronisation, on a RAM disk, with no application. The configuration of `app/prj.conf` alone is
+  renamed `minimal`, with its CI job and `Budget` row. The `base build` job runs the scenario
+  `tests/framework/base`, which builds the framework from the module on `native_sim`, then builds the image for
+  the RT1060-EVKB; `budgets/limits.json` has a row for it with the placeholder margin.
+- The boundary check covers the trees of the module (`include`, `framework/src`, `framework/compose`,
+  `framework/os`), and a C source under `app/`, `framework/` or `include/` outside every checked tree fails.
+- The base image starts the serial command line: the Crux serial console, with its login and its first-account
+  setup, on LPUART3 of the RT1060-EVKB (alias `crux-serial0` in the board file), after web management. The
+  service symbol is `CRUX_CONTROLLER_FRAMEWORK_CLI_SERIAL`, and `<crux/cli_zephyr.h>` joins the composition
+  zone's allow-list. The `native_sim` scenario types the setup and a login into an emulated UART.
+- The nightly job `product-integration` builds a fixture product (`tests/product_integration`) in a west workspace
+  of its own, which imports this repository at the commit under test, and runs it on `native_sim`
+  (`tests/product_integration/run.sh`, a job of `scheduled-main.yml` and a Jenkins stage).
+
 ### Capability names
 
 - The step ids S0 to S6 are replaced by capability names: S0 `base`, S1 `workload`, S2 `net`, S3 `file`,

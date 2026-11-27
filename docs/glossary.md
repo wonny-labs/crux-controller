@@ -8,13 +8,12 @@ procedures; terms from outside this repository; and wording that differs between
 
 ## Product, platform and composition
 
-**Product.** In this repository, the firmware that this repository holds: the code in `app/` and
-`workload/`, as opposed to the Crux platform code that `west.yml` imports. "Product code", a "product-owned"
-header (one that the application declares), the "product's" Kconfig symbols and the "product's" policy all use the
-word this way. It is not a product in the commercial sense: the [README](../README.md) says that the firmware
-has no real control logic, there is no release and no support period is promised. Crux's own documents use
-"product" for any firmware repository built on Crux, for example the product composition guide
-(`docs/product-composition.md` of `crux-pilot` at the pinned revision). Both uses mean "firmware built on Crux".
+**Product.** Crux's sense: a firmware repository outside this repository that is built on Crux, imports the
+[controller framework](#capabilities-and-build-configurations) and adds its application, as the product
+composition guide describes (`docs/product-composition.md` of `crux-pilot` at the pinned revision). This
+repository is not a product. In source comments and build files, "product code", a "product-owned" header (one
+that this repository's code declares), the "product's" Kconfig symbols (`CRUX_CONTROLLER_`) and the "product's"
+policy mean this repository's own code, as opposed to the Crux platform code that `west.yml` imports.
 
 **Platform.** Crux, the embedded software platform that lives in the repository `crux-pilot`. "Crux Platform"
 (the [README](../README.md) role sentence), "the platform" and "a platform milestone" all mean Crux and the
@@ -27,7 +26,7 @@ this firmware.
    implementations and bind hardware resources (Kconfig, providers, device bindings). The concepts glossary of
    `crux-pilot` defines it (`docs/README.md` at the pinned revision). The finding titles that say "composing File"
    or "composing Crux System" use the verb in this sense.
-2. The [composition zone](#boundary-and-zones), the directory `app/compose`, where this repository holds the
+2. The [composition zone](#boundary-and-zones), the directory `framework/compose`, where this repository holds the
    product code that does that for File and for HTTPS management.
 3. A [composition interface](#boundary-and-zones), a Crux header such as `<crux/file_zephyr.h>` that only
    composition code may include.
@@ -39,21 +38,31 @@ this firmware.
 **Capability.** One thing that the firmware shows a product how to do with Crux, such as a TCP exchange over the
 Sockets profile or a watchdog through Crux System. Each capability has one *build configuration*.
 
-**Build configuration.** A named set of Kconfig fragments and devicetree overlays that builds one image, `base` to
-`management`. Each configuration after `base` has a Kconfig option (`CRUX_CONTROLLER_WORKLOAD` to
+**Controller framework.** The Zephyr module of this repository (`zephyr/module.yml`): the start function
+`controller_framework_start()` of `<controller/framework.h>`, which composes the Crux services of a networked
+controller in a defined order. One Kconfig symbol, `CRUX_CONTROLLER_FRAMEWORK`, turns it on. Its sources are
+in `framework/` and its interface header in `include/`.
+
+**Base image.** The image of this repository that runs the controller framework with no application: the build
+configuration `base`.
+
+**Build configuration.** A named set of Kconfig fragments and devicetree overlays that builds one image, `minimal`
+to `base`. Each configuration from `workload` to `management` has a Kconfig option (`CRUX_CONTROLLER_WORKLOAD` to
 `CRUX_CONTROLLER_MANAGEMENT` in `app/Kconfig`), a fragment (`app/conf/<name>.conf`), a CI build job named after it
 (for example `system build (RT1060-EVKB, System)`), its own row in the `Budget` matrix and in
-`budgets/limits.json`, and a row in the README table.
+`budgets/limits.json`, and a row in the README table. `base` has the fragment `app/conf/base.conf`, which turns
+on the framework's symbol.
 
 | Build configuration | What it adds |
 |---|---|
-| `base` | The clock of Crux Time answers. No option and no fragment: it is `app/prj.conf` alone. |
+| `minimal` | The clock of Crux Time answers. No option and no fragment: it is `app/prj.conf` alone. |
 | `workload` | The synthetic workload on two Zephyr threads and a message queue (the adapter zone), with Crux Time and Logging. |
 | `net` | Each workload message is also sent to a TCP peer over the Crux Sockets profile. |
 | `file` | The workload's configuration record is kept in a file through Crux File, on a microSD volume mounted by the composition zone. |
 | `system` | The reset cause is logged at boot and a watchdog is fed once for each pass of the workload that has cycles due, through Crux System. |
 | `sntp` | The Crux Time realtime clock is set from an SNTP server on the `net` network, with a product policy for what an answer may do. |
 | `management` | Management over HTTPS on the `net` network: Crux Access, the web server on the Mbed TLS profile, the status and configuration services and a packaged page, on a RAM disk, with no account until the first-account console exists. |
+| `base` | The base image: the controller framework with web management and time synchronisation on the network of `net`, on a RAM disk, with no workload and no application. |
 
 `net`, `file` and `system` each depend on `workload` in Kconfig and are built on top of `conf/workload.conf`. `sntp`
 depends on `net` (and so on `workload`) and is built on `conf/workload.conf;conf/net.conf;conf/sntp.conf`.
@@ -84,17 +93,17 @@ product include check". In product mode it fails on an include of one of the thr
 the wrapper `check-includes.sh` of `crux-pilot`, which calls the same script. The first check, `scripts/check_boundary.py`,
 belongs to this repository. See [composition-zone.md](composition-zone.md#running-the-check).
 
-**Adapter zone.** The directory `app/os`. The one place that creates threads, queues messages and
-sleeps, using Zephyr kernel calls directly, and queries an SNTP server for `sntp`. It implements the port headers
-`app/src/workload_os.h` and `app/src/time_sync_port.h`. It may
+**Adapter zone.** The directories `app/os` and `framework/os`, the places that create threads, queue messages and
+sleep, using Zephyr kernel calls directly, and query an SNTP server. `app/os` implements the port header
+`app/src/workload_os.h`, and `framework/os` the port header `framework/src/time_sync_port.h`. Each may
 include exactly two Zephyr headers, `zephyr/kernel.h` and `zephyr/net/sntp.h` (`OS_ADAPTER_ZEPHYR_HEADERS`
-in `scripts/check_boundary.py`), and no Sockets profile, POSIX or composition header. Of its two sources,
-`app/os/time_sync_zephyr.c` (`sntp`) includes the SNTP header. See [composition-zone.md](composition-zone.md).
+in `scripts/check_boundary.py`), and no Sockets profile, POSIX or composition header.
+`framework/os/time_sync_zephyr.c` includes the SNTP header. See [composition-zone.md](composition-zone.md).
 
-**Composition zone.** The directory `app/compose`. The one place that mounts a file system and binds it
+**Composition zone.** The directory `framework/compose`. The one place that mounts a file system and binds it
 to Crux File with the composition interface `<crux/file_zephyr.h>`, and the place that starts HTTPS management with
 the Web composition interface `<crux/web_zephyr.h>` (`management`). It may include three Zephyr headers,
-`zephyr/fs/fs.h`, `zephyr/devicetree.h` and `zephyr/net/tls_credentials.h`. It implements the port headers `app/src/storage_port.h` and `app/src/management_port.h` (`management`).
+`zephyr/fs/fs.h`, `zephyr/devicetree.h` and `zephyr/net/tls_credentials.h`. It implements the port headers `framework/src/storage_port.h` and `framework/src/management_port.h` (`management`).
 "Composition" has [four meanings](#product-platform-and-composition). Here the composition zone holds the
 product code that does what Crux calls composition (meaning 1) for File and for HTTPS management. Do not confuse
 `app/src/composition.c`, which starts the capabilities, with the zone.
@@ -105,10 +114,11 @@ with `crux::web_zephyr`. Crux publishes these
 under `components/*/ports/*/include/crux/`, apart from the public headers. `app/src` and `workload/` may
 not include one.
 
-**Port header.** A header in `app/src` that the application declares and a zone implements:
-`workload_os.h` and `time_sync_port.h` (both implemented in `app/os`), and `storage_port.h` and `management_port.h` (`management`) (both implemented in `app/compose`). It includes
-ISO C only, so it stays inside the rules of `app/src`. The application calls it; the linker joins the
-two sides.
+**Port header.** A header that `app/src` or the framework core `framework/src` declares and a zone implements:
+`app/src/workload_os.h` (implemented in `app/os`), `framework/src/time_sync_port.h` (implemented in
+`framework/os`), and `framework/src/storage_port.h` and `framework/src/management_port.h` (both implemented in
+`framework/compose`). It includes ISO C only, so it stays inside the rules of its tree. The declaring code calls
+it; the linker joins the two sides.
 
 **Frozen headers.** The three public Crux headers `<crux/thread.h>`, `<crux/sync.h>` and `<crux/serial.h>`
 (`FROZEN_CRUX_HEADERS` in `scripts/check_boundary.py`). `app/src` and `app/os` fail on them although they
@@ -122,7 +132,7 @@ publish.
 **Sockets profile.** The set of standard POSIX socket headers that Crux's networking contract lists
 (`SOCKET_PROFILE` in `scripts/check_boundary.py`: `sys/socket.h`, `netinet/in.h`, `arpa/inet.h`,
 `poll.h`, `fcntl.h`, `unistd.h`, `errno.h`, `time.h`). `app/src` may include them, and `net`'s
-`net_client.c` does. The Crux targets are `crux::sockets` and `crux::netif`. `app/os`, `app/compose`
+`net_client.c` does. The Crux targets are `crux::sockets` and `crux::netif`. `app/os`, `framework/compose`
 and `workload/` fail on the ones that are not ISO C headers. `errno.h` and `time.h` are also ISO C headers,
 so they are allowed in every tree (`app/os/workload_os_zephyr.c` includes `<errno.h>`).
 
@@ -200,7 +210,7 @@ CMake file notes that Crux Time keeps its state for the whole run.
 coordinates native clock changes with any external time manager and owns source selection and stale
 synchronisation callbacks, and that the authority header is not a runtime permission mechanism. That is why
 Crux provides no SNTP client: the product chooses the time source ([composition-zone.md](composition-zone.md)).
-In code, `app/src/time_sync.c` (`sntp`) is the one file that calls the Crux Time authority
+In code, `framework/src/time_sync.c` (`sntp`) is the one file that calls the Crux Time authority
 (`<crux/time_authority.h>`, with `crux_realtime_set()`).
 
 ## People and board procedures

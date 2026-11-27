@@ -101,7 +101,9 @@ class ProductSymbol(unittest.TestCase):
                          re.compile(r"^\s*range 1024 65536\s*$", re.M))
 
     def test_every_product_option_that_a_conf_sets_is_defined(self):
-        defined = set(re.findall(r"^config (CRUX_CONTROLLER_\w+)", without_hash_comments(KCONFIG), re.M))
+        # The base image's fragment sets the symbol of the framework module, defined in zephyr/Kconfig.
+        text = without_hash_comments(KCONFIG) + without_hash_comments(ROOT / "zephyr" / "Kconfig")
+        defined = set(re.findall(r"^(?:menu)?config (CRUX_CONTROLLER_\w+)", text, re.M))
         for path in sorted(CONF.glob("*.conf")):
             for name in conf_options(path):
                 if name.startswith("CONFIG_CRUX_CONTROLLER_"):

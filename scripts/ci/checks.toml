@@ -35,8 +35,10 @@ max_components = 3
 
 # Each component lists the paths that belong to it.
 [components]
-product = ["app/src/**", "app/compose/**", "app/os/**", "workload/**"]
-management = ["app/management/**", "tests/native_sim_mbed/**"]
+product = ["app/src/**", "app/compose/**", "app/os/**", "workload/**", "framework/src/**",
+           "framework/compose/**", "framework/os/**", "include/**"]
+management = ["framework/management/**", "tests/native_sim_mbed/**"]
+framework = ["zephyr/**", "tests/framework/**"]
 host-tests = ["tests/host/**"]
 scenarios = ["tests/native_sim/**"]
 tooling = ["tests/tooling/**"]
@@ -93,17 +95,20 @@ env = { BOARD = "mimxrt1060_evk@B//qspi" }
 description = "Boundary check and the Crux product include checks"
 [jobs.patch-style]
 description = "Patch style: Zephyr's checkpatch, rule BRACES, on the changed C lines"
+[jobs.minimal]
+description = "minimal build (RT1060-EVKB)"
+env = { BOARD = "mimxrt1060_evk@B//qspi" }
 [jobs.base]
-description = "base build (RT1060-EVKB)"
+description = "base build (base image, native_sim and RT1060-EVKB)"
 env = { BOARD = "mimxrt1060_evk@B//qspi" }
 [jobs.static]
 description = "Static analysis: clang-format and clang-tidy"
 
 # The Budget jobs build each configuration and check its static resource use against
 # budgets/limits.json with scripts/ci/budget.sh, which reads CONFIG, CONF, OVERLAY and REQUIRE.
-[jobs.budget-base]
-description = "Budget base"
-env = { BOARD = "mimxrt1060_evk@B//qspi", CONFIG = "base", CONF = "", OVERLAY = "", REQUIRE = "" }
+[jobs.budget-minimal]
+description = "Budget minimal"
+env = { BOARD = "mimxrt1060_evk@B//qspi", CONFIG = "minimal", CONF = "", OVERLAY = "", REQUIRE = "" }
 [jobs.budget-workload]
 description = "Budget workload"
 env = { BOARD = "mimxrt1060_evk@B//qspi", CONFIG = "workload", CONF = "conf/workload.conf", OVERLAY = "", REQUIRE = "" }
@@ -134,6 +139,14 @@ env = { BOARD = "mimxrt1060_evk@B//qspi", CONFIG = "sntp", CONF = "conf/workload
 description = "Budget management"
 env = { BOARD = "mimxrt1060_evk@B//qspi", CONFIG = "management", CONF = "conf/workload.conf;conf/net.conf;conf/management.conf", OVERLAY = "boards/net.overlay;boards/management.overlay", REQUIRE = "CONFIG_CRUX_CONTROLLER_MANAGEMENT=y CONFIG_CRUX_ACCESS=y CONFIG_CRUX_PSA_THREADING=y CONFIG_CRUX_WEB_MANAGEMENT=y" }
 
+# The base image is the controller framework with no application, on the network, the Mbed TLS
+# profile and the RAM disk of management. Its fragment would build silently without the framework
+# or one of its services if a Kconfig dependency were unmet, so the build is checked. It needs the
+# Mbed TLS group, which its first check switches on in its own workspace.
+[jobs.budget-base]
+description = "Budget base"
+env = { BOARD = "mimxrt1060_evk@B//qspi", CONFIG = "base", CONF = "conf/base.conf", OVERLAY = "boards/net.overlay;boards/management.overlay", REQUIRE = "CONFIG_CRUX_CONTROLLER_FRAMEWORK=y CONFIG_CRUX_CONTROLLER_FRAMEWORK_MANAGEMENT=y CONFIG_CRUX_CONTROLLER_FRAMEWORK_TIME_SYNC=y CONFIG_CRUX_CONTROLLER_FRAMEWORK_CLI_SERIAL=y CONFIG_CRUX_ACCESS=y CONFIG_CRUX_WEB_MANAGEMENT=y CONFIG_CRUX_CLI_CONSOLE=y" }
+
 # The Dev container job builds the image of .devcontainer/ and runs checks in it through
 # scripts/dev-shell.sh. The SEGGER download accepts SEGGER's terms of use, and no check uses a
 # probe, so CI builds the image without the J-Link software (dev-shell.sh passes CRUX_JLINK by
@@ -152,6 +165,11 @@ env = { BOARD = "mimxrt1060_evk@B//qspi", PRODUCT_VERSION = "0.1.0+1", SECURITY_
 [jobs.scheduled-main]
 description = "net build against crux-pilot main"
 env = { BOARD = "mimxrt1060_evk@B//qspi" }
+# The product integration check: the fixture product of tests/product_integration imports this
+# repository at the commit under test into a west workspace of its own, builds on native_sim and
+# runs. Its checks make that workspace in the runner's temporary folder.
+[jobs.product-integration]
+description = "Product integration: a fixture product imports the framework, native_sim"
 
 # --- tooling -------------------------------------------------------------------------------------
 
@@ -923,11 +941,11 @@ bash "$kit/style/check-includes.sh"
 scope = "always"
 fast = ["product", "management"]
 
-# --- base ----------------------------------------------------------------------------------------
+# --- minimal -------------------------------------------------------------------------------------
 
 [[check]]
-id = "base-build"
-job = "base"
+id = "minimal-build"
+job = "minimal"
 run = '''
 cd ..
 export ZEPHYR_BASE="$PWD/zephyr"
@@ -937,8 +955,8 @@ west build -p always -b "$BOARD" -d crux-controller/build/app \
 scope = "always"
 
 [[check]]
-id = "base-outputs"
-job = "base"
+id = "minimal-outputs"
+job = "minimal"
 run = '''
 cd ..
 for output in zephyr.bin zephyr.meta; do
@@ -948,6 +966,185 @@ for output in zephyr.bin zephyr.meta; do
   }
 done
 echo "Built for $BOARD. No flash, reset or hardware command was run."
+'''
+scope = "always"
+
+# --- base ----------------------------------------------------------------------------------------
+# The base image: the controller framework with no application. The scenario of tests/framework
+# builds the framework from the Zephyr module and runs its start function on native_sim; then the
+# image is built for the board. Like management, the job switches the Mbed TLS group on in its own
+# workspace after the project list is checked. scripts/ci/prepare-job.sh runs the default update.
+
+[[check]]
+id = "base-mbed-default"
+job = "base"
+run = '''
+cd ..
+west list --all -f '{name} {active}' > list-default.txt
+cat list-default.txt
+python crux-controller/scripts/check_mbed_only.py --mode default < list-default.txt
+'''
+scope = "always"
+fast = ["framework"]
+
+[[check]]
+id = "base-mbed-group-on"
+job = "base"
+run = '''
+cd ..
+west config --local manifest.group-filter -- +crux-secure-management
+west list --all -f '{name} {active}' > list-mbed.txt
+cat list-mbed.txt
+python crux-controller/scripts/check_mbed_only.py --mode mbed --baseline list-default.txt < list-mbed.txt
+'''
+scope = "always"
+fast = ["framework"]
+
+[[check]]
+id = "base-mbed-fetch"
+job = "base"
+run = '''
+cd ..
+west update
+for name in wolfssl wolfssh wolfpsa; do
+  test ! -e "modules/crypto/$name" || { echo "unexpected $name" >&2; exit 1; }
+done
+for name in mbedtls tf-psa-crypto; do
+  test -d "modules/crypto/$name" || { echo "missing $name" >&2; exit 1; }
+done
+python -m pip install -r zephyr/scripts/requirements-base.txt \
+  -r zephyr/scripts/requirements-build-test.txt \
+  -r zephyr/scripts/requirements-run-test.txt
+'''
+scope = "always"
+fast = ["framework"]
+
+[[check]]
+id = "base-sdk"
+job = "base"
+run = '''
+cd ..
+crux-controller/scripts/ci/install-sdk.sh zephyr
+'''
+scope = "always"
+fast = ["framework"]
+
+# The scenario is in tests/framework, so neither the workload job nor the management job selects it.
+[[check]]
+id = "base-native-sim"
+job = "base"
+run = '''
+cd ..
+export ZEPHYR_BASE="$PWD/zephyr"
+west twister -p native_sim/native/64 -T crux-controller/tests/framework \
+  --inline-logs --clobber-output -O twister-out-base
+'''
+scope = "always"
+fast = ["framework"]
+
+[[check]]
+id = "base-native-sim-report"
+job = "base"
+run = '''
+cd ..
+python - <<'PY'
+import json
+
+report = json.load(open("twister-out-base/twister.json"))
+suites = [suite for suite in report["testsuites"] if "controller.framework.native_sim.base" in suite["name"]]
+statuses = [case["status"] for suite in suites for case in suite["testcases"]]
+print([suite["name"] for suite in suites], statuses)
+assert suites, "the base scenario is not in the Twister report"
+assert statuses and all(status == "passed" for status in statuses), statuses
+assert len(statuses) == 8, statuses
+PY
+'''
+scope = "always"
+fast = ["framework"]
+
+[[check]]
+id = "base-build"
+job = "base"
+run = '''
+cd ..
+export ZEPHYR_BASE="$PWD/zephyr"
+west build -p always -b "$BOARD" -d crux-controller/build/base \
+  crux-controller/app -- -DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON \
+  "-DEXTRA_CONF_FILE=conf/base.conf" \
+  "-DEXTRA_DTC_OVERLAY_FILE=boards/net.overlay;boards/management.overlay"
+'''
+scope = "always"
+
+[[check]]
+id = "base-outputs"
+job = "base"
+run = '''
+cd ..
+for output in zephyr.bin zephyr.meta; do
+  test -f "crux-controller/build/base/zephyr/$output" || {
+    echo "missing $output" >&2
+    exit 1
+  }
+done
+echo "Built the base image for $BOARD. No flash, reset or hardware command was run."
+'''
+scope = "always"
+
+[[check]]
+id = "base-config"
+job = "base"
+run = '''
+cd ..
+build=crux-controller/build/base/zephyr
+# An unmet Kconfig dependency only warns, so check what the build resolved, not what
+# the command line asked for.
+for option in CONFIG_CRUX_CONTROLLER_FRAMEWORK=y CONFIG_CRUX_CONTROLLER_FRAMEWORK_MANAGEMENT=y \
+    CONFIG_CRUX_CONTROLLER_FRAMEWORK_TIME_SYNC=y CONFIG_ZEPHYR_CRUX_CONTROLLER_MODULE=y \
+    CONFIG_CRUX_CONTROLLER_FRAMEWORK_CLI_SERIAL=y CONFIG_CRUX_SERIAL=y CONFIG_CRUX_CLI=y \
+    CONFIG_CRUX_CLI_CONSOLE=y CONFIG_CRUX_CLI_CONSOLE_PRIORITY=11 \
+    CONFIG_CRUX_LOGGING=y CONFIG_CRUX_TIME=y CONFIG_CRUX_NETIF=y CONFIG_SNTP=y \
+    CONFIG_CRUX_PSA_THREADING=y CONFIG_PSA_CRYPTO_PROVIDER_MBEDTLS=y CONFIG_MBEDTLS=y \
+    CONFIG_CRUX_ACCESS=y CONFIG_CRUX_CONFIG_SERVICE=y CONFIG_CRUX_MGMT_STATUS=y \
+    CONFIG_CRUX_TLS_CERTIFICATE=y CONFIG_CRUX_WEB=y CONFIG_CRUX_WEB_SESSION=y \
+    CONFIG_CRUX_WEB_MANAGEMENT=y CONFIG_CRUX_SYSTEM=y \
+    CONFIG_CRUX_FILE_FATFS_RT1060_RAM_DISK=y CONFIG_DISK_DRIVER_RAM=y \
+    CONFIG_ENTROPY_MCUX_TRNG=y CONFIG_MBEDTLS_PSA_DRIVER_GET_ENTROPY=y \
+    'CONFIG_CRUX_WEB_BIND_ADDRESS="192.168.77.2"' 'CONFIG_CRUX_CONTROLLER_TIME_SERVER="192.168.77.1"'; do
+  grep -qxF "$option" "$build/.config" || { echo "missing $option" >&2; exit 1; }
+done
+# No configuration of the workload, no other watchdog owner, shell, card, test entropy or
+# plain HTTP.
+for option in CONFIG_CRUX_CONTROLLER_WORKLOAD=y CONFIG_CRUX_CONTROLLER_NET=y \
+    CONFIG_CRUX_CONTROLLER_FILE=y CONFIG_CRUX_CONTROLLER_SYSTEM=y CONFIG_CRUX_CONTROLLER_SNTP=y \
+    CONFIG_CRUX_CONTROLLER_MANAGEMENT=y CONFIG_CRUX_CONTROLLER_M3=y \
+    CONFIG_CRUX_WEB_PLAIN_HTTP_FOR_TESTS=y CONFIG_CRUX_DEVELOPMENT_IMAGE=y CONFIG_SHELL=y \
+    CONFIG_DISK_DRIVER_SDMMC=y CONFIG_TEST_RANDOM_GENERATOR=y CONFIG_FAKE_ENTROPY_NATIVE_SIM=y \
+    CONFIG_TASK_WDT_HW_FALLBACK=y CONFIG_WDT_SHELL=y CONFIG_HWINFO_SHELL=y; do
+  ! grep -qxF "$option" "$build/.config" || { echo "unexpected $option" >&2; exit 1; }
+done
+! grep -q '^CONFIG_WOLF' "$build/.config" || { echo "unexpected wolf option" >&2; exit 1; }
+grep -Eq 'crux-watchdog0 = &?wdog0' "$build/zephyr.dts" || { echo "no crux-watchdog0 alias" >&2; exit 1; }
+grep -q 'controller_storage' "$build/zephyr.dts" || { echo "no fstab entry" >&2; exit 1; }
+grep -Eq 'crux-serial0 = &?lpuart3' "$build/zephyr.dts" || { echo "no crux-serial0 alias on lpuart3" >&2; exit 1; }
+'''
+scope = "always"
+
+[[check]]
+id = "base-symbols"
+job = "base"
+run = '''
+cd ..
+nm=$(find "$ZEPHYR_SDK_INSTALL_DIR" -name 'arm-zephyr-eabi-nm' -type f | head -n 1)
+test -n "$nm" || { echo "no nm in the SDK" >&2; exit 1; }
+"$nm" crux-controller/build/base/zephyr/zephyr.elf > symbols.txt
+for symbol in controller_framework_start startup_run management_port_start time_sync_start \
+    time_sync_port_query crux_web_start crux_access_init crux_mgmt_status_start sntp_simple \
+    cli_port_start crux_cli_init crux_cli_serial_start crux_cli_console_run; do
+  grep -qE " [Tt] ${symbol}$" symbols.txt || { echo "not linked: $symbol" >&2; exit 1; }
+done
+for symbol in workload_thread_start; do
+  ! grep -qE " [Tt] ${symbol}$" symbols.txt || { echo "linked: $symbol" >&2; exit 1; }
+done
 '''
 scope = "always"
 
@@ -1030,11 +1227,11 @@ scripts/ci/check-patch-range.sh
 scope = "always"
 fast = ["product", "management", "host-tests", "scenarios"]
 
-# --- budget-base ---------------------------------------------------------------------------------
+# --- budget-minimal ------------------------------------------------------------------------------
 
 [[check]]
-id = "budget-base"
-job = "budget-base"
+id = "budget-minimal"
+job = "budget-minimal"
 run = '''
 scripts/ci/budget.sh
 '''
@@ -1121,6 +1318,42 @@ scope = "always"
 [[check]]
 id = "budget-management"
 job = "budget-management"
+run = '''
+scripts/ci/budget.sh
+'''
+scope = "always"
+
+# --- budget-base ---------------------------------------------------------------------------------
+
+[[check]]
+id = "budget-base-mbed"
+job = "budget-base"
+run = '''
+cd ..
+west list --all -f '{name} {active}' > list-default.txt
+python crux-controller/scripts/check_mbed_only.py --mode default < list-default.txt
+west config --local manifest.group-filter -- +crux-secure-management
+west list --all -f '{name} {active}' > list-mbed.txt
+python crux-controller/scripts/check_mbed_only.py --mode mbed --baseline list-default.txt < list-mbed.txt
+west update
+for name in wolfssl wolfssh wolfpsa; do
+  test ! -e "modules/crypto/$name" || { echo "unexpected $name" >&2; exit 1; }
+done
+'''
+scope = "always"
+
+[[check]]
+id = "budget-base-sdk"
+job = "budget-base"
+run = '''
+cd ..
+crux-controller/scripts/ci/install-sdk.sh zephyr
+'''
+scope = "always"
+
+[[check]]
+id = "budget-base"
+job = "budget-base"
 run = '''
 scripts/ci/budget.sh
 '''
@@ -1692,5 +1925,36 @@ grep -Eq 'local-mac-address = \[ *02 *43 *52 *55 *58 *20 *\]' "$build/zephyr.dts
   echo "the net overlay did not delete green_led" >&2
   exit 1
 }
+'''
+tiers = ["nightly"]
+
+# --- product-integration -------------------------------------------------------------------------
+# A product imports the framework as a project of its own west workspace (west's T2 topology), at
+# the commit under test, with Crux at the pin of this repository through the import. The script
+# tests/product_integration/run.sh does each step and refuses a folder that it did not make. It
+# flashes nothing and operates no board. Locally, from the clone on a Linux host:
+#   scripts/ci/run-tier.sh nightly --job product-integration
+
+[[check]]
+id = "product-integration-workspace"
+job = "product-integration"
+run = '''
+tests/product_integration/run.sh workspace "${RUNNER_TEMP:-/tmp}/product-integration"
+'''
+tiers = ["nightly"]
+
+[[check]]
+id = "product-integration-build"
+job = "product-integration"
+run = '''
+tests/product_integration/run.sh build "${RUNNER_TEMP:-/tmp}/product-integration"
+'''
+tiers = ["nightly"]
+
+[[check]]
+id = "product-integration-run"
+job = "product-integration"
+run = '''
+tests/product_integration/run.sh run "${RUNNER_TEMP:-/tmp}/product-integration"
 '''
 tiers = ["nightly"]

@@ -8,7 +8,7 @@
  * Crux System needs the alias crux-watchdog0 and an enabled node for the RT1060's WDOG1, as in
  * boards/system.overlay, because the status service reads System; the image never arms the watchdog.
  *
- * Used only by the management image, through EXTRA_DTC_OVERLAY_FILE after boards/net.overlay, which sets
+ * Used by the management image and the base image, through EXTRA_DTC_OVERLAY_FILE after boards/net.overlay, which sets
  * the Ethernet composition. The logging UART comes from
  * boards/mimxrt1060_evk_mimxrt1062_qspi.overlay. It is configuration, not code.
  */
