@@ -1271,7 +1271,8 @@ cd ..
 nm=$(find "$ZEPHYR_SDK_INSTALL_DIR" -name 'arm-zephyr-eabi-nm' -type f | head -n 1)
 test -n "$nm" || { echo "no nm in the SDK" >&2; exit 1; }
 "$nm" crux-controller/build/base/zephyr/zephyr.elf > symbols.txt
-for symbol in controller_framework_start startup_run_steps management_port_start time_sync_start \
+for symbol in controller_framework_start startup_run_steps management_port_start_core \
+    management_port_start_services app_contract_run_init app_port_start time_sync_start \
     time_sync_port_query crux_web_start crux_access_init crux_mgmt_status_start sntp_simple \
     cli_port_start crux_cli_init crux_cli_serial_start crux_cli_console_run \
     supervisor_port_start boot_decide recovery_boot k_sys_fatal_error_handler task_wdt_add \
