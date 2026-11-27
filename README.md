@@ -6,7 +6,8 @@ Crux is an embedded software platform for Zephyr RTOS firmware.
 Crux Controller is for developers who build a networked controller product on Crux.
 It is a Zephyr module that a product imports, and its base image runs the framework services with no application.
 It uses Crux only through public headers and approved composition interfaces.
-It is not a product and not Crux, and it adds no public interface to Crux.
+It is not a product, not Crux, and it adds no public interface to Crux.
+It also serves as the downstream integration project that verifies Crux: CI builds it against the pinned Crux, and a daily build against Crux main reports ahead of a pin move.
 
 ## Table of Contents
 
