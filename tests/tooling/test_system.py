@@ -582,7 +582,7 @@ class SystemFindings(unittest.TestCase):
 
     def test_the_manifest_pins_the_approved_commit(self):
         manifest = (ROOT / "west.yml").read_text()
-        self.assertIn("revision: 62ed69f10791695c0350996411676b930a96ce71", manifest)
+        self.assertIn("revision: 05a50475653becf7e4867686f4f88747173e1c21", manifest)
 
 
 class SystemStartFailureWording(unittest.TestCase):

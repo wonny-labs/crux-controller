@@ -16,8 +16,8 @@ release dry run are the record.
 ```mermaid
 flowchart TD
     CC["crux-controller<br/>west.yml, the manifest repository"]
-    CP["crux-pilot<br/>pinned commit 62ed69f1"]
-    ZP["zephyr v4.4.2<br/>pinned by Crux"]
+    CP["crux-pilot<br/>pinned commit 05a50475"]
+    ZP["zephyr v4.5.0<br/>pinned by Crux"]
     MOD["cmsis, cmsis_6, hal_nxp, littlefs, fatfs<br/>Zephyr modules Crux lets through"]
     PL["picolibc<br/>product-only, native_sim test"]
     OFF["crux-secure-management, crux-reliance, crux-boot<br/>groups, off"]
@@ -32,13 +32,13 @@ flowchart TD
 
 | Project | Revision | Route | Why it is here | Licence as the project states it |
 |---|---|---|---|---|
-| `crux-pilot` | `62ed69f10791695c0350996411676b930a96ce71` (a commit, no Crux tag exists) | The platform itself: pinned in `west.yml`, its manifest is imported | The Crux components, the composition interface `<crux/file_zephyr.h>` and the public management headers, which `management` uses in `app/compose/management_start.c`. At this pin the Mbed TLS modules of the optional group are at the revisions of Zephyr's v4.4-branch (Mbed TLS 4.1.1 plus 8 commits, TF-PSA-Crypto 1.1.1 plus 24 commits), which only the `management` job and the `management` Budget row fetch, in their own runner | Apache-2.0 |
-| `zephyr` | `dccb09599635bdff17633fa7e9dab014b91dce90` (v4.4.2) | Pinned via the Crux contract | The RTOS the image is built on | Apache-2.0 |
+| `crux-pilot` | `05a50475653becf7e4867686f4f88747173e1c21` (a commit, no Crux tag exists) | The platform itself: pinned in `west.yml`, its manifest is imported | The Crux components, the composition interface `<crux/file_zephyr.h>` and the public management headers, which `management` uses in `app/compose/management_start.c`. At this pin the Mbed TLS modules of the optional group follow the revisions in Zephyr's own manifest at v4.5.0 (Mbed TLS 4.1.1 and TF-PSA-Crypto 1.1.1), which only the `management` job and the `management` Budget row fetch, in their own runner | Apache-2.0 |
+| `zephyr` | `41d10b59730406bbab4ca9f1fbbe9e96aafb4966` (v4.5.0) | Pinned via the Crux contract | The RTOS the image is built on | Apache-2.0 |
 | `cmsis` | `512cc7e895e8491696b61f7ba8066b4a182569b8` | Pinned via the Crux contract | Arm Cortex-M core headers that Zephyr's Cortex-M support uses | Apache-2.0 |
-| `cmsis_6` | `30a859f44ef8ab4dc8f84b03ed586fd16ccf9d74` | Pinned via the Crux contract | Arm core headers of the newer CMSIS interface, which Zephyr's manifest also names | Apache-2.0 |
-| `hal_nxp` | `7554bc0f6f6c284972eba7b2c17b16fbb9cc0ad0` | Pinned via the Crux contract | Drivers for the NXP RT1060 and its peripherals | BSD-3-Clause (its content register names `LICENSE.BSD-3`) |
-| `littlefs` | `8f5ca347843363882619d8f96c00d8dbd88a8e79` | Pinned via the Crux contract | A file system module that Zephyr's manifest names and that the Crux allow-list lets through | BSD-3-Clause |
-| `fatfs` | `f4ead3bf4a6dab3a07d7b5f5315795c073db568d` | Pinned via the Crux contract | The FAT file system of the File composition on microSD | A permissive source licence of its own (FatFs, ChaN), stated in the header of `ff.c` |
+| `cmsis_6` | `1c1840af7a7e757d6e2fec3ddb0e5ce0dfcc93c8` | Pinned via the Crux contract | Arm core headers of the newer CMSIS interface, which Zephyr's manifest also names | Apache-2.0 |
+| `hal_nxp` | `a8b437ef366ff9a6f9bee3377dc189c4d2623f5b` | Pinned via the Crux contract | Drivers for the NXP RT1060 and its peripherals | BSD-3-Clause (its content register names `LICENSE.BSD-3`) |
+| `littlefs` | `e9a8638fc228e43a3156ed3ac602229af3e3c1d5` | Pinned via the Crux contract | A file system module that Zephyr's manifest names and that the Crux allow-list lets through | BSD-3-Clause |
+| `fatfs` | `4f60a12c58c3de4246857ad87c40239ecd93349b` | Pinned via the Crux contract | The FAT file system of the File composition on microSD | A permissive source licence of its own (FatFs, ChaN), stated in the header of `ff.c` |
 | `picolibc` | `01254932e8e81085817ed61fd858648584ffe37c` | Product-only | An embedded C library for the `native_sim` scenario of `net`. The native C library of `native_sim` would bypass Zephyr's socket providers, and the Crux manifest does not import this module. Target builds use the toolchain's Picolibc, not this project. | Mixed: its `COPYING.picolibc` lists BSD-3-Clause for the project and other terms for some files. Read that file for the exact set. |
 
 The revision of `picolibc` is the one in Zephyr's own manifest at the pinned Zephyr release, which is
