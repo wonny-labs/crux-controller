@@ -20,7 +20,7 @@ A Crux fact holds at the pin unless it carries one of these status words:
 | Crux change needed | The framework needs the change; Crux has not decided it |
 | Deferred by Crux | Crux has decided to postpone the change |
 
-A Crux change carries its issue link where Crux has one.
+A Crux change carries its Crux issue number where Crux has one.
 Each rule carries one label:
 
 | Label | Meaning |
@@ -713,17 +713,19 @@ Its builds are CI checks, not images that this repository releases.
 
 | Rule | Content | Practice label or decision, and source read |
 |---|---|---|
-| Contents | `main()`, which passes a descriptor to the start function; `prj.conf` with the framework's Kconfig symbol; board files for `native_sim` and the reference board; a `west.yml` that imports the framework and, through the framework's manifest, Crux; and tests as a starting point for the product's own tests | Standard: Zephyr "Application Development" recommends starting from the `example-application` workspace application, which has the same parts |
+| Contents | `main()`, which passes a descriptor to the start function; `prj.conf` with the framework's Kconfig symbol; board files for `native_sim` and the reference board; a `west.yml` that imports Crux and the framework at pinned revisions; and tests as a starting point for the product's own tests | Standard: Zephyr "Application Development" recommends starting from the `example-application` workspace application, which has the same parts |
 | No framework logic | The template holds no framework source and reaches the framework only through the header of `include/`, the start function (section 3), the Kconfig symbol and the build options (section 7.1) | Decision (D20); no external source read |
-| Framework at a pinned revision | The copy's `west.yml` names the framework at a full commit or a tag and imports its manifest, as in the [overview](controller-framework.md#how-a-product-joins) | Standard: west "Workspaces", topology T2 with a manifest import; `example-application` pins Zephyr in its `west.yml` |
-| Built from the same commit | A manifest cannot name the commit that holds it, so CI copies the folder into a new workspace and writes the commit under test as the framework revision, as `tests/product_integration/run.sh` does for its fixture product | Project-specific workaround: Crux's `templates/product/west.yml` follows `main` for the same reason, and its README tells a copy to pin a SHA once |
-| What a copy does not receive | A copy has no Git link to this repository, so later changes to the template folder never reach it; only the framework module reaches it, when the product moves its framework pin | Standard: GitHub "Creating a repository from a template": the new repository starts with one commit and an unrelated history, so no merge from the template is possible |
+| Framework at a pinned revision | The copy's `west.yml` names the framework at a full commit or a tag, as in the [overview](controller-framework.md#how-a-product-joins) | Standard: west "Workspaces", topology T2, in which the application's manifest names everything that it builds with; the tagged versions of `example-application` pin the matching Zephyr tag in its `west.yml` |
+| Built from the same commit | A manifest cannot name the commit that holds it, so CI copies the folder into a new workspace and writes the commit under test as the framework revision, as `tests/product_integration/run.sh` does for its fixture product | Project-specific workaround: the comment of Crux's `templates/product/west.yml` at `05a50475` says that a template cannot name the Crux commit that holds it, so it follows `main`, and its README tells a copy to pin a SHA once |
+| What a copy does not receive | A copy has no Git link to this repository, so later changes to the template folder never reach it; only the framework module reaches it, when the product moves its framework pin | Decision (D20); GitHub template repositories behave the same way: a repository made from one starts with one commit and an unrelated history, with no pull request or merge between them (GitHub "Creating a repository from a template") |
 | Version compatibility | A copy starts at the framework revision that it was copied from, at which the template and the framework come from one commit; afterwards the copy depends on the framework only through the items of the "No framework logic" row, whose changes follow the stability tiers of section 3.4 | Decision (D20); no external source read |
 | Relation to Crux `templates/product` | The same shape: a T2 manifest repository with `app/` and per-board `app/boards/<board>.conf` and `.overlay`, copied once and then pinned (Crux `templates/product/README.md` at `05a50475`); the application template adds the framework import and the descriptor | Decision (D20); the shape follows the Crux README read at `05a50475` |
 
 Open points, decided at implementation unless stated:
 
 - The folder path, the file names and the documented joining steps.
+- Whether the copy's `west.yml` names Crux itself, as the overview's manifest does, or takes Crux through the framework's manifest import, as the fixture product of `tests/product_integration` does.
+- The stability tiers of section 3.4, on which the version compatibility rule relies.
 - The CI tier of the template builds (every pull request or nightly), and whether the reference-board build gets a `Budget` row.
 - Whether the template replaces the fixture product of `tests/product_integration` or both stay.
 - Whether the template's `prj.conf` is a product build configuration under criteria 19 and 38 or a development one.
@@ -843,7 +845,7 @@ Framework Complete adds:
 | 46 | M1 | Data and traffic inventory: the threat model lists every data item that the framework stores and every outbound connection of the base image, and a `native_sim` capture of the base image shows no outbound traffic outside that list. |
 | 47 | F7 | Template build: CI copies the application template into a new west workspace with the framework at the commit under test; the copy builds and runs on `native_sim`, and its log shows `init` and `start` of the template's descriptor; the copy also builds for the reference board with `-DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON`. |
 | 48 | F7 | No framework logic: the boundary check of section 7.3 covers the template folder; a check fails when a template source includes a header from the framework's source trees or a Crux composition interface (`<crux/NAME_zephyr.h>`), or when the template's build files add a source from outside the template folder. |
-| 49 | F7 | Joining steps: a test copies the template folder to a new directory and follows the joining steps that the template documents, with local repositories in place of the remotes; it checks that `west update` resolves the framework at the full commit that the steps pin, and that no file of the copy names a path of this repository. |
+| 49 | F7 | Joining steps: a test copies the template folder to a new directory and follows the joining steps that the template documents, with local repositories in place of the remotes; it checks that `west update` resolves the framework at the full commit that the steps pin, and that no file of the copy holds an absolute path or a relative path that leaves the copy. |
 
 Product Ready adds, per product on its board:
 
