@@ -2,7 +2,7 @@
 
 This page specifies the controller framework: its requirements, application interface, operating model, recovery, build options, application template, verification and decisions.
 The [overview](controller-framework.md) explains what the framework is, who does what and how a product joins it.
-The [platform gaps](controller-framework-platform-gaps.md) hold the Crux and Zephyr constraints C1 to C19 and the Crux interface behind each service.
+The [platform gaps](controller-framework-platform-gaps.md) hold the Crux and Zephyr constraints C1 to C21 and the Crux interface behind each service.
 The [threat model](controller-framework-threat-model.md) holds the assets, interfaces, threats and Annex I applicability.
 The page changes no source code; the [architecture](../architecture.md) and the [capabilities](../capabilities.md) describe the current images.
 
@@ -132,6 +132,7 @@ Each entry is specified by the results it guarantees and the time it may take; h
   - On success, every thread of the application has ended, so the framework can release its channels.
   - An error return or a missed deadline is a hang (section 4.8).
 - `safe_state(ctx)` is mandatory, puts outputs into the product's defined safe state and never blocks.
+- `user_data` is a pointer of the product that the framework does not read; the descriptor stays valid for the program's life.
 
 ### 3.2 Context
 
@@ -142,6 +143,7 @@ The framework gives through `ctx` what it owns:
 - registration of a parameter table, which the framework adds to the configuration service;
 - the assigned application data root of Crux File;
 - read-only controller state and service health;
+- `controller_app_user_data()`, which returns the descriptor's `user_data`;
 - a call that reports an application fault, which the framework handles on its own thread (section 4.8).
 
 The application calls Crux's public APIs directly for logging, time, sockets, file access under its data root and configuration reads, and Zephyr directly for threads and synchronisation.
@@ -156,10 +158,12 @@ The framework does not wrap them, following the repository rule against pass-thr
 | `safe_state` callers | The framework thread, after `stop` succeeded (an operator stop, a planned reset or a reported application fault) and after a failed `init`, activation or `start`; the supervisor, on a deadline overrun, a `stop` that returns an error or a channel expiry, when the application has been initialised (section 4.8) |
 | `safe_state` and running threads | When the framework thread calls it, no application thread runs, because `stop` succeeded or no thread was started, so no application thread writes outputs after it; when the supervisor calls it, application threads may still run and overwrite outputs until the reset |
 | `safe_state` constraints | It may run concurrently with the application's threads, so it is idempotent, takes no lock, allocates nothing and logs nothing |
-| Partial `init` failure | The framework calls `safe_state`, releases the registrations (requirements dropped, status items and parameters marked unavailable), enters fault and calls neither `start` nor `stop` |
+| Partial `init` failure | The framework calls `safe_state`, releases the registrations (requirements dropped, status items marked unavailable, parameters not passed on to the configuration service), enters fault and calls neither `start` nor `stop` |
 | Partial `start` failure | When activation or `start` fails, the framework calls `safe_state`, deletes the channels it activated, releases the registrations and enters fault; threads that `start` created are the application's to end before it returns its error |
 | Reported application fault | The framework calls `stop` with the reason application fault and its deadline, then `safe_state`, then deletes the active channels and releases the registrations, and enters fault (section 4.8) |
+| Released parameters | A parameter that has already reached the configuration service when the registrations are released, after a failed activation or `start` or a reported fault, stays there, readable and writable under its permissions ([C20](controller-framework-platform-gaps.md#c20-removing-a-configuration-parameter), interim state of section 8.5) |
 | Thread clean-up | The framework never aborts an application thread; `stop` ends them, and the framework then releases their channels (section 4.4); a `stop` that returns an error or passes its deadline is a hang (section 4.8) |
+| Restart during startup | The framework's Crux Reboot policy refuses a restart, with the reason "Application startup has not ended", until the startup steps of an image with an application have returned, so that such a restart never skips the `stop` of a `start` that step 12 runs; the refusal is documented but optional (Crux `components/reboot/include/crux/reboot.h`), and the rule is a project-specific workaround |
 | Second start function call | Refused, as is a descriptor without a mandatory entry |
 | Framework boundaries | The application may not block framework threads, take framework locks or call device management |
 
@@ -200,6 +204,11 @@ The product's `main()`, or the base image's, calls the start function once; the 
 | 11 | Check the start prerequisites (section 4.7). | A start prerequisite is not healthy: the application is held, and the controller is degraded. |
 | 12 | Unless in safe mode, with an application fault, with a start prerequisite that is not healthy, without an armed watchdog in a build that refuses it, or with no application: activate the application's registered channels and call the application's `start` (section 4.4). | Application fault, with the clean-up of a partial start (section 3.3). |
 
+Known deviation (project-specific workaround; no external source), which delivery stage 4 removes: the code starts the TLS certificate module not in step 4 but after `init`, in the one step "web management" that runs steps 6, 7 and 10.
+While the [C9](controller-framework-platform-gaps.md#c9-access-and-an-unusable-store) interim states apply, a start of the module that succeeds changes no decision of the framework by this position: no identity result sets safe mode, and `init` runs either way.
+A key generation then counts against the deadline of that step, which has the same value as the deadline of step 4 (`CONFIG_CRUX_CONTROLLER_DEADLINE_MANAGEMENT_MS`), and a retained record names that step.
+A start of the module that fails, for example with `CRUX_TLS_CERTIFICATE_ERR_KEY_MISMATCH`, does have an effect: the framework marks the configuration service, the status service and web management failed and starts neither its reboot thread nor the command line.
+
 ```mermaid
 sequenceDiagram
     participant M as main()
@@ -234,7 +243,7 @@ Startup watchdog rules (established mechanism for the parts that Crux and Zephyr
 
 Key generation is part of device preparation (D11), so a normal boot has no long step.
 Only a development or reference build with the TLS identity option generates a missing key and certificate in step 4, with its own deadline set from a measurement on the board for the key type; the status service then reports that the certificate was made at boot.
-Interim (platform constraint or interim): Crux makes a missing key and certificate in step 4 of every build (section 5.5), so the step 4 deadline covers key generation in every build until Crux's setting that requires an existing identity is at the pin.
+Interim (platform constraint or interim): Crux makes a missing key and certificate at the start of the TLS certificate module in every build (section 5.5), so the deadline of the step that starts the module covers key generation in every build until Crux's setting that requires an existing identity is at the pin.
 
 ### 4.2 Supervision periods (D4)
 
@@ -494,6 +503,7 @@ The [Access controls at the pin](controller-framework-platform-gaps.md#access-co
 | Credential store at rest (S9) | The Crux store detects tampering and refuses a medium from another device, but it is not confidential against a person who holds the medium and the chip ID, and a blanked store reads empty and reopens first-account setup ([C19](controller-framework-platform-gaps.md#c19-credential-store-at-rest)); the product records its protection, for example a hardware-bound key or physical protection, and a non-removable medium limits removal but gives no confidentiality | Mandatory product record | Product decision |
 | Serial command line and debug port in production | The product chooses whether the console is composed in production, for provisioning only, or always, and records the lockdown of the debug port in its security documentation (H2); a product with no console in production records its trusted first-account path (device preparation or a physical-presence input) under PR5; physical access to the ports is part of the trust model | Product choice | Product decision (D16) |
 | Factory reset authority | Section 5.3 | Mandatory | D15 |
+| Application control commands | The serial commands `application stop` and `application start` need the permission `system.reboot`; Product Ready needs a permission of their own for them | Mandatory | Project-specific workaround (no external source) |
 | HTTPS file transfer | Confined to the application data root, with limits on file size, total size, concurrent transfers and file names; it needs Crux's web adapter for the File service (Crux issue #188) | Mandatory when the product offers file transfer | D10 |
 
 ### 6.3 Vulnerability handling and release evidence
@@ -662,7 +672,7 @@ The fixture application is a test, not an image or variant: it has no board buil
 
 This section serves requirements P1 and P2.
 The split follows the ports-and-adapters pattern (A. Cockburn, "Hexagonal architecture"): the portable core defines its ports, and the adapter and composition zones implement them for Zephyr.
-`scripts/check_boundary.py` on `main` checks only the trees in its `RULES` (`app/src`, `workload`, `app/compose`, `app/os`, `include/`, `framework/src`, `framework/compose`, `framework/os`); `check()` scans those trees, and `uncovered_sources()` fails a source under `MODULE_TREES` that no rule covers.
+`scripts/check_boundary.py` on `main` checks only the trees in its `RULES` (`app/src`, `workload`, `app/compose`, `app/os`, `include/`, `framework/src`, `framework/compose`, `framework/os`, `tests/framework/fixture`); `check()` scans those trees, and `uncovered_sources()` fails a source under `MODULE_TREES` that no rule covers.
 A framework source outside the checked trees would escape the check, so every source of the module, the base image, the fixture application and the application template must lie in a checked tree.
 
 | Tree | Holds | May include |
@@ -675,7 +685,7 @@ A framework source outside the checked trees would escape the check, so every so
 | `tests/` fixture application | The contract test application (section 8.1) | ISO C, the header of `include/`, public `<crux/NAME.h>` headers and the Zephyr headers that its threads need |
 | Application template (section 7.5) | `main()` and the template's tests | For `main()`, the rules of `app/`; the rules for the template's tests are open |
 
-- On `main`, the trees `include/`, `framework/src`, `framework/compose` and `framework/os` each have one rule in `RULES`; `tests/` and the application template have none yet. A source file of the module that no rule covers fails the check.
+- On `main`, the trees `include/`, `framework/src`, `framework/compose` and `framework/os` each have one rule in `RULES`, as has the fixture application's tree `tests/framework/fixture`; the rest of `tests/` has none, and the application template has none yet. A source file of the module that no rule covers fails the check.
 - Each new header is a separate reviewed boundary change under CONTRIBUTING "The boundary", with its reason in [composition-zone.md](../composition-zone.md) and a case in `tests/tooling/test_boundary.py`.
 - Not on `main` (proposed, a reviewed boundary change): `zephyr/fs/littlefs.h` for the composition zone, for the LittleFS mount, because Crux's LittleFS File provider mounts nothing by itself (Crux `main`, `zephyr/Kconfig:461-486`).
 - On `main`, the adapter zone `framework/os` also allows `zephyr/task_wdt/task_wdt.h`, `zephyr/retention/retention.h` (the framework uses the retention API, not the `retained_mem` driver header), `zephyr/fatal.h`, and `zephyr/device.h` and `zephyr/devicetree.h`, which find the retained region ([composition-zone.md](../composition-zone.md#the-supervision-headers-of-frameworkos)).
@@ -890,6 +900,7 @@ Each interim state is accepted until its Crux change is at the pin; the [platfor
 | The product build reaches Crux's `tests/` for the Settings File sources | [C5](controller-framework-platform-gaps.md#c5-settings-file-sources-under-a-crux-tests-path) | No |
 | Crux service threads are supervised indirectly | C8 | No |
 | The application data root has no size limit | [C15](controller-framework-platform-gaps.md#c15-size-limit-of-the-application-data-root) | No |
+| Application parameters stay readable and writable after a fault releases the registrations | [C20](controller-framework-platform-gaps.md#c20-removing-a-configuration-parameter) | No |
 | The serial console uses a second UART | C6 | Yes; the shared UART is a build option |
 | No SSH and no Wolf profile | C7 | Yes; both are build options |
 | Factory reset only by device preparation (the C9 erase is not at the pin) | C9 | No; criterion 42 needs the erase |

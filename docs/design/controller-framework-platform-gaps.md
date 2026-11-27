@@ -1,7 +1,7 @@
 # Controller framework: platform gaps
 
 This page lists the constraints that Crux and Zephyr put on the [controller framework](controller-framework.md) at the Crux pin of [specification section 1](controller-framework-spec.md#1-scope-and-conventions), the Crux change that lifts each one, and the Crux interface behind each framework service.
-It is the appendix of the [specification](controller-framework-spec.md), which refers to the constraints as C1 to C19.
+It is the appendix of the [specification](controller-framework-spec.md), which refers to the constraints as C1 to C21.
 A statement holds at the pin unless it carries a Crux status word of [specification section 1](controller-framework-spec.md#1-scope-and-conventions).
 Priority 1 is the most urgent Crux change, and the delivery dependency names the first delivery stage or milestone that needs the change; the two are independent.
 The [interim states](controller-framework-spec.md#85-interim-states) say which states each milestone accepts.
@@ -30,6 +30,8 @@ When the pin moves, each gap is checked again; a gap whose Crux change is at the
 | [C17](#c17-security-event-persistence) | A composition-level reader of security events | Crux change needed | 2 | Delivery stage 4 (criterion 44); Framework Complete |
 | [C18](#c18-request-rate-limit) | A request rate limit in Crux Web | Crux change needed | 3 | Delivery stage 5 (criterion 45); Product Ready |
 | [C19](#c19-credential-store-at-rest) | A hardware-bound key basis for the credential store | Crux change needed when a product's record (S9) asks for it | 3 | Product Ready of that product |
+| [C20](#c20-removing-a-configuration-parameter) | A configuration service call that removes or disables a parameter | Crux change needed | Open | Delivery stage 4; Framework Complete |
+| [C21](#c21-creating-a-further-account) | A command or web route that creates an account | Crux change needed | Open | Open |
 | [Web adapter](#other-crux-changes) | A web adapter for the File service | Crux change needed | 3 | Product Ready of a product that offers HTTPS file transfer |
 
 The pin is Crux `62ed69f1`; the Crux `main` changes above are at `05a50475` and not at the pin.
@@ -39,13 +41,13 @@ A pin at `05a50475` has no Wolf profile until a patch for Zephyr 4.5 exists ([C7
 
 | Service | Crux interface | Use in the framework | At the pin | Target |
 |---|---|---|---|---|
-| Web management | Crux Access, web server on the selected TLS profile (`<crux/web_zephyr.h>`), configuration and status services, a packaged page, the reboot routes (`CONFIG_CRUX_REBOOT`) | HTTPS web UI: status, parameters, accounts, reboot | Mbed TLS profile only | Also the Wolf profile ([C7](#c7-ssh-and-tls-profiles)) |
+| Web management | Crux Access, web server on the selected TLS profile (`<crux/web_zephyr.h>`), configuration and status services, a packaged page, the reboot routes (`CONFIG_CRUX_REBOOT`) | HTTPS web UI: status, parameters, accounts, reboot | Mbed TLS profile only; no further account ([C21](#c21-creating-a-further-account)) | Also the Wolf profile ([C7](#c7-ssh-and-tls-profiles)) |
 | Serial command line | Crux console, `crux_cli_serial_start()` in `<crux/cli_zephyr.h>` | Command line with first-account setup (`!setup`); Access closes provisioning after the first save | On a second UART ([C6](#c6-console-and-logging-uart)) | Separate or shared UART as a build option |
 | SSH command line and SFTP | Crux SSH and Crux File service | Command line and file transfer over SSH | None (C7) | A build option with the Wolf profile and a Crux SSH composition interface |
 | Health supervision | Crux System (reset cause, one hardware watchdog activation, `crux_system_reset()`), Zephyr task watchdog | [Specification section 4](controller-framework-spec.md#4-operating-model) | Crux service threads supervised indirectly ([C8](#c8-crux-service-threads-and-supervision)) | Every Crux service thread supervised by progress |
 | Time | Crux Time (monotonic clock, time authority), Zephyr SNTP | Wall time for logs, records and status; every timing decision uses the monotonic clock | Available | Unchanged |
 | Logging | Crux Logging (UART logger) | Framework log modules; the application uses Crux Logging directly | Available | Unchanged |
-| Configuration | Crux configuration service over the Crux Configuration Settings File provider | Framework and application parameters, shown in device management | Not persistent ([C4](#c4-configuration-saving-needs-a-power-cut-safe-file-system)) | Saved on LittleFS |
+| Configuration | Crux configuration service over the Crux Configuration Settings File provider | Framework and application parameters, shown in device management | Not persistent ([C4](#c4-configuration-saving-needs-a-power-cut-safe-file-system)); no parameter can be removed ([C20](#c20-removing-a-configuration-parameter)) | Saved on LittleFS |
 | Network | Zephyr network configuration library, Crux Netif, Crux Sockets profile | Interface up before `main()`; link state for health and status | Available | Unchanged |
 | Storage | Crux File, one provider, one mount ([C1](#c1-one-storage-provider-per-image)) | Application data root, credential store roots, settings file | microSD FatFs provider (C4) | LittleFS on the reference board's microSD card |
 | Factory reset | Crux credential store erase (`<crux/credential_store_zephyr.h>`) | Removal of the application data, the persisted events and the settings file, then the erase of accounts, then a reset ([specification section 5.3](controller-framework-spec.md#53-storage-or-access-failure-and-factory-reset-d15)) | Device preparation only ([C9](#c9-access-and-an-unusable-store)) | An erase that keeps the device identity |
@@ -108,7 +110,7 @@ These Crux facts back [specification section 6.2](controller-framework-spec.md#6
 - Crux change: a setting of the TLS certificate start that refuses a missing key or certificate and writes nothing to the credential store. State: Planned in Crux. Priority 2.
 - Interim state: until the credential store erase is at the pin, factory reset is only by device preparation. Replacement criterion: none; criterion 42 needs the erase.
 - Interim state: with the erase at the pin and no identity-keeping erase, a factory reset also removes the device identity, and recovery of the prepared identity is device preparation ([specification section 5.5](controller-framework-spec.md#55-device-preparation-d11)). Replacement criterion: none; PR4 needs the identity-keeping erase.
-- Interim state: until the setting is at the pin, Crux makes a missing device identity in step 4 of every build, and the framework reports a certificate made at boot instead of entering safe mode (specification section 5.5).
+- Interim state: until the setting is at the pin, Crux makes a missing device identity at the start of the TLS certificate module in every build ([specification section 4.1](controller-framework-spec.md#41-startup-steps)), and the framework reports a certificate made at boot instead of entering safe mode (specification section 5.5).
 - Replacement criterion: none; PR4 needs the setting, and criterion 42 shows the report while this interim state applies.
 
 ### C15. Size limit of the application data root
@@ -117,6 +119,14 @@ These Crux facts back [specification section 6.2](controller-framework-spec.md#6
 - Effect: the application calls Crux File directly (specification section 3.2), so the framework cannot enforce the size limit of [specification section 5.4](controller-framework-spec.md#54-storage-and-configuration) without a Crux mechanism; the framework owns the rule, and the product sets the limit.
 - Crux change: a size limit per File root. State: Planned in Crux. Priority 1.
 - Interim state: the application data root has no size limit, and a full volume can stop a configuration save. Replacement criterion: none; criterion 24 needs the change.
+
+### C20. Removing a configuration parameter
+
+- Evidence: the configuration service takes one table at its start, borrowed for the program's life, and a second start changes nothing; its public calls start, list, read, update and save, and none removes or disables a parameter, at the pin and on Crux `main` (`components/config_service/include/crux/config_service.h`).
+- Effect: after a failed activation or `start`, or a reported application fault, the application's parameters stay readable and writable under their permissions, although the framework has released the registrations ([specification section 3.3](controller-framework-spec.md#33-call-order-and-concurrency)).
+- Crux change: a configuration service call that removes or disables a parameter. State: Crux change needed. Priority: open.
+- Interim state (project-specific workaround; no external source): a parameter that has reached the configuration service stays there until the next reset.
+- Replacement criterion: in criterion 8, the release of the registrations leaves such a parameter in the configuration service.
 
 ## Supervision and reset
 
@@ -236,6 +246,16 @@ Crux refuses every form of it, at the pin and on Crux `main`; the line reference
 - Evidence: the PSA provider declares the basis `BASIS_DEVICE_ID_KEY` with no confidentiality against the medium and the chip ID; a card moved to another board reads unusable; rollback is not detected; a writer without the chip ID can overwrite both headers so that the store reads empty, which reopens provisioning (`docs/credential-store.md`, "Limits").
 - Effect: S9 is a mandatory product record, and first-account setup on the serial command line (S1) is the barrier after a blanked store.
 - Crux change: a hardware-bound key basis per SoC. State: Crux change needed when a product's record asks for it. Priority 3.
+
+## Accounts
+
+### C21. Creating a further account
+
+- Evidence: no Crux command or web route creates an account, at the pin and on Crux `main`: the console's built-in account command is `account list` (`components/cli/src/cli_commands.c`), the session and management routes create none (`components/web`), and first-account setup is open only while no account exists (`components/cli/ports/zephyr/include/crux/cli_zephyr.h`).
+- Evidence: `crux_access_account_create()` is a public call that needs a session (`components/access/include/crux/access.h`), and no Crux code outside Access calls it.
+- Effect: the framework passes only its own commands to `crux_cli_init()`, and the application interface registers no command ([specification section 3.2](controller-framework-spec.md#32-context)), so a product cannot create a second account in the field, such as one of the read-only role.
+- Crux change: a console command or a web route that creates an account. State: Crux change needed. Priority: open.
+- Product Ready: open whether this gap blocks it.
 
 ## Boards and operating systems
 
