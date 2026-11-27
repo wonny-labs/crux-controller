@@ -152,7 +152,8 @@ class OffloadFix(unittest.TestCase):
         self.assertEqual([f"{SCENARIO}/CMakeLists.txt"], users)
 
     def test_no_product_build_file_names_the_driver_or_the_copy(self):
-        for tree in ("app", "framework", "zephyr", "cmake", "include", "release"):
+        for tree in ("app", "framework", "zephyr", "include", "release"):
+            self.assertTrue((ROOT / tree).is_dir(), tree)
             for path in (ROOT / tree).rglob("*"):
                 if path.is_file():
                     text = path.read_text(errors="replace")
@@ -176,6 +177,7 @@ class OffloadFix(unittest.TestCase):
 
     def test_the_copy_keeps_the_licence_notice_and_goes_to_the_build_folder(self):
         self.assertIn('"SPDX-License-Identifier: Apache-2.0"', self.code)
+        self.assertIn("Changed copy of Zephyr v4.5.0 drivers/net/nsos_adapt.c", self.text)
         self.assertIn('set(nsos_copy "${CMAKE_CURRENT_BINARY_DIR}/nsos_adapt_rdhup.c")', self.code)
 
     def test_it_states_its_label_provenance_and_removal(self):

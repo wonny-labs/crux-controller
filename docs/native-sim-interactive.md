@@ -78,13 +78,13 @@ start makes a new key and has no account. `west build -p always` or deleting `bu
 | Entropy seed | The run command passes a new `--seed` from `/dev/urandom` each run, because the test source repeats for the same seed | Documented but optional | native_sim page, "Entropy device" |
 | Browser | VS Code forwards the container's port to the host. A forwarded port looks like `localhost` to the image, so the `127.0.0.1` listener accepts it; a port that Docker publishes does not. | Documented but optional | VS Code documentation, [Developing inside a Container](https://code.visualstudio.com/docs/devcontainers/containers), "Forwarding or publishing a port" |
 | Abrupt close | The build makes a copy of native_sim's offload driver (`nsos_adapt.c`) that reports a client's FIN as `POLLHUP`, so a close without a TLS `close_notify` does not spin the web server. See [Limits](#limits). | Project-specific workaround | `tests/framework/interactive/nsos_rdhup.cmake`, adapted from Crux `tests/native/web_https/nsos_rdhup.cmake`; Crux `docs/https-composition.md`, "Abrupt close and the CPU spin", at the pinned Crux |
-| Production guard | The build refuses any board but `native_sim` with its test entropy, and any listener address but `127.0.0.1`. A board image of the framework includes `framework/management/entropy.cmake`, which refuses a test entropy source. The driver copy refuses any build but `native_sim` with offloaded sockets, and only this configuration includes it; `tests/tooling/test_native_sim_interactive.py` fails if a product build file names it. | Project-specific | `tests/framework/interactive/CMakeLists.txt`, `tests/framework/interactive/nsos_rdhup.cmake`, `zephyr/CMakeLists.txt` |
+| Production guard | The build refuses any board but `native_sim` with its test entropy, and any listener address but `127.0.0.1`. A board image of the framework includes `framework/management/entropy.cmake`, which refuses a test entropy source. The driver copy refuses any build but `native_sim` with offloaded sockets, and only this configuration includes it; `tests/tooling/test_native_sim_interactive.py` fails if a product build file names it. | Project-specific workaround: the guards are this repository's own, no upstream mechanism keeps a test configuration out of product builds | `tests/framework/interactive/CMakeLists.txt`, `tests/framework/interactive/nsos_rdhup.cmake`, `zephyr/CMakeLists.txt` |
 
-The `base` job of CI is set to build and run the same configuration as the Twister scenario
+The `base` job of CI builds and runs the same configuration as the Twister scenario
 `controller.framework.native_sim.interactive`. The scenario needs an answer on the web port with TLS 1.3, makes the
 first account through the pseudo-terminal, closes a kept-alive connection without `close_notify` and then needs the
 next connection and a console command to answer, and last restarts the image and logs in with the stored account.
-Its result is in the checks of the pull request that changes it.
+Its result is in the `base` job of each CI run.
 
 ## Limits
 

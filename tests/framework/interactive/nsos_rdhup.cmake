@@ -49,7 +49,9 @@ controller_nsos_edit("\tMAP_POLL_EPOLL(POLLHUP, EPOLLHUP);\n"
 controller_nsos_edit("\tMAP_POLL_EPOLL(EPOLLHUP, POLLHUP);\n"
     "\tMAP_POLL_EPOLL(EPOLLHUP, POLLHUP);\n\tMAP_POLL_EPOLL(EPOLLRDHUP, POLLHUP);\n")
 set(nsos_copy "${CMAKE_CURRENT_BINARY_DIR}/nsos_adapt_rdhup.c")
-file(WRITE "${nsos_copy}" "${nsos_text}")
+file(WRITE "${nsos_copy}" "/* Changed copy of Zephyr v4.5.0 drivers/net/nsos_adapt.c, made by\n"
+    " * tests/framework/interactive/nsos_rdhup.cmake of crux-controller: it also reports EPOLLRDHUP as POLLHUP.\n"
+    " */\n${nsos_text}")
 
 get_target_property(nsos_sources native_simulator INTERFACE_SOURCES)
 list(FIND nsos_sources "${nsos_source}" nsos_index)
