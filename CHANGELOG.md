@@ -27,7 +27,7 @@ build configurations by their earlier step ids, S0 to S6.
     leaves the accounts, and the operator repeats it.
   - The composition zone may include `<crux/service_priority_zephyr.h>` and `<crux/credential_store_zephyr.h>`,
     two reviewed boundary changes.
-  - The scenario `storage` runs on LittleFS over the flash simulator: the size limit, the factory reset with a
+  - The scenario `storage` runs on LittleFS over the flash simulator, which keeps the volume across restarts: the size limit, the factory reset with a
     power cut and failed logins on both interfaces. The scenario `recovery` adds an expiry of the web session
     worker's channel.
   - The portable core has the health verdict and the trial deadline of a test image (`framework/src/image_trial.c`,
