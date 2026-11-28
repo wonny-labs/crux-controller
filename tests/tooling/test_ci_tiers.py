@@ -75,7 +75,7 @@ EXPECTED_FULL = {
     "minimal": ["minimal-build", "minimal-outputs"],
     "base": ["base-mbed-default", "base-mbed-group-on", "base-mbed-fetch", "base-sdk", "base-native-sim",
              "base-native-sim-report", "base-native-sim-interactive-report", "static-analysis-zephyr",
-             "base-prerequisite-refused", "base-build", "base-outputs",
+             "base-prerequisite-refused", "base-settings-file-sources", "base-build", "base-outputs",
              "base-config", "base-symbols", "base-sbom"],
     "static": ["format", "static-analysis"],
     **BUDGET,

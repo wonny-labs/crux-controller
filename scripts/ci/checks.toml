@@ -1229,6 +1229,26 @@ tr -s ' \n' '  ' < prerequisite-refused.log \
 scope = "always"
 fast = ["framework"]
 
+# Criterion 32 (gap C5): a build with Crux's Settings File provider of Configuration compiles the
+# Settings File sources from its build directory, never from Crux's tests/. Configure only: the
+# compile database lists every source the build compiles.
+[[check]]
+id = "base-settings-file-sources"
+job = "base"
+run = '''
+cd ..
+export ZEPHYR_BASE="$PWD/zephyr"
+west build -p always -b native_sim/native/64 --cmake-only -d build-settings-file-sources \
+  crux-controller/tests/framework/storage -- -DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON \
+  -DEXTRA_CONF_FILE=settings.conf
+grep -qx "CONFIG_CRUX_CONFIGURATION_SETTINGS_FILE_ANY_FS=y" build-settings-file-sources/zephyr/.config \
+  || { echo "the build did not select the Settings File provider" >&2; exit 1; }
+python3 crux-controller/scripts/check_settings_sources.py \
+  --compile-commands build-settings-file-sources/compile_commands.json --crux-root crux
+'''
+scope = "always"
+fast = ["framework"]
+
 [[check]]
 id = "base-build"
 job = "base"
