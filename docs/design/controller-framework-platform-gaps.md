@@ -1,7 +1,7 @@
 # Controller framework: platform gaps
 
 This page lists the constraints that Crux and Zephyr put on the [controller framework](controller-framework.md) at the Crux pin of [specification section 1](controller-framework-spec.md#1-scope-and-conventions), the Crux change that lifts each one, and the Crux interface behind each framework service.
-It is the appendix of the [specification](controller-framework-spec.md), which refers to the constraints as C1 to C21.
+It is the appendix of the [specification](controller-framework-spec.md), which refers to the constraints as C1 to C22.
 A statement holds at the pin unless it carries a Crux status word of [specification section 1](controller-framework-spec.md#1-scope-and-conventions).
 Priority 1 is the most urgent Crux change, and the delivery dependency names the first delivery stage or milestone that needs the change; the two are independent.
 The [interim states](controller-framework-spec.md#85-interim-states) say which states each milestone accepts.
@@ -32,6 +32,7 @@ When the pin moves, each gap is checked again; a gap whose Crux change is at the
 | [C19](#c19-credential-store-at-rest) | A hardware-bound key basis for the credential store | Crux change needed when a product's record (S9) asks for it | 3 | Product Ready of that product |
 | [C20](#c20-removing-a-configuration-parameter) | A configuration service call that removes or disables a parameter | Crux change needed | Open | Delivery stage 4; Framework Complete |
 | [C21](#c21-creating-a-further-account) | A command or web route that creates an account | Crux change needed | Open | Open |
+| [C22](#c22-settings-file-initialisation-not-public) | The Settings File initialisation as a composition interface | Crux change needed | 1 | Delivery stage 4 (criteria 12 and 24); Framework Complete |
 | [Web adapter](#other-crux-changes) | A web adapter for the File service | Crux change needed | 3 | Product Ready of a product that offers HTTPS file transfer |
 
 The pin is Crux `62ed69f1`; the Crux `main` changes above are at `05a50475` and not at the pin.
@@ -127,6 +128,13 @@ These Crux facts back [specification section 6.2](controller-framework-spec.md#6
 - Crux change: a configuration service call that removes or disables a parameter. State: Crux change needed. Priority: open.
 - Interim state (project-specific workaround; no external source): a parameter that has reached the configuration service stays there until the next reset.
 - Replacement criterion: in criterion 8, the release of the registrations leaves such a parameter in the configuration service.
+
+### C22. Settings File initialisation not public
+
+- Evidence (read at the Crux revision that `west.yml` pins): the Settings File provider answers every record read with `NOT_READY` until `crux_config_zephyr_init()` has run (`components/configuration/ports/zephyr/configuration_settings.c:54-59`); that function is declared only in the provider's private header `components/configuration/ports/zephyr/configuration_settings.h`, whose include directory is `PRIVATE` to `crux_configuration_zephyr` (`components/configuration/ports/zephyr/CMakeLists.txt:41`), and `docs/composition-interfaces.md` names no composition interface for it; only Crux's own eMMC sample calls it.
+- Effect: the framework cannot initialise configuration saving on the LittleFS volume of C4 without including a private Crux header, which the boundary rules of [specification section 7.3](controller-framework-spec.md#73-source-zones-and-os-neutrality) forbid; files and the credential store do run on LittleFS.
+- Crux change: publish the initialisation as a composition interface, as for the credential store erase. State: Crux change needed. Priority 1.
+- Interim state: the interim state of C4 and its replacement criterion stay in force for configuration saving. Replacement criterion: none for Framework Complete; criteria 12 and 24 need the change.
 
 ## Supervision and reset
 
