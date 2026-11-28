@@ -95,7 +95,7 @@ These Crux facts back [specification section 6.2](controller-framework-spec.md#6
 
 ### C5. Settings File sources under a Crux `tests/` path
 
-- Problem: a product build must not reach a file under Crux's `tests/` for the corrected copies of Zephyr's Settings File backend that both Settings File selections build.
+- Evidence: both Settings File selections build corrected copies of Zephyr's Settings File backend, and a product build must not reach a file under Crux's `tests/` for them.
 - At the pin: the module prepares the corrected copies with `zephyr/settings_file.cmake` and `zephyr/prepare_settings_file.py` from `patches/zephyr/settings-file-error.patch` and `patches/zephyr/settings-store-error.patch` (`zephyr/CMakeLists.txt:161-176`; `patches/zephyr/README.md`).
 - Crux change: move those sources out of `tests/`. State: Resolved. Priority 1.
 - Interim state (ended in the Framework completion stage, criterion 32): the product build reaches Crux's `tests/` for the Settings File sources. Replacement criterion: none.
@@ -198,8 +198,8 @@ Crux refuses every form of it:
 | `components/logging/ports/zephyr/logging_binding.c:66` | A build with `CONFIG_CRUX_SERIAL` whose `crux-serial0` UART is the logging UART ("Crux Logging conflicts with Crux Serial"), except in the shared console mode |
 | `components/logging/ports/zephyr/logging_binding.c:61` | The Zephyr shell's serial backend on the logging UART |
 | `components/logging/ports/zephyr/logging_binding.c:50-58` | The Zephyr console on the logging UART, except with logging-only routing (no shell, no console input) |
-| `components/logging/ports/zephyr/CMakeLists.txt:27-37` | `CONFIG_SHELL_LOG_BACKEND` and every log backend other than the UART backend |
-| `components/cli/ports/zephyr/include/crux/cli_zephyr.h:26-27` | Any Zephyr console, log backend, shell or other Crux Serial user on the console's `crux-serial0` UART |
+| `components/logging/ports/zephyr/CMakeLists.txt:27-37` | `CONFIG_SHELL_LOG_BACKEND` and every log backend other than the UART backend; the exception is the Crux console backend, which replaces the UART backend in the shared console mode, where `CONFIG_LOG_BACKEND_UART` must be off (`components/logging/ports/zephyr/CMakeLists.txt:11-19`, `:51-53`) |
+| `components/cli/ports/zephyr/include/crux/cli_zephyr.h:26-27` | Any Zephyr console, log backend, shell or other Crux Serial user on the console's `crux-serial0` UART, except that Crux Logging may share it in the shared console mode (`zephyr/Kconfig:224-225`) |
 | `zephyr/Kconfig:184` | More than "one explicitly dedicated UART" for Crux Serial |
 | `zephyr/Kconfig:193`, `:270-277` | A Zephyr shell in an image with the Crux command line, unless the image is marked as a development image |
 
@@ -213,7 +213,7 @@ Crux refuses every form of it:
 
 ### C7. SSH and TLS profiles
 
-- Evidence: `CONFIG_CRUX_ACCESS` stops the build without `CONFIG_PSA_CRYPTO_PROVIDER_MBEDTLS` (`zephyr/CMakeLists.txt:205-207`; `zephyr/Kconfig:732-756`; Crux `docs/management-in-a-product.md:154-155`).
+- Evidence: `CONFIG_CRUX_ACCESS` stops the build without `CONFIG_PSA_CRYPTO_PROVIDER_MBEDTLS` (`zephyr/CMakeLists.txt:205-207`; `zephyr/Kconfig:732-756`; Crux `docs/management-in-a-product.md:155`).
   So Crux Access, and every management service that depends on it (serial console, configuration service, status service, web sessions, web management, TLS certificate, reboot, File service and network settings), needs the Mbed profile of PSA Crypto, and an image on the Wolf profile, which SSH needs, has none of them through the module.
 - Evidence: Crux SSH has a private provider interface only, with no public header and no `crux::` target, so a composition outside Crux needs a Crux composition interface.
 - Evidence: `CONFIG_CRUX_SSH` needs the Wolf profile, and Crux refuses it together with the Mbed TLS module, because two TLS stacks are not a supported image (`zephyr/CMakeLists.txt:293-297`).
