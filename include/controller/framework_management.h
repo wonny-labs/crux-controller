@@ -11,8 +11,9 @@
  * (CONFIG_CRUX_CONTROLLER_FRAMEWORK_MANAGEMENT).
  *
  * After a fault the registrations are released: each status item then answers CRUX_ERR_NOT_READY.
- * A parameter stays in the configuration service, which has no call that removes one at the
- * pinned Crux revision; after a failed init no parameter reaches the service.
+ * A parameter stays in the configuration service, because the framework does not call
+ * crux_config_service_disable() yet (gap C20); after a failed init no parameter reaches the
+ * service.
  */
 
 #include <stddef.h>
