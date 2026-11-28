@@ -11,5 +11,5 @@ project(product LANGUAGES C)
 
 target_sources(app PRIVATE src/main.c)
 target_compile_options(app PRIVATE -Wall -Wextra -Werror)
-target_link_libraries(app PRIVATE controller::framework)
+target_link_libraries(app PRIVATE controller::framework crux::logging)
 controller_framework_image()

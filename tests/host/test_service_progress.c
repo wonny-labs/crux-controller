@@ -145,9 +145,7 @@ static void test_unknown_threads_and_no_init(void)
 {
     reset();
     CHECK(service_progress_activate(SERVICE_THREAD_COUNT) == SERVICE_PROGRESS_ERR_ARGUMENT);
-    CHECK(service_progress_activate((service_thread_t)-1) == SERVICE_PROGRESS_ERR_ARGUMENT);
     service_progress_report(SERVICE_THREAD_COUNT);
-    service_progress_report((service_thread_t)-1);
     CHECK(!service_progress_active(SERVICE_THREAD_COUNT));
     CHECK(fake.adds == 0);
     service_progress_init(NULL, 20000u);

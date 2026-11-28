@@ -24,7 +24,9 @@ static const char *const names[SERVICE_THREAD_COUNT] = {
 
 static bool known(service_thread_t thread)
 {
-    return (int)thread >= 0 && (int)thread < (int)SERVICE_THREAD_COUNT;
+    /* Unsigned, so one comparison also refuses a negative value, whatever type the compiler gives
+     * the enumeration (short enumerations on ARM). */
+    return (unsigned int)thread < (unsigned int)SERVICE_THREAD_COUNT;
 }
 
 void service_progress_init(const service_progress_port_t *port, uint32_t reload_ms)

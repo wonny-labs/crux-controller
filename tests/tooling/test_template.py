@@ -136,7 +136,10 @@ class Application(unittest.TestCase):
 
     def test_the_cmake_file_links_the_interface_and_calls_the_image_function(self):
         text = (APP / "CMakeLists.txt").read_text()
-        self.assertIn("target_link_libraries(app PRIVATE controller::framework)", text)
+        # main.c includes <crux/logging.h>, so the copy links its public usage target too: the
+        # framework's target does not pass Crux's include directories on (nightly run 46086523911).
+        self.assertIn("target_link_libraries(app PRIVATE controller::framework crux::logging)", text)
+        self.assertIn("<crux/logging.h>", (APP / "src" / "main.c").read_text())
         self.assertIn("controller_framework_image()", text)
         self.assertIn("target_sources(app PRIVATE src/main.c)", text)
 

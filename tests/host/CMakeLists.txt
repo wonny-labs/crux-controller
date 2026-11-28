@@ -13,7 +13,10 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
 
 if(CRUX_HOST_COVERAGE)
-    add_compile_options(--coverage -O0)
+    # Atomic counter updates: test_service_progress and test_net_client run threads, and plain
+    # updates from several threads can leave negative counts that gcovr refuses (GCC manual,
+    # -fprofile-update).
+    add_compile_options(--coverage -O0 -fprofile-update=atomic)
     add_link_options(--coverage)
 endif()
 
