@@ -60,7 +60,7 @@ Criterion 46 checks this inventory.
 
 ## 4. Threats
 
-Status says where each mitigation stands: at the pin (Crux provides it), Crux `main`, Crux change needed, specified (these pages specify it, not yet implemented), implemented (this repository implements it, with `native_sim` evidence and no board run) or product (the product provides it).
+Status says where each mitigation stands: at the pin (Crux provides it), Crux `main`, Planned in Crux, Crux change needed, specified (these pages specify it, not yet implemented), implemented (this repository implements it, with `native_sim` evidence and no board run) or product (the product provides it).
 
 | # | Target | Threat | Category | Mitigation | Residual risk | Status |
 |---|---|---|---|---|---|---|
@@ -77,7 +77,7 @@ Status says where each mitigation stands: at the pin (Crux provides it), Crux `m
 | 11 | Console, debug port | Access in production | Elevation | Console choice (D16) and debug-port lockdown recorded by the product (H2) | Defined by the product | Product |
 | 12 | Controller | Fault or reset loop | Denial of service | Watchdog, boot counter and safe mode (R1 to R3) | Safe mode cannot escape a fault in its own services | Specified |
 | 13 | Image | Memory corruption in the application or framework | Elevation | Stack canaries and hardware stack protection (S6) | No memory partition between application and framework | Specified |
-| 14 | Security events | Loss or forgery of records, or events that fill the volume | Repudiation, denial of service | Event list (L1); persistence with an opt-out, a size limit and rotation | Records are not tamper-proof, rotation drops the oldest, and the RAM ring is lost at a reset unless persisted ([C17](controller-framework-platform-gaps.md#c17-security-event-persistence)) | Crux change needed |
+| 14 | Security events | Loss or forgery of records, or events that fill the volume | Repudiation, denial of service | Event list (L1); persistence with an opt-out, a size limit and rotation | Records are not tamper-proof, rotation drops the oldest, and the RAM ring is lost at a reset unless persisted ([C17](controller-framework-platform-gaps.md#c17-security-event-persistence)) | Planned in Crux |
 | 15 | All | A component with a known vulnerability | All | SBOM and vulnerability matching (V1, V2) | Matching needs identifiers that `west spdx` does not always emit (specification section 6.3) | Specified |
 | 16 | Volume | Data left after a factory reset, or a reset cut by a power loss | Disclosure, tampering | Factory reset scope and the recorded erase method (S8): the command removes the data root's files and the settings file, then erases the accounts last and keeps the device identity; a cut reset is repeated until the erase completes (specification section 5.3; the storage scenario cuts the power before the erase) | File removal leaves old blocks on the medium unless the product erases them; the kept TLS key is as readable as the rest of the store to a person with the medium and the chip ID, so a change of owner needs device preparation again (Crux `credential_store_zephyr.h`) | Implemented; product |
 | 17 | Web, serial | Malformed input | Tampering, denial of service | Crux Web request body and time limits; host fuzzing of the retained-record decode and the framework's management text parsers (Q1); Crux fuzzes its command line and its configuration routes | Zephyr's HTTP parser is not fuzzed by this repository | At the pin; implemented |

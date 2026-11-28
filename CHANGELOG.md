@@ -40,7 +40,9 @@ build configurations by their earlier step ids, S0 to S6.
     while any of them is open.
   - Design pages: delivery stage 4 ends the interim states of gaps C5, C8 and C15 and the two factory reset
     states of C9; criterion 35 keeps the SBOM outside GitHub, tied to the release by `spdx_hashes`; criterion 41
-    fuzzes the retained-record decode and the management text parsers (Crux fuzzes the parameter table);
+    fuzzes the retained-record decode and the management text parsers (the parameter table is C data that Crux's
+    configuration service validates at start; Crux fuzzes the configuration update body and the routes that check
+    values against it, and the table validation has no fuzz target of its own);
     criterion 42 checks that the stored certificate and the device identity are kept. Criterion 46 and the
     session expiry and wall-time step events of criterion 44 are follow-ups. The factory reset race that fails
     safe is accepted, and formatting a blank volume is a deviation from D11 until device preparation exists.

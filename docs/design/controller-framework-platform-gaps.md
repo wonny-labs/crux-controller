@@ -131,7 +131,7 @@ These Crux facts back [specification section 6.2](controller-framework-spec.md#6
 
 - Evidence: the configuration service takes one table at its start, borrowed for the program's life, and a second start changes nothing; its public calls start, list, read, update and save, and none removes or disables a parameter, at the pin and on Crux `main` (`components/config_service/include/crux/config_service.h`).
 - Effect: after a failed activation or `start`, or a reported application fault, the application's parameters stay readable and writable under their permissions, although the framework has released the registrations ([specification section 3.3](controller-framework-spec.md#33-call-order-and-concurrency)).
-- Crux change: a configuration service call that removes or disables a parameter. State: Planned in Crux (approved to build, not merged). Priority: open.
+- Crux change: a configuration service call that removes or disables a parameter. State: Planned in Crux (approved to build, not merged). Priority: open. Source: Crux role statement of 2026-11-28; no Crux issue yet.
 - Interim state (project-specific workaround; no external source): a parameter that has reached the configuration service stays there until the next reset.
 - Replacement criterion: in criterion 8, the release of the registrations leaves such a parameter in the configuration service.
 
@@ -139,7 +139,7 @@ These Crux facts back [specification section 6.2](controller-framework-spec.md#6
 
 - Evidence (read at the Crux revision that `west.yml` pins): the Settings File provider answers every record read with `NOT_READY` until `crux_config_zephyr_init()` has run (`components/configuration/ports/zephyr/configuration_settings.c:54-59`); that function is declared only in the provider's private header `components/configuration/ports/zephyr/configuration_settings.h`, whose include directory is `PRIVATE` to `crux_configuration_zephyr` (`components/configuration/ports/zephyr/CMakeLists.txt:41`), and `docs/composition-interfaces.md` names no composition interface for it; only Crux's own eMMC sample calls it.
 - Effect: the framework cannot initialise configuration saving on the LittleFS volume of C4 without including a private Crux header, which the boundary rules of [specification section 7.3](controller-framework-spec.md#73-source-zones-and-os-neutrality) forbid; files and the credential store do run on LittleFS.
-- Crux change: publish the initialisation as a composition interface, as for the credential store erase. State: Planned in Crux (approved to build, not merged). Priority 1.
+- Crux change: publish the initialisation as a composition interface, as for the credential store erase. State: Planned in Crux (approved to build, not merged). Priority 1. Source: Crux role statement of 2026-11-28; no Crux issue yet.
 - Interim state: the interim state of C4 and its replacement criterion stay in force for configuration saving. Replacement criterion: none for Framework Complete; criteria 12 and 24 need the change.
 
 ## Supervision and reset
@@ -245,7 +245,7 @@ Crux refuses every form of it, at `62ed69f1` and at the pin; the line references
 - Evidence: Crux security events go to a RAM ring that a reset loses, and a low-priority thread hands the ring to Logging; the records are not tamper-proof (`components/security_event/include/crux/security_event.h:8-15`).
 - Evidence: the only reader, `crux_security_event_read()`, needs an Access session with `events.read` (`security_event.h:252-276`), and the framework has no session of its own.
 - Effect: persisted events share the volume with the credential store and the settings file, so they have a size limit and rotation that the product sets ([specification section 6.2](controller-framework-spec.md#62-security-items)).
-- Crux change: a composition-level reader or sink that the framework uses to persist events. State: Planned in Crux (direction adopted, not built). Priority 2.
+- Crux change: a composition-level reader or sink that the framework uses to persist events. State: Planned in Crux (direction adopted, not built; the start of the work is not approved). Priority 2. Source: Crux role statement of 2026-11-28; no Crux issue yet.
 - Interim state: security events reach the log only. Replacement criterion: none; criterion 44 needs the change.
 
 ### C18. Request rate limit
