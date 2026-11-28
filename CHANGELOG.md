@@ -26,7 +26,7 @@ build configurations by their earlier step ids, S0 to S6.
     settings file, erases the accounts, keeps the device identity and restarts; a power cut before the erase
     leaves the accounts, and the operator repeats it.
   - The composition zone may include `<crux/service_priority_zephyr.h>` and `<crux/credential_store_zephyr.h>`,
-    two boundary changes.
+    two boundary changes accepted inside delivery stage 4 and reviewed with it.
   - The scenario `storage` runs on LittleFS over the flash simulator, which keeps the volume across restarts: the size limit, the factory reset with a
     power cut and failed logins on both interfaces. The scenario `recovery` adds an expiry of the web session
     worker's channel.
@@ -34,9 +34,16 @@ build configurations by their earlier step ids, S0 to S6.
     host tests of criterion 25); no image calls it until Crux has an image state provider (gap C10). Host fuzz
     targets for the retained-record decode and the management text parsers run in the nightly tier (check
     `host-fuzz`).
-  - Not done, blocked by Crux: configuration saving, because Crux's Settings File provider can be initialised
-    only through a private header; security event persistence (gap C17); removing an application parameter
-    (gap C20).
+  - Not done, waiting for Crux changes that the framework asked for: configuration saving, because Crux's
+    Settings File provider can be initialised only through a private header (gap C22); security event
+    persistence (gap C17); removing an application parameter (gap C20). Framework Complete is not declared
+    while any of them is open.
+  - Design pages: delivery stage 4 ends the interim states of gaps C5, C8 and C15 and the two factory reset
+    states of C9; criterion 35 keeps the SBOM outside GitHub, tied to the release by `spdx_hashes`; criterion 41
+    fuzzes the retained-record decode and the management text parsers (Crux fuzzes the parameter table);
+    criterion 42 checks that the stored certificate and the device identity are kept. Criterion 46 and the
+    session expiry and wall-time step events of criterion 44 are follow-ups. The factory reset race that fails
+    safe is accepted, and formatting a blank volume is a deviation from D11 until device preparation exists.
 - The application template (delivery stage 4, specification section 7.5): `template/` is the folder that a
   product team copies once to start a product repository. Its `west.yml` imports the framework, and with it
   Crux, at the full commit that `scripts/pin_framework.py` writes, and records that commit as

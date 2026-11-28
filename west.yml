@@ -26,7 +26,8 @@ manifest:
       # tcp.c. The range adds a byte limit for a File root, the account-only erase of the credential
       # store, a new last member of the TLS certificate start options (false keeps the earlier
       # behaviour) and a native PTY UART for Logging on native_sim, all unused unless a product
-      # selects them; this repository selects none. The deprecated RT1060 File aliases that
+      # selects them; the framework uses the byte limit and the account-only erase, and leaves
+      # the new option false. The deprecated RT1060 File aliases that
       # app/conf/file.conf, app/conf/management.conf and app/conf/base.conf use are still defined.
       # No Crux tag exists yet, so this is a commit, not a tag.
       revision: 1330195487c34c8df6046d41ae030d3cdf8a5138
