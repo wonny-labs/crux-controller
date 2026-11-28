@@ -24,8 +24,9 @@ endif()
 target_sources(app PRIVATE src/test_storage.c ../common/scenario.c ../common/retained_env.c
     ../common/https.c)
 target_include_directories(app PRIVATE ../common)
+# crux::security_event: the scenario waits for the event drain before a line that follows events.
 target_link_libraries(app PRIVATE controller::framework crux::access crux::file crux::config_service
-    crux::credential_store crux::logging)
+    crux::credential_store crux::logging crux::security_event)
 # Test-only: Crux's account erase resolves to __wrap_crux_credential_erase_accounts in
 # src/test_storage.c, which cuts the power in boot 1, before anything is erased, and calls Crux's
 # erase in the other boots. GNU ld's --wrap, as the application scenario wraps the TLS start.
