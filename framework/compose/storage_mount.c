@@ -5,8 +5,9 @@
  * to Crux File. It implements the port that framework/src declares, with the composition interface
  * that Crux publishes for this (<crux/file_zephyr.h>) and the Zephyr headers on the zone's
  * allow-list in docs/composition-zone.md. The volume is the devicetree entry labelled
- * controller_storage, a "zephyr,fstab,fatfs" node, so Zephyr itself declares the file system object
- * and this file needs no vendor or file system library header.
+ * controller_storage, a "zephyr,fstab,fatfs" node or a "zephyr,fstab,littlefs" node on a flash
+ * partition, so Zephyr itself declares the file system object and this file needs no vendor or file
+ * system library header.
  */
 
 #include "../src/storage_port.h"
@@ -15,6 +16,7 @@
 #include <crux/file_zephyr.h>
 
 #include <errno.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 
@@ -48,9 +50,17 @@ static storage_port_status_t format_and_prepare(void)
 {
     char path[PATH_CAPACITY];
 
+#if DT_NODE_HAS_COMPAT(STORAGE_NODE, zephyr_fstab_littlefs)
+    /* LittleFS on a flash partition: the device is the flash area, and the volume's own
+     * configuration from the devicetree. */
+    if (fs_mkfs(volume()->type, (uintptr_t)volume()->storage_dev, volume()->fs_data, 0) != 0) {
+        return STORAGE_PORT_ERR_FORMAT;
+    }
+#else
     if (fs_mkfs(volume()->type, (uintptr_t)(volume()->mnt_point + 1), NULL, 0) != 0) {
         return STORAGE_PORT_ERR_FORMAT;
     }
+#endif
     if (fs_mount(volume()) != 0) {
         return STORAGE_PORT_ERR_MOUNT;
     }
@@ -159,23 +169,73 @@ storage_port_status_t storage_port_bind_store(void)
 /* The directory of the application's data (specification section 3.2). */
 #define APP_DIRECTORY "app"
 
-storage_port_status_t storage_port_bind_app(void)
+/* The data root's path and limit, kept for storage_port_app_root_full(); set once by the bind. */
+static char app_path[PATH_CAPACITY];
+static uint64_t app_max_bytes;
+
+storage_port_status_t storage_port_bind_app(unsigned long long max_bytes)
 {
     char path[PATH_CAPACITY];
 
-    if (directory_path(path, sizeof path, APP_DIRECTORY) != 0) {
+    if (max_bytes == 0u || directory_path(path, sizeof path, APP_DIRECTORY) != 0) {
         return STORAGE_PORT_ERR_BIND;
     }
     if (make_directory(path) != 0) {
         return STORAGE_PORT_ERR_LAYOUT;
     }
-    switch (crux_file_zephyr_bind_root(STORAGE_PORT_APP_ROOT, path)) {
+    switch (crux_file_zephyr_bind_root_limited(STORAGE_PORT_APP_ROOT, path, max_bytes)) {
     case CRUX_FILE_OK:
+        (void)snprintf(app_path, sizeof app_path, "%s", path);
+        app_max_bytes = max_bytes;
         return STORAGE_PORT_OK;
     case CRUX_FILE_ERR_INVALID_STATE:
         return STORAGE_PORT_ERR_ALREADY_BOUND;
     default:
         return STORAGE_PORT_ERR_BIND;
     }
+}
+
+/* A size rounded up to whole allocation units, and at least one unit, as Crux File counts a file
+ * against the limit (Crux docs/file-contract.md, "Root byte limits"). */
+static uint64_t counted(uint64_t size, uint64_t unit)
+{
+    const uint64_t units = size == 0u ? 1u : (size + unit - 1u) / unit;
+
+    return units * unit;
+}
+
+storage_port_status_t storage_port_app_root_full(_Bool *full)
+{
+    struct fs_statvfs volume_info;
+
+    if (full == NULL || app_max_bytes == 0u || fs_statvfs(app_path, &volume_info) != 0 ||
+        volume_info.f_frsize == 0u) {
+        return STORAGE_PORT_ERR_BIND;
+    }
+    const uint64_t unit = (uint64_t)volume_info.f_frsize;
+    crux_file_dir_t *dir = NULL;
+    uint64_t used = 0u;
+
+    if (crux_file_dir_open(STORAGE_PORT_APP_ROOT, &dir) != CRUX_FILE_OK) {
+        return STORAGE_PORT_ERR_BIND;
+    }
+    for (;;) {
+        /* crux_file_dir_read() needs at least 64 bytes for a name. */
+        char name[64];
+        crux_file_info_t info;
+        bool end = false;
+
+        if (crux_file_dir_read(dir, name, sizeof name, &info, &end) != CRUX_FILE_OK) {
+            (void)crux_file_dir_close(&dir);
+            return STORAGE_PORT_ERR_BIND;
+        }
+        if (end) {
+            break;
+        }
+        used += counted(info.size, unit);
+    }
+    (void)crux_file_dir_close(&dir);
+    *full = used + unit > app_max_bytes;
+    return STORAGE_PORT_OK;
 }
 #endif /* CONFIG_CRUX_WEB_MANAGEMENT */

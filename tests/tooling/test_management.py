@@ -722,7 +722,9 @@ class ManagementBuildFiles(unittest.TestCase):
                     "crux::reboot",
                     # The progress function of the Crux service threads (gap C8), under health
                     # supervision, where Crux defines the target.
-                    "crux::service_priority_zephyr"}
+                    "crux::service_priority_zephyr",
+                    # The factory reset: Crux File for the data root and the erase.
+                    "crux::file", "crux::credential_store_zephyr"}
         self.assertEqual(expected, names)
 
     def test_the_zone_keeps_the_application_warnings_on_the_management_source(self):
@@ -927,6 +929,10 @@ class ManagementSources(unittest.TestCase):
     ALLOWED = {
         '"../src/management_port.h"', '"../src/storage_port.h"', "<crux/access.h>",
         "<crux/config_service.h>", "<crux/credential_store.h>", "<crux/logging.h>",
+        # The factory reset (specification section 5.3): Crux File for the data root, the erase
+        # composition interface, and the Zephyr file system header of the zone's list for the
+        # settings file.
+        "<crux/credential_store_zephyr.h>", "<crux/file.h>", "<zephyr/fs/fs.h>", "<errno.h>",
         "<crux/management_status.h>", "<crux/security_event.h>", "<crux/status.h>",
         "<crux/system.h>", "<crux/time.h>", "<crux/tls_certificate_start.h>", "<crux/web.h>",
         "<crux/web_management.h>", "<crux/web_session.h>", "<crux/web_zephyr.h>",

@@ -1,0 +1,75 @@
+/* The devicetree of the storage scenario. As in the application scenario
+ * (tests/framework/application/app.overlay): a retained region over the test-only retained memory of
+ * ../common, which keeps its bytes across a restart of the simulated process; Crux Logging on an
+ * emulated UART that the test reads; and the Crux serial console on a second emulated UART through
+ * the alias crux-serial0, which the test types into. Unlike there, the volume of the entry
+ * controller_storage is LittleFS on the flash simulator, which keeps its bytes in a file of the host,
+ * so the volume survives the restart of the simulated process; the first boot finds it blank. */
+/ {
+    aliases { crux-serial0 = &serial_test; };
+    chosen { zephyr,log-uart = &logging_uarts; };
+    logging_uarts: logging-uarts {
+        compatible = "zephyr,log-uart";
+        uarts = <&logging_test>;
+    };
+    logging_test: logging-test {
+        compatible = "zephyr,uart-emul";
+        current-speed = <115200>;
+        rx-fifo-size = <16>;
+        tx-fifo-size = <16384>;
+        status = "okay";
+    };
+    serial_test: serial-test {
+        compatible = "zephyr,uart-emul";
+        current-speed = <115200>;
+        rx-fifo-size = <1024>;
+        /* The status command writes more than 1 KiB at once, and the emulated UART drops the bytes
+         * that do not fit (uart_emul_poll_out in Zephyr's drivers/serial/uart_emul.c). */
+        tx-fifo-size = <8192>;
+        status = "okay";
+    };
+
+    retained_env: retained-env {
+        compatible = "vnd,retained-env";
+        size = <256>;
+        status = "okay";
+        #address-cells = <1>;
+        #size-cells = <1>;
+
+        controller_retained: retention@0 {
+            compatible = "zephyr,retention";
+            status = "okay";
+            reg = <0x0 0x30>;
+            prefix = [43 52 43 31];
+            checksum = <4>;
+        };
+    };
+
+    fstab {
+        compatible = "zephyr,fstab";
+        controller_storage: controller-storage {
+            compatible = "zephyr,fstab,littlefs";
+            mount-point = "/lfs";
+            partition = <&controller_partition>;
+            read-size = <16>;
+            prog-size = <16>;
+            cache-size = <64>;
+            lookahead-size = <32>;
+            block-cycles = <512>;
+            /* Never format on a failed mount: the zone formats only a blank volume, by its policy. */
+            no-format;
+        };
+    };
+};
+
+/* 256 KiB in the free upper half of the simulated 2 MiB flash (as Crux's tests/native/file_littlefs
+ * places its partition). */
+&flash0 {
+    partitions {
+        controller_partition: partition@100000 {
+            compatible = "zephyr,mapped-partition";
+            label = "controller-storage";
+            reg = <0x00100000 0x00040000>;
+        };
+    };
+};

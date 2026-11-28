@@ -185,12 +185,12 @@ follow the current tree. If the scripts and workflows named here have changed si
   `performance` and `portability`; warnings are errors) runs over the 33 sources that the host tests
   build: `scripts/analyze_host.py`, in the same job. `.clang-tidy` also lists
   `readability-identifier-naming` without options, so it checks no naming rule. The script prints the
-  tracked sources that it did not analyse, 38 today: the sources that the host tests do not build,
+  tracked sources that it did not analyse, 40 today: the sources that the host tests do not build,
   because they need Zephyr or Crux headers or Kconfig values. It does so without failing.
 - **clang-tidy on the Zephyr sources.** `scripts/analyze_zephyr.py` (check `static-analysis-zephyr`, `base build` job) runs the same analysis over this repository's sources in the compile database of the application scenario's `native_sim` build: the framework, the fixture application and the scenario. It drops the GCC options that clang refuses; any finding fails.
-- **The 38 not analysed by the host analysis.** 21 of those 38 are product sources (`app/`, `framework/`, `template/`), built with
+- **The 40 not analysed by the host analysis.** 22 of those 40 are product sources (`app/`, `framework/`, `template/`), built with
   `-Wall -Wextra -Werror` as `app/CMakeLists.txt`, `app/os/CMakeLists.txt`, `framework/configurations.cmake`,
-  `framework/compose/CMakeLists.txt`, `zephyr/CMakeLists.txt` and `template/app/CMakeLists.txt` set. The other 17 are the `native_sim` scenario
+  `framework/compose/CMakeLists.txt`, `zephyr/CMakeLists.txt` and `template/app/CMakeLists.txt` set. The other 18 are the `native_sim` scenario
   sources (`tests/{native_sim*,framework}/*/src/*.c`, the helpers `tests/framework/common/*.c`, the fixture application `tests/framework/fixture/fixture.c`, `tests/product_integration/src/test_*.c`): the CMake
   files of the scenarios set those flags on the product sources that they pull in, not on the scenario source.
 - **Other gates.** The include rules (`scripts/check_boundary.py` and the Crux product include check,
@@ -207,7 +207,7 @@ or functional-safety compliance. The Crux platform states its own position in it
 [coding guidelines](https://github.com/wonny-labs/crux/blob/751e04aead779ac08e438ec1e2640e57fc50e9fe/docs/coding-guidelines.md),
 read at that commit.
 
-Known gaps, not scheduled: of the 38 sources above, those of `app/` and of the scenarios other than the application scenario have no clang-tidy analysis, and nothing measures how much of the code the `native_sim` scenarios run.
+Known gaps, not scheduled: of the 40 sources above, those of `app/` and of the scenarios other than the application scenario have no clang-tidy analysis, and nothing measures how much of the code the `native_sim` scenarios run.
 
 The product's own Kconfig symbols use the prefix `CRUX_CONTROLLER_`; they are the product's names, not
 Crux platform symbols.

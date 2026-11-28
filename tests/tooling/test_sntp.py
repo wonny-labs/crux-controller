@@ -269,7 +269,7 @@ class SntpBuildFiles(unittest.TestCase):
         # adapters of the framework's health supervision and its application thread.
         self.assertEqual(["CMakeLists.txt", "workload_os_zephyr.c"], sorted(p.name for p in APP_OS.iterdir()))
         self.assertEqual(["app_zephyr.c", "fatal_zephyr.c", "reboot_zephyr.c", "retained_zephyr.c",
-                          "supervisor_zephyr.c",
+                          "storage_worker_zephyr.c", "supervisor_zephyr.c",
                           "time_sync_zephyr.c"], sorted(p.name for p in FRAMEWORK_OS.iterdir()))
 
     def test_the_workload_adapter_is_still_added_for_every_step_unconditionally(self):

@@ -96,6 +96,9 @@ if(CONFIG_CRUX_CONTROLLER_FRAMEWORK)
             "${controller_root}/framework/os/fatal_zephyr.c"
             "${controller_root}/framework/os/retained_zephyr.c"
             "${controller_root}/framework/os/supervisor_zephyr.c")
+        if(CONFIG_CRUX_CONTROLLER_FRAMEWORK_MANAGEMENT)
+            zephyr_library_sources("${controller_root}/framework/os/storage_worker_zephyr.c")
+        endif()
         zephyr_library_link_libraries(crux::system)
         # The network's health comes from Crux NetIf where the image has it (section 4.7).
         if(CONFIG_CRUX_NETIF)

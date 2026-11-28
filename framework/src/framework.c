@@ -98,6 +98,7 @@
 #include "framework_control.h"
 #include "framework_status.h"
 #include "recovery.h"
+#include "storage_worker_port.h"
 #include "supervision.h"
 #include "supervision_compose.h"
 #include "supervisor_port.h"
@@ -179,8 +180,15 @@ _Static_assert((int)CONTROLLER_APP_STOP_FAULT == (int)APP_STOP_FAULT &&
 #define CHANNELS_CRUX_MANAGEMENT 0u
 #define CHANNELS_CRUX_CONSOLE 0u
 #endif
+/* The storage worker, with management (gap C15). */
+#ifdef CONFIG_CRUX_CONTROLLER_FRAMEWORK_MANAGEMENT
+#define CHANNELS_STORAGE 1u
+#else
+#define CHANNELS_STORAGE 0u
+#endif
 #define CHANNELS_FRAMEWORK                                                                         \
-    (CHANNELS_TIME + CHANNELS_REBOOT + CHANNELS_CRUX_MANAGEMENT + CHANNELS_CRUX_CONSOLE)
+    (CHANNELS_TIME + CHANNELS_REBOOT + CHANNELS_CRUX_MANAGEMENT + CHANNELS_CRUX_CONSOLE +          \
+     CHANNELS_STORAGE)
 #define CHANNELS_LIMIT                                                                             \
     ((size_t)CONFIG_TASK_WDT_CHANNELS < (size_t)SUPERVISION_CHANNELS_MAX                           \
          ? (size_t)CONFIG_TASK_WDT_CHANNELS                                                        \
@@ -898,6 +906,7 @@ static management_port_config_t management_config(void)
         supervision_compose_status_items(items, app_items, &config.status_item_count);
     config.after_events = supervision_compose_reboot_start;
     config.bind_app_root = application_present();
+    config.app_root_max_bytes = (uint64_t)CONFIG_CRUX_CONTROLLER_APP_ROOT_MAX_BYTES;
     config.parameters = app_contract_parameters(&fw.app, &config.parameter_count);
 #endif
 #ifdef SERVICE_PROGRESS_ON
@@ -905,6 +914,38 @@ static management_port_config_t management_config(void)
 #endif
     return config;
 }
+
+#ifdef CONFIG_CRUX_CONTROLLER_FRAMEWORK_SUPERVISION
+/* The storage worker's period and the reload of its channel; a listing of the data root takes far
+ * less than the reload on a healthy medium. Starting values, not measured. */
+#define STORAGE_WORKER_PERIOD_MS 2000u
+#define STORAGE_WORKER_RELOAD_MS 30000u
+
+/* One pass of the storage worker: storage reads degraded while the application data root has
+ * reached its limit, and healthy again when files are removed (section 4.7). A storage that failed
+ * at the mount stays failed. */
+static void storage_tick(void)
+{
+    bool full = false;
+
+    if (storage_port_app_root_full(&full) != STORAGE_PORT_OK) {
+        return;
+    }
+    const int own = atomic_load(&fw.health[SERVICE_STORAGE]);
+
+    if (own == (int)SERVICE_FAILED) {
+        return;
+    }
+    const service_health_t next = full ? SERVICE_DEGRADED : SERVICE_HEALTHY;
+
+    if (own != (int)next) {
+        set_health(SERVICE_STORAGE, next);
+        say(full ? CRUX_LOG_WARN : CRUX_LOG_INFO,
+            full ? "storage degraded: the application data root reached its size limit"
+                 : "storage healthy: the application data root is below its size limit");
+    }
+}
+#endif
 
 static int phase_storage_and_access(void)
 {
@@ -919,6 +960,10 @@ static int phase_storage_and_access(void)
     set_health(SERVICE_ACCESS, health);
     if (core_started && application_present()) {
         atomic_store(&fw.data_root, STORAGE_PORT_APP_ROOT);
+        if (storage_worker_port_start(storage_tick, STORAGE_WORKER_PERIOD_MS,
+                                      STORAGE_WORKER_RELOAD_MS) != 0) {
+            say(CRUX_LOG_ERROR, "storage worker not started");
+        }
     }
 #endif
     return (int)status;
@@ -1213,6 +1258,14 @@ bool framework_control_restart_allowed(void)
     return !application_present() || app_requests_reset_allowed(&fw.requests);
 }
 
+/* True between an operator's factory reset request and the planned reset that carries it out. */
+static atomic_bool factory_reset_requested;
+
+void framework_control_factory_reset(bool requested)
+{
+    atomic_store(&factory_reset_requested, requested);
+}
+
 void framework_control_planned_reset(void)
 {
     /* The gate closes before the request is posted. The application thread then decides whether
@@ -1221,6 +1274,21 @@ void framework_control_planned_reset(void)
     if (application_present() && app_requests_plan_reset(&fw.requests)) {
         app_port_call(REQUEST_PLANNED_STOP);
     }
+#ifdef CONFIG_CRUX_CONTROLLER_FRAMEWORK_MANAGEMENT
+    /* A factory reset runs here, with no application thread left to write its data root, and
+     * before the marker: a power cut during it leaves no marker, and the operator repeats it. Its
+     * time counts against the reboot thread's channel, whose reload covers a Crux Reboot call. The
+     * reset follows whatever the result, as Crux's guide asks: the erase leaves the store unusable
+     * until a reset. */
+    if (atomic_exchange(&factory_reset_requested, false)) {
+        char text[CRUX_LOG_TEXT_MAX];
+        const management_port_status_t result = management_port_factory_reset();
+
+        (void)snprintf(text, sizeof text, "factory reset %s result=%d",
+                       result == MANAGEMENT_PORT_OK ? "done" : "failed, repeat it", (int)result);
+        say(result == MANAGEMENT_PORT_OK ? CRUX_LOG_WARN : CRUX_LOG_ERROR, text);
+    }
+#endif
 }
 
 void framework_control_reset_abandoned(void)

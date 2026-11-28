@@ -255,6 +255,20 @@ config CRUX_CONTROLLER_DEPENDENCY_COMMAND_LINE
 
 endmenu
 
+config CRUX_CONTROLLER_APP_ROOT_MAX_BYTES
+	int "Size limit of the application data root, in bytes"
+	default 1048576
+	range 4096 2147483647
+	depends on CRUX_CONTROLLER_FRAMEWORK_MANAGEMENT
+	help
+	  The application's files share one volume with the credential store and
+	  the settings file, so Crux File refuses a write or a create that would take
+	  the files of the application data root above this limit, and the storage
+	  service reads degraded while the root is full (specification section 5.4,
+	  gap C15). Each file counts its size rounded up to the volume's allocation
+	  unit. A product sets the limit for its medium; the default is a starting
+	  value, not measured.
+
 config CRUX_CONTROLLER_SERVICE_RELOAD_MS
 	int "Reload period of the channel of each Crux service thread, in milliseconds"
 	default 20000

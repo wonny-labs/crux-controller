@@ -1,0 +1,49 @@
+common:
+  platform_allow:
+    - native_sim/native/64
+  integration_platforms:
+    - native_sim/native/64
+  tags:
+    - controller
+    - framework
+tests:
+  controller.framework.native_sim.storage:
+    timeout: 600
+    harness: console
+    harness_config:
+      type: multi_line
+      ordered: true
+      # Only lines whose order the code fixes; the security events drain on their own thread, so only
+      # lines that no scenario line can overtake are listed between them.
+      regex:
+        # Boot 1: LittleFS on the flash simulator, the size limit of the data root (criterion 24) and
+        # the factory reset with a power cut before the account erase (criterion 42).
+        - "storage scenario boot 1"
+        - "crux thread console supervised"
+        - "storage scenario: first account set up"
+        - "storage scenario: data root full after [1-9][0-9]* files result=-[0-9]+"
+        - "storage degraded: the application data root reached its size limit"
+        - "storage scenario: the status service shows storage degraded"
+        - "storage scenario: a credential save succeeds with the data root full"
+        - "storage scenario: parameter save result=-[0-9]+"
+        - "storage scenario: the read-only account cannot run the factory reset"
+        - "factory reset requested by an operator"
+        - "storage scenario: factory reset requested"
+        - "storage scenario: power cut before the account erase"
+        # Boot 2: the accounts are still there; the repeated factory reset completes.
+        - "storage scenario boot 2"
+        - "boot class=fault counter=1 threshold=10 safe mode=no retained region"
+        - "storage scenario: the accounts are still in place after the power cut"
+        - "storage scenario: the data root is empty"
+        - "factory reset requested by an operator"
+        - "factory reset: application data removed, accounts erased, identity kept"
+        - "factory reset done result=0"
+        # Boot 3: first-account setup is open and the identity is kept; failed logins (criterion 43).
+        - "storage scenario boot 3"
+        - "certificate sha256=[^ ]+ source=stored"
+        - "storage scenario: first-account setup is open after the factory reset"
+        - "storage scenario: the data root is empty after the factory reset"
+        - "storage scenario: the device identity was kept"
+        - "access.login_failed"
+        - "access.delayed"
+        - "storage scenario done"

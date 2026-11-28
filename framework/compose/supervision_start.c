@@ -305,6 +305,25 @@ static crux_cli_result_t reboot_command(crux_cli_call_t *call, size_t argc, cons
     return request_restart(call);
 }
 
+/* factory reset: mark the next planned reset as a factory reset, then ask Crux Reboot for it in the
+ * session's name (specification section 5.3). The command needs access.manage, so a session
+ * without it never sees it, and no serial command without a login erases anything. */
+static crux_cli_result_t factory_reset_command(crux_cli_call_t *call, size_t argc,
+                                               const char *const *argv, void *context)
+{
+    (void)argc;
+    (void)argv;
+    (void)context;
+    framework_control_factory_reset(true);
+    (void)crux_log_write(CRUX_LOG_WARN, LOG_TAG, "factory reset requested by an operator");
+    const crux_cli_result_t result = request_restart(call);
+
+    if (result != CRUX_CLI_OK) {
+        framework_control_factory_reset(false);
+    }
+    return result;
+}
+
 static crux_cli_result_t recovery_clear_command(crux_cli_call_t *call, size_t argc,
                                                 const char *const *argv, void *context)
 {
@@ -389,6 +408,10 @@ static const crux_cli_command_t commands[] = {
     CRUX_CLI_COMMAND("recovery exit", "Leave safe mode: clear the counter and restart",
                      CRUX_CLI_PERMISSION(CRUX_REBOOT_PERMISSION), 0u, 0u, CRUX_CLI_CHANNEL_SERIAL,
                      recovery_exit_command, NULL),
+    CRUX_CLI_COMMAND("factory reset",
+                     "Remove the application data and settings, erase the accounts and restart",
+                     CRUX_CLI_PERMISSION(MANAGEMENT_PERMISSION_ACCESS_MANAGE), 0u, 0u,
+                     CRUX_CLI_CHANNEL_SERIAL, factory_reset_command, NULL),
 #endif
 };
 

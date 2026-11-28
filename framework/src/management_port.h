@@ -94,8 +94,10 @@ typedef struct {
      * returned success, so that the framework gives the thread its task watchdog channel (gap C8).
      * NULL for none. */
     void (*thread_started)(management_port_thread_t thread);
-    /* True: the core part also binds the application data root (storage_port_bind_app()). */
+    /* True: the core part also binds the application data root (storage_port_bind_app()), with
+     * the byte limit app_root_max_bytes (gap C15). */
     bool bind_app_root;
+    uint64_t app_root_max_bytes;
     /* The parameter table of the configuration service: an array of crux_config_service_entry_t,
      * borrowed for the program's life, or NULL with a count of zero. */
     const void *parameters;
@@ -130,5 +132,19 @@ management_port_status_t management_port_start_services(const management_port_co
  * specification section 5.5) or "refused". It copies a value, does not block and touches no
  * storage, as a status item source must. */
 void management_port_certificate(char *text, size_t size);
+
+/*
+ * The data part of a factory reset (specification section 5.3), after a successful core part, on
+ * the framework's reboot thread just before the reset, once the application has stopped: remove the
+ * files of the application data root, then the settings file (its temporary first), then erase the
+ * accounts of the credential store and keep the device identity (crux_credential_erase_accounts()).
+ * No security event is persisted (gap C17), so none is removed. The erase comes last, because it
+ * reopens first-account setup; a reset before it leaves the accounts in place, and the operator
+ * repeats the factory reset until it succeeds. Returns MANAGEMENT_PORT_OK,
+ * MANAGEMENT_PORT_ERR_STORAGE when a file could not be removed (nothing was erased),
+ * MANAGEMENT_PORT_ERR_STEP_FAILED when the erase failed, or MANAGEMENT_PORT_ERR_NOT_READY before
+ * the core part.
+ */
+management_port_status_t management_port_factory_reset(void);
 
 #endif

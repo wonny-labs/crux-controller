@@ -1143,12 +1143,14 @@ print([suite["name"] for suite in suites], statuses)
 assert suites, "the base scenario is not in the Twister report"
 assert statuses and all(status == "passed" for status in statuses), statuses
 assert len(statuses) == 11, statuses
-# The scenarios of health supervision and of the application interface run on the console harness:
+# The scenarios of health supervision, of the application interface and of storage run on the console
+# harness:
 # each passes when its program printed every line of its testcase.yaml in order, across the restarts
 # of the simulated process.
 for name in ("controller.framework.native_sim.recovery", "controller.framework.native_sim.no_watchdog",
              "controller.framework.native_sim.application",
-             "controller.framework.native_sim.application_held"):
+             "controller.framework.native_sim.application_held",
+             "controller.framework.native_sim.storage"):
     found = [suite for suite in report["testsuites"] if name in suite["name"]]
     print(name, [suite.get("status") for suite in found])
     assert found, name + " is not in the Twister report"

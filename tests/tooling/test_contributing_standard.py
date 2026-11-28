@@ -189,15 +189,15 @@ class StaticAnalysisSection(unittest.TestCase):
         analysed = host_built_sources()
         missing = set(not_analysed())
         self.assertEqual(33, len(analysed))
-        self.assertEqual(38, len(missing))
+        self.assertEqual(40, len(missing))
         self.assertIn("clang-tidy 18", body)
         for family in ("bugprone", "clang-analyzer", "performance", "portability"):
             self.assertIn(f"`{family}`", body)
         self.assertIn("warnings are errors", body)
         self.assertIn("the 33 sources", body)
         self.assertIn("`scripts/analyze_host.py`", body)
-        self.assertIn("38 today", body)
-        self.assertIn("of the 38 sources above", body)
+        self.assertIn("40 today", body)
+        self.assertIn("of the 40 sources above", body)
         # Criterion 41, delivery stage 3: the Zephyr sources from the native_sim compile database.
         self.assertIn("`scripts/analyze_zephyr.py`", body)
         self.assertIn("`static-analysis-zephyr`", body)
@@ -210,14 +210,14 @@ class StaticAnalysisSection(unittest.TestCase):
         body = flat(section())
         # By path: the template's main() and the base image's main() share the basename main.c.
         paths = [path.relative_to(ROOT).as_posix() for path in not_analysed()]
-        self.assertEqual(38, len(paths))
+        self.assertEqual(40, len(paths))
         flagged = product_sources_with_warning_flags()
         scenario_paths = {p for p in paths if p.startswith("tests/")}
         scenario = {pathlib.PurePosixPath(p).name for p in scenario_paths}
         product = {pathlib.PurePosixPath(p).name for p in set(paths) - scenario_paths}
-        self.assertEqual(17, len(scenario_paths))
-        self.assertEqual(17, len(scenario), "a basename of a scenario source is not unique")
-        self.assertEqual(21, len(set(paths) - scenario_paths))
+        self.assertEqual(18, len(scenario_paths))
+        self.assertEqual(18, len(scenario), "a basename of a scenario source is not unique")
+        self.assertEqual(22, len(set(paths) - scenario_paths))
         # Each product source is built with the flags by the CMake files that name them.
         self.assertEqual(product, product & flagged, sorted(product - flagged))
         # No scenario source is in a COMPILE_OPTIONS list, and no scenario file sets the flags on
@@ -229,9 +229,9 @@ class StaticAnalysisSection(unittest.TestCase):
         for path in scenario_cmake_files():
             self.assertNotRegex(path.read_text(), r"target_compile_options\(app", path.name)
         # The text says exactly that.
-        self.assertIn("21 of those 38 are product sources", body)
+        self.assertIn("22 of those 40 are product sources", body)
         self.assertIn("`-Wall -Wextra -Werror`", body)
-        self.assertIn("The other 17 are the `native_sim` scenario sources", body)
+        self.assertIn("The other 18 are the `native_sim` scenario sources", body)
         self.assertIn("not on the scenario source", body)
         self.assertNotIn("Those 16 sources get compiler warnings only", body)
         self.assertNotRegex(body, r"(?i)twister")

@@ -33,6 +33,8 @@
 #include <crux/access.h>
 #include <crux/config_service.h>
 #include <crux/credential_store.h>
+#include <crux/credential_store_zephyr.h>
+#include <crux/file.h>
 #include <crux/logging.h>
 #include <crux/management_status.h>
 #include <crux/security_event.h>
@@ -45,6 +47,7 @@
 #include <crux/web_session.h>
 #include <crux/web_zephyr.h>
 
+#include <errno.h>
 #include <stdatomic.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -52,6 +55,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <zephyr/fs/fs.h>
 #include <zephyr/net/tls_credentials.h>
 
 /* A text that is no address would make Zephyr's server listen on every address, so the build asks
@@ -201,6 +205,85 @@ static management_port_status_t failed_storage(const char *step)
     return MANAGEMENT_PORT_ERR_STORAGE;
 }
 
+/* The most files that one factory reset removes from the application data root; a bound that keeps
+ * the loop finite if a removal keeps failing silently. */
+#define FACTORY_RESET_FILES_MAX 1024u
+
+/* Remove every file of the application data root. Crux File lists only regular files, and offers no
+ * directory call, so the root is flat. The listing is closed before each removal. */
+static bool remove_app_files(void)
+{
+    /* crux_file_dir_read() needs at least 64 bytes for a name. */
+    char name[64];
+    crux_file_info_t info;
+
+    for (size_t count = 0u; count < FACTORY_RESET_FILES_MAX; count++) {
+        crux_file_dir_t *dir = NULL;
+        bool end = false;
+        crux_file_result_t result = crux_file_dir_open(STORAGE_PORT_APP_ROOT, &dir);
+
+        if (result == CRUX_FILE_ERR_NOT_READY || result == CRUX_FILE_ERR_INVALID_ARGUMENT) {
+            return true; /* no data root in this image */
+        }
+        if (result != CRUX_FILE_OK) {
+            return false;
+        }
+        result = crux_file_dir_read(dir, name, sizeof name, &info, &end);
+        (void)crux_file_dir_close(&dir);
+        if (result != CRUX_FILE_OK) {
+            return false;
+        }
+        if (end) {
+            return true;
+        }
+        if (crux_file_remove_at(STORAGE_PORT_APP_ROOT, name) != CRUX_FILE_OK) {
+            return false;
+        }
+    }
+    return false;
+}
+
+#ifdef CONFIG_SETTINGS_FILE
+/* A settings file that is gone afterwards: removed, or never there. */
+static bool unlinked(const char *path)
+{
+    const int result = fs_unlink(path);
+
+    return result == 0 || result == -ENOENT;
+}
+#endif
+
+management_port_status_t management_port_factory_reset(void)
+{
+    if (!core_done) {
+        return MANAGEMENT_PORT_ERR_NOT_READY;
+    }
+    if (!remove_app_files()) {
+        note(CRUX_LOG_ERROR, "factory reset: the application data could not be removed");
+        return MANAGEMENT_PORT_ERR_STORAGE;
+    }
+#ifdef CONFIG_SETTINGS_FILE
+    /* The temporary first: a reset in between leaves the settings file, never a temporary alone
+     * (Crux docs/management-in-a-product.md, "Factory reset"). */
+    if (!unlinked(CONFIG_SETTINGS_FILE_PATH ".cmp") || !unlinked(CONFIG_SETTINGS_FILE_PATH)) {
+        note(CRUX_LOG_ERROR, "factory reset: the settings file could not be removed");
+        return MANAGEMENT_PORT_ERR_STORAGE;
+    }
+#endif
+    const crux_credential_result_t erase = crux_credential_erase_accounts();
+
+    if (erase != CRUX_CREDENTIAL_OK) {
+        char text[CRUX_LOG_TEXT_MAX];
+
+        (void)snprintf(text, sizeof text, "factory reset: account erase failed result=%d",
+                       (int)erase);
+        note(CRUX_LOG_ERROR, text);
+        return MANAGEMENT_PORT_ERR_STEP_FAILED;
+    }
+    note(CRUX_LOG_WARN, "factory reset: application data removed, accounts erased, identity kept");
+    return MANAGEMENT_PORT_OK;
+}
+
 management_port_status_t management_port_start(const management_port_config_t *config)
 {
     const management_port_status_t core = management_port_start_core(config);
@@ -244,7 +327,8 @@ management_port_status_t management_port_start_core(const management_port_config
     if (storage_port_bind_store() != STORAGE_PORT_OK) {
         return failed_storage("store roots");
     }
-    if (config->bind_app_root && storage_port_bind_app() != STORAGE_PORT_OK) {
+    if (config->bind_app_root &&
+        storage_port_bind_app(config->app_root_max_bytes) != STORAGE_PORT_OK) {
         return failed_storage("application data root");
     }
 
