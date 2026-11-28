@@ -13,15 +13,20 @@ and the [changelog](../CHANGELOG.md) are the reference when this page and a comm
   page claims none; look at the checks of the commit you care about.
 - **Only the `net` image has run on a physical board**, twice, on one bench
   ([what has run on a board](#what-has-run-on-a-board)).
-- One management feature is wired: HTTPS management on the Mbed TLS profile (`management`, with Crux Access, the
-  status and configuration services and a packaged page). It is built in CI and has never run on a board, and
-  the image has no account, so nobody can log in: the first-account console runs only in `base`. The SSH
-  command line, SFTP, network settings, file and reboot routes are not built, and each has a recorded reason.
+- The `management` image is HTTPS management on the Mbed TLS profile (Crux Access, the status and configuration
+  services and a packaged page). It has no account, so nobody can log in to it: the first-account setup runs only
+  in `base`. The base image composes web management, the serial command line, Access, the credential store, the
+  status and configuration services, and the serial commands for reboot, recovery and factory reset behind a login.
+  Both images are built in CI and run on `native_sim`; neither has run on a board. The SSH command line, SFTP, the
+  network settings service and web routes for files and reboot are not built, and each has a recorded reason.
 - The controller framework is a Zephyr module of this repository, and the base image (`base`) runs it with web
   management, the serial command line with its first-account setup, time synchronisation and health supervision
   (watchdog, boot counter, safe mode, retained last-fault record), and no application. The application interface
   (descriptor, channels, status items, parameters, data root, operator stop and start) is in the module at the lowest
   stability tier; a fixture application exercises it in `native_sim` scenarios only, and no product uses it yet.
+- The application template (`template/`) is a folder that a product team copies once. A copy builds and runs on
+  `native_sim` and builds for the board in the nightly checks; it has not run on a board.
+- No readiness level of the [specification](design/controller-framework-spec.md#83-readiness-levels) is declared.
 - There is no release and no tag.
 
 ## What is built
@@ -54,20 +59,20 @@ Around the configurations:
 
 The `Budget` job builds each configuration for the RT1060-EVKB and reads the Zephyr memory region table. The
 numbers below are the `FLASH` and `RAM` rows of that table, in bytes used, as the `Budget` jobs print them. They
-were read from the job logs of the `budget` workflow at `26c78a3` and at `8d47942d` (revisions of the public
-repository), which printed the same values. The region sizes are the ones that the table prints: `FLASH` 8 MB
-and `RAM` 32 MB. Both revisions are older than the current pin; the `Budget` jobs of a commit give its current
-sizes.
+were read from the job logs of the `budget` workflow at `b407d2c4` (a revision of the public repository, at the
+current Crux pin). The region sizes are the ones that the table prints: `FLASH` 8 MB and `RAM` 32 MB. The `Budget`
+jobs of a commit give its current sizes.
 
 | Build configuration | FLASH used (bytes) | FLASH of region | RAM used (bytes) | RAM of region |
 |---|---|---|---|---|
-| `minimal` | 32440 | 0.39 % | 4288 | 0.01 % |
-| `workload` | 40720 | 0.49 % | 22656 | 0.07 % |
-| `net` | 100748 | 1.20 % | 70508 | 0.21 % |
-| `file` | 68296 | 0.81 % | 26656 | 0.08 % |
-| `system` | 45236 | 0.54 % | 22720 | 0.07 % |
-| `sntp` | 105984 | 1.26 % | 80876 | 0.24 % |
-| `management` | 288984 | 3.44 % | 1265012 | 3.77 % |
+| `minimal` | 34556 | 0.41 % | 4416 | 0.01 % |
+| `workload` | 42268 | 0.50 % | 22784 | 0.07 % |
+| `net` | 105412 | 1.26 % | 72044 | 0.21 % |
+| `file` | 71760 | 0.86 % | 27168 | 0.08 % |
+| `system` | 47016 | 0.56 % | 22848 | 0.07 % |
+| `sntp` | 110656 | 1.32 % | 82428 | 0.25 % |
+| `management` | 299488 | 3.57 % | 1268788 | 3.78 % |
+| `base` | 342556 | 4.08 % | 1275832 | 3.80 % |
 
 **The declared limits are placeholders, and the run-time values are not measured.** `budgets/limits.json` asks
 for at least 25 percent free in every region, which is a placeholder and not a derived figure; every
@@ -99,33 +104,33 @@ released image has run anywhere. A green `native_sim` run is not a board run and
 
 ## What is not yet possible, and why
 
-Everything below is a Crux management feature or something around one. The reasons are from
-[docs/findings/management-has-no-public-composition.md](findings/management-has-no-public-composition.md)
-unless another note is named. That note was read against a Crux revision other than the pin
-(its own "State at the pin" section says so), so the reasons are not re-verified at the current pin.
-This repository's boundary check keeps no exception, so a feature that needs a Crux private header is
-blocked until Crux offers a public way, and nothing here will widen the check to get around it.
+Everything below is a Crux management feature or something around one. The licence facts and the SSH and SFTP
+reasons are from [docs/findings/management-has-no-public-composition.md](findings/management-has-no-public-composition.md),
+which was read against a Crux revision other than the pin (its own "State at the pin" section says so). The
+composition state is from the code at the current pin; [docs/findings/s6-https-management.md](findings/s6-https-management.md)
+records how `management` was built.
 
-`management` composes HTTPS, the web page, Access, the credential store and the configuration service with
-public Crux headers and targets, built in CI and never run on a board, with no account and no login shown. The
-rows below keep what the earlier finding recorded at its own revision; the current state of those features, and
-what is still open, is in [docs/findings/s6-https-management.md](findings/s6-https-management.md).
+The boundary check (`scripts/check_boundary.py`) lets the composition zones include five named Crux composition
+interfaces: `<crux/file_zephyr.h>`, `<crux/web_zephyr.h>`, `<crux/cli_zephyr.h>`,
+`<crux/service_priority_zephyr.h>` and `<crux/credential_store_zephyr.h>`. Every other Crux private, port or
+composition header stays blocked, and each new entry is a separate reviewed change
+([composition zone](composition-zone.md)). A feature that needs any other private header waits until Crux offers a
+public way.
 
-| Feature | What blocks it, as recorded | Open before it could be built |
+| Feature | State on `main` | Still open |
 |---|---|---|
-| HTTPS | Mostly as the finding records (the name blocklist is from `west.yml`, and the finding says that narrowing "has not been tried"). No public composition: the web start function and the certificate start function are in private headers, and the web adapter's include directory is offered only through an interface target that is marked "only for a composition". Licensing: Mbed TLS and TF-PSA-Crypto are stated as Apache-2.0 OR GPL-2.0-or-later, which fits this Apache-2.0 repository under the Apache option, but Crux puts them in one optional group with the wolf projects (GPL or commercial), and this repository's import blocks those three by name. The Wolf profile also needs a Zephyr patch whose terms are unconfirmed, so it cannot be used here. | Certificate handling, the interface a listener binds, and what management load does to the control cycle. |
-| Web page | The same as HTTPS. The finding speaks of "HTTPS web management" as one feature, and records no separate blocker for a page. | The same. |
-| Serial command line | No public composition. Crux builds a command-line directory under a Kconfig option, but the finding reports that Crux's readiness document calls that directory compile evidence that links none of its code into an image. Licence is clear (Crux code under Apache-2.0). | A public composition, then an owner decision. |
-| SSH command line | SSH is private to Crux, with no public header and no `crux::` target. It needs wolfSSH, wolfSSL and wolfPSA, which are GPL-3.0-or-later or commercial, and they stay off in default CI and in releases. | The licence question, which is not decided. |
+| HTTPS | Composed in `management` and `base` by `framework/compose/management_start.c`, through `<crux/web_zephyr.h>` and the public TLS certificate start. Built in CI and run on `native_sim`; a login over HTTPS succeeds only in the `native_sim` scenario with the fixture application. Licensing: Mbed TLS and TF-PSA-Crypto are stated as Apache-2.0 OR GPL-2.0-or-later, which fits this Apache-2.0 repository under the Apache option, but Crux puts them in one optional group with the wolf projects (GPL or commercial), and this repository's import blocks those three by name. The Wolf profile also needs a Zephyr patch whose terms are unconfirmed, so it cannot be used here. | A board run; device preparation of the key and certificate (specification section 5.5); what management load does to the control cycle. |
+| Web page | The packaged page of `framework/management/`, served with HTTPS. | The same as HTTPS. |
+| Serial command line | Composed in `base` by `framework/compose/cli_start.c`, through `<crux/cli_zephyr.h>`, on the UART of the alias `crux-serial0`, with an Access login on every command except the login and first-account setup. Licence is clear (Crux code under Apache-2.0). | A board run; its use in production is a product decision (D16). |
+| SSH command line | SSH is private to Crux, with no public header and no `crux::` target. It needs wolfSSH, wolfSSL and wolfPSA, which are GPL-3.0-or-later or commercial, and they stay off in default CI and in releases. | The licence question, which is not decided, and the Crux changes of gap C7. |
 | SFTP | The same as the SSH command line. | The same. |
-| Access control | Crux's Access component has ports that a composition must list, and at the revision read "No product composition exists". It has no Kconfig symbol and no composition under Crux's Zephyr module directory. | A public composition and the first-account and key-registration decisions. |
-| Credential store | In the group of Crux code with no public composition. Its licence is Apache-2.0. | A public composition. |
-| Configuration service, network settings service | The finding groups "the management services" with the rest and records no public composition for them. It lists a persistence provider and a network apply port among the product's own work or open decisions in Crux's guide to management in a product. Whether those two items correspond one to one to these two services is not stated in this repository and was not verified. | A public composition and the product's providers. |
-| Reboot on request | Not recorded as a finding; this is a reading of two notes. Crux System has a reset call (`crux_system_reset()`, named in the `system` note), and the `system` capability deliberately never calls it: a missed watchdog feed ends in the watchdog's own reset. A reboot that a user or a remote party can ask for needs an interface to ask through and access control over it, and neither exists here. | An interface, access control, and a policy decision. |
+| Access control | Composed in `management` and `base` through `<crux/access.h>`. In `base`, the first account is set up over the serial command line; a second setup is refused. | A board run; no route or command creates a further account (gap C21). |
+| Credential store | Composed in `management` and `base` through `<crux/credential_store.h>`; the factory reset erases the accounts through `<crux/credential_store_zephyr.h>`. Its licence is Apache-2.0. | Storage on the product medium; on the board images it is on FatFs (gap C4). |
+| Configuration service | Composed in `management` and `base` through `<crux/config_service.h>`; parameters are shown and changed through web management. | Saving: the framework does not yet initialise Crux's Settings File provider, so nothing is persistent (gaps C4 and C22). |
+| Network settings service | Not composed: the framework starts neither the service nor its worker. | Applying changed settings needs an apply port of the framework and the save provider (specification section 8.2, later items). |
+| Reboot on request | The `base` image has the serial commands `reboot`, `recovery clear`, `recovery exit` and `factory reset`, each behind an Access login and a permission, through Crux Reboot (`framework/compose/supervision_start.c`). The `system` capability still never calls `crux_system_reset()`: a missed watchdog feed ends in the watchdog's own reset. | A web route for reboot is not built. |
 
-What the finding says could be considered once a public composition exists and the owner approves it:
-HTTPS on the Mbed profile, the serial command line, Access and its services, each as its own capability with
-its own resource row and tests first on `native_sim`. What it says is out of scope: GPIO, I2C and SPI, direct use
+What the finding says is out of scope: GPIO, I2C and SPI, direct use
 of Crux Thread, Sync, Queue and Serial, Reliance Edge, and any firmware image in public form. These are
 the recorded positions, not commitments.
 

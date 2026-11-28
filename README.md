@@ -35,7 +35,7 @@ The configurations from `workload` to `management` build on a synthetic workload
 | The reset cause at boot and a watchdog fed by the workload, through Crux System | `system` | `app/src/health.c`, `app/src/health_policy.c` |
 | The Crux Time realtime clock set from an SNTP (Simple Network Time Protocol) server, with a product policy | `sntp` | `framework/src/time_sync.c`, `framework/src/time_sync_policy.c`, `framework/os/time_sync_zephyr.c` |
 | Management over HTTPS: Crux Access, the web server on the Mbed TLS profile, status and configuration services and a packaged page | `management` | `framework/compose/management_start.c`, `framework/management/` |
-| The controller framework: its start function composes web management, the serial command line and time synchronisation under health supervision (watchdog, boot counter, safe mode), with no application | `base` | `framework/src/framework.c`, `framework/src/startup.c`, `framework/src/boot_record.c`, `framework/os/supervisor_zephyr.c`, `zephyr/`, `include/controller/framework.h` |
+| The controller framework: its start function composes web management, the serial command line with its first-account setup and time synchronisation under health supervision (watchdog, boot counter, safe mode), with the operator commands for the application, reboot, recovery and factory reset behind a login; the base image passes no application | `base` | `framework/src/framework.c`, `framework/src/startup.c`, `framework/src/boot_record.c`, `framework/os/supervisor_zephyr.c`, `framework/compose/supervision_start.c`, `zephyr/`, `include/controller/framework.h` |
 
 [Architecture](docs/architecture.md#how-crux-is-consumed) lists each Crux target and header and the file that uses
 it, and [Adding a capability](docs/adding-a-capability.md) shows how a configuration is put together.
@@ -46,8 +46,10 @@ it, and [Adding a capability](docs/adding-a-capability.md) shows how a configura
 - Only the `net` image has run on a board, on one bench.
   No other image has run on a board.
 - CI builds all eight build configurations, `minimal` to `base`, and runs the `native_sim` scenarios of `workload` to `base`.
-- The `base` image has no application.
-  The application interface is not in it yet.
+- The `base` image runs with no application: its `main()` passes none.
+  The application interface is in the framework, at the lowest stability tier, and a fixture application tests it on `native_sim`.
+  No product uses it yet.
+- A copy of the [application template](template/README.md) builds and runs on `native_sim` and builds for the board in the nightly checks.
 - CI measures static size only.
   Stack use, heap use and timing are not measured.
 - It is not evidence for any Crux security claim.
@@ -83,6 +85,7 @@ Look a failure up by its message in [troubleshooting](docs/troubleshooting.md).
 
 A product is a firmware repository outside this one.
 It imports Crux and this module, and adds its own application.
+Start it from the [application template](template/README.md), a folder that a product team copies once.
 [`tests/product_integration/west.yml`](tests/product_integration/west.yml) is the manifest of a fixture product that imports this repository in that way, and `run.sh` in the same folder builds and runs it on `native_sim`.
 Read the Crux guides at the revision that `west.yml` pins:
 
@@ -97,6 +100,7 @@ Read the Crux guides at the revision that `west.yml` pins:
 |---|---|
 | Understand the source trees, the zones, the threads and how Crux is consumed | [Architecture](docs/architecture.md), with the [glossary](docs/glossary.md) |
 | Know what is built and what has run on a board | [Roadmap](docs/roadmap.md) |
+| Start a product repository on the framework | [Application template](template/README.md), with the [controller framework](docs/design/controller-framework.md) page |
 | Make a first change, from a branch to a pull request | [First change](docs/first-change.md), then [CONTRIBUTING.md](CONTRIBUTING.md) |
 | Add a capability | [Adding a capability](docs/adding-a-capability.md) and [the composition zone](docs/composition-zone.md) |
 | Review a change | [Reviewing](docs/reviewing.md) |

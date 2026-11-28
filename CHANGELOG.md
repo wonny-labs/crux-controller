@@ -41,10 +41,9 @@ build configurations by their earlier step ids, S0 to S6.
     host tests of criterion 25); no image calls it until Crux has an image state provider (gap C10). Host fuzz
     targets for the retained-record decode and the management text parsers run in the nightly tier (check
     `host-fuzz`).
-  - Not done, waiting for Crux changes that the framework asked for: configuration saving, because Crux's
-    Settings File provider can be initialised only through a private header (gap C22); security event
-    persistence (gap C17); removing an application parameter (gap C20). Framework Complete is not declared
-    while any of them is open.
+  - Not done: configuration saving and removing an application parameter, whose Crux changes are at the pin but
+    not yet adopted by the framework (gaps C22 and C20); security event persistence, which waits for a Crux
+    change (gap C17). Framework Complete is not declared while any of them is open.
   - Design pages: delivery stage 4 ends the interim states of gaps C5, C8 and C15 and the two factory reset
     states of C9; criterion 35 keeps the SBOM outside GitHub, tied to the release by `spdx_hashes`; criterion 41
     fuzzes the retained-record decode and the management text parsers (the parameter table is C data that Crux's
@@ -400,6 +399,12 @@ build configurations by their earlier step ids, S0 to S6.
 
 ### Documents
 
+- Status pages match the code at the current pin: the README states that the application interface is in the
+  framework and links the application template; the roadmap describes the services that the base image composes,
+  the five composition interfaces that the boundary check allows, and static sizes with a `base` row; the
+  dependencies page names the jobs that switch the Mbed TLS group on; the capabilities page has a `base` section;
+  the documentation map lists the template; the controller framework page gives the current state of each
+  capability and the commands that are available now.
 - The documents follow the documentation guidelines of Crux: one type per page, current state only, one home
   for each fact, and the Crux page names and terms. `docs/first-hour.md` is renamed `docs/tutorial.md` and takes
   over the run steps of the Getting started quick start, so there is one path from a clone to the first build and

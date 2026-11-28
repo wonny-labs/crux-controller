@@ -1,7 +1,7 @@
 # Capabilities
 
-This page is the reference for how the `sntp`, `system` and `management` build configurations behave: what each
-does, its policy and settings, and its limits. The findings notes record how each was built and what CI showed, at
+This page is the reference for how the `sntp`, `system`, `management` and `base` build configurations behave: what
+each does, its policy and settings, and its limits. The findings notes record how each was built and what CI showed, at
 a named revision: [sntp](findings/s5-time-synchronisation.md), [system](findings/s4-system-composition.md) and
 [management](findings/s6-https-management.md). The [README](../README.md#capabilities) lists all configurations.
 
@@ -101,5 +101,35 @@ and made on the device at its first start. The medium is a RAM disk, so nothing 
 - The configuration depends on `net` and excludes `file` and `system`: the status service takes the reset cause once
   and never clears it, and `system` clears it. `sntp` may share the image; CI does not build that combination.
 - The fragment names no Thread, Sync or Queue symbol; the Crux services select them.
-- The group `crux-secure-management` is switched on in the `management` build job and its `Budget` row only, never in
-  `west.yml` ([dependencies](dependencies.md)).
+- The group `crux-secure-management` is switched on only in the jobs that build `management` or `base`, their `Budget`
+  rows and the nightly product integration and application template checks, never in `west.yml`
+  ([dependencies](dependencies.md)).
+
+## `base`
+
+The base image: the controller framework from the Zephyr module, started by `controller_framework_start()` of
+`<controller/framework.h>`, with no application (`app/src/main.c` passes none). The startup steps, the supervision
+rules and the application interface are specified in the [specification](design/controller-framework-spec.md); this
+section lists what the image runs.
+
+- Web management as in `management`, the serial command line on the UART of the alias `crux-serial0`, time
+  synchronisation as in `sntp`, and health supervision: the task watchdog on the alias `crux-watchdog0`, the boot
+  counter, safe mode and the retained last-fault record. The medium is a RAM disk, so nothing persists across a reset.
+- The serial command line asks for an Access login first. With no account, `!setup` creates the first account, and
+  it is refused once an account exists. After login, `framework/compose/supervision_start.c` adds these commands:
+
+  | Command | What it does | Permission |
+  |---|---|---|
+  | `status` | Shows the status items | the status read permission |
+  | `application stop`, `application start` | Stop the application, or start a stopped or held one | `system.reboot` |
+  | `reboot` | Restarts the controller | the permission of Crux Reboot |
+  | `recovery clear`, `recovery exit` | Set the boot counter to zero; leave safe mode and restart | the permission of Crux Reboot |
+  | `factory reset` | Removes the application data and settings, erases the accounts and restarts | `access.manage` |
+
+- Without a watchdog behind `crux-watchdog0`, the watchdog is not armed and the controller reports degraded; a product
+  build does not start an application then.
+- Limits: no board run; configuration is not saved (gaps C4 and C22); no image calls the health verdict
+  and trial deadline yet, so there is no health-gated image confirmation (gap C10). The [roadmap](roadmap.md) records what is built, what has run on a board and what is open.
+
+A product does not build `base`: it starts from the [application template](../template/README.md), which passes its own
+descriptor to the same start function.

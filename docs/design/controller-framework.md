@@ -52,10 +52,10 @@ The [startup sequence](controller-framework-spec.md#41-startup-steps) shows how 
 | Device management | An HTTPS web UI for status, parameters and reboot, and a serial command line with first-account setup; no route or command creates a further account ([C21](controller-framework-platform-gaps.md#c21-creating-a-further-account)) | Web management on Crux's Mbed TLS profile, and the serial command line on a second UART ([C6](controller-framework-platform-gaps.md#c6-console-and-logging-uart), [C7](controller-framework-platform-gaps.md#c7-ssh-and-tls-profiles)) | SSH, the Wolf TLS profile and one shared UART as build options |
 | Configuration | Parameters of the framework and the application, shown and changed through device management | Not persistent ([C4](controller-framework-platform-gaps.md#c4-configuration-saving-needs-a-power-cut-safe-file-system), [C22](controller-framework-platform-gaps.md#c22-settings-file-initialisation-not-public)) | Saved on a power-cut-safe file system, LittleFS on the reference board |
 | Health monitoring | Controller state, application state, service health, reset cause, last-fault record and watchdog state in the status service | Each started Crux service thread supervised by its progress; Zephyr's threads read indirectly ([C8](controller-framework-platform-gaps.md#c8-crux-service-threads-and-supervision)) | Unchanged |
-| Fault recovery | A watchdog reset on a hang, a retained fault record, a boot counter, safe mode and health-gated image confirmation | Specified; images prepared for MCUboot with no confirmation ([C10](controller-framework-platform-gaps.md#c10-image-state)) | Health-gated confirmation through Crux's image state contract |
-| Application integration | A descriptor with four entries, watchdog channels, status items, parameters and a data root | Specified; delivered in the Application integration stage | Validated by a first real runtime consumer |
-| Project start | An application template to copy, whose copy imports the framework at a pinned revision | Specified; delivered in the Framework completion stage, after the application interface | Built and tested in CI from the same commit as the framework |
-| Platform integration | The Crux services for time, logging, network, storage, sockets and system, composed in one start order, with per-board values in board files | Specified; the reference board is the RT1060-EVKB | Further boards when one enters the scope ([C12](controller-framework-platform-gaps.md#c12-soc-gates)) |
+| Fault recovery | A watchdog reset on a hang, a retained fault record, a boot counter, safe mode and health-gated image confirmation | Watchdog reset, retained fault record, boot counter and safe mode in the framework; images prepared for MCUboot with no confirmation ([C10](controller-framework-platform-gaps.md#c10-image-state)) | Health-gated confirmation through Crux's image state contract |
+| Application integration | A descriptor with four entries, watchdog channels, status items, parameters and a data root | In the framework at the lowest stability tier, tested with a fixture application on `native_sim`; no product uses it yet | Validated by a first real runtime consumer |
+| Project start | An application template to copy, whose copy imports the framework at a pinned revision | The folder `template/`; a copy builds and runs on `native_sim` and builds for the reference board in the nightly checks | Built and tested in CI from the same commit as the framework |
+| Platform integration | The Crux services for time, logging, network, storage, sockets and system, composed in one start order, with per-board values in board files | Composed in the base image; the reference board is the RT1060-EVKB | Further boards when one enters the scope ([C12](controller-framework-platform-gaps.md#c12-soc-gates)) |
 
 The [service mapping](controller-framework-platform-gaps.md#service-mapping) names the Crux interface behind each capability.
 
@@ -102,7 +102,7 @@ manifest:
 
 Enabling configuration:
 
-- One Kconfig symbol in `prj.conf` turns the framework module on; its name is open, decided at implementation (after the Foundation stage).
+- One Kconfig symbol in `prj.conf`, `CONFIG_CRUX_CONTROLLER_FRAMEWORK`, turns the framework module on.
 - The build options of [specification section 7.1](controller-framework-spec.md#71-build-options) select the transports, the start prerequisites, the safe-mode threshold and the deadlines.
 - The board files set the devicetree roles: the aliases `crux-serial0` and `crux-watchdog0`, the `chosen` node `zephyr,log-uart` and the node label `controller_storage` ([specification section 7.2](controller-framework-spec.md#72-boards-and-variants)).
 
@@ -112,23 +112,23 @@ Build and run commands:
 |---|---|---|
 | `bash scripts/build-board.sh management` | Builds this repository's device management configuration for the RT1060-EVKB; it needs the Mbed TLS group, which the Dev Container does not switch on ([board bring-up](../board-bring-up.md)) | Now |
 | `west twister -p native_sim/native/64 -T tests/native_sim` | Runs this repository's `native_sim` scenarios | Now |
-| `bash scripts/build-board.sh <configuration>` | Builds the base image for the board; the configuration name is open (D13) | After the Foundation stage |
-| `west init -l product` and `west update` | Fetch Zephyr, Crux and the framework into a product workspace | After the Foundation stage |
-| `west build -b <board> app` | Builds the product image | After the Foundation stage |
-| `west build -b native_sim/native/64 app -t run` | Builds and runs the product image on `native_sim` | After the Foundation stage |
+| `bash scripts/build-board.sh base` | Builds the base image for the RT1060-EVKB; it needs the Mbed TLS group, as `management` does | Now |
+| `west init -l product` and `west update` | Fetch Zephyr, Crux and the framework into a product workspace | Now, in a copy of the [application template](../../template/README.md) |
+| `west build -b <board> app` | Builds the product image | Now, in a copy of the application template |
+| `west build -b native_sim/native/64 app -t run` | Builds and runs the product image on `native_sim` | Now, in a copy of the application template |
 
 The [tutorial](../tutorial.md) runs the Twister command through `bash scripts/dev-shell.sh`, and [board bring-up](../board-bring-up.md) runs `scripts/build-board.sh`.
 
 Integration order:
 
-1. Copy the application template (from the Framework completion stage on), or create the product workspace from the manifest, and turn the module on.
+1. Copy the application template, or create the product workspace from the manifest, and turn the module on.
 2. Add the board files with the devicetree roles.
 3. Build the product with no descriptor: every framework service runs, as in the base image, and device management answers.
-4. Add the application's descriptor and its entries (after the Application integration stage).
+4. Add the application's descriptor and its entries.
 5. Select the start prerequisites, the runtime dependencies, the safe-mode threshold and the deadlines.
 6. Prepare the device: the volume and the device identity ([specification section 5.5](controller-framework-spec.md#55-device-preparation-d11)).
 
-From the Framework completion stage on, the application template's `main()` is the code example of the application interface; CI builds it, so it matches a tested build.
+The application template's `main()` is the code example of the application interface; CI builds it, so it matches a tested build.
 
 ## Base image
 

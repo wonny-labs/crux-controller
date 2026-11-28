@@ -62,7 +62,7 @@ on the framework's symbol.
 | `system` | The reset cause is logged at boot and a watchdog is fed once for each pass of the workload that has cycles due, through Crux System. |
 | `sntp` | The Crux Time realtime clock is set from an SNTP server on the `net` network, with a product policy for what an answer may do. |
 | `management` | Management over HTTPS on the `net` network: Crux Access, the web server on the Mbed TLS profile, the status and configuration services and a packaged page, on a RAM disk, with no account until the first-account console exists. |
-| `base` | The base image: the controller framework with web management and time synchronisation on the network of `net`, on a RAM disk, with no workload and no application. |
+| `base` | The base image: the controller framework with web management, the serial command line with its first-account setup, time synchronisation and health supervision on the network of `net`, on a RAM disk, with no workload and no application. |
 
 `net`, `file` and `system` each depend on `workload` in Kconfig and are built on top of `conf/workload.conf`. `sntp`
 depends on `net` (and so on `workload`) and is built on `conf/workload.conf;conf/net.conf;conf/sntp.conf`.
