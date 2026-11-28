@@ -440,7 +440,9 @@ Comparable mechanisms: U-Boot's boot count limit (`CONFIG_BOOTCOUNT_LIMIT`, `boo
 For each product medium, these rules hold:
 
 - **File system full**: a save or a file write answers an error, the status service shows it, and the application data root has a size limit so that it cannot fill the credential store and settings.
-  The framework owns the rule and the product sets the limit; Crux File has no size limit per root, so the limit needs a Crux change, which is planned in Crux ([C15](controller-framework-platform-gaps.md#c15-size-limit-of-the-application-data-root)).
+  The framework owns the rule and the product sets the limit.
+  At the pin, Crux has a byte limit per root, `crux_file_zephyr_bind_root_limited()` ([C15](controller-framework-platform-gaps.md#c15-size-limit-of-the-application-data-root), Resolved).
+  The framework does not bind a limit yet, so the C15 interim state holds until delivery stage 4 adopts it (criterion 24).
 - **Power-cut integrity**: the settings file and the credential store survive a cut at any point, shown by a power-cut test on the medium.
 - **Configuration compatibility after an update**: the parameter table carries a version; a new image gives new parameters their defaults, keeps stored values whose key and type match, and reports discarded values; a deliberate downgrade is a product decision.
   The framework owns these rules; the platform mechanism is Crux Configuration, whose record carries the parameter's type and schema version and whose load gives the default for a record that does not match (`DEFAULT_REJECTED`, Crux `docs/configuration-contract.md`), so a parameter whose schema version changes also takes its default, and the rules need no Crux change.
