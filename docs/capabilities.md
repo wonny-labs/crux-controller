@@ -113,8 +113,10 @@ rules and the application interface are specified in the [specification](design/
 section lists what the image runs.
 
 - Web management as in `management`, the serial command line on the UART of the alias `crux-serial0`, time
-  synchronisation as in `sntp`, and health supervision: the task watchdog on the alias `crux-watchdog0`, the boot
-  counter, safe mode and the retained last-fault record. The medium is a RAM disk, so nothing persists across a reset.
+  synchronisation as in `sntp`, and health supervision: the hardware watchdog of Crux System on the alias
+  `crux-watchdog0`, the boot counter, safe mode and the retained last-fault record. The supervisor arms the watchdog
+  and feeds it only while every startup step is within its deadline and no Zephyr task watchdog channel of a
+  framework thread has expired. The medium is a RAM disk, so nothing persists across a reset.
 - The serial command line asks for an Access login first. With no account, `!setup` creates the first account, and
   it is refused once an account exists. After login, `framework/compose/supervision_start.c` adds these commands:
 

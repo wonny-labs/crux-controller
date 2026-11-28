@@ -72,7 +72,8 @@ the default workspace with the group off. The `Boundary check` job fetches only 
 `crux` and the one Zephyr commit that it names, with a plain `west update` as its fallback. The `management build` job and the `Budget` row of `management`, and likewise the `base build` job and the
 `Budget` row of `base`, switch the group on in their
 own runner, only after this check has passed on the project list, and then run `west update` and assert that no
-wolf project is in the workspace and that both Mbed modules are. That enabling the group would clone only the Mbed
+wolf project is in the workspace. The two build jobs also assert that both Mbed modules are; the `Budget` rows do
+not. That enabling the group would clone only the Mbed
 pair rests on west cloning only active projects, and the first CI run of the `management` job was the first fetch with the group on; `docs/findings/s6-https-management.md` records its result at `bb3ffefd`. The nightly product integration and application template checks switch it on in their own workspace after the same check of the project list (`tests/product_integration/run.sh`, `tests/template/run.sh`). A fetch with the group on is not run anywhere else. A blocklist is used and not an allowlist because
 an allowlist drops Zephyr and everything it imports if `zephyr` is left out of it, while a blocklist leaves
 the rest of the import alone; the cost is that it names what is known today, so when a pin moves, read the groups of the new Crux

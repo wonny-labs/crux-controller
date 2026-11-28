@@ -403,7 +403,8 @@ build configurations by their earlier step ids, S0 to S6.
   framework and links the application template; the roadmap describes the services that the base image composes,
   the five composition interfaces that the boundary check allows, and static sizes with a `base` row; the
   dependencies page names the jobs that switch the Mbed TLS group on; the capabilities page has a `base` section;
-  the documentation map lists the template; the controller framework page gives the current state of each
+  the documentation map lists the template; the glossary describes `base` and why `management` has no account;
+  the controller framework page gives the current state of each
   capability and the commands that are available now.
 - The documents follow the documentation guidelines of Crux: one type per page, current state only, one home
   for each fact, and the Crux page names and terms. `docs/first-hour.md` is renamed `docs/tutorial.md` and takes
