@@ -85,7 +85,7 @@ static bool work_once(void)
 }
 
 static const reboot_policy_port_t port = {on_reboot_thread, restart_allowed, marker_write,
-                                          work_once};
+                                          work_once, framework_control_restart_ended};
 
 const reboot_policy_port_t *reboot_policy_port(void)
 {

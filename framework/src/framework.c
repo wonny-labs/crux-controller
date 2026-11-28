@@ -155,12 +155,12 @@ _Static_assert((int)CONTROLLER_APP_STOP_FAULT == (int)APP_STOP_FAULT &&
 #define DEADLINE_STOP_MS ((uint32_t)CONFIG_CRUX_CONTROLLER_DEADLINE_STOP_MS)
 #define STABLE_PERIOD_MS ((uint64_t)CONFIG_CRUX_CONTROLLER_STABLE_PERIOD_S * 1000u)
 
-/* The framework's own task watchdog channels: the time synchronisation thread, the reboot thread
- * and one per Crux service thread that the framework starts (gap C8: the security event drain and
- * the two web workers with management, the console with the command line). The application's
- * requirements share the rest of the table (section 4.4, "Capacity"). The Crux service channels are
- * reserved whether or not their thread starts, so the application's capacity does not depend on the
- * boot. */
+/* The framework's own task watchdog channels, seven at most: the time synchronisation thread, the
+ * reboot thread, the storage worker and one per Crux service thread that the framework starts (gap
+ * C8: the security event drain and the two web workers with management, the console with the
+ * command line). The application's requirements share the rest of the table (section 4.4,
+ * "Capacity"). The Crux service channels are reserved whether or not their thread starts, so the
+ * application's capacity does not depend on the boot. */
 #ifdef CONFIG_CRUX_CONTROLLER_FRAMEWORK_TIME_SYNC
 #define CHANNELS_TIME 1u
 #else
@@ -529,6 +529,8 @@ static int phase_supervisor(void)
 
     service_progress_init(&progress_port, (uint32_t)CONFIG_CRUX_CONTROLLER_SERVICE_RELOAD_MS);
     if (supervision_compose_progress_start() != 0) {
+        /* Nothing would feed their channels, which would expire and reset the device. */
+        service_progress_withdraw();
         say(CRUX_LOG_ERROR, "crux service progress not registered: those threads are supervised "
                             "indirectly only");
     }
@@ -850,6 +852,10 @@ static void supervise_crux_thread(service_thread_t thread)
         (void)snprintf(text, sizeof text, "crux thread %s supervised",
                        service_progress_name(thread));
         say(CRUX_LOG_INFO, text);
+    } else if (result == SERVICE_PROGRESS_ERR_NOT_REGISTERED) {
+        (void)snprintf(text, sizeof text, "crux thread %s supervised indirectly only",
+                       service_progress_name(thread));
+        say(CRUX_LOG_WARN, text);
     } else {
         (void)snprintf(text, sizeof text, "no channel for the crux thread %s result=%d",
                        service_progress_name(thread), result);
@@ -1275,6 +1281,13 @@ static atomic_bool factory_reset_requested;
 void framework_control_factory_reset(bool requested)
 {
     atomic_store(&factory_reset_requested, requested);
+}
+
+void framework_control_restart_ended(void)
+{
+    if (atomic_exchange(&factory_reset_requested, false)) {
+        say(CRUX_LOG_WARN, "factory reset withdrawn: the restart did not happen, repeat it");
+    }
 }
 
 void framework_control_planned_reset(void)

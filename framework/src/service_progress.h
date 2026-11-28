@@ -40,9 +40,10 @@ typedef enum {
 
 typedef enum {
     SERVICE_PROGRESS_OK = 0,
-    SERVICE_PROGRESS_ERR_ARGUMENT = -1, /* unknown thread, or no port or reload period */
-    SERVICE_PROGRESS_ERR_ACTIVE = -2,   /* the thread already has its channel */
-    SERVICE_PROGRESS_ERR_FULL = -3,     /* the channel table or the task watchdog is full */
+    SERVICE_PROGRESS_ERR_ARGUMENT = -1,       /* unknown thread, or no port or reload period */
+    SERVICE_PROGRESS_ERR_ACTIVE = -2,         /* the thread already has its channel */
+    SERVICE_PROGRESS_ERR_FULL = -3,           /* the channel table or the task watchdog is full */
+    SERVICE_PROGRESS_ERR_NOT_REGISTERED = -4, /* Crux did not take the progress function */
 } service_progress_status_t;
 
 typedef struct {
@@ -59,6 +60,13 @@ typedef struct {
 /* Set the port and the reload period of every service thread's channel. Before any activation, on
  * the start function's thread. */
 void service_progress_init(const service_progress_port_t *port, uint32_t reload_ms);
+
+/* Crux refused the progress function (crux_service_progress_register() failed), so nothing would
+ * feed a channel: later activations add none and answer SERVICE_PROGRESS_ERR_NOT_REGISTERED, and
+ * the threads stay supervised indirectly only (section 4.3). Without this, each started thread's
+ * channel would expire and reset the device. On the start function's thread, after
+ * service_progress_init() and before any activation; a later service_progress_init() undoes it. */
+void service_progress_withdraw(void);
 
 /* Give a started thread its channel. Returns the channel handle (zero or more) or a negative
  * service_progress_status_t. */

@@ -14,6 +14,9 @@ _Static_assert(SERVICE_THREAD_COUNT == 4, "handles lists every thread");
 
 static const service_progress_port_t *progress_port;
 static uint32_t progress_reload_ms;
+/* True when Crux refused the progress function. Atomic, so its order against an activation does not
+ * depend on both running on one thread. */
+static atomic_bool withdrawn;
 
 static const char *const names[SERVICE_THREAD_COUNT] = {
     "event drain",
@@ -33,9 +36,15 @@ void service_progress_init(const service_progress_port_t *port, uint32_t reload_
 {
     progress_port = port;
     progress_reload_ms = reload_ms;
+    atomic_store(&withdrawn, false);
     for (size_t index = 0; index < (size_t)SERVICE_THREAD_COUNT; index++) {
         atomic_store(&handles[index], -1);
     }
+}
+
+void service_progress_withdraw(void)
+{
+    atomic_store(&withdrawn, true);
 }
 
 int service_progress_activate(service_thread_t thread)
@@ -43,6 +52,9 @@ int service_progress_activate(service_thread_t thread)
     if (!known(thread) || progress_port == NULL || progress_port->channel_add == NULL ||
         progress_port->channel_feed == NULL || progress_reload_ms == 0u) {
         return SERVICE_PROGRESS_ERR_ARGUMENT;
+    }
+    if (atomic_load(&withdrawn)) {
+        return SERVICE_PROGRESS_ERR_NOT_REGISTERED;
     }
     if (atomic_load(&handles[thread]) >= 0) {
         return SERVICE_PROGRESS_ERR_ACTIVE;

@@ -155,6 +155,25 @@ static void test_unknown_threads_and_no_init(void)
     CHECK(fake.adds == 0);
 }
 
+/* When Crux refuses the progress function, no started thread gets a channel that nothing would
+ * feed, so none expires and resets the device; a later init undoes the withdrawal. */
+static void test_an_unregistered_progress_function_adds_no_channel(void)
+{
+    reset();
+    service_progress_withdraw();
+    for (int thread = 0; thread < (int)SERVICE_THREAD_COUNT; thread++) {
+        CHECK(service_progress_activate((service_thread_t)thread) ==
+              SERVICE_PROGRESS_ERR_NOT_REGISTERED);
+        CHECK(!service_progress_active((service_thread_t)thread));
+        service_progress_report((service_thread_t)thread);
+    }
+    CHECK(fake.adds == 0);
+    CHECK(total_feeds() == 0);
+    reset();
+    CHECK(service_progress_activate(SERVICE_THREAD_CONSOLE) == 0);
+    CHECK(fake.adds == 1);
+}
+
 /* A thread injected silent (scenario fault injection) stops feeding its channel, so it expires; the
  * other threads keep feeding theirs. */
 static void test_a_silenced_thread_stops_feeding(void)
@@ -226,6 +245,7 @@ int main(void)
     test_a_second_activation_changes_nothing();
     test_a_refused_channel_leaves_the_thread_inactive();
     test_unknown_threads_and_no_init();
+    test_an_unregistered_progress_function_adds_no_channel();
     test_a_silenced_thread_stops_feeding();
     test_names();
     test_concurrent_reports();

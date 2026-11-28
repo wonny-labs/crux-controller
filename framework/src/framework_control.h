@@ -57,4 +57,11 @@ void framework_control_reset_abandoned(void);
  */
 void framework_control_factory_reset(bool requested);
 
+/*
+ * On the reboot thread, after crux_reboot_work_once() carried out a request that ended without a
+ * reset (reboot_policy.h): withdraw a factory reset mark, so that a later restart that someone
+ * without access.manage requests erases nothing (specification sections 5.3 and 6.2).
+ */
+void framework_control_restart_ended(void);
+
 #endif
