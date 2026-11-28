@@ -27,6 +27,7 @@
  * where a damaged store would then leave management off until someone repairs it.
  */
 
+#include "../src/framework_events.h"
 #include "../src/management_port.h"
 #include "../src/storage_port.h"
 
@@ -93,6 +94,14 @@ typedef enum {
 } certificate_state_t;
 
 static atomic_int certificate_state = CERTIFICATE_NOT_STARTED;
+
+/* The framework's own security events (framework_events.h), declared to Crux with their names. Each
+ * records a change, so Crux still admits it when its ring is nearly full. */
+static const crux_security_event_project_id_t framework_events[] = {
+    {FRAMEWORK_EVENT_FACTORY_RESET, "controller.factory_reset", CRUX_SECURITY_EVENT_CHANGE},
+    {FRAMEWORK_EVENT_SAFE_MODE, "controller.safe_mode", CRUX_SECURITY_EVENT_CHANGE},
+    {FRAMEWORK_EVENT_TIME_STEP, "controller.time_step", CRUX_SECURITY_EVENT_CHANGE},
+};
 
 static const char *const certificate_dns_names[] = {CERTIFICATE_DNS_NAME};
 static uint8_t certificate_ipv4[1][4];
@@ -315,7 +324,8 @@ management_port_status_t management_port_start_core(const management_port_config
 
     /* 1. Events first, so that everything after can emit. Then the clock, the medium and the two
      * roots of the store. */
-    if (crux_security_event_init(NULL, 0u) != CRUX_OK) {
+    if (crux_security_event_init(framework_events,
+                                 sizeof framework_events / sizeof framework_events[0]) != CRUX_OK) {
         return failed("security events");
     }
     if (crux_realtime_init() != CRUX_OK) {

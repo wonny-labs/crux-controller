@@ -933,6 +933,8 @@ class ManagementSources(unittest.TestCase):
         # composition interface, and the Zephyr file system header of the zone's list for the
         # settings file.
         "<crux/credential_store_zephyr.h>", "<crux/file.h>", "<zephyr/fs/fs.h>", "<errno.h>",
+        # The framework's own security event identifiers, declared to Crux at the event start.
+        '"../src/framework_events.h"',
         "<crux/management_status.h>", "<crux/security_event.h>", "<crux/status.h>",
         "<crux/system.h>", "<crux/time.h>", "<crux/tls_certificate_start.h>", "<crux/web.h>",
         "<crux/web_management.h>", "<crux/web_session.h>", "<crux/web_zephyr.h>",

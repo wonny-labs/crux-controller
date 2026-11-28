@@ -63,10 +63,13 @@
 #include "startup.h"
 
 #ifdef CONFIG_CRUX_CONTROLLER_FRAMEWORK_MANAGEMENT
+#include "framework_events.h"
 #include "management_policy.h"
 #include "management_port.h"
 #include "service_progress.h"
+
 #include "storage_port.h"
+#include <crux/security_event.h>
 
 /* The versions that the status service reports come from the build (zephyr/CMakeLists.txt), and a
  * build without them stops here, because the port refuses a start without a valid text. */
@@ -958,6 +961,14 @@ static int phase_storage_and_access(void)
 
     set_health(SERVICE_STORAGE, health);
     set_health(SERVICE_ACCESS, health);
+    if (core_started && atomic_load(&fw.safe_mode)) {
+        /* The events run from the core part on, so the boot's safe-mode entry is recorded here. */
+        const crux_security_event_t event = {
+            .id = (crux_security_event_id_t)FRAMEWORK_EVENT_SAFE_MODE,
+            .result = CRUX_SECURITY_EVENT_OK,
+        };
+        crux_security_event_emit(&event);
+    }
     if (core_started && application_present()) {
         atomic_store(&fw.data_root, STORAGE_PORT_APP_ROOT);
         if (storage_worker_port_start(storage_tick, STORAGE_WORKER_PERIOD_MS,

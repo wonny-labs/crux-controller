@@ -36,6 +36,9 @@ tests:
         - "storage scenario: the accounts are still in place after the power cut"
         - "storage scenario: the data root is empty"
         - "factory reset requested by an operator"
+        # The framework's own security event; Crux Reboot waits for the events to drain before its
+        # last policy check, which runs the factory reset (criterion 44, without persistence).
+        - "controller.factory_reset"
         - "factory reset: application data removed, accounts erased, identity kept"
         - "factory reset done result=0"
         # Boot 3: first-account setup is open and the identity is kept; failed logins (criterion 43).

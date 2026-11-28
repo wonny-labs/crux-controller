@@ -39,6 +39,9 @@ tests:
         - "recovery scenario boot 5"
         - "boot class=fault counter=3 threshold=3 safe mode=yes retained region"
         - "last fault channel reboot"
+        # The framework's own security event of the safe-mode entry (criterion 44, without
+        # persistence), drained before the console's first prompt.
+        - "controller.safe_mode"
         - "recovery scenario: status shows safe mode"
         - "safe mode exit requested by an operator"
         - "recovery scenario: restart requested"

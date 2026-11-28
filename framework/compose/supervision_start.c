@@ -58,11 +58,13 @@
 #endif
 
 #ifdef CONFIG_CRUX_CONTROLLER_FRAMEWORK_REBOOT
+#include "../src/framework_events.h"
 #include "../src/management_policy.h"
 #include "../src/reboot_policy.h"
 #include "../src/recovery.h"
 
 #include <crux/reboot.h>
+#include <crux/security_event.h>
 
 #include <stdio.h>
 #endif
@@ -316,6 +318,12 @@ static crux_cli_result_t factory_reset_command(crux_cli_call_t *call, size_t arg
     (void)context;
     framework_control_factory_reset(true);
     (void)crux_log_write(CRUX_LOG_WARN, LOG_TAG, "factory reset requested by an operator");
+    const crux_security_event_t event = {
+        .id = (crux_security_event_id_t)FRAMEWORK_EVENT_FACTORY_RESET,
+        .result = CRUX_SECURITY_EVENT_OK,
+        .channel = 1u, /* serial */
+    };
+    crux_security_event_emit(&event);
     const crux_cli_result_t result = request_restart(call);
 
     if (result != CRUX_CLI_OK) {

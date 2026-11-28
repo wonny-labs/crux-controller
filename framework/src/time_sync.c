@@ -15,6 +15,12 @@
 #include "time_sync_policy.h"
 #include "time_sync_port.h"
 
+#if defined(CONFIG_CRUX_SECURITY_EVENT) && defined(CONFIG_CRUX_CONTROLLER_FRAMEWORK)
+#include <crux/security_event.h>
+
+#include "framework_events.h"
+#endif
+
 #define TIME_SYNC_TAG "time"
 
 /* The thread waits this long before its first query, so that the network configuration that the
@@ -144,6 +150,16 @@ void time_sync_poll(void)
         /* The one write of the product. Source EXTERNAL is the only one that may carry
          * synchronised = true. */
         write_status = crux_realtime_set(&value, CRUX_REALTIME_SOURCE_EXTERNAL, true);
+#if defined(CONFIG_CRUX_SECURITY_EVENT) && defined(CONFIG_CRUX_CONTROLLER_FRAMEWORK)
+        if (write_status == CRUX_OK) {
+            /* A step of the wall time is a security event (specification section 6.2). */
+            const crux_security_event_t event = {
+                .id = (crux_security_event_id_t)FRAMEWORK_EVENT_TIME_STEP,
+                .result = CRUX_SECURITY_EVENT_OK,
+            };
+            crux_security_event_emit(&event);
+        }
+#endif
     }
     if (decision.clear_synchronized) {
         clear_status = crux_realtime_set_synchronized(false);

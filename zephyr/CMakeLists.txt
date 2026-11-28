@@ -66,7 +66,8 @@ if(CONFIG_CRUX_CONTROLLER_FRAMEWORK)
             CONTROLLER_PLATFORM_VERSION="zephyr-${KERNEL_VERSION_STRING}"
             CONTROLLER_PROJECT_VERSION="crux-controller-framework")
         add_subdirectory("${controller_root}/framework/compose" compose)
-        zephyr_library_link_libraries(compose)
+        # crux::security_event: the framework's own events (framework/src/framework_events.h).
+        zephyr_library_link_libraries(compose crux::security_event)
     endif()
 
     if(CONFIG_CRUX_CONTROLLER_FRAMEWORK_TIME_SYNC)
@@ -74,6 +75,9 @@ if(CONFIG_CRUX_CONTROLLER_FRAMEWORK)
             "${controller_root}/framework/src/time_sync.c"
             "${controller_root}/framework/src/time_sync_policy.c"
             "${controller_root}/framework/os/time_sync_zephyr.c")
+        if(CONFIG_CRUX_SECURITY_EVENT)
+            zephyr_library_link_libraries(crux::security_event)
+        endif()
     endif()
 
     # Health supervision: the portable rules (boot record, supervision, states), the framework's

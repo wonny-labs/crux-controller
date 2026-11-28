@@ -387,6 +387,9 @@ class SntpSources(unittest.TestCase):
             "<stdbool.h>", "<stddef.h>", "<stdint.h>", "<stdio.h>", "<crux/logging.h>",
             "<crux/status.h>", "<crux/time.h>", "<crux/time_authority.h>", '"time_sync.h"',
             '"time_sync_policy.h"', '"time_sync_port.h"',
+            # The security event of a step of the wall time, in the framework module only
+            # (specification section 6.2).
+            "<crux/security_event.h>", '"framework_events.h"',
         }
         for path in (self.GLUE, self.HEADER):
             for include in includes(path):
