@@ -67,12 +67,14 @@ compares with the default listing: the projects that become active must be exact
 project that the group would activate beyond the Mbed pair fails the check. The `West pins` job runs it in
 both states and runs a negative control (the import without the blocklist, group on) that must fail.
 
-The proof is at the project-list level, and two CI jobs add the fetch. The jobs that build an image, and `West pins`, run `west update` on
+The proof is at the project-list level, and the jobs named below add the fetch. The jobs that build an image, and `West pins`, run `west update` on
 the default workspace with the group off. The `Boundary check` job fetches only `crux`, and `Patch style` fetches
-`crux` and the one Zephyr commit that it names, with a plain `west update` as its fallback. The `management build` job and the `Budget` row of `management` switch the group on in their
+`crux` and the one Zephyr commit that it names, with a plain `west update` as its fallback. The `management build` job and the `Budget` row of `management`, and likewise the `base build` job and the
+`Budget` row of `base`, switch the group on in their
 own runner, only after this check has passed on the project list, and then run `west update` and assert that no
-wolf project is in the workspace and that both Mbed modules are. That enabling the group would clone only the Mbed
-pair rests on west cloning only active projects, and the first CI run of the `management` job was the first fetch with the group on; `docs/findings/s6-https-management.md` records its result at `bb3ffefd`. A fetch with the group on is not run anywhere else. The build with the group on is the `management` build. A blocklist is used and not an allowlist because
+wolf project is in the workspace. The two build jobs also assert that both Mbed modules are on disk. It is that on-disk
+presence which the `Budget` rows do not assert; they still check, through `check_mbed_only.py --mode mbed`, that the modules are active in the project list. That enabling the group would clone only the Mbed
+pair rests on west cloning only active projects, and the first CI run of the `management` job was the first fetch with the group on; `docs/findings/s6-https-management.md` records its result at `bb3ffefd`. The nightly product integration and application template checks switch it on in their own workspace after the same check of the project list (`tests/product_integration/run.sh`, `tests/template/run.sh`). A fetch with the group on is not run anywhere else. A blocklist is used and not an allowlist because
 an allowlist drops Zephyr and everything it imports if `zephyr` is left out of it, while a blocklist leaves
 the rest of the import alone; the cost is that it names what is known today, so when a pin moves, read the groups of the new Crux
 manifest, which the delta check also helps to catch.

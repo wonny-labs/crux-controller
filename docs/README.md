@@ -27,9 +27,14 @@ worked example and [architecture.md](architecture.md) for the zones and port hea
 [reviewing.md](reviewing.md), the three verdicts in [CONTRIBUTING.md](../CONTRIBUTING.md#review), and the
 [files that need a reviewed change](adding-a-capability.md#files-that-need-a-reviewed-change).
 
+### I want to start a product
+
+[template/README.md](../template/README.md), the application template that a product team copies once, with
+[design/controller-framework.md](design/controller-framework.md) for how a product joins the framework.
+
 ### I want to look up how a capability behaves
 
-[capabilities.md](capabilities.md) is the reference for `sntp`, `system` and `management`.
+[capabilities.md](capabilities.md) is the reference for `sntp`, `system`, `management` and `base`.
 
 ### I want to know why
 
@@ -56,7 +61,7 @@ The [capabilities](capabilities.md), the [findings](findings/README.md), the [ro
 | Document | Type | What it is |
 |---|---|---|
 | [architecture.md](architecture.md) | Explanation | How the repository is built: the source trees, how Crux is consumed, the threads, and why the evidence comes from CI. |
-| [capabilities.md](capabilities.md) | Reference | How `sntp`, `system` and `management` behave: policy, settings and limits. |
+| [capabilities.md](capabilities.md) | Reference | How `sntp`, `system`, `management` and `base` behave: policy, settings and limits. |
 | [roadmap.md](roadmap.md) | Reference | What is built on `main`, the static size per build configuration and what has run on a board. |
 | [tutorial.md](tutorial.md) | Tutorial | The first build and run: the host tests, the `native_sim` scenarios and the board image. |
 | [getting-started.md](getting-started.md) | Entry | Prerequisites, the Dev Container set-up and a first command. |
@@ -108,3 +113,4 @@ The [capabilities](capabilities.md), the [findings](findings/README.md), the [ro
 | [CONTRIBUTING.md](../CONTRIBUTING.md) | Reference | The boundary, build and test, the CI jobs, the pin, review, and the rules of a public repository. |
 | [RELEASE.md](../RELEASE.md) | Reference | The release dry run, what the bundle holds and what a tag needs. |
 | [SECURITY.md](../SECURITY.md) | Reference | How to report a vulnerability and what the repository promises about support. |
+| [template/README.md](../template/README.md) | How-to guide | Start a product repository from a copy of the application template. |
