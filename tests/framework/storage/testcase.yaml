@@ -20,14 +20,24 @@ tests:
         # the factory reset with a power cut before the account erase (criterion 42).
         - "storage scenario boot 1"
         - "crux thread console supervised"
+        # Crux's security events of first-account setup, login, account creation, logout, role
+        # change and password reset (criterion 44, without persistence, gap C17): the scenario
+        # waits until the drain has written them before its next line.
+        - "access.provisioned"
+        - "access.login_ok"
         - "storage scenario: first account set up"
         - "storage scenario: data root full after [1-9][0-9]* files result=-[0-9]+"
         - "storage degraded: the application data root reached its size limit"
         - "storage scenario: the status service shows storage degraded"
+        - "access.account_created"
+        - "access.logout"
         - "storage scenario: a credential save succeeds with the data root full"
         # No application parameter, so the save has nothing to write (gap G1 blocks a real save).
         - "storage scenario: parameter save result=0"
         - "storage scenario: the read-only account cannot run the factory reset"
+        - "access.role_changed"
+        - "access.password_reset"
+        - "storage scenario: the role and the password of an account changed"
         - "factory reset requested by an operator"
         - "storage scenario: factory reset requested"
         - "storage scenario: power cut before the account erase"

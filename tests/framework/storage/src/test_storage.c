@@ -9,8 +9,11 @@
  *      application fills its data root until Crux File refuses a write at the size limit; the
  * status service then shows storage degraded and a credential save (a second account) still
  * succeeds (criterion 24, gap C15; the parameter save needs a save provider, gap G1). The
- *      read-only account does not see the factory reset command; the administrator runs it, and the
- *      power is cut before the account erase (criterion 42).
+ *      read-only account does not see the factory reset command; the administrator changes its
+ *      role and resets its password, then runs the factory reset, and the power is cut before the
+ *      account erase (criterion 42). Crux's security events of these steps (first-account setup,
+ *      login, account creation, logout, role change and password reset) are in the log before the
+ *      scenario line that follows them (criterion 44, without persistence).
  *   2. The accounts are still in place: the administrator logs in. The data root is empty. The
  *      factory reset runs again and completes.
  *   3. First-account setup is open again, the data root is empty, and the device identity was kept.
@@ -29,6 +32,7 @@
 #include <crux/config_service.h>
 #include <crux/credential_store.h>
 #include <crux/file.h>
+#include <crux/security_event.h>
 
 #include <crux_access_adapter.h>
 #include <zephyr/kernel.h>
@@ -42,6 +46,7 @@
 #define READER "reader"
 #define READER_ROLE "read-only"
 #define READER_PASSWORD "storage scenario reader"
+#define READER_RESET_PASSWORD "storage scenario reader reset"
 #define WRONG_PASSWORD "not the password at all"
 /* The data root (CONFIG_CRUX_CONTROLLER_APP_ROOT_MAX_BYTES is 16384 here) and one LittleFS block.
  */
@@ -49,6 +54,7 @@
 #define FILES_MAX 16
 #define STATUS_POLLS 20
 #define LOGIN_ATTEMPTS 10
+#define DRAIN_POLLS 200
 
 static int boot;
 static controller_app_context_t *app_context;
@@ -112,6 +118,25 @@ crux_credential_result_t __wrap_crux_credential_erase_accounts(void)
         sys_reboot(SYS_REBOOT_COLD);
     }
     return __real_crux_credential_erase_accounts();
+}
+
+/* Wait until Crux's drain thread has written every security event that the ring admitted, so the
+ * next scenario line follows their log lines: scenario_say() flushes the log first. A report of
+ * lost records also counts as a written line, so the written lines reach the admitted ones at
+ * least. The counts wrap at 2^32, so their difference is compared as signed. */
+static bool events_drained(void)
+{
+    for (int poll = 0; poll < DRAIN_POLLS; poll++) {
+        crux_security_event_stats_t stats;
+
+        if (crux_security_event_get_stats(&stats) == CRUX_OK &&
+            (int32_t)(stats.delivered + stats.log_errors - stats.emitted) >= 0) {
+            return true;
+        }
+        k_msleep(10);
+    }
+    fail("the security events to drain");
+    return false;
 }
 
 /* --- the serial command line --- */
@@ -264,7 +289,7 @@ static void boot_1(void)
     char text[160];
     crux_file_result_t refusal = CRUX_FILE_OK;
 
-    if (!setup_first_account()) {
+    if (!setup_first_account() || !events_drained()) {
         return;
     }
     scenario_say("storage scenario: first account set up");
@@ -283,6 +308,9 @@ static void boot_1(void)
     scenario_say("storage scenario: the status service shows storage degraded");
     if (!reader_created()) {
         fail("a credential save with the data root full");
+        return;
+    }
+    if (!events_drained()) {
         return;
     }
     scenario_say("storage scenario: a credential save succeeds with the data root full");
@@ -318,6 +346,28 @@ static void boot_1(void)
     if (!login(USER, PASSWORD)) {
         return;
     }
+    /* Account changes that no command or route makes in the base image (gap C21), in the
+     * administrator's name, for their security events. The factory reset erases the account. */
+    if (!admin_session(&session)) {
+        fail("the administrator's session for the account changes");
+        return;
+    }
+    const crux_access_result_t role =
+        crux_access_account_set_role(session, READER, "administrator");
+    const crux_access_result_t reset = crux_access_account_reset_password(
+        session, READER, READER_RESET_PASSWORD, strlen(READER_RESET_PASSWORD));
+
+    crux_access_logout(&session);
+    if (role != CRUX_ACCESS_OK || reset != CRUX_ACCESS_OK) {
+        (void)snprintf(text, sizeof text, "the account changes role=%d reset=%d", (int)role,
+                       (int)reset);
+        fail(text);
+        return;
+    }
+    if (!events_drained()) {
+        return;
+    }
+    scenario_say("storage scenario: the role and the password of an account changed");
     scenario_console_type("factory reset");
     if (!expect("restart requested")) {
         return;
