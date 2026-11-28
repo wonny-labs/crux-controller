@@ -12,7 +12,7 @@ scenarios and the application template.
   own tree, and nothing else.
 * ``app/compose/`` is the composition zone of the configurations of ``app/``, which mounts a file
   system and binds it to Crux. It holds no source; ``framework/compose`` has the same rule and holds the sources. It may include ISO C headers, public ``<crux/NAME.h>`` headers, the
-  composition interfaces ``<crux/file_zephyr.h>``, ``<crux/web_zephyr.h>``, ``<crux/cli_zephyr.h>`` and ``<crux/service_priority_zephyr.h>`` (``COMPOSITION_CRUX_HEADERS``),
+  composition interfaces ``<crux/file_zephyr.h>``, ``<crux/web_zephyr.h>``, ``<crux/cli_zephyr.h>``, ``<crux/service_priority_zephyr.h>`` and ``<crux/credential_store_zephyr.h>`` (``COMPOSITION_CRUX_HEADERS``),
   the explicit allow-list of Zephyr headers in ``COMPOSITION_ZEPHYR_HEADERS``, headers of its own tree and the headers of ``app/src``
   (header files only: the product-owned header that ``app/src`` declares and the zone
   implements). Such a header is scanned under the ``app/src`` rules, so a Sockets profile header
@@ -147,10 +147,12 @@ FROZEN_CRUX_HEADERS = frozenset({"crux/thread.h", "crux/sync.h", "crux/serial.h"
 # web_zephyr.h binds the Web server for the HTTPS management composition, cli_zephyr.h starts
 # the serial console with its first-account setup on the UART of the alias crux-serial0, and
 # service_priority_zephyr.h registers the one progress function of the Crux service threads, which
-# the supervision of those threads feeds its task watchdog channels from (gap C8).
+# the supervision of those threads feeds its task watchdog channels from (gap C8), and
+# credential_store_zephyr.h erases the accounts of the credential store for the factory reset
+# (gap C9).
 COMPOSITION_CRUX_HEADERS = frozenset(
     {"crux/file_zephyr.h", "crux/web_zephyr.h", "crux/cli_zephyr.h",
-     "crux/service_priority_zephyr.h"}
+     "crux/service_priority_zephyr.h", "crux/credential_store_zephyr.h"}
 )
 
 CRUX_PUBLIC = re.compile(r"^crux/[A-Za-z0-9_]+\.h$")

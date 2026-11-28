@@ -43,8 +43,9 @@ CMake target `crux::file_zephyr` (`docs/file-composition-interface.md` in Crux).
 system. Application code stays on `<crux/file.h>`. A boundary that lets `app/src` include the
 interface would let the application name a provider, and a boundary without any way to include it
 would leave File unusable. So the include is allowed in one directory and nowhere else. The Web
-composition interface `<crux/web_zephyr.h>`, the console composition interface `<crux/cli_zephyr.h>` and the
-progress composition interface `<crux/service_priority_zephyr.h>` follow the same rule.
+composition interface `<crux/web_zephyr.h>`, the console composition interface `<crux/cli_zephyr.h>`, the
+progress composition interface `<crux/service_priority_zephyr.h>` and the erase composition interface
+`<crux/credential_store_zephyr.h>` follow the same rule.
 
 The application declares the port header and calls it. The zone implements it. The link joins them;
 no include does. The port header lives in `app/src`, so the rules of `app/src` scan it, and it cannot
@@ -52,11 +53,11 @@ carry a Zephyr or composition include back into the application.
 
 ## The rules
 
-| Tree | ISO C | Sockets profile | Public `<crux/NAME.h>` | Composition interfaces (`<crux/file_zephyr.h>`, `<crux/web_zephyr.h>`, `<crux/cli_zephyr.h>`, `<crux/service_priority_zephyr.h>`) | Zephyr headers | Own tree | Other trees |
+| Tree | ISO C | Sockets profile | Public `<crux/NAME.h>` | Composition interfaces (`<crux/file_zephyr.h>`, `<crux/web_zephyr.h>`, `<crux/cli_zephyr.h>`, `<crux/service_priority_zephyr.h>`, `<crux/credential_store_zephyr.h>`) | Zephyr headers | Own tree | Other trees |
 |---|---|---|---|---|---|---|---|
 | `app/src` | yes | yes | yes | no | none | yes | `workload/include` |
 | `workload` | yes | no | no | no | none | yes | none |
-| `app/compose` | yes | no | yes | exactly those four (`COMPOSITION_CRUX_HEADERS`) | the allow-list below, nothing else | yes | header files (`.h`) of `app/src` (the port header) |
+| `app/compose` | yes | no | yes | exactly those five (`COMPOSITION_CRUX_HEADERS`) | the allow-list below, nothing else | yes | header files (`.h`) of `app/src` (the port header) |
 | `app/os` (the adapter zone) | yes | no | yes | no | `zephyr/kernel.h` and `zephyr/net/sntp.h`, nothing else | yes | header files (`.h`) of `app/src` (the port header) |
 
 The zone fails on a Crux private or port header (`file_native.h`, a nested `<crux/ports/...>` path),
@@ -67,10 +68,10 @@ whatever its suffix, `#include`, `#include_next` and `#import`, continued lines,
 trigraph, comments removed, and a macro operand is a violation.
 
 Without `--crux-root` any `<crux/NAME.h>` passes the shape test, as it does for `app/src`, and the
-four composition interfaces are denied outside the zone by name (`COMPOSITION_CRUX_HEADERS`); with
+five composition interfaces are denied outside the zone by name (`COMPOSITION_CRUX_HEADERS`); with
 it (CI always passes it), a `<crux/NAME.h>` that is not a header Crux publishes fails, including
 `<crux/file_native.h>`. Against a Crux checkout, `<crux/file_zephyr.h>`,
-`<crux/web_zephyr.h>`, `<crux/cli_zephyr.h>` and `<crux/service_priority_zephyr.h>` must be headers that Crux publishes under
+`<crux/web_zephyr.h>`, `<crux/cli_zephyr.h>`, `<crux/service_priority_zephyr.h>` and `<crux/credential_store_zephyr.h>` must be headers that Crux publishes under
 `components/*/ports/*/include/crux/`, and any header found there is a composition interface that
 `app/src` and the workload cannot include, whether or not this file names it. Any other composition
 interface that Crux publishes stays out of the zone until a reviewed change lists it. The other Web
@@ -157,6 +158,16 @@ the include is allowed in `framework/compose` (and `app/compose`, which shares t
 `workload`, `include`, `framework/src` and `framework/os`, with or without `--crux-root`. The header includes only
 `<crux/status.h>`, so the Zephyr allow-list and the frozen headers do not change. The zone maps the Crux identifiers to
 the framework's own (`framework/src/service_progress.h`), so the portable core names no Crux type.
+
+## The factory reset
+
+The factory reset (specification section 5.3) erases the accounts in `framework/compose`, by `management_start.c`.
+Crux publishes the erase as a composition interface: `<crux/credential_store_zephyr.h>` with the CMake target
+`crux::credential_store_zephyr`. Its calls take no session and check no permission, so the caller's trigger is the whole
+protection, and only the platform composition calls them (gap C9 of the
+[platform gaps](design/controller-framework-platform-gaps.md)). The same rule follows: the include is allowed in
+`framework/compose` (and `app/compose`, which shares the list) and fails everywhere else. The header includes only
+`<crux/credential_store.h>`, so the Zephyr allow-list and the frozen headers do not change.
 
 ## The adapter zone
 

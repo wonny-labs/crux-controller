@@ -340,15 +340,16 @@ class SystemSources(unittest.TestCase):
         # The system capability left every zone list as it was. The adapter zone list later grew by
         # zephyr/net/sntp.h in its own reviewed boundary change, and the composition zone's
         # lists grew by crux/web_zephyr.h and zephyr/net/tls_credentials.h in another, and by
-        # crux/cli_zephyr.h in a third, and by crux/service_priority_zephyr.h in a fourth. This pin
-        # follows all four.
+        # crux/cli_zephyr.h in a third, by crux/service_priority_zephyr.h in a fourth and by
+        # crux/credential_store_zephyr.h in a fifth. This pin follows all five.
         self.assertEqual(
             frozenset({"zephyr/fs/fs.h", "zephyr/devicetree.h", "zephyr/net/tls_credentials.h"}),
             check_boundary.COMPOSITION_ZEPHYR_HEADERS)
         self.assertEqual(frozenset({"zephyr/kernel.h", "zephyr/net/sntp.h"}),
                          check_boundary.OS_ADAPTER_ZEPHYR_HEADERS)
         self.assertEqual(frozenset({"crux/file_zephyr.h", "crux/web_zephyr.h", "crux/cli_zephyr.h",
-                                    "crux/service_priority_zephyr.h"}),
+                                    "crux/service_priority_zephyr.h",
+                                    "crux/credential_store_zephyr.h"}),
                          check_boundary.COMPOSITION_CRUX_HEADERS)
         self.assertEqual(
             frozenset({"crux/thread.h", "crux/sync.h", "crux/serial.h"}),

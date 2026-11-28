@@ -1110,9 +1110,11 @@ class ManagementSources(unittest.TestCase):
     def test_the_boundary_allow_lists_are_unchanged_by_this_step(self):
         # The composition list later grew by crux/cli_zephyr.h, for the serial command line of the
         # base image, and by crux/service_priority_zephyr.h, for the supervision of the Crux service
-        # threads, each in its own reviewed boundary change. This pin follows them.
+        # threads, and by crux/credential_store_zephyr.h, for the factory reset, each in its own
+        # reviewed boundary change. This pin follows them.
         self.assertEqual(frozenset({"crux/file_zephyr.h", "crux/web_zephyr.h", "crux/cli_zephyr.h",
-                                    "crux/service_priority_zephyr.h"}),
+                                    "crux/service_priority_zephyr.h",
+                                    "crux/credential_store_zephyr.h"}),
                          check_boundary.COMPOSITION_CRUX_HEADERS)
         self.assertEqual(
             frozenset({"zephyr/fs/fs.h", "zephyr/devicetree.h", "zephyr/net/tls_credentials.h"}),

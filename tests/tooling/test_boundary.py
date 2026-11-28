@@ -457,7 +457,7 @@ class CompositionZone(unittest.TestCase):
     def test_the_composition_allow_list_is_the_reviewed_set(self):
         self.assertEqual(
             {"crux/file_zephyr.h", "crux/web_zephyr.h", "crux/cli_zephyr.h",
-             "crux/service_priority_zephyr.h"},
+             "crux/service_priority_zephyr.h", "crux/credential_store_zephyr.h"},
             set(check_boundary.COMPOSITION_CRUX_HEADERS),
         )
 
@@ -532,6 +532,36 @@ class CompositionZone(unittest.TestCase):
         root = self.progress_root(composition=("file_zephyr.h", "web_zephyr.h", "cli_zephyr.h"))
         files = {"framework/compose/progress.c": f"#include <{self.PROGRESS_ZEPHYR}>\n"}
         self.assertEqual([self.PROGRESS_ZEPHYR], reasons(run(files, crux_root=root)))
+
+    # The factory reset (specification section 5.3, gap C9): <crux/credential_store_zephyr.h>, which
+    # erases the accounts of the credential store. Crux publishes it under components/credential/
+    # ports/zephyr.
+
+    ERASE_ZEPHYR = "crux/credential_store_zephyr.h"
+
+    def erase_root(self, composition=("file_zephyr.h", "web_zephyr.h", "cli_zephyr.h",
+                                      "service_priority_zephyr.h", "credential_store_zephyr.h")):
+        return self.crux_root(composition=composition,
+                              public=("file.h", "time.h", "credential_store.h"))
+
+    def test_the_zones_may_include_the_erase_composition_interface(self):
+        for tree in ("app/compose", "framework/compose"):
+            files = {f"{tree}/reset.c": f"#include <{self.ERASE_ZEPHYR}>\n"}
+            for root in (None, self.erase_root()):
+                self.assertEqual([], run(files, crux_root=root), (tree, root))
+
+    def test_the_erase_interface_fails_outside_the_composition_zones(self):
+        for root in (None, self.erase_root()):
+            for tree in ("app/src", "app/os", "workload", "include", "framework/src", "framework/os"):
+                files = {f"{tree}/x.c": f"#include <{self.ERASE_ZEPHYR}>\n"}
+                self.assertEqual([self.ERASE_ZEPHYR], reasons(run(files, crux_root=root)),
+                                 (tree, root))
+
+    def test_the_zone_may_not_include_the_erase_interface_crux_does_not_publish(self):
+        root = self.erase_root(composition=("file_zephyr.h", "web_zephyr.h", "cli_zephyr.h",
+                                            "service_priority_zephyr.h"))
+        files = {"framework/compose/reset.c": f"#include <{self.ERASE_ZEPHYR}>\n"}
+        self.assertEqual([self.ERASE_ZEPHYR], reasons(run(files, crux_root=root)))
 
     # The HTTPS management composition: <crux/web_zephyr.h> and <zephyr/net/tls_credentials.h>.
 
@@ -972,7 +1002,7 @@ class OsAdapterZone(unittest.TestCase):
         self.assertNotIn("zephyr/kernel.h", check_boundary.COMPOSITION_ZEPHYR_HEADERS)
         self.assertEqual(
             frozenset({"crux/file_zephyr.h", "crux/web_zephyr.h", "crux/cli_zephyr.h",
-                       "crux/service_priority_zephyr.h"}),
+                       "crux/service_priority_zephyr.h", "crux/credential_store_zephyr.h"}),
             compose.composition_crux,
         )
         self.assertEqual(
