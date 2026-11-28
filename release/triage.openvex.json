@@ -3,7 +3,134 @@
   "@id": "https://github.com/wonny-labs/crux-controller/blob/main/release/triage.openvex.json",
   "author": "crux-controller maintainers",
   "role": "Document Creator",
-  "timestamp": "2026-11-27T00:00:00Z",
-  "version": 1,
-  "statements": []
+  "timestamp": "2026-11-28T10:28:35Z",
+  "version": 2,
+  "statements": [
+    {
+      "vulnerability": {
+        "name": "CVE-2026-6682",
+        "aliases": [
+          "GHSA-c25x-vcg6-4ccx",
+          "GHSA-m537-wqw2-2wrj"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/wonny-labs/crux-controller",
+          "subcomponents": [
+            {
+              "@id": "pkg:github/zephyrproject-rtos/fatfs@4f60a12c58c3de4246857ad87c40239ecd93349b",
+              "identifiers": {
+                "cpe23": "cpe:2.3:a:elm-chan:fatfs:r0.16:*:*:*:*:*:*:*",
+                "purl": "pkg:generic/fatfs@R0.16?download_url=https://elm-chan.org/fsw/ff/arc/ff16.zip"
+              }
+            }
+          ]
+        }
+      ],
+      "status": "fixed",
+      "status_notes": "The FatFs sources are Zephyr's fork zephyrproject-rtos/fatfs at 4f60a12c, the revision of Zephyr v4.5.0 (41d10b59) that the pinned Crux revision uses. It carries upstream FatFs R0.16 patch-2 (fork commit 1df06d03): mount_volume() rejects fasize >= 0x200000 before the multiply (ff.c line 3596). The released net image also does not build FatFs (no CONFIG_FAT_FILESYSTEM_ELM, no modules__fatfs target)."
+    },
+    {
+      "vulnerability": {
+        "name": "CVE-2026-6683",
+        "aliases": [
+          "GHSA-74cg-p8q3-4c3q",
+          "GHSA-c5j5-mrhx-hjg4"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/wonny-labs/crux-controller",
+          "subcomponents": [
+            {
+              "@id": "pkg:github/zephyrproject-rtos/fatfs@4f60a12c58c3de4246857ad87c40239ecd93349b",
+              "identifiers": {
+                "cpe23": "cpe:2.3:a:elm-chan:fatfs:r0.16:*:*:*:*:*:*:*",
+                "purl": "pkg:generic/fatfs@R0.16?download_url=https://elm-chan.org/fsw/ff/arc/ff16.zip"
+              }
+            }
+          ]
+        }
+      ],
+      "status": "fixed",
+      "status_notes": "Fixed in zephyrproject-rtos/fatfs 4f60a12c (Zephyr v4.5.0) by upstream FatFs R0.16 patch-2 (fork commit 1df06d03): mount_volume() rejects an exFAT volume with fewer than MIN_EXFAT clusters (ff.c line 3551). exFAT (CONFIG_FS_FATFS_EXFAT) is off in every image of this repository, and the released net image does not build FatFs."
+    },
+    {
+      "vulnerability": {
+        "name": "CVE-2026-6686",
+        "aliases": [
+          "GHSA-h94p-vjqx-v7rr",
+          "GHSA-rjhg-f2h7-rffm"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/wonny-labs/crux-controller",
+          "subcomponents": [
+            {
+              "@id": "pkg:github/zephyrproject-rtos/fatfs@4f60a12c58c3de4246857ad87c40239ecd93349b",
+              "identifiers": {
+                "cpe23": "cpe:2.3:a:elm-chan:fatfs:r0.16:*:*:*:*:*:*:*",
+                "purl": "pkg:generic/fatfs@R0.16?download_url=https://elm-chan.org/fsw/ff/arc/ff16.zip"
+              }
+            }
+          ]
+        }
+      ],
+      "status": "fixed",
+      "status_notes": "Fixed in zephyrproject-rtos/fatfs 4f60a12c (Zephyr v4.5.0) by the local fork commit a55a7a8e: f_lseek() zeroes the newly exposed range through fill_zero() (ff.c line 4766). Upstream FatFs has no fix. The released net image does not build FatFs."
+    },
+    {
+      "vulnerability": {
+        "name": "CVE-2026-6687",
+        "aliases": [
+          "GHSA-wghw-hg6m-7rh3",
+          "GHSA-fxw6-w668-cgfh"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/wonny-labs/crux-controller",
+          "subcomponents": [
+            {
+              "@id": "pkg:github/zephyrproject-rtos/fatfs@4f60a12c58c3de4246857ad87c40239ecd93349b",
+              "identifiers": {
+                "cpe23": "cpe:2.3:a:elm-chan:fatfs:r0.16:*:*:*:*:*:*:*",
+                "purl": "pkg:generic/fatfs@R0.16?download_url=https://elm-chan.org/fsw/ff/arc/ff16.zip"
+              }
+            }
+          ]
+        }
+      ],
+      "status": "fixed",
+      "status_notes": "Fixed in zephyrproject-rtos/fatfs 4f60a12c (Zephyr v4.5.0) by upstream FatFs R0.16 patch-2 (fork commit 1df06d03): f_getlabel() clamps the exFAT label loop to 11 characters (ff.c line 5605). f_getlabel() is compiled only with CONFIG_FS_FATFS_EXTRA_NATIVE_API and the affected path needs exFAT; both are off in every image here, and the released net image does not build FatFs."
+    },
+    {
+      "vulnerability": {
+        "name": "CVE-2026-6688",
+        "aliases": [
+          "GHSA-8vm2-mjff-2gg2",
+          "GHSA-pr2x-4r37-9x35"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:github/wonny-labs/crux-controller",
+          "subcomponents": [
+            {
+              "@id": "pkg:github/zephyrproject-rtos/fatfs@4f60a12c58c3de4246857ad87c40239ecd93349b",
+              "identifiers": {
+                "cpe23": "cpe:2.3:a:elm-chan:fatfs:r0.16:*:*:*:*:*:*:*",
+                "purl": "pkg:generic/fatfs@R0.16?download_url=https://elm-chan.org/fsw/ff/arc/ff16.zip"
+              }
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "CVE-2026-6688 is a pattern in code that calls FatFs (long file names copied into short buffers), not code in ff.c. The Zephyr caller with this pattern, POSIX readdir(), is fixed in Zephyr commit 567b2c93, which Zephyr v4.5.0 (41d10b59, pinned through Crux) contains; it needed a libc without NAME_MAX, and these images use picolibc. The Crux File provider bounds its copy of fs_dirent names to the caller's capacity (components/file/ports/zephyr/file_native.c decode_leaf). The released net image builds no file system at all."
+    }
+  ]
 }

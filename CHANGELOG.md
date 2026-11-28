@@ -377,6 +377,9 @@ build configurations by their earlier step ids, S0 to S6.
   `release/triage.openvex.json` (OpenVEX), or whose record has the status `affected` or
   `under_investigation` (`release/check_triage.py`, check `release-vulnerabilities`).
   `scripts/ci/match-vulnerabilities.sh --json` writes the Grype reports it reads.
+- `release/triage.openvex.json` version 2 records the five FatFs matches of the pinned tree: CVE-2026-6682,
+  -6683, -6686 and -6687 as `fixed`, and CVE-2026-6688 as `not_affected`
+  (`vulnerable_code_not_present`).
 
 ### Documents
 
