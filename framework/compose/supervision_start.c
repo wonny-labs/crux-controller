@@ -34,6 +34,11 @@
 #ifdef CONFIG_CRUX_WEB_MANAGEMENT
 #include "../src/management_port.h"
 #endif
+#if defined(CONFIG_CRUX_CONTROLLER_FRAMEWORK_MANAGEMENT) && defined(CONFIG_CRUX_THREAD)
+#include "../src/service_progress.h"
+
+#include <crux/service_priority_zephyr.h>
+#endif
 
 #include <crux/logging.h>
 #include <crux/management_status.h>
@@ -393,5 +398,44 @@ const crux_cli_command_t *supervision_commands(size_t *count)
         *count = sizeof commands / sizeof commands[0];
     }
     return commands;
+}
+#endif
+
+#if defined(CONFIG_CRUX_CONTROLLER_FRAMEWORK_MANAGEMENT) && defined(CONFIG_CRUX_THREAD)
+/* The progress function: Crux calls it on each service thread, possibly on several at once. It maps
+ * the identifier and feeds, and takes no lock and never waits, as <crux/service_priority_zephyr.h>
+ * requires. */
+static void on_progress(crux_service_thread_t thread, void *context)
+{
+    (void)context;
+    switch (thread) {
+    case CRUX_SERVICE_THREAD_SECURITY_EVENT_DRAIN:
+        service_progress_report(SERVICE_THREAD_EVENT_DRAIN);
+        break;
+    case CRUX_SERVICE_THREAD_WEB_SESSION_WORKER:
+        service_progress_report(SERVICE_THREAD_WEB_SESSION);
+        break;
+    case CRUX_SERVICE_THREAD_WEB_MANAGEMENT_WORKER:
+        service_progress_report(SERVICE_THREAD_WEB_MANAGEMENT);
+        break;
+    case CRUX_SERVICE_THREAD_CLI_CONSOLE:
+        service_progress_report(SERVICE_THREAD_CONSOLE);
+        break;
+    default:
+        /* The reboot worker is never started, and Crux Reboot reports its identifier on the
+         * framework's reboot thread, which feeds its own channel (gap C14); the network settings
+         * worker is not started either. */
+        break;
+    }
+}
+
+int supervision_compose_progress_start(void)
+{
+    return crux_service_progress_register(on_progress, NULL) == CRUX_OK ? 0 : -1;
+}
+#else
+int supervision_compose_progress_start(void)
+{
+    return -1;
 }
 #endif

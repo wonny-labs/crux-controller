@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
-/* The recovery scenario of the controller framework on native_sim. One run, six boots: the
+/* The recovery scenario of the controller framework on native_sim. One run, seven boots: the
  * simulated watchdog of Crux System restarts the simulated process after a missed feed, which
  * then reads the reset cause SOFTWARE (gap C11), and the retained region over the test-only
  * retained memory of ../common survives the restart. Each boot arms one fault, starts the framework
@@ -18,7 +18,10 @@
  *      a login over the serial command line, and the status command shows the recovery state; the
  *      recovery exit command clears the counter and restarts through Crux Reboot with the operator
  *      reset marker (criterion 11).
- *   6. A normal boot: the marker makes the reset a planned one, and the counter is zero.
+ *   6. A normal boot: the marker makes the reset a planned one, and the counter is zero. The
+ *      reports of the Crux web session worker stop feeding its channel: the expiry is recorded and
+ *      the image restarts (criterion 33).
+ *   7. The record names the web session worker's channel and the reset counts (counter 1).
  *
  * The base image has no application, so "the application is not initialised" of criterion 11 shows
  * as "no application: safe mode"; the fixture application of delivery stage 3 shows the rest. */
@@ -122,6 +125,9 @@ int main(void)
     case 4:
         (void)controller_framework_inject(CONTROLLER_FRAMEWORK_FAULT_THREAD_STALL, "reboot");
         break;
+    case 6:
+        (void)controller_framework_inject(CONTROLLER_FRAMEWORK_FAULT_THREAD_STALL, "web session");
+        break;
     default:
         break;
     }
@@ -130,9 +136,9 @@ int main(void)
     }
     if (boot == 5) {
         leave_safe_mode();
-    } else if (boot == 6) {
+    } else if (boot == 7) {
         scenario_say("recovery scenario done");
-    } else if (boot > 6) {
+    } else if (boot > 7) {
         fail("more boots than planned");
     }
     for (;;) {

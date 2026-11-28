@@ -58,6 +58,13 @@ typedef enum {
     MANAGEMENT_PORT_ERR_TLS_CERTIFICATE = -6,
 } management_port_status_t;
 
+/* The Crux service threads that the sequence starts (gap C8). */
+typedef enum {
+    MANAGEMENT_PORT_THREAD_EVENT_DRAIN = 0, /* the security event thread, step 4 */
+    MANAGEMENT_PORT_THREAD_WEB_SESSION,     /* the web session worker, step 6 */
+    MANAGEMENT_PORT_THREAD_WEB_MANAGEMENT,  /* the web management worker, step 6 */
+} management_port_thread_t;
+
 typedef struct {
     /* The roles and the session limits, borrowed for the program's life. */
     const management_policy_t *policy;
@@ -80,9 +87,13 @@ typedef struct {
      */
     const void *status_items;
     size_t status_item_count;
-    /* Called once the security events run, before the TLS certificate; a result other than zero
-     * refuses the start. NULL for none. */
+    /* Called once the security events run, after the TLS certificate start; a result other than
+     * zero refuses the start. NULL for none. */
     int (*after_events)(void);
+    /* Called on the starting thread right after the Crux call that starts a service thread
+     * returned success, so that the framework gives the thread its task watchdog channel (gap C8).
+     * NULL for none. */
+    void (*thread_started)(management_port_thread_t thread);
     /* True: the core part also binds the application data root (storage_port_bind_app()). */
     bool bind_app_root;
     /* The parameter table of the configuration service: an array of crux_config_service_entry_t,

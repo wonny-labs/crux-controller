@@ -129,6 +129,14 @@ target_include_directories(test_image_trial PRIVATE ../../framework/src)
 target_compile_options(test_image_trial PRIVATE -Wall -Wextra -Wpedantic -Werror)
 add_test(NAME image_trial COMMAND test_image_trial)
 
+# Supervision of the Crux service threads by their progress reports (specification sections 4.3 and
+# 4.4, gap C8; criterion 33, host part), against a fake channel port, with concurrent reporters.
+add_executable(test_service_progress test_service_progress.c ../../framework/src/service_progress.c)
+target_include_directories(test_service_progress PRIVATE ../../framework/src)
+target_compile_options(test_service_progress PRIVATE -Wall -Wextra -Wpedantic -Werror)
+target_link_libraries(test_service_progress PRIVATE Threads::Threads)
+add_test(NAME service_progress COMMAND test_service_progress)
+
 # The fuzz targets of criterion 41 (delivery stage 4), in fuzz/. Every build links each target with
 # fuzz/fuzz_driver.c and runs it over its seed corpus in fuzz/corpus/NAME (hexadecimal text, as the
 # repository keeps no binary file) as a test. With

@@ -456,7 +456,8 @@ class CompositionZone(unittest.TestCase):
 
     def test_the_composition_allow_list_is_the_reviewed_set(self):
         self.assertEqual(
-            {"crux/file_zephyr.h", "crux/web_zephyr.h", "crux/cli_zephyr.h"},
+            {"crux/file_zephyr.h", "crux/web_zephyr.h", "crux/cli_zephyr.h",
+             "crux/service_priority_zephyr.h"},
             set(check_boundary.COMPOSITION_CRUX_HEADERS),
         )
 
@@ -503,6 +504,34 @@ class CompositionZone(unittest.TestCase):
         for name in sorted(check_boundary.FROZEN_CRUX_HEADERS):
             for tree in ("framework/src/a.c", "framework/os/a.c", "app/src/a.c"):
                 self.assertEqual([name], reasons(run({tree: f"#include <{name}>\n"})), (name, tree))
+
+    # The supervision of the Crux service threads (specification section 4.3, gap C8):
+    # <crux/service_priority_zephyr.h>, which registers the one progress function. Crux publishes it
+    # under components/service_priority/ports/zephyr.
+
+    PROGRESS_ZEPHYR = "crux/service_priority_zephyr.h"
+
+    def progress_root(self, composition=("file_zephyr.h", "web_zephyr.h", "cli_zephyr.h",
+                                         "service_priority_zephyr.h")):
+        return self.crux_root(composition=composition, public=("file.h", "time.h", "status.h"))
+
+    def test_the_zones_may_include_the_progress_composition_interface(self):
+        for tree in ("app/compose", "framework/compose"):
+            files = {f"{tree}/progress.c": f"#include <{self.PROGRESS_ZEPHYR}>\n"}
+            for root in (None, self.progress_root()):
+                self.assertEqual([], run(files, crux_root=root), (tree, root))
+
+    def test_the_progress_interface_fails_outside_the_composition_zones(self):
+        for root in (None, self.progress_root()):
+            for tree in ("app/src", "app/os", "workload", "include", "framework/src", "framework/os"):
+                files = {f"{tree}/x.c": f"#include <{self.PROGRESS_ZEPHYR}>\n"}
+                self.assertEqual([self.PROGRESS_ZEPHYR], reasons(run(files, crux_root=root)),
+                                 (tree, root))
+
+    def test_the_zone_may_not_include_the_progress_interface_crux_does_not_publish(self):
+        root = self.progress_root(composition=("file_zephyr.h", "web_zephyr.h", "cli_zephyr.h"))
+        files = {"framework/compose/progress.c": f"#include <{self.PROGRESS_ZEPHYR}>\n"}
+        self.assertEqual([self.PROGRESS_ZEPHYR], reasons(run(files, crux_root=root)))
 
     # The HTTPS management composition: <crux/web_zephyr.h> and <zephyr/net/tls_credentials.h>.
 
@@ -942,7 +971,8 @@ class OsAdapterZone(unittest.TestCase):
         )
         self.assertNotIn("zephyr/kernel.h", check_boundary.COMPOSITION_ZEPHYR_HEADERS)
         self.assertEqual(
-            frozenset({"crux/file_zephyr.h", "crux/web_zephyr.h", "crux/cli_zephyr.h"}),
+            frozenset({"crux/file_zephyr.h", "crux/web_zephyr.h", "crux/cli_zephyr.h",
+                       "crux/service_priority_zephyr.h"}),
             compose.composition_crux,
         )
         self.assertEqual(

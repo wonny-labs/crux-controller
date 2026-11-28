@@ -109,6 +109,14 @@ static management_port_status_t failed(const char *step)
     return MANAGEMENT_PORT_ERR_STEP_FAILED;
 }
 
+/* Tell the framework that a Crux service thread has just started (gap C8). */
+static void thread_started(const management_port_config_t *config, management_port_thread_t thread)
+{
+    if (config->thread_started != NULL) {
+        config->thread_started(thread);
+    }
+}
+
 /* The product's three permission names are copies, because management_policy.h has no Crux
  * include. They must be the text that the services check, or a role would grant nothing or the
  * wrong thing, so the start compares them with the Crux macros. */
@@ -341,6 +349,7 @@ management_port_status_t management_port_start_services(const management_port_co
     if (crux_security_event_start() != CRUX_OK) {
         return failed("security event thread");
     }
+    thread_started(config, MANAGEMENT_PORT_THREAD_EVENT_DRAIN);
     if (config->after_events != NULL && config->after_events() != 0) {
         return failed("services of the configuration");
     }
@@ -372,10 +381,12 @@ management_port_status_t management_port_start_services(const management_port_co
         crux_web_session_start_worker() != CRUX_WEB_OK) {
         return failed("web session");
     }
+    thread_started(config, MANAGEMENT_PORT_THREAD_WEB_SESSION);
     if (crux_web_management_init() != CRUX_WEB_OK ||
         crux_web_management_start_worker() != CRUX_WEB_OK) {
         return failed("web management");
     }
+    thread_started(config, MANAGEMENT_PORT_THREAD_WEB_MANAGEMENT);
 
     /* 7. The listener. It opens on Zephyr's own thread, so a success here is not a connection. */
     static const crux_web_config_t web = {

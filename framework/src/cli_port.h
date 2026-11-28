@@ -31,6 +31,9 @@ typedef struct {
      * (status.read) and, in an image with Crux Reboot, reboot, recovery clear and recovery exit
      * (system.reboot). */
     bool framework_commands;
+    /* Called on the starting thread right after the console thread started, so that the framework
+     * gives it its task watchdog channel (gap C8). NULL for none. */
+    void (*console_started)(void);
 } cli_port_config_t;
 
 /* Start the serial command line, or refuse and leave it off. */

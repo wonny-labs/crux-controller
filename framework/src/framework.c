@@ -65,6 +65,7 @@
 #ifdef CONFIG_CRUX_CONTROLLER_FRAMEWORK_MANAGEMENT
 #include "management_policy.h"
 #include "management_port.h"
+#include "service_progress.h"
 #include "storage_port.h"
 
 /* The versions that the status service reports come from the build (zephyr/CMakeLists.txt), and a
@@ -150,8 +151,12 @@ _Static_assert((int)CONTROLLER_APP_STOP_FAULT == (int)APP_STOP_FAULT &&
 #define DEADLINE_STOP_MS ((uint32_t)CONFIG_CRUX_CONTROLLER_DEADLINE_STOP_MS)
 #define STABLE_PERIOD_MS ((uint64_t)CONFIG_CRUX_CONTROLLER_STABLE_PERIOD_S * 1000u)
 
-/* The framework's own task watchdog channels: the time synchronisation thread and the reboot
- * thread. The application's requirements share the rest of the table (section 4.4, "Capacity"). */
+/* The framework's own task watchdog channels: the time synchronisation thread, the reboot thread
+ * and one per Crux service thread that the framework starts (gap C8: the security event drain and
+ * the two web workers with management, the console with the command line). The application's
+ * requirements share the rest of the table (section 4.4, "Capacity"). The Crux service channels are
+ * reserved whether or not their thread starts, so the application's capacity does not depend on the
+ * boot. */
 #ifdef CONFIG_CRUX_CONTROLLER_FRAMEWORK_TIME_SYNC
 #define CHANNELS_TIME 1u
 #else
@@ -162,13 +167,28 @@ _Static_assert((int)CONTROLLER_APP_STOP_FAULT == (int)APP_STOP_FAULT &&
 #else
 #define CHANNELS_REBOOT 0u
 #endif
-#define CHANNELS_FRAMEWORK (CHANNELS_TIME + CHANNELS_REBOOT)
+#if defined(CONFIG_CRUX_CONTROLLER_FRAMEWORK_MANAGEMENT) && defined(CONFIG_CRUX_THREAD)
+#define SERVICE_PROGRESS_ON 1
+#define CHANNELS_CRUX_MANAGEMENT 3u
+#ifdef CONFIG_CRUX_CONTROLLER_FRAMEWORK_CLI_SERIAL
+#define CHANNELS_CRUX_CONSOLE 1u
+#else
+#define CHANNELS_CRUX_CONSOLE 0u
+#endif
+#else
+#define CHANNELS_CRUX_MANAGEMENT 0u
+#define CHANNELS_CRUX_CONSOLE 0u
+#endif
+#define CHANNELS_FRAMEWORK                                                                         \
+    (CHANNELS_TIME + CHANNELS_REBOOT + CHANNELS_CRUX_MANAGEMENT + CHANNELS_CRUX_CONSOLE)
 #define CHANNELS_LIMIT                                                                             \
     ((size_t)CONFIG_TASK_WDT_CHANNELS < (size_t)SUPERVISION_CHANNELS_MAX                           \
          ? (size_t)CONFIG_TASK_WDT_CHANNELS                                                        \
          : (size_t)SUPERVISION_CHANNELS_MAX)
 #define CHANNELS_APPLICATION                                                                       \
     (CHANNELS_LIMIT > CHANNELS_FRAMEWORK ? CHANNELS_LIMIT - CHANNELS_FRAMEWORK : 0u)
+_Static_assert(CHANNELS_LIMIT >= CHANNELS_FRAMEWORK,
+               "CONFIG_TASK_WDT_CHANNELS is below the framework's own channels (section 4.4)");
 
 /* The start prerequisites and runtime dependencies of the build (section 7.1), one bit per
  * service_id_t. zephyr/CMakeLists.txt refuses a build that selects a service it leaves out. */
@@ -487,6 +507,21 @@ static int phase_supervisor(void)
         (void)snprintf(text, sizeof text, "watchdog not armed status=%d", watchdog_status);
         say(CRUX_LOG_WARN, text);
     }
+#ifdef SERVICE_PROGRESS_ON
+    /* The progress function goes to Crux before any Crux service thread starts (gap C8); each
+     * thread gets its channel when the composition zone has started it. */
+    static const service_progress_port_t progress_port = {
+        supervisor_port_channel_add,
+        supervisor_port_channel_feed,
+        fault_injection_thread_stalls,
+    };
+
+    service_progress_init(&progress_port, (uint32_t)CONFIG_CRUX_CONTROLLER_SERVICE_RELOAD_MS);
+    if (supervision_compose_progress_start() != 0) {
+        say(CRUX_LOG_ERROR, "crux service progress not registered: those threads are supervised "
+                            "indirectly only");
+    }
+#endif
     return 0;
 }
 
@@ -792,6 +827,50 @@ static const startup_hooks_t hooks = {hook_begin, hook_end, hook_skipped};
 #define SKIP_WITHOUT_APPLICATION NULL
 #endif
 
+#ifdef SERVICE_PROGRESS_ON
+/* Give a Crux service thread that has just started its task watchdog channel (gap C8). A full
+ * channel table leaves the thread supervised indirectly only, which the log says. */
+static void supervise_crux_thread(service_thread_t thread)
+{
+    char text[CRUX_LOG_TEXT_MAX];
+    const int result = service_progress_activate(thread);
+
+    if (result >= 0) {
+        (void)snprintf(text, sizeof text, "crux thread %s supervised",
+                       service_progress_name(thread));
+        say(CRUX_LOG_INFO, text);
+    } else {
+        (void)snprintf(text, sizeof text, "no channel for the crux thread %s result=%d",
+                       service_progress_name(thread), result);
+        say(CRUX_LOG_ERROR, text);
+    }
+}
+
+static void management_thread_started(management_port_thread_t thread)
+{
+    switch (thread) {
+    case MANAGEMENT_PORT_THREAD_EVENT_DRAIN:
+        supervise_crux_thread(SERVICE_THREAD_EVENT_DRAIN);
+        break;
+    case MANAGEMENT_PORT_THREAD_WEB_SESSION:
+        supervise_crux_thread(SERVICE_THREAD_WEB_SESSION);
+        break;
+    case MANAGEMENT_PORT_THREAD_WEB_MANAGEMENT:
+        supervise_crux_thread(SERVICE_THREAD_WEB_MANAGEMENT);
+        break;
+    default:
+        break;
+    }
+}
+
+#ifdef CONFIG_CRUX_CONTROLLER_FRAMEWORK_CLI_SERIAL
+static void console_started(void)
+{
+    supervise_crux_thread(SERVICE_THREAD_CONSOLE);
+}
+#endif
+#endif
+
 #ifdef CONFIG_CRUX_CONTROLLER_FRAMEWORK_MANAGEMENT
 /* True once the services part started the configuration and status services, with or without web
  * management: the command line needs them and Access, and it is the operator's path to recover a
@@ -820,6 +899,9 @@ static management_port_config_t management_config(void)
     config.after_events = supervision_compose_reboot_start;
     config.bind_app_root = application_present();
     config.parameters = app_contract_parameters(&fw.app, &config.parameter_count);
+#endif
+#ifdef SERVICE_PROGRESS_ON
+    config.thread_started = management_thread_started;
 #endif
     return config;
 }
@@ -879,6 +961,9 @@ static int phase_command_line(void)
 
 #ifdef CONFIG_CRUX_CONTROLLER_FRAMEWORK_SUPERVISION
     config.framework_commands = true;
+#endif
+#ifdef SERVICE_PROGRESS_ON
+    config.console_started = console_started;
 #endif
     if (!management_services_started) {
         return PHASE_COMMAND_LINE_NO_ACCESS;

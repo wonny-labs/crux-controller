@@ -59,7 +59,9 @@ if(CONFIG_CRUX_CONTROLLER_FRAMEWORK)
     endif()
 
     if(CONFIG_CRUX_CONTROLLER_FRAMEWORK_MANAGEMENT)
-        zephyr_library_sources("${controller_root}/framework/src/management_policy.c")
+        zephyr_library_sources(
+            "${controller_root}/framework/src/management_policy.c"
+            "${controller_root}/framework/src/service_progress.c")
         zephyr_library_compile_definitions(
             CONTROLLER_PLATFORM_VERSION="zephyr-${KERNEL_VERSION_STRING}"
             CONTROLLER_PROJECT_VERSION="crux-controller-framework")

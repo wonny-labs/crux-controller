@@ -22,7 +22,7 @@
 #include "boot_record.h"
 
 /* Most channels in one table; task watchdog channels beyond these are refused. */
-#define SUPERVISION_CHANNELS_MAX 8u
+#define SUPERVISION_CHANNELS_MAX 16u
 
 typedef enum {
     SUPERVISION_FEED,    /* every supervised activity made progress: feed */
