@@ -15,7 +15,7 @@ A Crux fact holds at the pin unless it carries one of these status words:
 
 | Status word | Meaning |
 |---|---|
-| Resolved (revision) | The Crux change is at the pin since that Crux revision; the gap keeps its entry and number for the references to it |
+| Resolved (revision) | The Crux change is at the pin since that Crux revision; the gap keeps its entry and number for the references to it, and its interim state stays in force until the framework adopts the change (section 8.5) |
 | Crux `main` | Holds on Crux `main`, not at the pin |
 | Planned in Crux | Crux has decided the change; it is on neither the pin nor `main` |
 | Crux change needed | The framework needs the change; Crux has not decided it |
@@ -249,7 +249,7 @@ Startup watchdog rules (established mechanism for the parts that Crux and Zephyr
 
 Key generation is part of device preparation (D11), so a normal boot has no long step.
 Only a development or reference build with the TLS identity option generates a missing key and certificate in step 4, with its own deadline set from a measurement on the board for the key type; the status service then reports that the certificate was made at boot.
-Interim (platform constraint or interim): Crux makes a missing key and certificate at the start of the TLS certificate module in every build (section 5.5), so the deadline of the step that starts the module covers key generation in every build until the framework sets Crux's option `require_existing_identity`, which is at the pin.
+Interim (platform constraint or interim): Crux makes a missing key and certificate at the start of the TLS certificate module in every build (section 5.5), so the deadline of the step that starts the module covers key generation in every build until the framework sets Crux's option `require_existing_identity`, which is at the pin; delivery stage 5 (PR4) adopts it.
 
 ### 4.2 Supervision periods (D4)
 
@@ -456,12 +456,12 @@ FatFs stays a selectable Crux File provider for other products, and a build with
 - A preparation image or a host tool (littlefs-python, littlefs-fuse) writes the volume and its layout, and the device makes and stores its TLS key and certificate (its device identity) during preparation.
 - A normal boot makes no key, except in a development or reference build with the TLS identity option (section 7.1).
 - In any other build, a prepared volume without a device identity puts the boot into safe mode, the status service and the serial log report the missing identity, and the recovery is device preparation again.
-- These two rules need a Crux setting that makes the TLS certificate start refuse a missing key or certificate and write nothing to the credential store: `require_existing_identity` of `crux_tls_certificate_options_t`, which is at the pin and which the framework does not set yet ([C9](controller-framework-platform-gaps.md#c9-access-and-an-unusable-store)).
+- These two rules need a Crux setting that makes the TLS certificate start refuse a missing key or certificate and write nothing to the credential store: `require_existing_identity` of `crux_tls_certificate_options_t`, which is at the pin and which the framework does not set yet, to be adopted in delivery stage 5 (PR4) ([C9](controller-framework-platform-gaps.md#c9-access-and-an-unusable-store)).
 - The framework starts the TLS certificate module in step 4, right after the credential store, so that a refusal sets safe mode before the application's `init` in step 5 (section 4.1); project-specific workaround (Crux `tls_certificate_start.h`: the start runs once the credential store has started and before any TLS listener).
 - Crux at the pin: with `require_existing_identity` false, its default, `crux_tls_certificate_start()` makes a missing TLS key and a self-signed certificate, stores them and returns `CRUX_TLS_CERTIFICATE_GENERATED`, and no public Crux interface reads the credential store records before that call.
-- Interim state (platform constraint or interim): the framework does not set `require_existing_identity`, so step 4 does not check the device identity, and Crux makes a missing key and certificate there in every build.
+- Interim state (platform constraint or interim): the framework does not set `require_existing_identity`, so step 4 does not check the device identity, and Crux makes a missing key and certificate there in every build, until delivery stage 5 (PR4) adopts the setting.
   When the start returns `CRUX_TLS_CERTIFICATE_GENERATED` in a build without the TLS identity option, the status service and the serial log report that the certificate was made at boot, and the boot does not enter safe mode.
-  At delivery stage 3 only the serial log reports it (`certificate sha256=... source=generated`, `framework/compose/management_start.c`); the status service item is still owed, delivery stage 4 (framework completion, [section 8.2](#82-delivery-stages)) owes it, criterion 42 (delivery stage 4) checks the report after a factory reset; no criterion names the status service item yet.
+  At delivery stage 3 only the serial log reports it (`certificate sha256=... source=generated`, `framework/compose/management_start.c`); delivery stage 4 (framework completion, [section 8.2](#82-delivery-stages)) owns the certificate status service item, which is still owed; criterion 42 (delivery stage 4) checks the report after a factory reset; no criterion names the status service item yet.
   The next boot finds the stored key and certificate, and clients see a new certificate fingerprint (section 6.2).
   A stored certificate without its key ends in `CRUX_TLS_CERTIFICATE_ERR_KEY_MISMATCH` after Crux makes a new key, so no certificate is active and web management stays off until an operator installs or regenerates a certificate (Crux `components/tls_certificate/src/tls_certificate.c`); like a generated identity, it does not set safe mode (section 5.2).
   Practice label: project-specific workaround (Crux `components/tls_certificate/include/crux/tls_certificate_start.h`).
@@ -634,7 +634,7 @@ The last column names the decision or constraint that defines the option.
 |---|---|---|---|---|
 | Command line transport | serial, SSH, both | serial | SSH only with Crux's Wolf TLS profile, which needs a commercial or GPL-3.0-or-later licence, and only when Crux offers Access on the Wolf profile and an SSH composition interface | D6, [C7](controller-framework-platform-gaps.md#c7-ssh-and-tls-profiles) |
 | HTTPS TLS profile | Crux Mbed profile, Crux Wolf profile | Mbed | One profile per image; the Wolf value needs Crux Access on the Wolf profile | C7 |
-| Console and logging UART | separate, shared | separate | Shared only with Crux's shared console mode (at the pin; the framework has no option for it yet) | D5, [C6](controller-framework-platform-gaps.md#c6-console-and-logging-uart) |
+| Console and logging UART | separate, shared | separate | Shared only with Crux's shared console mode (at the pin; the framework has no option for it yet, so the build refuses the shared value, criterion 27) | D5, [C6](controller-framework-platform-gaps.md#c6-console-and-logging-uart) |
 | Start prerequisites | Any of network, storage, Access, configuration, time, web management, command line | none | Checked before every application start (section 4.7); the product selects them explicitly; a start prerequisite on a service that the build leaves out fails the build; the reference configuration selects network, storage, Access and configuration | D4 |
 | Runtime dependencies | The same set | the start prerequisites | Reported while the application runs; the application responds (section 4.7) | D4 |
 | Start without a watchdog | allowed, refused | refused | Allowed only by an explicit option in development, bench and `native_sim` builds, in which a hang ends in a software reset (section 4.3); a product build refuses it | D14 |
@@ -851,7 +851,7 @@ Framework MVP:
 | 22 | F3 | Partial start failure: a `native_sim` scenario in which a channel activation fails and one in which `start` returns an error: the activated channels are deleted, `safe_state` ran, the application is in fault, the controller state is unchanged, and device management answers; host tests show that a requirement beyond the channel capacity and a duplicate name are refused in `init`. |
 | 23 | R4 | Required-service failure: a `native_sim` scenario in which a start prerequisite fails at boot: the application is held, the controller is degraded, and after the service recovers an operator start runs the application; and one in which a runtime dependency fails while the application runs: the change is reported through the status service and `ctx`, the application keeps running, and the controller is degraded. |
 | 26 | F4 | Device management: a `native_sim` scenario of the base image answers an HTTPS login through web management and a command through the serial command line; an image with SSH is checked once Crux offers the conditions of D6. |
-| 27 | F6 | Build options: a build test sets each option of section 7.1 to a value other than its default that the pinned Crux supports and builds; a value that needs a Crux change that is not at the pin (the SSH command line transport and the Wolf TLS profile, [C7](controller-framework-platform-gaps.md#c7-ssh-and-tls-profiles); the shared console and logging UART, [C6](controller-framework-platform-gaps.md#c6-console-and-logging-uart)) fails the build with a clear message, as does a value that the rule column refuses (the TLS identity option in a product build, a start prerequisite on a service that the build leaves out); each option is checked in the delivery stage that adds it. |
+| 27 | F6 | Build options: a build test sets each option of section 7.1 to a value other than its default that the framework offers and the pinned Crux supports and builds; a value that needs a Crux change that is not at the pin (the SSH command line transport and the Wolf TLS profile, [C7](controller-framework-platform-gaps.md#c7-ssh-and-tls-profiles)), or that the framework has no option for yet although the pin has the change (the shared console and logging UART, [C6](controller-framework-platform-gaps.md#c6-console-and-logging-uart)), fails the build with a clear message, as does a value that the rule column refuses (the TLS identity option in a product build, a start prerequisite on a service that the build leaves out); each option is checked in the delivery stage that adds it. |
 | 28 | S1 | First account: a `native_sim` scenario shows that a new image has no account and accepts no login, that first-account setup over the serial command line creates the first account, and that setup is refused after that first save. |
 | 29 | S2 | No unauthenticated erase: a `native_sim` scenario shows that, before and after the first account exists, no serial command without an Access login erases credentials or configuration. |
 | 30 | P1 | No board name: a check fails when a C source or header of the framework module, the base image or the application interface names a board or an SoC; board files are outside the check, and board names in Kconfig and CMake stay under [C12](controller-framework-platform-gaps.md#c12-soc-gates) until a second board enters the scope (D9). |
@@ -899,7 +899,7 @@ Product Ready adds, per product on its board:
 
 ### 8.5 Interim states
 
-Each interim state is accepted until its Crux change is at the pin; the [platform gaps](controller-framework-platform-gaps.md) describe each state and its replacement criterion.
+Each interim state stays in force until the framework adopts its Crux change, not when the change reaches the pin; the [platform gaps](controller-framework-platform-gaps.md) describe each state and its replacement criterion. Delivery stage 4 ends every interim state that this table does not accept for Framework Complete (section 8.2).
 
 | Interim state | Gap | Accepted for Framework Complete |
 |---|---|---|
@@ -910,7 +910,7 @@ Each interim state is accepted until its Crux change is at the pin; the [platfor
 | Application parameters stay readable and writable after a fault releases the registrations | [C20](controller-framework-platform-gaps.md#c20-removing-a-configuration-parameter) | No |
 | The serial console uses a second UART | C6 | Yes; the shared UART is a build option |
 | No SSH and no Wolf profile | C7 | Yes; both are build options |
-| Factory reset only by device preparation (the C9 erase is not at the pin) | C9 | No; criterion 42 needs the erase |
+| Factory reset only by device preparation (the framework does not use the C9 erase yet) | C9 | No; criterion 42 needs the erase, which delivery stage 4 adopts |
 | A factory reset also removes the device identity (no identity-keeping erase) | C9 | Yes; keeping the device identity belongs to Product Ready (PR4) |
 | Crux makes a missing device identity at boot (no setting that requires an existing identity) | C9 | Yes; refusing a missing identity belongs to Product Ready (PR4) |
 | The images are prepared for MCUboot, with no health-gated confirmation | C10 | Yes; confirmation on the board belongs to Product Ready |

@@ -5,7 +5,7 @@ It is the appendix of the [specification](controller-framework-spec.md), which r
 A statement holds at the pin unless it carries a Crux status word of [specification section 1](controller-framework-spec.md#1-scope-and-conventions).
 Priority 1 is the most urgent Crux change, and the delivery dependency names the first delivery stage or milestone that needs the change; the two are independent.
 The [interim states](controller-framework-spec.md#85-interim-states) say which states each milestone accepts.
-When the pin moves, each gap is checked again; a gap whose Crux change is at the pin takes the state Resolved with the Crux revision, keeps its number, evidence and references, and moves its interim state and replacement criterion out of force.
+When the pin moves, each gap is checked again. A gap whose Crux change is at the pin takes the state Resolved with the Crux revision and keeps its number, evidence and references. Its interim state and replacement criterion stay in force until the framework adopts the change, and end then; the delivery dependency names the stage that needs the change.
 
 ## Summary
 
@@ -111,9 +111,9 @@ These Crux facts back [specification section 6.2](controller-framework-spec.md#6
 - Evidence: Crux reads the credential store records only through its private adapter (`components/credential/adapter/crux_credential_adapter.h`), so the framework cannot check the TLS key and certificate records before that call.
 - Effect: the framework does not set `require_existing_identity`, so a boot of a prepared volume without the device identity makes a new identity instead of entering the safe mode of [specification section 5.5](controller-framework-spec.md#55-device-preparation-d11).
 - Crux change: a setting of the TLS certificate start that refuses a missing key or certificate and writes nothing to the credential store. State: Resolved (d4cc2a4f). Priority 2.
-- Interim state: until the credential store erase is at the pin, factory reset is only by device preparation. Replacement criterion: none; criterion 42 needs the erase.
-- Interim state: with the erase at the pin and no identity-keeping erase, a factory reset also removes the device identity, and recovery of the prepared identity is device preparation ([specification section 5.5](controller-framework-spec.md#55-device-preparation-d11)). Replacement criterion: none; PR4 needs the identity-keeping erase.
-- Interim state: until the setting is at the pin, Crux makes a missing device identity at the start of the TLS certificate module in every build ([specification section 4.1](controller-framework-spec.md#41-startup-steps)), and the framework reports a certificate made at boot instead of entering safe mode (specification section 5.5).
+- Interim state: until the framework adopts the credential store erase (delivery stage 4), factory reset is only by device preparation. Replacement criterion: none; criterion 42 needs the erase.
+- Interim state: once the framework uses the erase (delivery stage 4) and until it adopts the identity-keeping erase (PR4), a factory reset also removes the device identity, and recovery of the prepared identity is device preparation ([specification section 5.5](controller-framework-spec.md#55-device-preparation-d11)). Replacement criterion: none; PR4 needs the identity-keeping erase.
+- Interim state: until the framework adopts the setting (PR4, delivery stage 5), Crux makes a missing device identity at the start of the TLS certificate module in every build ([specification section 4.1](controller-framework-spec.md#41-startup-steps)), and the framework reports a certificate made at boot instead of entering safe mode (specification section 5.5).
 - Replacement criterion: none; PR4 needs the setting, and criterion 42 shows the report while this interim state applies.
 
 ### C15. Size limit of the application data root
