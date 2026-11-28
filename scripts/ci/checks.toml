@@ -1394,12 +1394,14 @@ tiers = ["nightly"]
 # workspace with the framework at the commit under test, built for the board with the Zephyr SDK of
 # this job and the verified Zephyr gate. west update takes the repositories of this job's workspace
 # as its cache (--path-cache), so the copy's workspace has the same revisions without a second
-# download. It flashes nothing.
+# download. It flashes nothing. The folder name holds none of the words that Crux's consumer
+# boundary check reads as a native path, such as "board" after a hyphen (Crux
+# cmake/CruxConsumerBoundary.cmake): run 46093193335 failed with template-board.
 [[check]]
 id = "template-board-workspace"
 job = "base"
 run = '''
-CRUX_TEMPLATE_WEST_CACHE="$(cd .. && pwd)" tests/template/run.sh workspace "${RUNNER_TEMP:-/tmp}/template-board"
+CRUX_TEMPLATE_WEST_CACHE="$(cd .. && pwd)" tests/template/run.sh workspace "${RUNNER_TEMP:-/tmp}/template-reference"
 '''
 tiers = ["nightly"]
 
@@ -1407,7 +1409,7 @@ tiers = ["nightly"]
 id = "template-board-build"
 job = "base"
 run = '''
-CRUX_TEMPLATE_BOARD="$BOARD" tests/template/run.sh board "${RUNNER_TEMP:-/tmp}/template-board"
+CRUX_TEMPLATE_BOARD="$BOARD" tests/template/run.sh board "${RUNNER_TEMP:-/tmp}/template-reference"
 '''
 tiers = ["nightly"]
 

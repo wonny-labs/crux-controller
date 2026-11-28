@@ -17,6 +17,7 @@ The rules held here:
 
 import os
 import pathlib
+import re
 import stat
 import subprocess
 import tempfile
@@ -243,8 +244,15 @@ class NightlyChecks(unittest.TestCase):
             with self.subTest(check=check_id):
                 self.assertEqual(["nightly"], ci_map.check(check_id).get("tiers"))
         self.assertIn("CRUX_TEMPLATE_WEST_CACHE", ci_map.run("template-board-workspace"))
-        self.assertIn('tests/template/run.sh board "${RUNNER_TEMP:-/tmp}/template-board"',
+        self.assertIn('tests/template/run.sh board "${RUNNER_TEMP:-/tmp}/template-reference"',
                       ci_map.run("template-board-build"))
+        # Crux's consumer boundary check refuses an include path with a native word after a
+        # separator (cmake/CruxConsumerBoundary.cmake), so the workspace folder holds none.
+        native = re.compile(r"(^|[/;:=<>_-])(zephyr|boards?|soc|vendor|nxp|cmsis|nrfx|mcux|fsl)"
+                            r"([/;:=<>_-]|$)")
+        for check_id in ("template-board-workspace", "template-board-build"):
+            folder = re.search(r'"\$\{RUNNER_TEMP:-/tmp\}/([^"]+)"', ci_map.run(check_id)).group(1)
+            self.assertIsNone(native.search("/" + folder.lower()), (check_id, folder))
         self.assertIn('CRUX_TEMPLATE_BOARD="$BOARD"', ci_map.run("template-board-build"))
 
     def test_the_template_check_runs_for_every_change_in_the_boundary_job(self):
