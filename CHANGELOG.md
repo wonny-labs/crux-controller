@@ -314,6 +314,8 @@ build configurations by their earlier step ids, S0 to S6.
 - A `native_sim` scenario runs S1, one for S2 uses the test-only `picolibc`, and one for S3 runs the
   file through the simulator provider on a RAM disk. Host tests with and
   without sanitizers cover the portable workload core.
+- The product integration fixture now sets `CONFIG_BUILD_OUTPUT_META`, and its build step checks for
+  the option and `zephyr.meta`, so the nightly SBOM check passes. Compatibility: none.
 
 ### Boundary and budgets
 
