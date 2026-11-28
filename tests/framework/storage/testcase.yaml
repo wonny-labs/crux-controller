@@ -39,8 +39,8 @@ tests:
         # The framework's own security event; Crux Reboot waits for the events to drain before its
         # last policy check, which runs the factory reset (criterion 44, without persistence).
         - "controller.factory_reset"
-        - "factory reset: application data removed, accounts erased, identity kept"
-        - "factory reset done result=0"
+        # The factory reset's own log lines can be lost: the reset follows before the deferred log
+        # thread writes them. Boot 3 shows the result.
         # Boot 3: first-account setup is open and the identity is kept; failed logins (criterion 43).
         - "storage scenario boot 3"
         - "certificate sha256=[^ ]+ source=stored"

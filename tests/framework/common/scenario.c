@@ -123,6 +123,29 @@ bool scenario_console_expect(const char *text)
     return false;
 }
 
+int scenario_console_expect_either(const char *first, const char *second)
+{
+    for (int attempt = 0; attempt < CONSOLE_ATTEMPTS; attempt++) {
+        console_drain();
+        const char *found_first = strstr(console_text, first);
+        const char *found_second = strstr(console_text, second);
+        const bool first_wins =
+            found_first != NULL && (found_second == NULL || found_first <= found_second);
+        const char *found = first_wins ? found_first : found_second;
+
+        if (found != NULL) {
+            const size_t consumed =
+                (size_t)(found - console_text) + strlen(first_wins ? first : second);
+
+            memmove(console_text, &console_text[consumed], console_length - consumed + 1u);
+            console_length -= consumed;
+            return first_wins ? 1 : 2;
+        }
+        k_msleep(CONSOLE_POLL_MS);
+    }
+    return 0;
+}
+
 void scenario_console_type(const char *text)
 {
     char line[96];
@@ -142,6 +165,13 @@ bool scenario_console_expect(const char *text)
 {
     ARG_UNUSED(text);
     return false;
+}
+
+int scenario_console_expect_either(const char *first, const char *second)
+{
+    ARG_UNUSED(first);
+    ARG_UNUSED(second);
+    return 0;
 }
 
 void scenario_console_type(const char *text)

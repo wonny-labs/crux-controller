@@ -375,8 +375,15 @@ static bool serial_login_delayed(void)
             return false;
         }
         scenario_console_type(WRONG_PASSWORD);
-        if (scenario_console_expect("try again in ")) {
+        /* A refused password answers "login failed" at once; inside the delay window the console
+         * answers "try again in N s" instead, so the next attempt must come quickly. */
+        const int answer = scenario_console_expect_either("try again in ", "login failed");
+
+        if (answer == 1) {
             return true;
+        }
+        if (answer == 0) {
+            return false;
         }
     }
     return false;
@@ -398,6 +405,28 @@ static bool web_login_delayed(void)
 
         if (status == 429 || strstr(response, "retry_later") != NULL) {
             return true;
+        }
+        /* An accepted attempt is checked on the session worker; its result can say it too. */
+        const char *start = status == 202 ? strstr(response, "{\"id\":\"") : NULL;
+
+        if (start != NULL) {
+            char path[160];
+
+            start += strlen("{\"id\":\"");
+            (void)snprintf(path, sizeof path, "/api/v1/session/attempt/%.*s",
+                           (int)strcspn(start, "\""), start);
+            for (int poll = 0; poll < 20; poll++) {
+                const int result = https_request("GET", path, "X-Crux-Request: 1\r\n", NULL,
+                                                 response, sizeof response);
+
+                if (result == 429 || strstr(response, "retry_later") != NULL) {
+                    return true;
+                }
+                if (result != 200 || strstr(response, "\"state\":\"pending\"") == NULL) {
+                    break;
+                }
+                k_msleep(100);
+            }
         }
         /* The attempt is checked on the session worker; give it time before the next one. */
         k_msleep(300);
