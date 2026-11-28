@@ -11,7 +11,7 @@ The framework stays a Zephyr module that the copy imports with west at a pinned 
 | `west.yml` | The west manifest of the product repository: the framework at a full commit SHA, with Crux and Zephyr through the framework's manifest |
 | `app/src/main.c` | `main()`, which passes the product's descriptor with its four entries (`init`, `start`, `stop`, `safe_state`) to the start function of `<controller/framework.h>` |
 | `app/prj.conf` | The configuration on every board: the framework's Kconfig symbol and the services |
-| `app/boards/native_sim.conf`, `.overlay` | The values of `native_sim`, for development and CI only |
+| `app/boards/native_sim_native_64.conf`, `.overlay` | The values of `native_sim`, for development and CI only |
 | `app/boards/mimxrt1060_evk_mimxrt1062_qspi.conf`, `.overlay` | The values of the reference board, the RT1060-EVKB (`mimxrt1060_evk@B/mimxrt1062/qspi`) |
 | `app/testcase.yaml` | The first test, a starting point for the product's own: Twister runs the application on `native_sim` and checks that `init` and `start` ran |
 | `.gitignore` | Keeps the build folders out of the repository |
@@ -70,12 +70,12 @@ Read the framework's `CHANGELOG.md` between the two commits first: it states the
 ## Boards
 
 The application is the same for every board: the board is the `-b` argument of `west build`.
-Put what one board needs in `app/boards/<board>.conf` and `app/boards/<board>.overlay`, where `<board>` is the board target with `/` replaced by `_` (Zephyr merges every matching file), and keep `prj.conf` free of board values.
+Put what one board needs in `app/boards/<board>.conf` and `app/boards/<board>.overlay`, where `<board>` is the board target with `/` replaced by `_` and without the revision, for example `native_sim_native_64` for `native_sim/native/64` and `mimxrt1060_evk_mimxrt1062_qspi` for `mimxrt1060_evk@B/mimxrt1062/qspi`. Zephyr ignores a file under any other name, such as `native_sim.conf` (Zephyr `cmake/modules/extensions.cmake`, `zephyr_build_string()`). Keep `prj.conf` free of board values.
 A new board needs the devicetree roles that the framework looks up: the aliases `crux-serial0` (console) and `crux-watchdog0` (watchdog), the `chosen` node `zephyr,log-uart` (logging) and the fstab node label `controller_storage` (storage).
 
 ## Make a product build
 
-`app/prj.conf` is a development configuration: with `boards/native_sim.conf` it runs with the simulator's test entropy (`CONFIG_FAKE_ENTROPY_NATIVE_SIM`) and starts without a watchdog (`CONFIG_CRUX_CONTROLLER_START_WITHOUT_WATCHDOG`).
+`app/prj.conf` is a development configuration: with `boards/native_sim_native_64.conf` it runs with the simulator's test entropy (`CONFIG_FAKE_ENTROPY_NATIVE_SIM`) and starts without a watchdog (`CONFIG_CRUX_CONTROLLER_START_WITHOUT_WATCHDOG`).
 A product build, on the product's board, follows criteria 19 and 38 of the specification:
 
 - It has none of `CONFIG_CRUX_CONTROLLER_START_WITHOUT_WATCHDOG`, `CONFIG_FAKE_ENTROPY_NATIVE_SIM`, `CONFIG_TEST_RANDOM_GENERATOR`, `CONFIG_CRUX_DEVELOPMENT_IMAGE`, `CONFIG_SHELL`, `CONFIG_CRUX_WEB_PLAIN_HTTP_FOR_TESTS` and the debug snippet.

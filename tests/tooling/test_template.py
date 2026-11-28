@@ -53,11 +53,39 @@ def readme_block(heading):
     return block.group(1).splitlines()
 
 
+def zephyr_board_names(board, qualifiers, revision=""):
+    """The board file names that Zephyr merges for a board target: zephyr_build_string() of Zephyr
+    v4.5.0 cmake/modules/extensions.cmake with MERGE, for the full and the short qualifiers (the
+    short form drops the first qualifier). A bare board name is not among them when the target has
+    qualifiers."""
+    segments = qualifiers.split("/")
+    names = []
+    for parts in (segments, segments[1:]):
+        full = "_".join([board, *parts] + ([revision] if revision else []))
+        variant = "_".join([board, *parts])
+        for name in (full, variant):
+            if name not in names:
+                names.append(name)
+    return names
+
+
 class Layout(unittest.TestCase):
+    def test_every_board_file_is_named_as_zephyr_merges_it(self):
+        # A board file under another name is silently ignored: the copy then builds without it.
+        allowed = set(zephyr_board_names("native_sim", "native/64")) | set(
+            zephyr_board_names("mimxrt1060_evk", "mimxrt1062/qspi", "B"))
+        self.assertNotIn("native_sim", allowed)
+        files = sorted(BOARDS.iterdir())
+        self.assertTrue(files)
+        for path in files:
+            with self.subTest(name=path.name):
+                self.assertIn(path.suffix, (".conf", ".overlay"))
+                self.assertIn(path.stem, allowed)
+
     def test_the_folder_has_the_files_of_a_product_repository(self):
         for name in ("README.md", "west.yml", ".gitignore", "app/CMakeLists.txt", "app/prj.conf",
-                     "app/src/main.c", "app/testcase.yaml", "app/boards/native_sim.conf",
-                     "app/boards/native_sim.overlay", f"app/boards/{REFERENCE}.conf",
+                     "app/src/main.c", "app/testcase.yaml", "app/boards/native_sim_native_64.conf",
+                     "app/boards/native_sim_native_64.overlay", f"app/boards/{REFERENCE}.conf",
                      f"app/boards/{REFERENCE}.overlay"):
             with self.subTest(name=name):
                 self.assertTrue((TEMPLATE / name).is_file(), name)
@@ -161,7 +189,7 @@ class Configuration(unittest.TestCase):
                 self.assertIn(role, text)
 
     def test_only_native_sim_starts_without_a_watchdog_and_uses_the_test_entropy(self):
-        native = assignments(BOARDS / "native_sim.conf")
+        native = assignments(BOARDS / "native_sim_native_64.conf")
         reference = assignments(BOARDS / f"{REFERENCE}.conf")
         self.assertEqual("y", native["CONFIG_CRUX_CONTROLLER_START_WITHOUT_WATCHDOG"])
         self.assertNotIn("CONFIG_CRUX_CONTROLLER_START_WITHOUT_WATCHDOG", reference)
@@ -174,7 +202,7 @@ class Configuration(unittest.TestCase):
         self.assertEqual("n", assignments(APP / "prj.conf")["CONFIG_TASK_WDT_HW_FALLBACK"])
 
     def test_the_native_sim_overlay_has_the_roles_that_the_framework_looks_up(self):
-        text = (BOARDS / "native_sim.overlay").read_text()
+        text = (BOARDS / "native_sim_native_64.overlay").read_text()
         for role in ("crux-serial0 = &console_emul;", "zephyr,log-uart = &logging_uarts;",
                      "controller_storage: controller-storage", "zephyr,uart-emul"):
             with self.subTest(role=role):

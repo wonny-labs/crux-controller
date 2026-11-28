@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* The devicetree of the product on native_sim, for development and CI only.
  *
- * - Crux Logging writes to uart0, which boards/native_sim.conf connects to standard output.
+ * - Crux Logging writes to uart0, which boards/native_sim_native_64.conf connects to standard output.
  * - The Crux serial console owns an emulated UART through the alias crux-serial0, because Crux
  *   Serial accepts only an emulated UART on native_sim. Nothing is attached to it.
  * - The store is a RAM disk with the fstab entry controller_storage, which the framework mounts and

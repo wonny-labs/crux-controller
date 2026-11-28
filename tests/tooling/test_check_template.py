@@ -126,7 +126,7 @@ class BuildFiles(unittest.TestCase):
 class Paths(unittest.TestCase):
     def test_a_clean_copy_passes(self):
         files = {"west.yml": "manifest:\n  remotes:\n    - name: wonny-labs\n      url-base: https://github.com/wonny-labs\n",
-                 "app/boards/native_sim.overlay": "/delete-node/ &storage_partition;\n/ {\n  chosen { };\n};\n"
+                 "app/boards/native_sim_native_64.overlay": "/delete-node/ &storage_partition;\n/ {\n  chosen { };\n};\n"
                                                   "mount-point = \"/RAM:\";\n",
                  "app/src/main.c": "/* A comment. */\n// Another.\n#include <crux/logging.h>\n",
                  "app/CMakeLists.txt": CMAKE_HEAD + "target_sources(app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/main.c)\n",
