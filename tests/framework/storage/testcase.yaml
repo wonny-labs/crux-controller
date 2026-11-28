@@ -25,7 +25,8 @@ tests:
         - "storage degraded: the application data root reached its size limit"
         - "storage scenario: the status service shows storage degraded"
         - "storage scenario: a credential save succeeds with the data root full"
-        - "storage scenario: parameter save result=-[0-9]+"
+        # No application parameter, so the save has nothing to write (gap G1 blocks a real save).
+        - "storage scenario: parameter save result=0"
         - "storage scenario: the read-only account cannot run the factory reset"
         - "factory reset requested by an operator"
         - "storage scenario: factory reset requested"
