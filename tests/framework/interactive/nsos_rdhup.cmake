@@ -10,7 +10,7 @@
 # epoll for EPOLLRDHUP and reports it as POLLHUP. The West checkout is not edited. The copy keeps the
 # file's copyright and SPDX-License-Identifier lines.
 #
-# Provenance: adapted from Crux tests/native/web_https/nsos_rdhup.cmake at 1330195487c3 (the pinned
+# Provenance: adapted from Crux tests/native/web_https/nsos_rdhup.cmake at a70e20eae573 (the pinned
 # Crux, Apache-2.0), without its --no-rdhup test switch. Crux documents the limit in
 # docs/https-composition.md, "Abrupt close and the CPU spin".
 # Removal: replace this file with the version that Crux publishes for products, or drop it when

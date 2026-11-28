@@ -8,7 +8,7 @@
  *   1. The blank volume is formatted. The first account is set up on the serial command line. The
  *      application fills its data root until Crux File refuses a write at the size limit; the
  * status service then shows storage degraded and a credential save (a second account) still
- * succeeds (criterion 24, gap C15; the parameter save needs a save provider, gap G1). The
+ * succeeds (criterion 24, gap C15; the parameter save needs a save provider, gap C22). The
  *      read-only account does not see the factory reset command; the administrator changes its
  *      role and resets its password, then runs the factory reset, and the power is cut before the
  *      account erase (criterion 42). Crux's security events of these steps (first-account setup,
@@ -316,8 +316,8 @@ static void boot_1(void)
     scenario_say("storage scenario: a credential save succeeds with the data root full");
 
     /* A parameter save. This application registers no parameter, so the save has nothing to write
-     * and answers OK; a save that writes needs a save provider, which the framework cannot
-     * initialise at the Crux pin (gap G1), so criterion 24's parameter save is not shown here. */
+     * and answers OK; a save that writes needs a save provider, which the framework does not
+     * initialise yet (gap C22), so criterion 24's parameter save is not shown here. */
     crux_access_session_t session = {0u};
     crux_config_service_save_report_t report;
 

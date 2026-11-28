@@ -21,7 +21,7 @@ The source labels follow [specification section 1](controller-framework-spec.md#
 |---|---|---|
 | Account credentials: password verifiers and public keys | Crux credential store on the volume | Integrity, confidentiality |
 | Device identity: TLS key and certificate | Crux credential store | Confidentiality of the key, integrity |
-| Configuration: framework and application parameters | Settings file on the volume once the framework can initialise Crux's save provider, which has no composition interface at the pin; in RAM only until then | Integrity |
+| Configuration: framework and application parameters | Settings file on the volume once the framework initialises Crux's save provider through the composition interface that Crux publishes at the pin (C22); in RAM only until then | Integrity |
 | Application data | Application data root on the volume | Defined by the product |
 | Security events | Crux RAM ring and the log; storage when persisted (L1) | Integrity, availability |
 | Retained record and boot counter | Retained on-chip RAM | Integrity |

@@ -903,7 +903,7 @@ Product Ready adds, per product on its board:
 ### 8.5 Interim states
 
 Each interim state stays in force until the framework adopts its Crux change, not when the change reaches the pin; the [platform gaps](controller-framework-platform-gaps.md) describe each state and its replacement criterion. Delivery stage 4 ends every interim state that this table does not accept for Framework Complete (section 8.2).
-The interim states of C17, C20 and C22 wait for Crux changes that the framework has asked Crux for: delivery stage 4 may be merged while they are in force, and Framework Complete is not declared while any of them is in force.
+The interim state of C17 waits for a Crux change that the framework has asked Crux for, and those of C20 and C22 wait for the framework to adopt Crux changes that are at the pin: delivery stage 4 may be merged while they are in force, and Framework Complete is not declared while any of them is in force.
 
 | Interim state | Gap | Accepted for Framework Complete |
 |---|---|---|
@@ -921,7 +921,7 @@ The interim states of C17, C20 and C22 wait for Crux changes that the framework 
 | Security events reach the log only | [C17](controller-framework-platform-gaps.md#c17-security-event-persistence) | No |
 | Web management has no request rate limit | [C18](controller-framework-platform-gaps.md#c18-request-rate-limit) | Yes; criterion 45 belongs to Product Ready (project-specific workaround; no external source) |
 | Nothing enforces the image security counter | [C16](controller-framework-platform-gaps.md#c16-security-counter) | Yes; anti-rollback belongs to Product Ready |
-| Configuration saving cannot be initialised without a private Crux header (the C4 interim state stays for saving) | [C22](controller-framework-platform-gaps.md#c22-settings-file-initialisation-not-public) | No |
+| Configuration saving is not initialised, because the framework does not yet use the Settings File provider start that Crux publishes at the pin (the C4 interim state stays for saving) | [C22](controller-framework-platform-gaps.md#c22-settings-file-initialisation-not-public) | No |
 
 ## 9. Decision register
 

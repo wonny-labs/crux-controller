@@ -86,10 +86,10 @@ It imports Crux and this module, and adds its own application.
 [`tests/product_integration/west.yml`](tests/product_integration/west.yml) is the manifest of a fixture product that imports this repository in that way, and `run.sh` in the same folder builds and runs it on `native_sim`.
 Read the Crux guides at the revision that `west.yml` pins:
 
-- [Choosing an API](https://github.com/wonny-labs/crux/blob/1330195487c34c8df6046d41ae030d3cdf8a5138/docs/choosing-an-api.md)
-- [Composition interfaces](https://github.com/wonny-labs/crux/blob/1330195487c34c8df6046d41ae030d3cdf8a5138/docs/composition-interfaces.md)
-- [Product Composition Guide](https://github.com/wonny-labs/crux/blob/1330195487c34c8df6046d41ae030d3cdf8a5138/docs/product-composition.md), with its [product template](https://github.com/wonny-labs/crux/blob/1330195487c34c8df6046d41ae030d3cdf8a5138/templates/product/README.md)
-- [Component readiness](https://github.com/wonny-labs/crux/blob/1330195487c34c8df6046d41ae030d3cdf8a5138/docs/component-readiness.md)
+- [Choosing an API](https://github.com/wonny-labs/crux/blob/a70e20eae5734ab7ee8a6dc4e79937432c2680f5/docs/choosing-an-api.md)
+- [Composition interfaces](https://github.com/wonny-labs/crux/blob/a70e20eae5734ab7ee8a6dc4e79937432c2680f5/docs/composition-interfaces.md)
+- [Product Composition Guide](https://github.com/wonny-labs/crux/blob/a70e20eae5734ab7ee8a6dc4e79937432c2680f5/docs/product-composition.md), with its [product template](https://github.com/wonny-labs/crux/blob/a70e20eae5734ab7ee8a6dc4e79937432c2680f5/templates/product/README.md)
+- [Component readiness](https://github.com/wonny-labs/crux/blob/a70e20eae5734ab7ee8a6dc4e79937432c2680f5/docs/component-readiness.md)
 
 ## Where to read next
 
