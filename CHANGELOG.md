@@ -9,6 +9,10 @@ build configurations by their earlier step ids, S0 to S6.
 
 ### Controller framework
 
+- Design pages: neutral identifiers and names, with unchanged requirements and criteria. Product Ready
+  criteria are RDY1 to RDY9, security requirements SEC1 to SEC9, portability requirements PORT1 to PORT3 and
+  data minimisation MIN1; delivery stages are named, not numbered; section 8.3 is "Readiness levels"; Crux
+  references are to the pin, without other commit ids or issue numbers.
 - Delivery stage 4, framework completion (specification sections 4.1, 4.3, 5.3, 5.4 and 5.5):
   - The TLS certificate module starts in startup step 4, right after Access and before the application's
     `init`; a refusal still turns only web management off. The new status item `controller.certificate` says
