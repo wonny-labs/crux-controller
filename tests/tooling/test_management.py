@@ -1117,9 +1117,9 @@ class ManagementSources(unittest.TestCase):
 
     def test_the_boundary_allow_lists_are_unchanged_by_this_step(self):
         # The composition list later grew by crux/cli_zephyr.h, for the serial command line of the
-        # base image, and by crux/service_priority_zephyr.h, for the supervision of the Crux service
-        # threads, and by crux/credential_store_zephyr.h, for the factory reset, each in its own
-        # reviewed boundary change. This pin follows them.
+        # base image, in its own reviewed boundary change, and by crux/service_priority_zephyr.h, for
+        # the supervision of the Crux service threads, and crux/credential_store_zephyr.h, for the
+        # factory reset, in the boundary change of delivery stage 4. This pin follows them.
         self.assertEqual(frozenset({"crux/file_zephyr.h", "crux/web_zephyr.h", "crux/cli_zephyr.h",
                                     "crux/service_priority_zephyr.h",
                                     "crux/credential_store_zephyr.h"}),
@@ -1703,8 +1703,9 @@ class ManagementContributing(unittest.TestCase):
 
     def test_the_optional_group_sentence_names_the_two_places_that_switch_it_on_and_the_check(self):
         text = self.text()
-        self.assertIn("The optional groups of the Crux manifest stay off in `west.yml` and in every job except `management build`, `base build` and the `Budget` rows of `management` and `base`.", text)
+        self.assertIn("The optional groups of the Crux manifest stay off in `west.yml` and in every job except `management build`, `base build`, the `Budget` rows of `management` and `base`, and the `product integration` and `application template` jobs of `scheduled-main.yml`.", text)
         self.assertIn("only after `scripts/check_mbed_only.py` has checked the resolved project list", text)
+        self.assertIn("`tests/product_integration/run.sh` and `tests/template/run.sh` switch it on in their workspace step, after the same check of the list with the group off", text)
         self.assertIn("The other projects of that group are not under the Apache-2.0 terms of this repository, and the narrowed import in `west.yml` keeps them out.", text)
         self.assertNotIn("The optional groups of the Crux manifest stay off, `crux-secure-management` among them", text)
 

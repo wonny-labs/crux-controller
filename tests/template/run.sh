@@ -8,10 +8,12 @@
 #
 #   workspace  make FOLDER a new west workspace by the joining steps of template/README.md: a copy of
 #              template/ as the manifest repository, pinned by scripts/pin_framework.py at the commit
-#              of this clone, a clone of that commit, west init and west update (with
-#              CRUX_TEMPLATE_WEST_CACHE as west's --path-cache when it is set); then the resolved
-#              project list (the Mbed modules active, no wolf project), the framework's commit, the
-#              template checks of the copy, and the Python requirements of Zephyr and Twister
+#              of this clone, a clone of that commit and west init; then, in the order of
+#              tests/product_integration/run.sh, west update with the default groups, the project
+#              list checked, the copy's Mbed TLS group switched on, the list checked again against
+#              the first, and west update for the Mbed modules (with CRUX_TEMPLATE_WEST_CACHE as
+#              west's --path-cache when it is set); then the framework's commit, the template checks
+#              of the copy, and the Python requirements of Zephyr and Twister
 #   build      build the copy for native_sim/native/64 with the verified Zephyr gate
 #   run        run the image until a simulated time limit and check that the log shows the init and
 #              start entries of the template's descriptor, in that order
@@ -93,16 +95,22 @@ make_workspace() {
 
     cd "$folder"
     west init -l product
-    if [[ -n "${CRUX_TEMPLATE_WEST_CACHE:-}" ]]; then
-        west update --path-cache "$CRUX_TEMPLATE_WEST_CACHE"
-    else
-        west update
-    fi
-    # The copy's manifest switches the Mbed TLS group on; the framework's import keeps the wolf
-    # projects out of the resolved manifest.
-    west list --all -f '{name} {active}' > list.txt
-    cat list.txt
-    "$python" crux-controller/scripts/check_mbed_only.py --mode mbed < list.txt
+    # The copy's manifest switches the Mbed TLS group on. Nothing of that group is fetched before
+    # scripts/check_mbed_only.py has checked the resolved list (CONTRIBUTING.md, "The pin and the
+    # manifest"), so the first update runs with the group off: the local manifest.group-filter
+    # option is applied after the manifest's group-filter (west's group filters). Removing the
+    # option then leaves the copy's own manifest in force, which is what the second check reads.
+    west config --local manifest.group-filter -- -crux-secure-management
+    update_workspace
+    west list --all -f '{name} {active}' > list-default.txt
+    cat list-default.txt
+    "$python" crux-controller/scripts/check_mbed_only.py --mode default < list-default.txt
+    west config --local --delete manifest.group-filter
+    # The framework's import keeps the wolf projects out of the resolved manifest.
+    west list --all -f '{name} {active}' > list-mbed.txt
+    cat list-mbed.txt
+    "$python" crux-controller/scripts/check_mbed_only.py --mode mbed --baseline list-default.txt < list-mbed.txt
+    update_workspace
     for name in wolfssl wolfssh wolfpsa; do
         [[ ! -e "modules/crypto/$name" ]] || fail "unexpected $name in the workspace"
     done
@@ -115,6 +123,15 @@ make_workspace() {
     "$python" -m pip install --quiet -r zephyr/scripts/requirements-base.txt \
         -r zephyr/scripts/requirements-build-test.txt -r zephyr/scripts/requirements-run-test.txt
     printf 'ok: a copy of the template at %s imports crux-controller at %s\n' "$folder/product" "$sha"
+}
+
+# West update for the workspace step, with the cache when one is set.
+update_workspace() {
+    if [[ -n "${CRUX_TEMPLATE_WEST_CACHE:-}" ]]; then
+        west update --path-cache "$CRUX_TEMPLATE_WEST_CACHE"
+    else
+        west update
+    fi
 }
 
 need_workspace() {

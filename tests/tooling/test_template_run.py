@@ -175,15 +175,39 @@ class Script(unittest.TestCase):
         self.assertLess(self.text.index("git clone"), self.text.index("west update"))
         self.assertIn("checkout --quiet --detach", self.text)
 
+    def workspace_body(self):
+        start = self.text.index("make_workspace() {")
+        return self.text[start:self.text.index("\n}\n", start)]
+
+    def test_the_project_list_is_checked_before_the_mbed_modules_are_fetched(self):
+        # The order of tests/product_integration/run.sh (CONTRIBUTING.md, "The pin and the
+        # manifest"): the copy's manifest switches the group on, so the first update runs with the
+        # group off, and nothing of the group is fetched before both checks passed.
+        body = self.workspace_body()
+        steps = ["west config --local manifest.group-filter -- -crux-secure-management",
+                 "update_workspace",
+                 "check_mbed_only.py --mode default < list-default.txt",
+                 "west config --local --delete manifest.group-filter",
+                 "check_mbed_only.py --mode mbed --baseline list-default.txt < list-mbed.txt"]
+        positions = [body.index(step) for step in steps]
+        self.assertEqual(sorted(positions), positions)
+        second_update = body.index("update_workspace", positions[1] + 1)
+        self.assertLess(positions[-1], second_update)
+        self.assertEqual(2, body.count("update_workspace"))
+        self.assertNotIn("west update", body)
+        self.assertNotIn("+crux-secure-management", self.text)
+        self.assertIn("west update --path-cache \"$CRUX_TEMPLATE_WEST_CACHE\"", self.text)
+
     def test_the_workspace_checks_the_project_list_the_commit_and_the_copy(self):
-        update = self.text.rindex("west update")
-        for needle in ("--mode mbed", "rev-parse HEAD)\" == \"$sha\"", "west list crux-controller -f '{sha}'",
-                       "scripts/check_template.py\" --root \"$folder/product\""):
+        body = self.workspace_body()
+        update = body.rindex("update_workspace")
+        for needle in ("rev-parse HEAD)\" == \"$sha\"", "west list crux-controller -f '{sha}'",
+                       "scripts/check_template.py\" --root \"$folder/product\"", "pip install"):
             with self.subTest(needle=needle):
-                self.assertLess(update, self.text.index(needle))
-        self.assertLess(self.text.index("--mode mbed"), self.text.index("pip install"))
+                self.assertLess(update, body.index(needle))
+        self.assertLess(body.index("--mode mbed"), update)
         for name in ("wolfssl", "wolfssh", "wolfpsa"):
-            self.assertIn(name, self.text)
+            self.assertIn(name, body)
 
     def test_it_never_reuses_a_folder_that_it_did_not_make(self):
         with tempfile.TemporaryDirectory() as directory:
