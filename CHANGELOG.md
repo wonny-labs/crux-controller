@@ -9,6 +9,34 @@ build configurations by their earlier step ids, S0 to S6.
 
 ### Controller framework
 
+- Delivery stage 4, framework completion (specification sections 4.1, 4.3, 5.3, 5.4 and 5.5):
+  - The TLS certificate module starts in startup step 4, right after Access and before the application's
+    `init`; a refusal still turns only web management off. The new status item `controller.certificate` says
+    whether the certificate was stored, made at boot, refused or not started. **Breaking:**
+    `CONFIG_CRUX_CONTROLLER_APP_STATUS_ITEMS` now allows at most 15 items, because the framework uses 17 of the 32
+    that Crux holds.
+  - Each Crux service thread that the framework starts (the security event drain, the two web workers and the
+    console) has its own task watchdog channel, fed from Crux's progress function; a thread that stops passing
+    through its loop resets the device. New option `CONFIG_CRUX_CONTROLLER_SERVICE_RELOAD_MS` (default 20000).
+    The framework reserves these channels, the supervisor holds 16, `CONFIG_TASK_WDT_CHANNELS` defaults to 12
+    with the framework, and a smaller value fails the build.
+  - The application data root has a byte limit that Crux File enforces, `CONFIG_CRUX_CONTROLLER_APP_ROOT_MAX_BYTES`
+    (default 1 MiB, not measured), and a storage worker reports storage degraded while the root is full.
+  - The serial command `factory reset` (permission `access.manage`) removes the files of the data root and the
+    settings file, erases the accounts, keeps the device identity and restarts; a power cut before the erase
+    leaves the accounts, and the operator repeats it.
+  - The composition zone may include `<crux/service_priority_zephyr.h>` and `<crux/credential_store_zephyr.h>`,
+    two reviewed boundary changes.
+  - The scenario `storage` runs on LittleFS over the flash simulator: the size limit, the factory reset with a
+    power cut and failed logins on both interfaces. The scenario `recovery` adds an expiry of the web session
+    worker's channel.
+  - The portable core has the health verdict and the trial deadline of a test image (`framework/src/image_trial.c`,
+    host tests of criterion 25); no image calls it until Crux has an image state provider (gap C10). Host fuzz
+    targets for the retained-record decode and the management text parsers run in the nightly tier (check
+    `host-fuzz`).
+  - Not done, blocked by Crux: configuration saving, because Crux's Settings File provider can be initialised
+    only through a private header; security event persistence (gap C17); removing an application parameter
+    (gap C20).
 - The application template (delivery stage 4, specification section 7.5): `template/` is the folder that a
   product team copies once to start a product repository. Its `west.yml` imports the framework, and with it
   Crux, at the full commit that `scripts/pin_framework.py` writes, and records that commit as
