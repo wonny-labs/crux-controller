@@ -247,13 +247,15 @@ class ManagementPort(unittest.TestCase):
                  for n, text in re.findall(r"^\s*\*\s+(\d+)\.\s(.*(?:\n\s*\*\s{5,}.*)*)", comment, re.M)}
         self.assertEqual(list(range(1, 8)), sorted(steps), steps)
         # Each phrase, with the number of the step it must be in, in the order of the sources:
-        # the guide's boot order, the module test's start calls and the header of web_zephyr.h.
+        # the guide's boot order, the header of tls_certificate_start.h (once the credential store
+        # has started, before any TLS listener), which specification sections 4.1 and 5.5 use to
+        # start the module right after Access, and the header of web_zephyr.h.
         expected = (
             ("security event init", 1), ("realtime init", 1), ("bind", 1),
             ("credential store start", 2), ("Access init", 2),
-            ("config service start", 3), ("management status start", 3),
-            ("security event start", 3),
-            ("TLS certificate start", 4),
+            ("TLS certificate start", 3),
+            ("config service start", 4), ("management status start", 4),
+            ("security event start", 4),
             ("register", 5),
             ("web session init", 6), ("web management init", 6),
             ("web start", 7),
@@ -717,7 +719,12 @@ class ManagementBuildFiles(unittest.TestCase):
                     # The serial command line of the base image, under its own symbol.
                     "crux::cli_zephyr", "crux::cli",
                     # Crux Reboot of health supervision, under the framework's reboot symbol.
-                    "crux::reboot"}
+                    "crux::reboot",
+                    # The progress function of the Crux service threads (gap C8), under health
+                    # supervision, where Crux defines the target.
+                    "crux::service_priority_zephyr",
+                    # The factory reset: Crux File for the data root and the erase.
+                    "crux::file", "crux::credential_store_zephyr"}
         self.assertEqual(expected, names)
 
     def test_the_zone_keeps_the_application_warnings_on_the_management_source(self):
@@ -922,10 +929,16 @@ class ManagementSources(unittest.TestCase):
     ALLOWED = {
         '"../src/management_port.h"', '"../src/storage_port.h"', "<crux/access.h>",
         "<crux/config_service.h>", "<crux/credential_store.h>", "<crux/logging.h>",
+        # The factory reset (specification section 5.3): Crux File for the data root, the erase
+        # composition interface, and the Zephyr file system header of the zone's list for the
+        # settings file.
+        "<crux/credential_store_zephyr.h>", "<crux/file.h>", "<zephyr/fs/fs.h>", "<errno.h>",
+        # The framework's own security event identifiers, declared to Crux at the event start.
+        '"../src/framework_events.h"',
         "<crux/management_status.h>", "<crux/security_event.h>", "<crux/status.h>",
         "<crux/system.h>", "<crux/time.h>", "<crux/tls_certificate_start.h>", "<crux/web.h>",
         "<crux/web_management.h>", "<crux/web_session.h>", "<crux/web_zephyr.h>",
-        "<stdbool.h>", "<stddef.h>", "<stdint.h>", "<stdio.h>", "<string.h>",
+        "<stdatomic.h>", "<stdbool.h>", "<stddef.h>", "<stdint.h>", "<stdio.h>", "<string.h>",
         "<zephyr/net/tls_credentials.h>",
     }
 
@@ -967,8 +980,8 @@ class ManagementSources(unittest.TestCase):
         found = self.positions((
             "crux_security_event_init(", "crux_realtime_init(", "storage_port_mount(",
             "storage_port_bind_store(", "crux_credential_start(", "crux_access_init(",
-            "crux_config_service_start(", "crux_mgmt_status_start(", "crux_security_event_start(",
-            "crux_tls_certificate_start(", "tls_credentials_register()", "crux_web_session_init(",
+            "crux_tls_certificate_start(", "crux_config_service_start(", "crux_mgmt_status_start(",
+            "crux_security_event_start(", "tls_credentials_register()", "crux_web_session_init(",
             "crux_web_session_start_worker(", "crux_web_management_init(",
             "crux_web_management_start_worker(", "crux_web_start(",
         ))
@@ -1104,8 +1117,12 @@ class ManagementSources(unittest.TestCase):
 
     def test_the_boundary_allow_lists_are_unchanged_by_this_step(self):
         # The composition list later grew by crux/cli_zephyr.h, for the serial command line of the
-        # base image, in its own reviewed boundary change. This pin follows it.
-        self.assertEqual(frozenset({"crux/file_zephyr.h", "crux/web_zephyr.h", "crux/cli_zephyr.h"}),
+        # base image, in its own reviewed boundary change, and by crux/service_priority_zephyr.h, for
+        # the supervision of the Crux service threads, and crux/credential_store_zephyr.h, for the
+        # factory reset, in the boundary change of delivery stage 4. This pin follows them.
+        self.assertEqual(frozenset({"crux/file_zephyr.h", "crux/web_zephyr.h", "crux/cli_zephyr.h",
+                                    "crux/service_priority_zephyr.h",
+                                    "crux/credential_store_zephyr.h"}),
                          check_boundary.COMPOSITION_CRUX_HEADERS)
         self.assertEqual(
             frozenset({"zephyr/fs/fs.h", "zephyr/devicetree.h", "zephyr/net/tls_credentials.h"}),
@@ -1686,8 +1703,9 @@ class ManagementContributing(unittest.TestCase):
 
     def test_the_optional_group_sentence_names_the_two_places_that_switch_it_on_and_the_check(self):
         text = self.text()
-        self.assertIn("The optional groups of the Crux manifest stay off in `west.yml` and in every job except `management build`, `base build` and the `Budget` rows of `management` and `base`.", text)
+        self.assertIn("The optional groups of the Crux manifest stay off in `west.yml` and in every job except `management build`, `base build`, the `Budget` rows of `management` and `base`, and the `product integration` and `application template` jobs of `scheduled-main.yml`.", text)
         self.assertIn("only after `scripts/check_mbed_only.py` has checked the resolved project list", text)
+        self.assertIn("`tests/product_integration/run.sh` and `tests/template/run.sh` switch it on in their workspace step, after the same check of the list with the group off", text)
         self.assertIn("The other projects of that group are not under the Apache-2.0 terms of this repository, and the narrowed import in `west.yml` keeps them out.", text)
         self.assertNotIn("The optional groups of the Crux manifest stay off, `crux-secure-management` among them", text)
 

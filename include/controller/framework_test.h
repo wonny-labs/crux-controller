@@ -13,7 +13,9 @@ typedef enum {
     CONTROLLER_FRAMEWORK_FAULT_NONE = 0,
     /* The startup step of that name stalls inside its deadline window and never returns. */
     CONTROLLER_FRAMEWORK_FAULT_STEP_STALL,
-    /* The framework thread of that name ("time" or "reboot") stops feeding its channel. */
+    /* The framework thread of that name ("time" or "reboot") stops feeding its channel, or the
+     * reports of the Crux service thread of that name ("event drain", "web session", "web
+     * management" or "console") stop feeding its channel (gap C8). */
     CONTROLLER_FRAMEWORK_FAULT_THREAD_STALL,
     /* The supervisor thread raises a fatal error once startup has ended. */
     CONTROLLER_FRAMEWORK_FAULT_FATAL,

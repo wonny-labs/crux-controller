@@ -12,6 +12,13 @@
  * step before the reset, and only that call writes the marker. When crux_reboot_work_once()
  * returns, no reset happened, and the reboot thread clears a marker that the call left.
  *
+ * When crux_reboot_work_once() returns true, it carried out a request and the request ended
+ * without a reset (a refusal at the second check or a failure). Every request made while that one
+ * was pending or running joined it (<crux/reboot.h>, crux_reboot_request()), so the pass then
+ * withdraws what was marked for the next planned reset, such as a factory reset (request_ended).
+ * A pass that carried out nothing withdraws nothing: a request posted just before such a pass ends
+ * keeps its mark.
+ *
  * The port is implemented in the adapter zone (framework/os/reboot_zephyr.c), which knows the
  * reboot thread and writes the retained region; the composition zone registers
  * reboot_policy_allow() as the Crux Reboot policy callback (framework/compose/supervision_start.c).
@@ -30,6 +37,8 @@ typedef struct {
     void (*marker_write)(bool set);
     /* One crux_reboot_work_once(): true when a request ended in a refusal or a failure. */
     bool (*work_once)(void);
+    /* A carried-out request ended without a reset: withdraw what was marked for the reset. */
+    void (*request_ended)(void);
 } reboot_policy_port_t;
 
 /*
@@ -38,7 +47,8 @@ typedef struct {
  */
 bool reboot_policy_allow(const reboot_policy_port_t *port);
 
-/* One pass of the reboot thread: crux_reboot_work_once(), then clear a marker that it left. */
+/* One pass of the reboot thread: crux_reboot_work_once(), then clear a marker that it left, and
+ * call request_ended when the call carried out a request that ended without a reset. */
 void reboot_policy_pass(const reboot_policy_port_t *port);
 
 /* The port of this image (framework/os/reboot_zephyr.c). */

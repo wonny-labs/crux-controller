@@ -43,8 +43,9 @@ CMake target `crux::file_zephyr` (`docs/file-composition-interface.md` in Crux).
 system. Application code stays on `<crux/file.h>`. A boundary that lets `app/src` include the
 interface would let the application name a provider, and a boundary without any way to include it
 would leave File unusable. So the include is allowed in one directory and nowhere else. The Web
-composition interface `<crux/web_zephyr.h>` and the console composition interface `<crux/cli_zephyr.h>` follow the
-same rule.
+composition interface `<crux/web_zephyr.h>`, the console composition interface `<crux/cli_zephyr.h>`, the
+progress composition interface `<crux/service_priority_zephyr.h>` and the erase composition interface
+`<crux/credential_store_zephyr.h>` follow the same rule.
 
 The application declares the port header and calls it. The zone implements it. The link joins them;
 no include does. The port header lives in `app/src`, so the rules of `app/src` scan it, and it cannot
@@ -52,11 +53,11 @@ carry a Zephyr or composition include back into the application.
 
 ## The rules
 
-| Tree | ISO C | Sockets profile | Public `<crux/NAME.h>` | Composition interfaces (`<crux/file_zephyr.h>`, `<crux/web_zephyr.h>`, `<crux/cli_zephyr.h>`) | Zephyr headers | Own tree | Other trees |
+| Tree | ISO C | Sockets profile | Public `<crux/NAME.h>` | Composition interfaces (`<crux/file_zephyr.h>`, `<crux/web_zephyr.h>`, `<crux/cli_zephyr.h>`, `<crux/service_priority_zephyr.h>`, `<crux/credential_store_zephyr.h>`) | Zephyr headers | Own tree | Other trees |
 |---|---|---|---|---|---|---|---|
 | `app/src` | yes | yes | yes | no | none | yes | `workload/include` |
 | `workload` | yes | no | no | no | none | yes | none |
-| `app/compose` | yes | no | yes | exactly those three (`COMPOSITION_CRUX_HEADERS`) | the allow-list below, nothing else | yes | header files (`.h`) of `app/src` (the port header) |
+| `app/compose` | yes | no | yes | exactly those five (`COMPOSITION_CRUX_HEADERS`) | the allow-list below, nothing else | yes | header files (`.h`) of `app/src` (the port header) |
 | `app/os` (the adapter zone) | yes | no | yes | no | `zephyr/kernel.h` and `zephyr/net/sntp.h`, nothing else | yes | header files (`.h`) of `app/src` (the port header) |
 
 The zone fails on a Crux private or port header (`file_native.h`, a nested `<crux/ports/...>` path),
@@ -67,10 +68,10 @@ whatever its suffix, `#include`, `#include_next` and `#import`, continued lines,
 trigraph, comments removed, and a macro operand is a violation.
 
 Without `--crux-root` any `<crux/NAME.h>` passes the shape test, as it does for `app/src`, and the
-three composition interfaces are denied outside the zone by name (`COMPOSITION_CRUX_HEADERS`); with
+five composition interfaces are denied outside the zone by name (`COMPOSITION_CRUX_HEADERS`); with
 it (CI always passes it), a `<crux/NAME.h>` that is not a header Crux publishes fails, including
 `<crux/file_native.h>`. Against a Crux checkout, `<crux/file_zephyr.h>`,
-`<crux/web_zephyr.h>` and `<crux/cli_zephyr.h>` must be headers that Crux publishes under
+`<crux/web_zephyr.h>`, `<crux/cli_zephyr.h>`, `<crux/service_priority_zephyr.h>` and `<crux/credential_store_zephyr.h>` must be headers that Crux publishes under
 `components/*/ports/*/include/crux/`, and any header found there is a composition interface that
 `app/src` and the workload cannot include, whether or not this file names it. Any other composition
 interface that Crux publishes stays out of the zone until a reviewed change lists it. The other Web
@@ -146,6 +147,28 @@ header for the console: the UART is chosen by the alias in the devicetree, and C
 and the frozen headers do not change. `framework/compose/CMakeLists.txt` links `crux::cli_zephyr` to the zone's
 library only, as it links `crux::file_zephyr` and `crux::web_zephyr`.
 
+## The supervision of the Crux service threads
+
+The progress function of the Crux service threads is registered in `framework/compose`, by `supervision_start.c`.
+Crux publishes the registration as a composition interface: `<crux/service_priority_zephyr.h>` with the CMake target
+`crux::service_priority_zephyr` (built under `CONFIG_CRUX_THREAD`). It declares the identifiers of the
+Crux service threads and `crux_service_progress_register()`, and only the platform composition, which owns the
+watchdog, calls it (gap C8 of the [platform gaps](design/controller-framework-platform-gaps.md)). The same rule follows:
+the include is allowed in `framework/compose` (and `app/compose`, which shares the list) and fails in `app/src`, `app/os`,
+`workload`, `include`, `framework/src` and `framework/os`, with or without `--crux-root`. The header includes only
+`<crux/status.h>`, so the Zephyr allow-list and the frozen headers do not change. The zone maps the Crux identifiers to
+the framework's own (`framework/src/service_progress.h`), so the portable core names no Crux type.
+
+## The factory reset
+
+The factory reset (specification section 5.3) erases the accounts in `framework/compose`, by `management_start.c`.
+Crux publishes the erase as a composition interface: `<crux/credential_store_zephyr.h>` with the CMake target
+`crux::credential_store_zephyr`. Its calls take no session and check no permission, so the caller's trigger is the whole
+protection, and only the platform composition calls them (gap C9 of the
+[platform gaps](design/controller-framework-platform-gaps.md)). The same rule follows: the include is allowed in
+`framework/compose` (and `app/compose`, which shares the list) and fails everywhere else. The header includes only
+`<crux/credential_store.h>`, so the Zephyr allow-list and the frozen headers do not change.
+
 ## The adapter zone
 
 `app/os` is a second zone, for the OS facilities of the product: threads, queues and sleeping.
@@ -220,7 +243,8 @@ passes the shape test, as any unknown `<crux/NAME.h>` does (see [Running the che
 ## The trees of the framework module
 
 The controller framework is a Zephyr module of this repository (`zephyr/module.yml`). Its sources live in four
-checked trees, each with a rule of its own in `RULES`, and the fixture application of its scenarios has a fifth:
+checked trees, each with a rule of its own in `RULES`. The fixture application of its scenarios has a fifth and the
+application template a sixth (both below):
 
 | Tree | Holds | May include |
 |---|---|---|
@@ -245,7 +269,18 @@ A header of the framework's source trees, a composition interface, the Sockets p
 fail. The scenarios' own sources beside it (`tests/framework/<scenario>/src`) are tests and have no rule.
 `tests/tooling/test_boundary.py` (`FixtureApplication`) checks both sides.
 
-A C or C++ source or header under `app/`, `framework/`, `include/`, `zephyr/` or `tests/framework/fixture/` that lies in none of the checked trees fails
+### The application template
+
+The application template (`template/`, specification section 7.5) has a rule of its own, because criterion 48 asks
+that the boundary check cover the template folder and that a copy start with no framework logic. Every file of the
+folder is a template source, its tests included. It may include ISO C headers, `<controller/NAME.h>`, public
+`<crux/NAME.h>` headers except the frozen three and its own tree. Every Zephyr header, the Sockets profile, a header of
+another tree of this repository and every Crux composition interface fail. A `<crux/NAME_zephyr.h>` or
+`<crux/NAME_linux.h>` header fails by its name (`COMPOSITION_NAME`), so the rule holds without `--crux-root`.
+`tests/tooling/test_boundary.py` (`TemplateApplication`) checks it. `scripts/check_template.py` checks the template's
+build files: they add no source or include path from outside the folder.
+
+A C or C++ source or header under `app/`, `framework/`, `include/`, `zephyr/`, `tests/framework/fixture/` or `template/` that lies in none of the checked trees fails
 the check (`MODULE_TREES` in `scripts/check_boundary.py`), so a source cannot escape the rules by its place. Build
 files, the web assets of `framework/management/` and the data files of `app/conf/` and `app/boards/` are not
 sources. The allow-lists of the zones are those above, and the module's adapter zone adds the headers of the next section.

@@ -21,7 +21,8 @@ if(CONFIG_CRUX_WEB_MANAGEMENT)
     target_sources(compose PRIVATE management_start.c)
     target_link_libraries(compose PRIVATE crux::web_zephyr crux::web_session crux::web_management
         crux::access crux::credential_store crux::security_event crux::config_service
-        crux::mgmt_status crux::tls_certificate crux::system crux::time crux::logging)
+        crux::mgmt_status crux::tls_certificate crux::system crux::time crux::logging
+        crux::file crux::credential_store_zephyr)
 endif()
 
 # The serial command line: the start of the Crux serial console, with its first-account setup, on the
@@ -40,6 +41,11 @@ endif()
 if(CONFIG_CRUX_CONTROLLER_FRAMEWORK_SUPERVISION)
     target_sources(compose PRIVATE supervision_start.c)
     target_link_libraries(compose PRIVATE crux::mgmt_status crux::logging)
+    # The progress function of the Crux service threads (gap C8): the composition interface exists
+    # with Crux Thread, which every Crux service thread needs.
+    if(TARGET crux::service_priority_zephyr)
+        target_link_libraries(compose PRIVATE crux::service_priority_zephyr)
+    endif()
     if(CONFIG_CRUX_CONTROLLER_FRAMEWORK_REBOOT)
         target_link_libraries(compose PRIVATE crux::reboot)
     endif()

@@ -30,4 +30,14 @@ const void *supervision_compose_status_items(const void *app_items, size_t app_c
  */
 int supervision_compose_reboot_start(void);
 
+/*
+ * Register the framework's one progress function with Crux (gap C8), before the Crux service
+ * threads start, on the start function's thread. Each report of a Crux service thread that the
+ * framework starts goes to service_progress_report() (service_progress.h); the reboot worker's
+ * identifier, which Crux Reboot also reports on the framework's own reboot thread (gap C14), and
+ * any identifier the framework does not know are dropped. Returns 0, or -1 when Crux refuses the
+ * registration; an image without the Crux composition interface gets -1 and registers nothing.
+ */
+int supervision_compose_progress_start(void);
+
 #endif

@@ -75,5 +75,8 @@ cli_port_status_t cli_port_start(const cli_port_config_t *config)
         return failed("serial console", (int)serial);
     }
     (void)crux_log_write(CRUX_LOG_INFO, LOG_TAG, "serial command line started on crux-serial0");
+    if (config->console_started != NULL) {
+        config->console_started();
+    }
     return CLI_PORT_OK;
 }

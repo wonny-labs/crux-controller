@@ -190,9 +190,9 @@ config CRUX_CONTROLLER_APP_THREAD_STACK
 config CRUX_CONTROLLER_APP_STATUS_ITEMS
 	int "Most status items of the application"
 	default 8
-	range 0 16
+	range 0 15
 	help
-	  The status service holds at most 32 project items, and the framework uses 16.
+	  The status service holds at most 32 project items, and the framework uses 17.
 
 menu "Start prerequisites of the application"
 
@@ -255,6 +255,36 @@ config CRUX_CONTROLLER_DEPENDENCY_COMMAND_LINE
 
 endmenu
 
+config CRUX_CONTROLLER_APP_ROOT_MAX_BYTES
+	int "Size limit of the application data root, in bytes"
+	default 1048576
+	range 4096 2147483647
+	depends on CRUX_CONTROLLER_FRAMEWORK_MANAGEMENT
+	help
+	  The application's files share one volume with the credential store and
+	  the settings file, so Crux File refuses a write or a create that would take
+	  the files of the application data root above this limit, and the storage
+	  service reads degraded while the root is full (specification section 5.4,
+	  gap C15). Each file counts its size rounded up to the volume's allocation
+	  unit. A product sets the limit for its medium; the default is a starting
+	  value, not measured.
+
+config CRUX_CONTROLLER_SERVICE_RELOAD_MS
+	int "Reload period of the channel of each Crux service thread, in milliseconds"
+	default 20000
+	range 2000 600000
+	depends on CRUX_CONTROLLER_FRAMEWORK_MANAGEMENT
+	help
+	  Each Crux service thread that the framework starts (the security event drain,
+	  the web session and web management workers and the console) has its own task
+	  watchdog channel, fed from Crux's progress function (gap C8), in an image with
+	  CRUX_THREAD; when Crux refuses the function, no channel is added. A thread
+	  reports at least about once a second when idle, and at the end of each piece
+	  of work, so the period must exceed the longest work of one pass, such as a
+	  password derivation or a save to storage. A factory reset runs on the
+	  framework's reboot thread, under that thread's channel, not under this one.
+	  A starting value, not measured.
+
 config CRUX_CONTROLLER_START_WITHOUT_WATCHDOG
 	bool "Allow operation without a hardware watchdog (development, bench and native_sim builds)"
 	help
@@ -274,6 +304,15 @@ config CRUX_CONTROLLER_FRAMEWORK_FAULT_INJECTION
 	  can select it.
 
 endif # CRUX_CONTROLLER_FRAMEWORK_SUPERVISION
+
+# The framework's own task watchdog channels, seven at most (three framework threads: time
+# synchronisation, reboot and storage worker; and up to four Crux service threads, gap C8), and the
+# application's share of the table (specification section 4.4, "Capacity").
+# The module's Kconfig comes before Zephyr's subsys/Kconfig, so this default precedes Zephyr's 5; a
+# product that sets the value itself keeps it, and the framework's build refuses a value below its
+# own channels.
+configdefault TASK_WDT_CHANNELS
+	default 12 if CRUX_CONTROLLER_FRAMEWORK_SUPERVISION
 
 # The options of time synchronisation. The configuration sntp of app/ defines the same symbols in
 # app/Kconfig for its own option; the values and ranges are the same.

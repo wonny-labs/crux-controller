@@ -9,6 +9,51 @@ build configurations by their earlier step ids, S0 to S6.
 
 ### Controller framework
 
+- Delivery stage 4, framework completion (specification sections 4.1, 4.3, 5.3, 5.4 and 5.5):
+  - The TLS certificate module starts in startup step 4, right after Access and before the application's
+    `init`; a refusal still turns only web management off. The new status item `controller.certificate` says
+    whether the certificate was stored, made at boot, refused or not started. **Breaking:**
+    `CONFIG_CRUX_CONTROLLER_APP_STATUS_ITEMS` now allows at most 15 items, because the framework uses 17 of the 32
+    that Crux holds.
+  - Each Crux service thread that the framework starts (the security event drain, the two web workers and the
+    console) has its own task watchdog channel, fed from Crux's progress function; a thread that stops passing
+    through its loop resets the device. New option `CONFIG_CRUX_CONTROLLER_SERVICE_RELOAD_MS` (default 20000).
+    The framework reserves these channels, the supervisor holds 16, `CONFIG_TASK_WDT_CHANNELS` defaults to 12
+    with the framework, and a smaller value fails the build.
+  - The application data root has a byte limit that Crux File enforces, `CONFIG_CRUX_CONTROLLER_APP_ROOT_MAX_BYTES`
+    (default 1 MiB, not measured), and a storage worker reports storage degraded while the root is full.
+  - The serial command `factory reset` (permission `access.manage`) removes the files of the data root and the
+    settings file, erases the accounts, keeps the device identity and restarts; a power cut before the erase
+    leaves the accounts, and the operator repeats it.
+  - The composition zone may include `<crux/service_priority_zephyr.h>` and `<crux/credential_store_zephyr.h>`,
+    two boundary changes accepted inside delivery stage 4 and reviewed with it.
+  - The scenario `storage` runs on LittleFS over the flash simulator, which keeps the volume across restarts: the size limit, the factory reset with a
+    power cut and failed logins on both interfaces. The scenario `recovery` adds an expiry of the web session
+    worker's channel.
+  - The portable core has the health verdict and the trial deadline of a test image (`framework/src/image_trial.c`,
+    host tests of criterion 25); no image calls it until Crux has an image state provider (gap C10). Host fuzz
+    targets for the retained-record decode and the management text parsers run in the nightly tier (check
+    `host-fuzz`).
+  - Not done, waiting for Crux changes that the framework asked for: configuration saving, because Crux's
+    Settings File provider can be initialised only through a private header (gap C22); security event
+    persistence (gap C17); removing an application parameter (gap C20). Framework Complete is not declared
+    while any of them is open.
+  - Design pages: delivery stage 4 ends the interim states of gaps C5, C8 and C15 and the two factory reset
+    states of C9; criterion 35 keeps the SBOM outside GitHub, tied to the release by `spdx_hashes`; criterion 41
+    fuzzes the retained-record decode and the management text parsers (the parameter table is C data that Crux's
+    configuration service validates at start; Crux fuzzes the configuration update body and the routes that check
+    values against it, and the table validation has no fuzz target of its own);
+    criterion 42 checks that the stored certificate and the device identity are kept. Criterion 46 and the
+    session expiry and wall-time step events of criterion 44 are follow-ups. The factory reset race that fails
+    safe is accepted, and formatting a blank volume is a deviation from D11 until device preparation exists.
+- The application template (delivery stage 4, specification section 7.5): `template/` is the folder that a
+  product team copies once to start a product repository. Its `west.yml` imports the framework, and with it
+  Crux, at the full commit that `scripts/pin_framework.py` writes, and records that commit as
+  `template-revision`; later template changes never reach a copy. `app/` has `main()` with a descriptor of the
+  four entries, a development `prj.conf`, board files for `native_sim` and the RT1060-EVKB, and a Twister test.
+  The boundary check covers the folder, and `scripts/check_template.py` checks its build files and paths for
+  every change. A nightly job builds, runs and tests a copy on `native_sim` and runs the README joining steps
+  against local repositories; the nightly part of the base job builds the copy for the RT1060-EVKB.
 - The application interface (delivery stage 3, specification sections 3 and 4). **Breaking:**
   `controller_framework_start()` takes the product's descriptor, `const controller_app_t *`, or `NULL` for no
   application (the base image passes `NULL`). The descriptor has four mandatory entries (`init`, `start`,
@@ -325,6 +370,16 @@ build configurations by their earlier step ids, S0 to S6.
   publishes nothing and a rebuild comparison at another path (`release/`).
 - The release dry run parses the SPDX files that `west spdx` writes (`release/parse_spdx.py`) and
   prints the package count of each document.
+- The release manifest records the SHA-256 of each SPDX file (`spdx_hashes`, now required), and the
+  bundle check recomputes the hashes with `--spdx-dir`. `release/assemble_bundle.py` now needs
+  `--spdx-dir`.
+- The release dry run fails on a known vulnerability of the release SBOM that has no triage record in
+  `release/triage.openvex.json` (OpenVEX), or whose record has the status `affected` or
+  `under_investigation` (`release/check_triage.py`, check `release-vulnerabilities`).
+  `scripts/ci/match-vulnerabilities.sh --json` writes the Grype reports it reads.
+- `release/triage.openvex.json` version 2 records the five FatFs matches of the pinned tree: CVE-2026-6682,
+  -6683, -6686 and -6687 as `fixed`, and CVE-2026-6688 as `not_affected`
+  (`vulnerable_code_not_present`).
 
 ### Documents
 

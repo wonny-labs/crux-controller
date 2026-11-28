@@ -18,7 +18,9 @@ PUBLIC_HEADERS = (
 )
 
 # Composition interfaces, as (component, header): the zone of framework/compose may include these.
-COMPOSITION_HEADERS = (("file", "file_zephyr.h"), ("web", "web_zephyr.h"), ("cli", "cli_zephyr.h"))
+COMPOSITION_HEADERS = (("file", "file_zephyr.h"), ("web", "web_zephyr.h"), ("cli", "cli_zephyr.h"),
+                       ("service_priority", "service_priority_zephyr.h"),
+                       ("credential", "credential_store_zephyr.h"))
 
 
 def publish(directory, public=PUBLIC_HEADERS, composition=COMPOSITION_HEADERS):

@@ -131,8 +131,10 @@ tests:
         # Boot 11: the TLS certificate start is refused, and only web management stays off
         # (specification section 4.1).
         - "application scenario boot 11"
-        - "application init result=0 channels=2 state=initialised"
+        # The TLS certificate module starts in step 4, before the application's init.
         - "tls certificate start refused result=-[0-9]+: web management stays off"
+        - "phase storage access ok"
+        - "application init result=0 channels=2 state=initialised"
         - "phase web management failed result=-6"
         - "phase command line ok"
         - "start prerequisites healthy: storage=healthy configuration=healthy"
@@ -143,4 +145,5 @@ tests:
         - "application scenario: TLS certificate refused: the reboot thread runs"
         - "application scenario: TLS certificate refused: no answer on the web port"
         - "application scenario: TLS certificate refused: the status service shows web failed and the others healthy"
+        - "application scenario: TLS certificate refused: the status service shows the certificate refused"
         - "application scenario done"

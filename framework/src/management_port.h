@@ -14,17 +14,21 @@
  * framework start (framework/src/framework.c) calls it in the base image, and
  * app/src/composition.c calls it in the management configuration. The order below is a reading of
  * three Crux sources at the pinned revision, and it has not run on a board: the "Boot order"
- * section of docs/management-in-a-product.md, the start calls of the module test
- * tests/native/management_module/src/main.c (configuration service, management status and security
- * event start, and only then the TLS certificate start), and the header
+ * section of docs/management-in-a-product.md, the header
+ * components/tls_certificate/include/crux/tls_certificate_start.h (start the module once the
+ * credential store has started and before any TLS listener), and the header
  * components/web/ports/zephyr/include/crux/web_zephyr.h (services started, TLS material registered
  * under the security tag, then the session and management init with their workers, then start).
+ * The guide and Crux's module test start the TLS certificate module after the configuration and
+ * status services; this port starts it right after Access, so that its result is known before the
+ * application's init (specification sections 4.1 and 5.5; a project-specific workaround that the
+ * start header allows).
  *
  *   1. security event init, realtime init, mount the medium and bind the two store roots
  *   2. credential store start, then Access init with the policy below
- *   3. config service start, management status start, then security event start, then the
+ *   3. TLS certificate start; a refusal is kept and turns only web management off
+ *   4. config service start, management status start, then security event start, then the
  *      configuration's hook (the framework starts Crux Reboot there)
- *   4. TLS certificate start
  *   5. take the certificate material and register it under the web security tag, and fail the
  *      start if either registration fails (the web listener does not report a missing certificate)
  *   6. web session init and web management init, each with its worker
@@ -54,6 +58,13 @@ typedef enum {
     MANAGEMENT_PORT_ERR_TLS_CERTIFICATE = -6,
 } management_port_status_t;
 
+/* The Crux service threads that the sequence starts (gap C8). */
+typedef enum {
+    MANAGEMENT_PORT_THREAD_EVENT_DRAIN = 0, /* the security event thread, step 4 */
+    MANAGEMENT_PORT_THREAD_WEB_SESSION,     /* the web session worker, step 6 */
+    MANAGEMENT_PORT_THREAD_WEB_MANAGEMENT,  /* the web management worker, step 6 */
+} management_port_thread_t;
+
 typedef struct {
     /* The roles and the session limits, borrowed for the program's life. */
     const management_policy_t *policy;
@@ -76,11 +87,17 @@ typedef struct {
      */
     const void *status_items;
     size_t status_item_count;
-    /* Called once the security events run, before the TLS certificate; a result other than zero
-     * refuses the start. NULL for none. */
+    /* Called once the security events run, after the TLS certificate start; a result other than
+     * zero refuses the start. NULL for none. */
     int (*after_events)(void);
-    /* True: the core part also binds the application data root (storage_port_bind_app()). */
+    /* Called on the starting thread right after the Crux call that starts a service thread
+     * returned success, so that the framework gives the thread its task watchdog channel (gap C8).
+     * NULL for none. */
+    void (*thread_started)(management_port_thread_t thread);
+    /* True: the core part also binds the application data root (storage_port_bind_app()), with
+     * the byte limit app_root_max_bytes (gap C15). */
     bool bind_app_root;
+    uint64_t app_root_max_bytes;
     /* The parameter table of the configuration service: an array of crux_config_service_entry_t,
      * borrowed for the program's life, or NULL with a count of zero. */
     const void *parameters;
@@ -95,18 +112,39 @@ management_port_status_t management_port_start(const management_port_config_t *c
 /*
  * The two parts of the sequence, for the start function, whose application init (startup step 5)
  * runs between them:
- *   core      steps 1 and 2 above (the medium, the store roots and, with bind_app_root, the data
- *             root, the credential store and Access): startup steps 3 and 4;
- *   services  steps 3 to 7 (configuration with the parameter table, status with the items, the
- *             event thread and the hook, the TLS certificate, sessions, management and the
+ *   core      steps 1 to 3 above (the medium, the store roots and, with bind_app_root, the data
+ *             root, the credential store, Access and the TLS certificate): startup steps 3 and 4;
+ *   services  steps 4 to 7 (configuration with the parameter table, status with the items, the
+ *             event thread and the hook, the TLS material, sessions, management and the
  *             listener): startup steps 6, 7 and 10.
  * The core part checks the configuration and runs once; the services part runs once, after a
  * successful core part (MANAGEMENT_PORT_ERR_NOT_READY otherwise), and reads the status items and
  * the parameters of its own configuration, so they can be known only after init. A refused TLS
- * certificate start (MANAGEMENT_PORT_ERR_TLS_CERTIFICATE) leaves only web management off; any other
- * refusal leaves the services part off as a whole.
+ * certificate start does not fail the core part; the services part then answers
+ * MANAGEMENT_PORT_ERR_TLS_CERTIFICATE after it started configuration, status and the event thread,
+ * and only web management stays off. Any other refusal leaves the services part off as a whole.
  */
 management_port_status_t management_port_start_core(const management_port_config_t *config);
 management_port_status_t management_port_start_services(const management_port_config_t *config);
+
+/* What happened to the TLS certificate in the core part, as the status service shows it: "not
+ * started", "stored", "made at boot" (Crux made the key and a self-signed certificate in this boot,
+ * specification section 5.5) or "refused". It copies a value, does not block and touches no
+ * storage, as a status item source must. */
+void management_port_certificate(char *text, size_t size);
+
+/*
+ * The data part of a factory reset (specification section 5.3), after a successful core part, on
+ * the framework's reboot thread just before the reset, once the application has stopped: remove the
+ * files of the application data root, then the settings file (its temporary first), then erase the
+ * accounts of the credential store and keep the device identity (crux_credential_erase_accounts()).
+ * No security event is persisted (gap C17), so none is removed. The erase comes last, because it
+ * reopens first-account setup; a reset before it leaves the accounts in place, and the operator
+ * repeats the factory reset until it succeeds. Returns MANAGEMENT_PORT_OK,
+ * MANAGEMENT_PORT_ERR_STORAGE when a file could not be removed (nothing was erased),
+ * MANAGEMENT_PORT_ERR_STEP_FAILED when the erase failed, or MANAGEMENT_PORT_ERR_NOT_READY before
+ * the core part.
+ */
+management_port_status_t management_port_factory_reset(void);
 
 #endif

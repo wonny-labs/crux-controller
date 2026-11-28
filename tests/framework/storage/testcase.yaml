@@ -1,0 +1,63 @@
+common:
+  platform_allow:
+    - native_sim/native/64
+  integration_platforms:
+    - native_sim/native/64
+  tags:
+    - controller
+    - framework
+tests:
+  controller.framework.native_sim.storage:
+    timeout: 600
+    harness: console
+    harness_config:
+      type: multi_line
+      ordered: true
+      # Only lines whose order the code fixes; the security events drain on their own thread, so only
+      # lines that no scenario line can overtake are listed between them.
+      regex:
+        # Boot 1: LittleFS on the flash simulator, the size limit of the data root (criterion 24) and
+        # the factory reset with a power cut before the account erase (criterion 42).
+        - "storage scenario boot 1"
+        - "crux thread console supervised"
+        # Crux's security events of first-account setup, login, account creation, logout, role
+        # change and password reset (criterion 44, without persistence, gap C17): the scenario
+        # waits until the drain has written them before its next line.
+        - "access.provisioned"
+        - "access.login_ok"
+        - "storage scenario: first account set up"
+        - "storage scenario: data root full after [1-9][0-9]* files result=-[0-9]+"
+        - "storage degraded: the application data root reached its size limit"
+        - "storage scenario: the status service shows storage degraded"
+        - "access.account_created"
+        - "access.logout"
+        - "storage scenario: a credential save succeeds with the data root full"
+        # No application parameter, so the save has nothing to write (gap G1 blocks a real save).
+        - "storage scenario: parameter save result=0"
+        - "storage scenario: the read-only account cannot run the factory reset"
+        - "access.role_changed"
+        - "access.password_reset"
+        - "storage scenario: the role and the password of an account changed"
+        - "factory reset requested by an operator"
+        - "storage scenario: factory reset requested"
+        - "storage scenario: power cut before the account erase"
+        # Boot 2: the accounts are still there; the repeated factory reset completes.
+        - "storage scenario boot 2"
+        - "boot class=fault counter=1 threshold=10 safe mode=no retained region"
+        - "storage scenario: the accounts are still in place after the power cut"
+        - "storage scenario: the data root is empty"
+        - "factory reset requested by an operator"
+        # The framework's own security event; Crux Reboot waits for the events to drain before its
+        # last policy check, which runs the factory reset (criterion 44, without persistence).
+        - "controller.factory_reset"
+        # The factory reset's own log lines can be lost: the reset follows before the deferred log
+        # thread writes them. Boot 3 shows the result.
+        # Boot 3: first-account setup is open and the identity is kept; failed logins (criterion 43).
+        - "storage scenario boot 3"
+        - "certificate sha256=[^ ]+ source=stored"
+        - "storage scenario: first-account setup is open after the factory reset"
+        - "storage scenario: the data root is empty after the factory reset"
+        - "storage scenario: the device identity was kept"
+        - "access.login_failed"
+        - "access.delayed"
+        - "storage scenario done"

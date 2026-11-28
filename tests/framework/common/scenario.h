@@ -24,6 +24,10 @@ void scenario_say(const char *text);
  * False when it does not come in time. */
 bool scenario_console_expect(const char *text);
 
+/* Wait for the serial console to write either text, and drop everything up to the one that comes
+ * first. 1 for first, 2 for second, 0 when neither comes in time. */
+int scenario_console_expect_either(const char *first, const char *second);
+
 /* Type a line at the serial console, ended by a carriage return. */
 void scenario_console_type(const char *text);
 

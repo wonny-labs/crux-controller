@@ -63,9 +63,13 @@
 #include "startup.h"
 
 #ifdef CONFIG_CRUX_CONTROLLER_FRAMEWORK_MANAGEMENT
+#include "framework_events.h"
 #include "management_policy.h"
 #include "management_port.h"
+#include "service_progress.h"
+
 #include "storage_port.h"
+#include <crux/security_event.h>
 
 /* The versions that the status service reports come from the build (zephyr/CMakeLists.txt), and a
  * build without them stops here, because the port refuses a start without a valid text. */
@@ -97,6 +101,7 @@
 #include "framework_control.h"
 #include "framework_status.h"
 #include "recovery.h"
+#include "storage_worker_port.h"
 #include "supervision.h"
 #include "supervision_compose.h"
 #include "supervisor_port.h"
@@ -150,8 +155,12 @@ _Static_assert((int)CONTROLLER_APP_STOP_FAULT == (int)APP_STOP_FAULT &&
 #define DEADLINE_STOP_MS ((uint32_t)CONFIG_CRUX_CONTROLLER_DEADLINE_STOP_MS)
 #define STABLE_PERIOD_MS ((uint64_t)CONFIG_CRUX_CONTROLLER_STABLE_PERIOD_S * 1000u)
 
-/* The framework's own task watchdog channels: the time synchronisation thread and the reboot
- * thread. The application's requirements share the rest of the table (section 4.4, "Capacity"). */
+/* The framework's own task watchdog channels, seven at most: the time synchronisation thread, the
+ * reboot thread, the storage worker and one per Crux service thread that the framework starts (gap
+ * C8: the security event drain and the two web workers with management, the console with the
+ * command line). The application's requirements share the rest of the table (section 4.4,
+ * "Capacity"). The Crux service channels are reserved whether or not their thread starts, so the
+ * application's capacity does not depend on the boot. */
 #ifdef CONFIG_CRUX_CONTROLLER_FRAMEWORK_TIME_SYNC
 #define CHANNELS_TIME 1u
 #else
@@ -162,13 +171,35 @@ _Static_assert((int)CONTROLLER_APP_STOP_FAULT == (int)APP_STOP_FAULT &&
 #else
 #define CHANNELS_REBOOT 0u
 #endif
-#define CHANNELS_FRAMEWORK (CHANNELS_TIME + CHANNELS_REBOOT)
+#if defined(CONFIG_CRUX_CONTROLLER_FRAMEWORK_MANAGEMENT) && defined(CONFIG_CRUX_THREAD)
+#define SERVICE_PROGRESS_ON 1
+#define CHANNELS_CRUX_MANAGEMENT 3u
+#ifdef CONFIG_CRUX_CONTROLLER_FRAMEWORK_CLI_SERIAL
+#define CHANNELS_CRUX_CONSOLE 1u
+#else
+#define CHANNELS_CRUX_CONSOLE 0u
+#endif
+#else
+#define CHANNELS_CRUX_MANAGEMENT 0u
+#define CHANNELS_CRUX_CONSOLE 0u
+#endif
+/* The storage worker, with management (gap C15). */
+#ifdef CONFIG_CRUX_CONTROLLER_FRAMEWORK_MANAGEMENT
+#define CHANNELS_STORAGE 1u
+#else
+#define CHANNELS_STORAGE 0u
+#endif
+#define CHANNELS_FRAMEWORK                                                                         \
+    (CHANNELS_TIME + CHANNELS_REBOOT + CHANNELS_CRUX_MANAGEMENT + CHANNELS_CRUX_CONSOLE +          \
+     CHANNELS_STORAGE)
 #define CHANNELS_LIMIT                                                                             \
     ((size_t)CONFIG_TASK_WDT_CHANNELS < (size_t)SUPERVISION_CHANNELS_MAX                           \
          ? (size_t)CONFIG_TASK_WDT_CHANNELS                                                        \
          : (size_t)SUPERVISION_CHANNELS_MAX)
 #define CHANNELS_APPLICATION                                                                       \
     (CHANNELS_LIMIT > CHANNELS_FRAMEWORK ? CHANNELS_LIMIT - CHANNELS_FRAMEWORK : 0u)
+_Static_assert(CHANNELS_LIMIT >= CHANNELS_FRAMEWORK,
+               "CONFIG_TASK_WDT_CHANNELS is below the framework's own channels (section 4.4)");
 
 /* The start prerequisites and runtime dependencies of the build (section 7.1), one bit per
  * service_id_t. zephyr/CMakeLists.txt refuses a build that selects a service it leaves out. */
@@ -487,6 +518,23 @@ static int phase_supervisor(void)
         (void)snprintf(text, sizeof text, "watchdog not armed status=%d", watchdog_status);
         say(CRUX_LOG_WARN, text);
     }
+#ifdef SERVICE_PROGRESS_ON
+    /* The progress function goes to Crux before any Crux service thread starts (gap C8); each
+     * thread gets its channel when the composition zone has started it. */
+    static const service_progress_port_t progress_port = {
+        supervisor_port_channel_add,
+        supervisor_port_channel_feed,
+        fault_injection_thread_stalls,
+    };
+
+    service_progress_init(&progress_port, (uint32_t)CONFIG_CRUX_CONTROLLER_SERVICE_RELOAD_MS);
+    if (supervision_compose_progress_start() != 0) {
+        /* Nothing would feed their channels, which would expire and reset the device. */
+        service_progress_withdraw();
+        say(CRUX_LOG_ERROR, "crux service progress not registered: those threads are supervised "
+                            "indirectly only");
+    }
+#endif
     return 0;
 }
 
@@ -792,6 +840,54 @@ static const startup_hooks_t hooks = {hook_begin, hook_end, hook_skipped};
 #define SKIP_WITHOUT_APPLICATION NULL
 #endif
 
+#ifdef SERVICE_PROGRESS_ON
+/* Give a Crux service thread that has just started its task watchdog channel (gap C8). A full
+ * channel table leaves the thread supervised indirectly only, which the log says. */
+static void supervise_crux_thread(service_thread_t thread)
+{
+    char text[CRUX_LOG_TEXT_MAX];
+    const int result = service_progress_activate(thread);
+
+    if (result >= 0) {
+        (void)snprintf(text, sizeof text, "crux thread %s supervised",
+                       service_progress_name(thread));
+        say(CRUX_LOG_INFO, text);
+    } else if (result == SERVICE_PROGRESS_ERR_NOT_REGISTERED) {
+        (void)snprintf(text, sizeof text, "crux thread %s supervised indirectly only",
+                       service_progress_name(thread));
+        say(CRUX_LOG_WARN, text);
+    } else {
+        (void)snprintf(text, sizeof text, "no channel for the crux thread %s result=%d",
+                       service_progress_name(thread), result);
+        say(CRUX_LOG_ERROR, text);
+    }
+}
+
+static void management_thread_started(management_port_thread_t thread)
+{
+    switch (thread) {
+    case MANAGEMENT_PORT_THREAD_EVENT_DRAIN:
+        supervise_crux_thread(SERVICE_THREAD_EVENT_DRAIN);
+        break;
+    case MANAGEMENT_PORT_THREAD_WEB_SESSION:
+        supervise_crux_thread(SERVICE_THREAD_WEB_SESSION);
+        break;
+    case MANAGEMENT_PORT_THREAD_WEB_MANAGEMENT:
+        supervise_crux_thread(SERVICE_THREAD_WEB_MANAGEMENT);
+        break;
+    default:
+        break;
+    }
+}
+
+#ifdef CONFIG_CRUX_CONTROLLER_FRAMEWORK_CLI_SERIAL
+static void console_started(void)
+{
+    supervise_crux_thread(SERVICE_THREAD_CONSOLE);
+}
+#endif
+#endif
+
 #ifdef CONFIG_CRUX_CONTROLLER_FRAMEWORK_MANAGEMENT
 /* True once the services part started the configuration and status services, with or without web
  * management: the command line needs them and Access, and it is the operator's path to recover a
@@ -819,10 +915,46 @@ static management_port_config_t management_config(void)
         supervision_compose_status_items(items, app_items, &config.status_item_count);
     config.after_events = supervision_compose_reboot_start;
     config.bind_app_root = application_present();
+    config.app_root_max_bytes = (uint64_t)CONFIG_CRUX_CONTROLLER_APP_ROOT_MAX_BYTES;
     config.parameters = app_contract_parameters(&fw.app, &config.parameter_count);
+#endif
+#ifdef SERVICE_PROGRESS_ON
+    config.thread_started = management_thread_started;
 #endif
     return config;
 }
+
+#ifdef CONFIG_CRUX_CONTROLLER_FRAMEWORK_SUPERVISION
+/* The storage worker's period and the reload of its channel; a listing of the data root takes far
+ * less than the reload on a healthy medium. Starting values, not measured. */
+#define STORAGE_WORKER_PERIOD_MS 2000u
+#define STORAGE_WORKER_RELOAD_MS 30000u
+
+/* One pass of the storage worker: storage reads degraded while the application data root has
+ * reached its limit, and healthy again when files are removed (section 4.7). A storage that failed
+ * at the mount stays failed. */
+static void storage_tick(void)
+{
+    bool full = false;
+
+    if (storage_port_app_root_full(&full) != STORAGE_PORT_OK) {
+        return;
+    }
+    const int own = atomic_load(&fw.health[SERVICE_STORAGE]);
+
+    if (own == (int)SERVICE_FAILED) {
+        return;
+    }
+    const service_health_t next = full ? SERVICE_DEGRADED : SERVICE_HEALTHY;
+
+    if (own != (int)next) {
+        set_health(SERVICE_STORAGE, next);
+        say(full ? CRUX_LOG_WARN : CRUX_LOG_INFO,
+            full ? "storage degraded: the application data root reached its size limit"
+                 : "storage healthy: the application data root is below its size limit");
+    }
+}
+#endif
 
 static int phase_storage_and_access(void)
 {
@@ -835,8 +967,20 @@ static int phase_storage_and_access(void)
 
     set_health(SERVICE_STORAGE, health);
     set_health(SERVICE_ACCESS, health);
+    if (core_started && atomic_load(&fw.safe_mode)) {
+        /* The events run from the core part on, so the boot's safe-mode entry is recorded here. */
+        const crux_security_event_t event = {
+            .id = (crux_security_event_id_t)FRAMEWORK_EVENT_SAFE_MODE,
+            .result = CRUX_SECURITY_EVENT_OK,
+        };
+        crux_security_event_emit(&event);
+    }
     if (core_started && application_present()) {
         atomic_store(&fw.data_root, STORAGE_PORT_APP_ROOT);
+        if (storage_worker_port_start(storage_tick, STORAGE_WORKER_PERIOD_MS,
+                                      STORAGE_WORKER_RELOAD_MS) != 0) {
+            say(CRUX_LOG_ERROR, "storage worker not started");
+        }
     }
 #endif
     return (int)status;
@@ -879,6 +1023,9 @@ static int phase_command_line(void)
 
 #ifdef CONFIG_CRUX_CONTROLLER_FRAMEWORK_SUPERVISION
     config.framework_commands = true;
+#endif
+#ifdef SERVICE_PROGRESS_ON
+    config.console_started = console_started;
 #endif
     if (!management_services_started) {
         return PHASE_COMMAND_LINE_NO_ACCESS;
@@ -1128,6 +1275,21 @@ bool framework_control_restart_allowed(void)
     return !application_present() || app_requests_reset_allowed(&fw.requests);
 }
 
+/* True between an operator's factory reset request and the planned reset that carries it out. */
+static atomic_bool factory_reset_requested;
+
+void framework_control_factory_reset(bool requested)
+{
+    atomic_store(&factory_reset_requested, requested);
+}
+
+void framework_control_restart_ended(void)
+{
+    if (atomic_exchange(&factory_reset_requested, false)) {
+        say(CRUX_LOG_WARN, "factory reset withdrawn: the restart did not happen, repeat it");
+    }
+}
+
 void framework_control_planned_reset(void)
 {
     /* The gate closes before the request is posted. The application thread then decides whether
@@ -1136,6 +1298,21 @@ void framework_control_planned_reset(void)
     if (application_present() && app_requests_plan_reset(&fw.requests)) {
         app_port_call(REQUEST_PLANNED_STOP);
     }
+#ifdef CONFIG_CRUX_CONTROLLER_FRAMEWORK_MANAGEMENT
+    /* A factory reset runs here, with no application thread left to write its data root, and
+     * before the marker: a power cut during it leaves no marker, and the operator repeats it. Its
+     * time counts against the reboot thread's channel, whose reload covers a Crux Reboot call. The
+     * reset follows whatever the result, as Crux's guide asks: the erase leaves the store unusable
+     * until a reset. */
+    if (atomic_exchange(&factory_reset_requested, false)) {
+        char text[CRUX_LOG_TEXT_MAX];
+        const management_port_status_t result = management_port_factory_reset();
+
+        (void)snprintf(text, sizeof text, "factory reset %s result=%d",
+                       result == MANAGEMENT_PORT_OK ? "done" : "failed, repeat it", (int)result);
+        say(result == MANAGEMENT_PORT_OK ? CRUX_LOG_WARN : CRUX_LOG_ERROR, text);
+    }
+#endif
 }
 
 void framework_control_reset_abandoned(void)

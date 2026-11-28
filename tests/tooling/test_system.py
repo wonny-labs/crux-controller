@@ -340,13 +340,16 @@ class SystemSources(unittest.TestCase):
         # The system capability left every zone list as it was. The adapter zone list later grew by
         # zephyr/net/sntp.h in its own reviewed boundary change, and the composition zone's
         # lists grew by crux/web_zephyr.h and zephyr/net/tls_credentials.h in another, and by
-        # crux/cli_zephyr.h in a third. This pin follows all three.
+        # crux/cli_zephyr.h in a third, by crux/service_priority_zephyr.h in a fourth and by
+        # crux/credential_store_zephyr.h in a fifth. This pin follows all five.
         self.assertEqual(
             frozenset({"zephyr/fs/fs.h", "zephyr/devicetree.h", "zephyr/net/tls_credentials.h"}),
             check_boundary.COMPOSITION_ZEPHYR_HEADERS)
         self.assertEqual(frozenset({"zephyr/kernel.h", "zephyr/net/sntp.h"}),
                          check_boundary.OS_ADAPTER_ZEPHYR_HEADERS)
-        self.assertEqual(frozenset({"crux/file_zephyr.h", "crux/web_zephyr.h", "crux/cli_zephyr.h"}),
+        self.assertEqual(frozenset({"crux/file_zephyr.h", "crux/web_zephyr.h", "crux/cli_zephyr.h",
+                                    "crux/service_priority_zephyr.h",
+                                    "crux/credential_store_zephyr.h"}),
                          check_boundary.COMPOSITION_CRUX_HEADERS)
         self.assertEqual(
             frozenset({"crux/thread.h", "crux/sync.h", "crux/serial.h"}),
@@ -354,8 +357,9 @@ class SystemSources(unittest.TestCase):
         )
         self.assertEqual(["app/src", "workload", "app/compose", "app/os", "include", "framework/src", "framework/compose", "framework/os",
                           # Added with the fixture application (delivery stage 3); the zone
-                          # allow-lists above stay as they were.
-                          "tests/framework/fixture"],
+                          # allow-lists above stay as they were. The application template
+                          # (delivery stage 4) adds a rule and no zone header.
+                          "tests/framework/fixture", "template"],
                          [rule.directory for rule in check_boundary.RULES])
 
     def test_a_private_system_header_fails_in_every_tree(self):

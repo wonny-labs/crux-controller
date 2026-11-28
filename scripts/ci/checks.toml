@@ -170,6 +170,13 @@ env = { BOARD = "mimxrt1060_evk@B//qspi" }
 # runs. Its checks make that workspace in the runner's temporary folder.
 [jobs.product-integration]
 description = "Product integration: a fixture product imports the framework, native_sim"
+# The application template check (criterion 47): a copy of template/ joins a west workspace of its
+# own with the framework at the commit under test, builds, runs and runs its first test on
+# native_sim, and the joining steps of its README run against local repositories (criterion 49).
+# Its checks make that workspace in the runner's temporary folder. The board build of the copy
+# needs the Zephyr SDK, so it runs in the job base.
+[jobs.template]
+description = "Application template: a copy joins its own workspace, native_sim, and its joining steps"
 
 # --- tooling -------------------------------------------------------------------------------------
 
@@ -362,6 +369,37 @@ echo "No coverage threshold is set yet (an owner decision): this check reports a
 '''
 scope = "always"
 fast = ["product", "host-tests"]
+
+# The fuzz targets of criterion 41 (delivery stage 4), every night: tests/host built with
+# CRUX_HOST_FUZZ by clang-18 with libFuzzer, AddressSanitizer and UndefinedBehaviorSanitizer, then
+# each target fuzzes for a bounded time from its seed corpus. The seeds are hexadecimal text (the
+# repository keeps no binary file), written here as raw files. New inputs go to a folder of the
+# build, never to the seeds. A crash, a sanitizer finding or a broken property fails the check, and
+# the input is saved as build/host-fuzz/crash-* (libFuzzer prints small inputs in the log too). The
+# host job of ci.yml installs clang-18 and libclang-rt-18-dev, which holds libFuzzer. Label: standard
+# (LLVM libFuzzer documentation: -fsanitize=fuzzer with a sanitizer, -max_total_time, new inputs
+# written to the first corpus folder).
+[[check]]
+id = "host-fuzz"
+job = "host-OFF"
+run = '''
+cmake -S tests/host -B build/host-fuzz -G Ninja -DCMAKE_C_COMPILER=clang-18 -DCRUX_HOST_FUZZ=ON
+cmake --build build/host-fuzz --target fuzz_boot_record fuzz_management_text
+for name in boot_record management_text; do
+  rm -rf "build/host-fuzz/seeds-$name"
+  mkdir -p "build/host-fuzz/seeds-$name" "build/host-fuzz/corpus-$name"
+  python3 - "tests/host/fuzz/corpus/$name" "build/host-fuzz/seeds-$name" <<'PY'
+import pathlib, sys
+
+source, target = map(pathlib.Path, sys.argv[1:])
+for seed in sorted(source.glob("*.hex")):
+    (target / seed.stem).write_bytes(bytes.fromhex(seed.read_text()))
+PY
+  "build/host-fuzz/fuzz_$name" -max_total_time=120 -print_final_stats=1 \
+    -artifact_prefix=build/host-fuzz/ "build/host-fuzz/corpus-$name" "build/host-fuzz/seeds-$name"
+done
+'''
+tiers = ["nightly"]
 
 # --- host-ON -------------------------------------------------------------------------------------
 
@@ -977,6 +1015,18 @@ bash "$kit/style/check-includes.sh"
 scope = "always"
 fast = ["product", "management"]
 
+# Criterion 48: the build files of the application template add no source, subdirectory, include
+# path or module from outside template/, and no file of the folder holds an absolute path or a path
+# that leaves it. The includes of the template sources are part of boundary-check.
+[[check]]
+id = "template-check"
+job = "boundary"
+run = '''
+python scripts/check_template.py
+'''
+scope = "always"
+fast = ["product", "management"]
+
 # --- minimal -------------------------------------------------------------------------------------
 
 [[check]]
@@ -1093,12 +1143,14 @@ print([suite["name"] for suite in suites], statuses)
 assert suites, "the base scenario is not in the Twister report"
 assert statuses and all(status == "passed" for status in statuses), statuses
 assert len(statuses) == 11, statuses
-# The scenarios of health supervision and of the application interface run on the console harness:
+# The scenarios of health supervision, of the application interface and of storage run on the console
+# harness:
 # each passes when its program printed every line of its testcase.yaml in order, across the restarts
 # of the simulated process.
 for name in ("controller.framework.native_sim.recovery", "controller.framework.native_sim.no_watchdog",
              "controller.framework.native_sim.application",
-             "controller.framework.native_sim.application_held"):
+             "controller.framework.native_sim.application_held",
+             "controller.framework.native_sim.storage"):
     found = [suite for suite in report["testsuites"] if name in suite["name"]]
     print(name, [suite.get("status") for suite in found])
     assert found, name + " is not in the Twister report"
@@ -1173,6 +1225,26 @@ test "$status" -ne 0 || { echo "the build did not refuse the start prerequisite"
 tr -s ' \n' '  ' < prerequisite-refused.log \
   | grep -q "CONFIG_CRUX_CONTROLLER_PREREQUISITE_TIME needs time synchronisation, which this build leaves out" \
   || { echo "no clear message for the refused start prerequisite" >&2; exit 1; }
+'''
+scope = "always"
+fast = ["framework"]
+
+# Criterion 32 (gap C5): a build with Crux's Settings File provider of Configuration compiles the
+# Settings File sources from its build directory, never from Crux's tests/. Configure only: the
+# compile database lists every source the build compiles.
+[[check]]
+id = "base-settings-file-sources"
+job = "base"
+run = '''
+cd ..
+export ZEPHYR_BASE="$PWD/zephyr"
+west build -p always -b native_sim/native/64 --cmake-only -d build-settings-file-sources \
+  crux-controller/tests/framework/storage -- -DCRUX_REQUIRE_VERIFIED_ZEPHYR=ON \
+  -DEXTRA_CONF_FILE=settings.conf
+grep -qx "CONFIG_CRUX_CONFIGURATION_SETTINGS_FILE_ANY_FS=y" build-settings-file-sources/zephyr/.config \
+  || { echo "the build did not select the Settings File provider" >&2; exit 1; }
+python3 crux-controller/scripts/check_settings_sources.py \
+  --compile-commands build-settings-file-sources/compile_commands.json --crux-root crux
 '''
 scope = "always"
 fast = ["framework"]
@@ -1315,6 +1387,29 @@ id = "base-vulnerabilities"
 job = "base"
 run = '''
 scripts/ci/match-vulnerabilities.sh build/base/spdx | tee -a "${GITHUB_STEP_SUMMARY:-/dev/stdout}"
+'''
+tiers = ["nightly"]
+
+# The board build of the application template (criterion 47): a copy of template/ in a new west
+# workspace with the framework at the commit under test, built for the board with the Zephyr SDK of
+# this job and the verified Zephyr gate. west update takes the repositories of this job's workspace
+# as its cache (--path-cache), so the copy's workspace has the same revisions without a second
+# download. It flashes nothing. The folder name holds none of the words that Crux's consumer
+# boundary check reads as a native path, such as "board" after a hyphen (Crux
+# cmake/CruxConsumerBoundary.cmake): run 46093193335 failed with template-board.
+[[check]]
+id = "template-board-workspace"
+job = "base"
+run = '''
+CRUX_TEMPLATE_WEST_CACHE="$(cd .. && pwd)" tests/template/run.sh workspace "${RUNNER_TEMP:-/tmp}/template-reference"
+'''
+tiers = ["nightly"]
+
+[[check]]
+id = "template-board-build"
+job = "base"
+run = '''
+CRUX_TEMPLATE_BOARD="$BOARD" tests/template/run.sh board "${RUNNER_TEMP:-/tmp}/template-reference"
 '''
 tiers = ["nightly"]
 
@@ -1763,9 +1858,12 @@ FIRST="${RUNNER_TEMP:-/tmp}/first"
 SECOND="${RUNNER_TEMP:-/tmp}/second/another/depth"
 printf 'manifest:\n  projects: []\n' > lock-placeholder.yml
 printf 'rebuild comparison\n' > pins-placeholder.txt
+mkdir -p spdx-placeholder
+printf 'SPDXVersion: SPDX-2.3\n' > spdx-placeholder/placeholder.spdx
 python crux-controller/release/assemble_bundle.py \
   --build-dir "$FIRST/crux-controller/build/net" \
   --lock lock-placeholder.yml --pins-report pins-placeholder.txt \
+  --spdx-dir spdx-placeholder \
   --out-dir record-bundle \
   --product-version 0.1.0+1 --security-counter 0 --release-tag v0.1.0 \
   --sdk-version "$SDK_VERSION" --runner-image ubuntu-24.04 --target "$BOARD"
@@ -1796,6 +1894,8 @@ run = '''
 cd ..
 python -m unittest discover -s crux-controller/tests/tooling -p 'test_bundle.py' -v
 python -m unittest discover -s crux-controller/tests/tooling -p 'test_spdx.py' -v
+python -m unittest discover -s crux-controller/tests/tooling -p 'test_check_triage.py' -v
+python -m unittest discover -s crux-controller/tests/tooling -p 'test_match_vulnerabilities.py' -v
 '''
 scope = "release"
 
@@ -1903,6 +2003,7 @@ FRESH="${RUNNER_TEMP:-/tmp}/release-workspace"
 python crux-controller/release/assemble_bundle.py \
   --build-dir "$FRESH/crux-controller/build/net" \
   --lock west.frozen.yml --pins-report pins-report.txt \
+  --spdx-dir "$FRESH/crux-controller/build/net/spdx" \
   --out-dir bundle \
   --product-version "$PRODUCT_VERSION" --security-counter "$SECURITY_COUNTER" \
   --release-tag "$RELEASE_TAG" --sdk-version "$SDK_VERSION" \
@@ -1915,7 +2016,9 @@ id = "release-check-bundle"
 job = "release"
 run = '''
 cd ..
-python crux-controller/release/check_bundle.py bundle
+FRESH="${RUNNER_TEMP:-/tmp}/release-workspace"
+python crux-controller/release/check_bundle.py bundle \
+  --spdx-dir "$FRESH/crux-controller/build/net/spdx"
 '''
 scope = "release"
 
@@ -1925,6 +2028,24 @@ job = "release"
 run = '''
 cd ..
 cat bundle/release-manifest.json
+'''
+scope = "release"
+
+# Known vulnerabilities of the release image (criterion 36, delivery stage 4): Grype matches the SPDX
+# files of the build, and release/check_triage.py fails on a match with no triage record in
+# release/triage.openvex.json, or with the status affected or under investigation. The nightly
+# check base-vulnerabilities only reports.
+[[check]]
+id = "release-vulnerabilities"
+job = "release"
+run = '''
+cd ..
+FRESH="${RUNNER_TEMP:-/tmp}/release-workspace"
+REPORTS="$(mktemp -d)"
+crux-controller/scripts/ci/match-vulnerabilities.sh --json "$REPORTS" \
+  "$FRESH/crux-controller/build/net/spdx"
+python crux-controller/release/check_triage.py --matches "$REPORTS" \
+  --triage crux-controller/release/triage.openvex.json | tee -a "${GITHUB_STEP_SUMMARY:-/dev/stdout}"
 '''
 scope = "release"
 
@@ -2146,5 +2267,54 @@ job = "product-integration"
 run = '''
 tests/product_integration/run.sh vulnerabilities "${RUNNER_TEMP:-/tmp}/product-integration" \
   | tee -a "${GITHUB_STEP_SUMMARY:-/dev/stdout}"
+'''
+tiers = ["nightly"]
+
+# --- template ------------------------------------------------------------------------------------
+# A copy of the application template joins a west workspace of its own by the joining steps of
+# template/README.md, at the commit under test, with Crux at the pin of this repository through the
+# import (criterion 47). tests/template/run.sh does each step and refuses a folder that it did not
+# make. It flashes nothing and operates no board. Locally, from the clone on a Linux host:
+#   scripts/ci/run-tier.sh nightly --job template
+
+[[check]]
+id = "template-workspace"
+job = "template"
+run = '''
+tests/template/run.sh workspace "${RUNNER_TEMP:-/tmp}/template"
+'''
+tiers = ["nightly"]
+
+[[check]]
+id = "template-build"
+job = "template"
+run = '''
+tests/template/run.sh build "${RUNNER_TEMP:-/tmp}/template"
+'''
+tiers = ["nightly"]
+
+[[check]]
+id = "template-run"
+job = "template"
+run = '''
+tests/template/run.sh run "${RUNNER_TEMP:-/tmp}/template"
+'''
+tiers = ["nightly"]
+
+[[check]]
+id = "template-test"
+job = "template"
+run = '''
+tests/template/run.sh test "${RUNNER_TEMP:-/tmp}/template"
+'''
+tiers = ["nightly"]
+
+# Criterion 49: the joining steps of template/README.md, run as written against local repositories.
+# The tooling job has no west, so the test skips there; here it must run.
+[[check]]
+id = "template-joining-steps"
+job = "template"
+run = '''
+CRUX_TEMPLATE_REQUIRE_WEST=1 python -m unittest discover -s tests/tooling -p test_template_joining.py -v
 '''
 tiers = ["nightly"]

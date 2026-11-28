@@ -1,7 +1,7 @@
 # Controller framework: platform gaps
 
 This page lists the constraints that Crux and Zephyr put on the [controller framework](controller-framework.md) at the Crux pin of [specification section 1](controller-framework-spec.md#1-scope-and-conventions), the Crux change that lifts each one, and the Crux interface behind each framework service.
-It is the appendix of the [specification](controller-framework-spec.md), which refers to the constraints as C1 to C21.
+It is the appendix of the [specification](controller-framework-spec.md), which refers to the constraints as C1 to C22.
 A statement holds at the pin unless it carries a Crux status word of [specification section 1](controller-framework-spec.md#1-scope-and-conventions).
 Priority 1 is the most urgent Crux change, and the delivery dependency names the first delivery stage or milestone that needs the change; the two are independent.
 The [interim states](controller-framework-spec.md#85-interim-states) say which states each milestone accepts.
@@ -19,7 +19,7 @@ When the pin moves, each gap is checked again. A gap whose Crux change is at the
 | [C6](#c6-console-and-logging-uart) | A shared console and Logging UART | Resolved (05a50475) | 2 | None; a build option |
 | [C7](#c7-ssh-and-tls-profiles) | Access on the Wolf profile; an SSH composition interface; two TLS stacks | Crux change needed; deferred by Crux; deferred by Crux | 2; 3; — | Product Ready of a product that selects SSH or the Wolf profile |
 | [C8](#c8-crux-service-threads-and-supervision) | A progress hook in Crux service threads | Resolved (05a50475) | 1 | Delivery stage 4 (criterion 33); Framework Complete |
-| [C9](#c9-access-and-an-unusable-store) | A credential store erase; an erase that keeps the device identity; a TLS certificate start setting that requires an existing device identity | Resolved (f1c8e1aa); Resolved (d4cc2a4f); Resolved (d4cc2a4f) | 2 | Delivery stage 4 (criterion 42) for the erase; delivery stage 5 (PR4) for keeping the device identity and for requiring it at boot |
+| [C9](#c9-access-and-an-unusable-store) | A credential store erase; an erase that keeps the device identity; a TLS certificate start setting that requires an existing device identity | Resolved (f1c8e1aa); Resolved (d4cc2a4f); Resolved (d4cc2a4f) | 2 | Delivery stage 4 (criterion 42) for the erase and for keeping the device identity; delivery stage 5 (PR4) for requiring it at boot |
 | [C10](#c10-image-state) | An image state provider for the update path | Crux change needed | 2 | Delivery stage 5 (PR3) |
 | [C11](#c11-simulated-watchdog-on-native_sim) | None | — | — | None |
 | [C12](#c12-soc-gates) | Board-neutral driver gates | Crux change needed when a second board enters the scope (D9) | Deferred | A second board |
@@ -27,15 +27,18 @@ When the pin moves, each gap is checked again. A gap whose Crux change is at the
 | [C14](#c14-operator-reset-marker-and-crux-reboot) | None | — | — | None |
 | [C15](#c15-size-limit-of-the-application-data-root) | A size limit per File root | Resolved (6054a251) | 1 | Delivery stage 4 (criterion 24); Framework Complete |
 | [C16](#c16-security-counter) | A security counter in the image state contract and its storage | Crux change needed | 2 | Delivery stage 5 (PR7) |
-| [C17](#c17-security-event-persistence) | A composition-level reader of security events | Crux change needed | 2 | Delivery stage 4 (criterion 44); Framework Complete |
+| [C17](#c17-security-event-persistence) | A composition-level reader of security events | Planned in Crux | 2 | Delivery stage 4 (criterion 44); Framework Complete |
 | [C18](#c18-request-rate-limit) | A request rate limit in Crux Web | Crux change needed | 3 | Delivery stage 5 (criterion 45); Product Ready |
 | [C19](#c19-credential-store-at-rest) | A hardware-bound key basis for the credential store | Crux change needed when a product's record (S9) asks for it | 3 | Product Ready of that product |
-| [C20](#c20-removing-a-configuration-parameter) | A configuration service call that removes or disables a parameter | Crux change needed | Open | Delivery stage 4; Framework Complete |
+| [C20](#c20-removing-a-configuration-parameter) | A configuration service call that removes or disables a parameter | Planned in Crux | Open | Delivery stage 4; Framework Complete |
 | [C21](#c21-creating-a-further-account) | A command or web route that creates an account | Crux change needed | Open | Open |
+| [C22](#c22-settings-file-initialisation-not-public) | The Settings File initialisation as a composition interface | Planned in Crux | 1 | Delivery stage 4 (criteria 12 and 24); Framework Complete |
 | [Web adapter](#other-crux-changes) | A web adapter for the File service | Crux change needed | 3 | Product Ready of a product that offers HTTPS file transfer |
 
 The pin is the Crux revision of [specification section 1](controller-framework-spec.md#1-scope-and-conventions), and these gaps were checked again at it.
-The framework code does not use the Crux changes of C4, C5, C6, C8, C9 and C15 yet, so it still behaves as their interim states describe.
+Delivery stage 4 adopts the Crux changes of C5, C8 and C15 and the account-only erase of C9, which ends their interim states.
+It uses the LittleFS File provider of C4 for files and the credential store in the `native_sim` storage scenario, but not for configuration saving (C22), and the board images keep the FatFs provider, so the C4 interim state holds.
+The framework does not use the shared UART of C6 or the `require_existing_identity` setting of C9, so their interim states hold.
 The pin has Zephyr v4.5.0 and therefore no Wolf profile until a patch for Zephyr 4.5 exists ([C7](#c7-ssh-and-tls-profiles)).
 
 ## Service mapping
@@ -45,13 +48,13 @@ The pin has Zephyr v4.5.0 and therefore no Wolf profile until a patch for Zephyr
 | Web management | Crux Access, web server on the selected TLS profile (`<crux/web_zephyr.h>`), configuration and status services, a packaged page, the reboot routes (`CONFIG_CRUX_REBOOT`) | HTTPS web UI: status, parameters, reboot | Mbed TLS profile only; no further account ([C21](#c21-creating-a-further-account)) | Also the Wolf profile ([C7](#c7-ssh-and-tls-profiles)) |
 | Serial command line | Crux console, `crux_cli_serial_start()` in `<crux/cli_zephyr.h>` | Command line with first-account setup (`!setup`); Access closes provisioning after the first save | On a second UART ([C6](#c6-console-and-logging-uart)) | Separate or shared UART as a build option |
 | SSH command line and SFTP | Crux SSH and Crux File service | Command line and file transfer over SSH | None (C7) | A build option with the Wolf profile and a Crux SSH composition interface |
-| Health supervision | Crux System (reset cause, one hardware watchdog activation, `crux_system_reset()`), Zephyr task watchdog | [Specification section 4](controller-framework-spec.md#4-operating-model) | Crux service threads supervised indirectly ([C8](#c8-crux-service-threads-and-supervision)) | Every Crux service thread supervised by progress |
+| Health supervision | Crux System (reset cause, one hardware watchdog activation, `crux_system_reset()`), Zephyr task watchdog | [Specification section 4](controller-framework-spec.md#4-operating-model) | Each started Crux service thread supervised by progress; Zephyr's threads indirectly ([C8](#c8-crux-service-threads-and-supervision)) | Unchanged |
 | Time | Crux Time (monotonic clock, time authority), Zephyr SNTP | Wall time for logs, records and status; every timing decision uses the monotonic clock | Available | Unchanged |
 | Logging | Crux Logging (UART logger) | Framework log modules; the application uses Crux Logging directly | Available | Unchanged |
-| Configuration | Crux configuration service over the Crux Configuration Settings File provider | Framework and application parameters, shown in device management | Not persistent ([C4](#c4-configuration-saving-needs-a-power-cut-safe-file-system)); no parameter can be removed ([C20](#c20-removing-a-configuration-parameter)) | Saved on LittleFS |
+| Configuration | Crux configuration service over the Crux Configuration Settings File provider | Framework and application parameters, shown in device management | Not persistent ([C4](#c4-configuration-saving-needs-a-power-cut-safe-file-system), [C22](#c22-settings-file-initialisation-not-public)); no parameter can be removed ([C20](#c20-removing-a-configuration-parameter)) | Saved on LittleFS |
 | Network | Zephyr network configuration library, Crux Netif, Crux Sockets profile | Interface up before `main()`; link state for health and status | Available | Unchanged |
-| Storage | Crux File, one provider, one mount ([C1](#c1-one-storage-provider-per-image)) | Application data root, credential store roots, settings file | microSD FatFs provider (C4) | LittleFS on the reference board's microSD card |
-| Factory reset | Crux credential store erase (`<crux/credential_store_zephyr.h>`) | Removal of the application data, the persisted events and the settings file, then the erase of accounts, then a reset ([specification section 5.3](controller-framework-spec.md#53-storage-or-access-failure-and-factory-reset-d15)) | Device preparation only ([C9](#c9-access-and-an-unusable-store)) | An erase that keeps the device identity |
+| Storage | Crux File, one provider, one mount ([C1](#c1-one-storage-provider-per-image)) | Application data root, credential store roots, settings file | microSD FatFs provider on the board; LittleFS in the `native_sim` storage scenario (C4) | LittleFS on the reference board's microSD card |
+| Factory reset | Crux credential store erase (`<crux/credential_store_zephyr.h>`) | Removal of the application data, the persisted events and the settings file, then the erase of accounts, then a reset ([specification section 5.3](controller-framework-spec.md#53-storage-or-access-failure-and-factory-reset-d15)) | The `access.manage` command with the account-only erase, which keeps the device identity ([C9](#c9-access-and-an-unusable-store)) | Unchanged; the erase method on the product medium is a product decision (PR4) |
 | Update | Crux image state contract | Health verdict for the confirmation of a test image | Images prepared for MCUboot, no confirmation ([C10](#c10-image-state)) | Health-gated confirmation with a security counter ([C16](#c16-security-counter)) |
 | Security events | Crux security events (`<crux/security_event.h>`) | The event list of [specification section 6.2](controller-framework-spec.md#62-security-items), with framework identifiers from 0x8000 | A RAM ring drained to the log ([C17](#c17-security-event-persistence)) | Persisted, with an opt-out |
 
@@ -95,7 +98,7 @@ These Crux facts back [specification section 6.2](controller-framework-spec.md#6
 - Evidence: both Settings File selections build corrected copies of Zephyr's Settings File backend from Crux's `tests/native/configuration_settings_file`, so a product build reaches a file under Crux's `tests/` (`zephyr/CMakeLists.txt:158-170`).
 - At the pin: the module prepares the corrected copies with `zephyr/settings_file.cmake` and `zephyr/prepare_settings_file.py` from `patches/zephyr/settings-file-error.patch` and `patches/zephyr/settings-store-error.patch` (`zephyr/CMakeLists.txt:161-176`; `patches/zephyr/README.md`).
 - Crux change: move those sources out of `tests/`. State: Resolved (f1c8e1aa). Priority 1.
-- Interim state: the product build reaches Crux's `tests/` for the Settings File sources. Replacement criterion: none.
+- Interim state (ended in delivery stage 4, criterion 32): the product build reaches Crux's `tests/` for the Settings File sources. Replacement criterion: none.
 - Acceptance: criterion 32, at a pin that contains the change.
 
 ### C9. Access and an unusable store
@@ -111,26 +114,33 @@ These Crux facts back [specification section 6.2](controller-framework-spec.md#6
 - Evidence: Crux reads the credential store records only through its private adapter (`components/credential/adapter/crux_credential_adapter.h`), so the framework cannot check the TLS key and certificate records before that call.
 - Effect: the framework does not set `require_existing_identity`, so a boot of a prepared volume without the device identity makes a new identity instead of entering the safe mode of [specification section 5.5](controller-framework-spec.md#55-device-preparation-d11).
 - Crux change: a setting of the TLS certificate start that refuses a missing key or certificate and writes nothing to the credential store. State: Resolved (d4cc2a4f). Priority 2.
-- Interim state: until the framework adopts the credential store erase (delivery stage 4), factory reset is only by device preparation. Replacement criterion: none; criterion 42 needs the erase.
-- Interim state: once the framework uses the erase (delivery stage 4) and until it adopts the identity-keeping erase (PR4), a factory reset also removes the device identity, and recovery of the prepared identity is device preparation ([specification section 5.5](controller-framework-spec.md#55-device-preparation-d11)). Replacement criterion: none; PR4 needs the identity-keeping erase.
+- Interim state (ended in delivery stage 4, which calls `crux_credential_erase_accounts()`): factory reset is only by device preparation. Replacement criterion: none; criterion 42 needs the erase.
+- Interim state (ended in delivery stage 4, which adopts the identity-keeping erase together with the erase): a factory reset also removes the device identity, and recovery of the prepared identity is device preparation ([specification section 5.5](controller-framework-spec.md#55-device-preparation-d11)). Replacement criterion: none.
 - Interim state: until the framework adopts the setting (PR4, delivery stage 5), Crux makes a missing device identity at the start of the TLS certificate module in every build ([specification section 4.1](controller-framework-spec.md#41-startup-steps)), and the framework reports a certificate made at boot instead of entering safe mode (specification section 5.5).
-- Replacement criterion: none; PR4 needs the setting, and criterion 42 shows the report while this interim state applies.
+- Replacement criterion: none; PR4 needs the setting, and the status item `controller.certificate` reports a certificate made at boot while this interim state applies.
 
 ### C15. Size limit of the application data root
 
 - Evidence: Crux File reports a full volume as `CRUX_FILE_ERR_NO_SPACE` and offered no size limit per root at `62ed69f1` or `05a50475` (Crux `docs/file-contract.md`); with one provider and one mount (C1), the application data, the credential store and the settings file share one volume.
 - Effect: the application calls Crux File directly (specification section 3.2), so the framework cannot enforce the size limit of [specification section 5.4](controller-framework-spec.md#54-storage-and-configuration) without a Crux mechanism; the framework owns the rule, and the product sets the limit.
-- At the pin: a root can carry a byte limit, bound with `crux_file_zephyr_bind_root_limited(root, path, max_bytes)` in `<crux/file_zephyr.h>` (Crux `docs/file-contract.md`, "Root byte limits"); the framework does not bind one yet.
+- At the pin: a root can carry a byte limit, bound with `crux_file_zephyr_bind_root_limited(root, path, max_bytes)` in `<crux/file_zephyr.h>` (Crux `docs/file-contract.md`, "Root byte limits"); the framework binds the application data root with it (`framework/compose/storage_mount.c`).
 - Crux change: a size limit per File root. State: Resolved (6054a251). Priority 1.
-- Interim state: the application data root has no size limit, and a full volume can stop a configuration save. Replacement criterion: none; criterion 24 needs the change.
+- Interim state (ended in delivery stage 4): the application data root has no size limit, and a full volume can stop a configuration save. Replacement criterion: none; criterion 24 needs the change.
 
 ### C20. Removing a configuration parameter
 
 - Evidence: the configuration service takes one table at its start, borrowed for the program's life, and a second start changes nothing; its public calls start, list, read, update and save, and none removes or disables a parameter, at the pin and on Crux `main` (`components/config_service/include/crux/config_service.h`).
 - Effect: after a failed activation or `start`, or a reported application fault, the application's parameters stay readable and writable under their permissions, although the framework has released the registrations ([specification section 3.3](controller-framework-spec.md#33-call-order-and-concurrency)).
-- Crux change: a configuration service call that removes or disables a parameter. State: Crux change needed. Priority: open.
+- Crux change: a configuration service call that removes or disables a parameter. State: Planned in Crux (approved to build, not merged). Priority: open. Source: Crux role statement of 2026-11-28; no Crux issue yet.
 - Interim state (project-specific workaround; no external source): a parameter that has reached the configuration service stays there until the next reset.
 - Replacement criterion: in criterion 8, the release of the registrations leaves such a parameter in the configuration service.
+
+### C22. Settings File initialisation not public
+
+- Evidence (read at the Crux revision that `west.yml` pins): the Settings File provider answers every record read with `NOT_READY` until `crux_config_zephyr_init()` has run (`components/configuration/ports/zephyr/configuration_settings.c:54-59`); that function is declared only in the provider's private header `components/configuration/ports/zephyr/configuration_settings.h`, whose include directory is `PRIVATE` to `crux_configuration_zephyr` (`components/configuration/ports/zephyr/CMakeLists.txt:41`), and `docs/composition-interfaces.md` names no composition interface for it; only Crux's own eMMC sample calls it.
+- Effect: the framework cannot initialise configuration saving on the LittleFS volume of C4 without including a private Crux header, which the boundary rules of [specification section 7.3](controller-framework-spec.md#73-source-zones-and-os-neutrality) forbid; files and the credential store do run on LittleFS.
+- Crux change: publish the initialisation as a composition interface, as for the credential store erase. State: Planned in Crux (approved to build, not merged). Priority 1. Source: Crux role statement of 2026-11-28; no Crux issue yet.
+- Interim state: the interim state of C4 and its replacement criterion stay in force for configuration saving. Replacement criterion: none for Framework Complete; criteria 12 and 24 need the change.
 
 ## Supervision and reset
 
@@ -152,7 +162,7 @@ These Crux facts back [specification section 6.2](controller-framework-spec.md#6
 - At the pin: `crux_service_progress_register()` (`components/service_priority/ports/zephyr/include/crux/service_priority_zephyr.h`, target `crux::service_priority_zephyr`) registers one function that each started Crux service thread calls once per pass of its loop, at least about once a second when idle: the security event drain, the reboot worker, the network settings worker, the web session and web management workers and the console.
 - Evidence (at the pin): the HTTP server thread and the SSH threads are not Crux service threads and do not report, so they stay indirectly supervised with Zephyr's network and logging threads.
 - Crux change: a supervision hook in Crux service threads. State: Resolved (05a50475). Priority 1.
-- Interim state: Crux service threads are supervised indirectly ([specification section 4.3](controller-framework-spec.md#43-runtime-supervision)). Replacement criterion: none.
+- Interim state (ended in delivery stage 4, `framework/compose/supervision_start.c`): Crux service threads are supervised indirectly ([specification section 4.3](controller-framework-spec.md#43-runtime-supervision)). Replacement criterion: none.
 - Acceptance: criterion 33, at a pin that contains the change.
 
 ### C11. Simulated watchdog on `native_sim`
@@ -235,7 +245,7 @@ Crux refuses every form of it, at `62ed69f1` and at the pin; the line references
 - Evidence: Crux security events go to a RAM ring that a reset loses, and a low-priority thread hands the ring to Logging; the records are not tamper-proof (`components/security_event/include/crux/security_event.h:8-15`).
 - Evidence: the only reader, `crux_security_event_read()`, needs an Access session with `events.read` (`security_event.h:252-276`), and the framework has no session of its own.
 - Effect: persisted events share the volume with the credential store and the settings file, so they have a size limit and rotation that the product sets ([specification section 6.2](controller-framework-spec.md#62-security-items)).
-- Crux change: a composition-level reader or sink that the framework uses to persist events. State: Crux change needed. Priority 2.
+- Crux change: a composition-level reader or sink that the framework uses to persist events. State: Planned in Crux (direction adopted, not built; the start of the work is not approved). Priority 2. Source: Crux role statement of 2026-11-28; no Crux issue yet.
 - Interim state: security events reach the log only. Replacement criterion: none; criterion 44 needs the change.
 
 ### C18. Request rate limit

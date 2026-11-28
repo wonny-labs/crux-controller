@@ -27,12 +27,15 @@
  * where a damaged store would then leave management off until someone repairs it.
  */
 
+#include "../src/framework_events.h"
 #include "../src/management_port.h"
 #include "../src/storage_port.h"
 
 #include <crux/access.h>
 #include <crux/config_service.h>
 #include <crux/credential_store.h>
+#include <crux/credential_store_zephyr.h>
+#include <crux/file.h>
 #include <crux/logging.h>
 #include <crux/management_status.h>
 #include <crux/security_event.h>
@@ -45,12 +48,15 @@
 #include <crux/web_session.h>
 #include <crux/web_zephyr.h>
 
+#include <errno.h>
+#include <stdatomic.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
+#include <zephyr/fs/fs.h>
 #include <zephyr/net/tls_credentials.h>
 
 /* A text that is no address would make Zephyr's server listen on every address, so the build asks
@@ -76,6 +82,27 @@ static bool services_started;
 static crux_access_role_t access_roles[ROLES_MAX];
 static crux_access_policy_t access_policy;
 
+/* The result of the TLS certificate start in the core part (startup step 4), which the services
+ * part reads in step 10 and the status service reads on its own threads afterwards. It is written
+ * once, on the start thread, before the status service starts; the atomic makes the later reads on
+ * other threads see that one write. */
+typedef enum {
+    CERTIFICATE_NOT_STARTED = 0,
+    CERTIFICATE_STORED,
+    CERTIFICATE_MADE_AT_BOOT,
+    CERTIFICATE_REFUSED,
+} certificate_state_t;
+
+static atomic_int certificate_state = CERTIFICATE_NOT_STARTED;
+
+/* The framework's own security events (framework_events.h), declared to Crux with their names. Each
+ * records a change, so Crux still admits it when its ring is nearly full. */
+static const crux_security_event_project_id_t framework_events[] = {
+    {FRAMEWORK_EVENT_FACTORY_RESET, "controller.factory_reset", CRUX_SECURITY_EVENT_CHANGE},
+    {FRAMEWORK_EVENT_SAFE_MODE, "controller.safe_mode", CRUX_SECURITY_EVENT_CHANGE},
+    {FRAMEWORK_EVENT_TIME_STEP, "controller.time_step", CRUX_SECURITY_EVENT_CHANGE},
+};
+
 static const char *const certificate_dns_names[] = {CERTIFICATE_DNS_NAME};
 static uint8_t certificate_ipv4[1][4];
 static crux_tls_certificate_options_t certificate_options;
@@ -93,6 +120,14 @@ static management_port_status_t failed(const char *step)
     (void)snprintf(text, sizeof text, "management start refused at %s", step);
     note(CRUX_LOG_ERROR, text);
     return MANAGEMENT_PORT_ERR_STEP_FAILED;
+}
+
+/* Tell the framework that a Crux service thread has just started (gap C8). */
+static void thread_started(const management_port_config_t *config, management_port_thread_t thread)
+{
+    if (config->thread_started != NULL) {
+        config->thread_started(thread);
+    }
 }
 
 /* The product's three permission names are copies, because management_policy.h has no Crux
@@ -179,6 +214,85 @@ static management_port_status_t failed_storage(const char *step)
     return MANAGEMENT_PORT_ERR_STORAGE;
 }
 
+/* The most files that one factory reset removes from the application data root; a bound that keeps
+ * the loop finite if a removal keeps failing silently. */
+#define FACTORY_RESET_FILES_MAX 1024u
+
+/* Remove every file of the application data root. Crux File lists only regular files, and offers no
+ * directory call, so the root is flat. The listing is closed before each removal. */
+static bool remove_app_files(void)
+{
+    /* crux_file_dir_read() needs at least 64 bytes for a name. */
+    char name[64];
+    crux_file_info_t info;
+
+    for (size_t count = 0u; count < FACTORY_RESET_FILES_MAX; count++) {
+        crux_file_dir_t *dir = NULL;
+        bool end = false;
+        crux_file_result_t result = crux_file_dir_open(STORAGE_PORT_APP_ROOT, &dir);
+
+        if (result == CRUX_FILE_ERR_NOT_READY || result == CRUX_FILE_ERR_INVALID_ARGUMENT) {
+            return true; /* no data root in this image */
+        }
+        if (result != CRUX_FILE_OK) {
+            return false;
+        }
+        result = crux_file_dir_read(dir, name, sizeof name, &info, &end);
+        (void)crux_file_dir_close(&dir);
+        if (result != CRUX_FILE_OK) {
+            return false;
+        }
+        if (end) {
+            return true;
+        }
+        if (crux_file_remove_at(STORAGE_PORT_APP_ROOT, name) != CRUX_FILE_OK) {
+            return false;
+        }
+    }
+    return false;
+}
+
+#ifdef CONFIG_SETTINGS_FILE
+/* A settings file that is gone afterwards: removed, or never there. */
+static bool unlinked(const char *path)
+{
+    const int result = fs_unlink(path);
+
+    return result == 0 || result == -ENOENT;
+}
+#endif
+
+management_port_status_t management_port_factory_reset(void)
+{
+    if (!core_done) {
+        return MANAGEMENT_PORT_ERR_NOT_READY;
+    }
+    if (!remove_app_files()) {
+        note(CRUX_LOG_ERROR, "factory reset: the application data could not be removed");
+        return MANAGEMENT_PORT_ERR_STORAGE;
+    }
+#ifdef CONFIG_SETTINGS_FILE
+    /* The temporary first: a reset in between leaves the settings file, never a temporary alone
+     * (Crux docs/management-in-a-product.md, "Factory reset"). */
+    if (!unlinked(CONFIG_SETTINGS_FILE_PATH ".cmp") || !unlinked(CONFIG_SETTINGS_FILE_PATH)) {
+        note(CRUX_LOG_ERROR, "factory reset: the settings file could not be removed");
+        return MANAGEMENT_PORT_ERR_STORAGE;
+    }
+#endif
+    const crux_credential_result_t erase = crux_credential_erase_accounts();
+
+    if (erase != CRUX_CREDENTIAL_OK) {
+        char text[CRUX_LOG_TEXT_MAX];
+
+        (void)snprintf(text, sizeof text, "factory reset: account erase failed result=%d",
+                       (int)erase);
+        note(CRUX_LOG_ERROR, text);
+        return MANAGEMENT_PORT_ERR_STEP_FAILED;
+    }
+    note(CRUX_LOG_WARN, "factory reset: application data removed, accounts erased, identity kept");
+    return MANAGEMENT_PORT_OK;
+}
+
 management_port_status_t management_port_start(const management_port_config_t *config)
 {
     const management_port_status_t core = management_port_start_core(config);
@@ -210,7 +324,8 @@ management_port_status_t management_port_start_core(const management_port_config
 
     /* 1. Events first, so that everything after can emit. Then the clock, the medium and the two
      * roots of the store. */
-    if (crux_security_event_init(NULL, 0u) != CRUX_OK) {
+    if (crux_security_event_init(framework_events,
+                                 sizeof framework_events / sizeof framework_events[0]) != CRUX_OK) {
         return failed("security events");
     }
     if (crux_realtime_init() != CRUX_OK) {
@@ -222,7 +337,8 @@ management_port_status_t management_port_start_core(const management_port_config
     if (storage_port_bind_store() != STORAGE_PORT_OK) {
         return failed_storage("store roots");
     }
-    if (config->bind_app_root && storage_port_bind_app() != STORAGE_PORT_OK) {
+    if (config->bind_app_root &&
+        storage_port_bind_app(config->app_root_max_bytes) != STORAGE_PORT_OK) {
         return failed_storage("application data root");
     }
 
@@ -237,13 +353,48 @@ management_port_status_t management_port_start_core(const management_port_config
         return failed("access");
     }
     core_done = true;
+
+    /* 3. The TLS certificate module, right after the credential store and Access (startup step 4,
+     * specification sections 4.1 and 5.5). The device key is made inside this call, from the
+     * hardware random source, when the store holds none, so the deadline of this step covers a
+     * key generation until Crux's setting that requires an existing identity is used (C9). A
+     * refusal, such as a stored certificate of another key, turns only web management off: the
+     * core part stays started, Access serves the command line, and the serial console is the
+     * operator's path to recover the certificate. */
+    crux_tls_certificate_start_t how = CRUX_TLS_CERTIFICATE_STARTED;
+    char text[CRUX_LOG_TEXT_MAX];
+
+    set_certificate_options(octets);
+    const crux_tls_certificate_result_t certificate =
+        crux_tls_certificate_start(&certificate_options, &how);
+    if (certificate != CRUX_TLS_CERTIFICATE_OK) {
+        atomic_store(&certificate_state, CERTIFICATE_REFUSED);
+        (void)snprintf(text, sizeof text,
+                       "tls certificate start refused result=%d: web management stays off",
+                       (int)certificate);
+        note(CRUX_LOG_ERROR, text);
+    } else {
+        atomic_store(&certificate_state, how == CRUX_TLS_CERTIFICATE_GENERATED
+                                             ? CERTIFICATE_MADE_AT_BOOT
+                                             : CERTIFICATE_STORED);
+    }
     return MANAGEMENT_PORT_OK;
+}
+
+void management_port_certificate(char *text, size_t size)
+{
+    static const char *const names[] = {"not started", "stored", "made at boot", "refused"};
+    const int state = atomic_load(&certificate_state);
+
+    if (text != NULL && size > 0u) {
+        (void)snprintf(text, size, "%s",
+                       state >= 0 && (size_t)state < sizeof names / sizeof names[0] ? names[state]
+                                                                                    : "unknown");
+    }
 }
 
 management_port_status_t management_port_start_services(const management_port_config_t *config)
 {
-    uint8_t octets[4];
-    crux_tls_certificate_start_t how = CRUX_TLS_CERTIFICATE_STARTED;
     crux_reset_cause_t cause = {0};
     char fingerprint[CRUX_TLS_CERTIFICATE_FINGERPRINT_TEXT_SIZE];
     char text[CRUX_LOG_TEXT_MAX];
@@ -256,11 +407,6 @@ management_port_status_t management_port_start_services(const management_port_co
     }
     if (!core_done) {
         return MANAGEMENT_PORT_ERR_NOT_READY;
-    }
-    /* The core part parsed the same text, so this parse succeeds; the octets name the address in
-     * the certificate. */
-    if (!management_address_parse(CONFIG_CRUX_WEB_BIND_ADDRESS, octets)) {
-        return failed("bind address");
     }
     services_started = true;
 
@@ -297,22 +443,16 @@ management_port_status_t management_port_start_services(const management_port_co
     if (crux_security_event_start() != CRUX_OK) {
         return failed("security event thread");
     }
+    thread_started(config, MANAGEMENT_PORT_THREAD_EVENT_DRAIN);
     if (config->after_events != NULL && config->after_events() != 0) {
         return failed("services of the configuration");
     }
 
-    /* 4. The TLS certificate. The device key is made inside this call, from the hardware random
-     * source, when the store holds none. A refusal, such as a stored certificate of another key,
-     * turns only web management off: the services above stay started, and the serial console is
-     * the operator's path to recover the certificate (specification sections 4.1 and 5.5). */
-    set_certificate_options(octets);
-    const crux_tls_certificate_result_t certificate =
-        crux_tls_certificate_start(&certificate_options, &how);
-    if (certificate != CRUX_TLS_CERTIFICATE_OK) {
-        (void)snprintf(text, sizeof text,
-                       "tls certificate start refused result=%d: web management stays off",
-                       (int)certificate);
-        note(CRUX_LOG_ERROR, text);
+    /* 4. Web management needs the certificate that the core part started (startup step 4). After
+     * a refusal it stays off, and the services above stay started (startup step 10). */
+    const int certificate = atomic_load(&certificate_state);
+
+    if (certificate != CERTIFICATE_STORED && certificate != CERTIFICATE_MADE_AT_BOOT) {
         return MANAGEMENT_PORT_ERR_TLS_CERTIFICATE;
     }
 
@@ -325,7 +465,7 @@ management_port_status_t management_port_start_services(const management_port_co
         return failed("certificate fingerprint");
     }
     (void)snprintf(text, sizeof text, "certificate sha256=%s source=%s", fingerprint,
-                   how == CRUX_TLS_CERTIFICATE_GENERATED ? "generated" : "stored");
+                   certificate == CERTIFICATE_MADE_AT_BOOT ? "generated" : "stored");
     note(CRUX_LOG_INFO, text);
 
     /* 6. Sessions and management, each with its worker. HTTPS only, and the one accepted Origin is
@@ -335,10 +475,12 @@ management_port_status_t management_port_start_services(const management_port_co
         crux_web_session_start_worker() != CRUX_WEB_OK) {
         return failed("web session");
     }
+    thread_started(config, MANAGEMENT_PORT_THREAD_WEB_SESSION);
     if (crux_web_management_init() != CRUX_WEB_OK ||
         crux_web_management_start_worker() != CRUX_WEB_OK) {
         return failed("web management");
     }
+    thread_started(config, MANAGEMENT_PORT_THREAD_WEB_MANAGEMENT);
 
     /* 7. The listener. It opens on Zephyr's own thread, so a success here is not a connection. */
     static const crux_web_config_t web = {

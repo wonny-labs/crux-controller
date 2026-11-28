@@ -81,9 +81,21 @@ storage_port_status_t storage_port_bind_store(void);
 
 /*
  * Create the directory "app" of the mounted volume, if it is not there yet, and bind it as the File
- * root STORAGE_PORT_APP_ROOT. Same results and rules as storage_port_bind_store(); no size limit is
- * set (gap C15, delivery stage 4).
+ * root STORAGE_PORT_APP_ROOT with a byte limit on its files (specification section 5.4, gap C15):
+ * Crux File refuses a write or a create that would take the root above max_bytes with
+ * CRUX_FILE_ERR_NO_SPACE, so the application data cannot fill the credential store and the settings
+ * file. Same results and rules as storage_port_bind_store(); a max_bytes of zero is
+ * STORAGE_PORT_ERR_BIND. The header includes nothing, so the types are the ISO C keywords.
  */
-storage_port_status_t storage_port_bind_app(void);
+storage_port_status_t storage_port_bind_app(unsigned long long max_bytes);
+
+/*
+ * Whether the data root has reached its limit: *full is true when the files of the root, each
+ * rounded up to the volume's allocation unit as Crux File counts them, leave less than one unit
+ * below the limit, so the next new file or growth is refused. It lists the root, so it takes the
+ * time of a listing: call it on the storage worker, never from a status item source. Returns
+ * STORAGE_PORT_OK, or STORAGE_PORT_ERR_BIND when the root is not bound or cannot be listed.
+ */
+storage_port_status_t storage_port_app_root_full(_Bool *full);
 
 #endif

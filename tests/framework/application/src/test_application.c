@@ -590,10 +590,13 @@ static void tls_certificate_refused(void)
     scenario_console_type("status");
     if (!expect(HEALTH_IS("configuration", "healthy")) || !expect(HEALTH_IS("status", "healthy")) ||
         !expect(HEALTH_IS("web", "failed")) || !expect(HEALTH_IS("command-line", "healthy")) ||
+        !expect("{\"name\":\"controller.certificate\",\"status\":\"ok\",\"type\":\"text\","
+                "\"value\":\"refused\"}") ||
         !expect("> ")) {
         return;
     }
     say("TLS certificate refused: the status service shows web failed and the others healthy");
+    say("TLS certificate refused: the status service shows the certificate refused");
 }
 
 static void start_or_fail(fixture_behaviour_t behaviour)

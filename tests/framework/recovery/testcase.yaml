@@ -39,9 +39,19 @@ tests:
         - "recovery scenario boot 5"
         - "boot class=fault counter=3 threshold=3 safe mode=yes retained region"
         - "last fault channel reboot"
+        # The framework's own security event of the safe-mode entry (criterion 44, without
+        # persistence), drained before the console's first prompt.
+        - "controller.safe_mode"
         - "recovery scenario: status shows safe mode"
         - "safe mode exit requested by an operator"
         - "recovery scenario: restart requested"
         - "recovery scenario boot 6"
         - "boot class=normal counter=0 threshold=3 safe mode=no retained region"
+        # Boot 6: a Crux service thread that the framework started stops reporting (criterion 33).
+        - "crux thread web session supervised"
+        - "fault latched reason=channel name=web session"
+        - "Crux simulated watchdog expired"
+        - "recovery scenario boot 7"
+        - "boot class=fault counter=1 threshold=3 safe mode=no retained region"
+        - "last fault channel web session"
         - "recovery scenario done"

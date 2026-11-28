@@ -21,7 +21,7 @@ The source labels follow [specification section 1](controller-framework-spec.md#
 |---|---|---|
 | Account credentials: password verifiers and public keys | Crux credential store on the volume | Integrity, confidentiality |
 | Device identity: TLS key and certificate | Crux credential store | Confidentiality of the key, integrity |
-| Configuration: framework and application parameters | Settings file on the volume | Integrity |
+| Configuration: framework and application parameters | Settings file on the volume once the framework can initialise Crux's save provider, which has no composition interface at the pin; in RAM only until then | Integrity |
 | Application data | Application data root on the volume | Defined by the product |
 | Security events | Crux RAM ring and the log; storage when persisted (L1) | Integrity, availability |
 | Retained record and boot counter | Retained on-chip RAM | Integrity |
@@ -49,7 +49,9 @@ The personal data among them are account names and the source network addresses 
 | Application interface | In the image | Application code | None: trusted code; the framework accepts registrations only inside `init` and only through the context it gave |
 | Application control commands (`application stop`, `application start`) | Inbound | Serial command line | An Access login and the permission `system.reboot` (S4) |
 | Application status items and parameter table | Inbound, through web management and the serial command line | Sessions | The read and write permissions that the application names for each item and parameter, which Crux requires (S4) |
-| Application data root (File root 3, directory `app`) | In the image | Application code | Crux File confines access to the root; no size limit before delivery stage 4 ([C15](controller-framework-platform-gaps.md#c15-size-limit-of-the-application-data-root)) |
+| Application data root (File root 3, directory `app`) | In the image | Application code | Crux File confines access to the root and refuses growth beyond its byte limit (`CONFIG_CRUX_CONTROLLER_APP_ROOT_MAX_BYTES`, [C15](controller-framework-platform-gaps.md#c15-size-limit-of-the-application-data-root)) |
+| Factory reset command (`factory reset`) | Inbound | Serial command line | An Access login and the permission `access.manage` (S2, S4); a session without it does not see the command |
+| Crux service thread progress | In the image | Crux service threads | None: Crux code calls the framework's progress function, which only feeds task watchdog channels ([C8](controller-framework-platform-gaps.md#c8-crux-service-threads-and-supervision)) |
 
 Outbound traffic inventory (M1): in the reference configuration, the base image sends SNTP queries to the configured time server and ARP on the local network, and opens no other outbound connection.
 DHCP is off there, and a build that turns it on adds DHCP traffic.
@@ -58,11 +60,11 @@ Criterion 46 checks this inventory.
 
 ## 4. Threats
 
-Status says where each mitigation stands: at the pin (Crux provides it), Crux `main`, Crux change needed, specified (these pages specify it, not yet implemented), implemented (this repository implements it, with `native_sim` evidence and no board run) or product (the product provides it).
+Status says where each mitigation stands: at the pin (Crux provides it), Crux `main`, Planned in Crux, Crux change needed, specified (these pages specify it, not yet implemented), implemented (this repository implements it, with `native_sim` evidence and no board run) or product (the product provides it).
 
 | # | Target | Threat | Category | Mitigation | Residual risk | Status |
 |---|---|---|---|---|---|---|
-| 1 | Web, serial | Password guessing | Spoofing | Crux Access login delay per source and per name, with events (S5) | A flood from many sources can keep network login delayed up to the cap | At the pin |
+| 1 | Web, serial | Password guessing | Spoofing | Crux Access login delay per source and per name, with events (S5); the storage scenario shows the delay and the events on both interfaces (criterion 43) | A flood from many sources can keep network login delayed up to the cap | Implemented |
 | 2 | Web, serial | A route or command that skips authentication or its permission | Elevation | Mandatory access class per route, login on every command, and the permission that a route or command names (S4) | The checks of a session without a route's or command's permission follow the delivery stage of that route or command (criterion 34) | At the pin |
 | 3 | Web | Session theft or cross-site request forgery | Spoofing | Crux web session CSRF and Origin rules; idle and absolute session limits; TLS (S7) | — | At the pin |
 | 4 | Web | Eavesdropping or protocol downgrade | Disclosure, tampering | TLS 1.3 alone on the Crux listener at the pin (S7) | — | At the pin |
@@ -75,14 +77,15 @@ Status says where each mitigation stands: at the pin (Crux provides it), Crux `m
 | 11 | Console, debug port | Access in production | Elevation | Console choice (D16) and debug-port lockdown recorded by the product (H2) | Defined by the product | Product |
 | 12 | Controller | Fault or reset loop | Denial of service | Watchdog, boot counter and safe mode (R1 to R3) | Safe mode cannot escape a fault in its own services | Specified |
 | 13 | Image | Memory corruption in the application or framework | Elevation | Stack canaries and hardware stack protection (S6) | No memory partition between application and framework | Specified |
-| 14 | Security events | Loss or forgery of records, or events that fill the volume | Repudiation, denial of service | Event list (L1); persistence with an opt-out, a size limit and rotation | Records are not tamper-proof, rotation drops the oldest, and the RAM ring is lost at a reset unless persisted ([C17](controller-framework-platform-gaps.md#c17-security-event-persistence)) | Crux change needed |
+| 14 | Security events | Loss or forgery of records, or events that fill the volume | Repudiation, denial of service | Event list (L1); persistence with an opt-out, a size limit and rotation | Records are not tamper-proof, rotation drops the oldest, and the RAM ring is lost at a reset unless persisted ([C17](controller-framework-platform-gaps.md#c17-security-event-persistence)) | Planned in Crux |
 | 15 | All | A component with a known vulnerability | All | SBOM and vulnerability matching (V1, V2) | Matching needs identifiers that `west spdx` does not always emit (specification section 6.3) | Specified |
-| 16 | Volume | Data left after a factory reset, or a reset cut by a power loss | Disclosure, tampering | Factory reset scope and the recorded erase method (S8); the credential erase runs last, and a cut reset is repeated until the erase completes (specification section 5.3) | File removal leaves old blocks on the medium unless the product erases them, and a cut during the erase can bring the accounts back until the repeat | Specified; product |
-| 17 | Web, serial | Malformed input | Tampering, denial of service | Crux Web request body and time limits; fuzzing of the portable parsers (Q1) | Zephyr's HTTP parser is not fuzzed by this repository | At the pin; specified |
+| 16 | Volume | Data left after a factory reset, or a reset cut by a power loss | Disclosure, tampering | Factory reset scope and the recorded erase method (S8): the command removes the data root's files and the settings file, then erases the accounts last and keeps the device identity; a cut reset is repeated until the erase completes (specification section 5.3; the storage scenario cuts the power before the erase) | File removal leaves old blocks on the medium unless the product erases them; the kept TLS key is as readable as the rest of the store to a person with the medium and the chip ID, so a change of owner needs device preparation again (Crux `credential_store_zephyr.h`) | Implemented; product |
+| 17 | Web, serial | Malformed input | Tampering, denial of service | Crux Web request body and time limits; host fuzzing of the retained-record decode and the framework's management text parsers (Q1); Crux fuzzes its command line and its configuration routes | Zephyr's HTTP parser is not fuzzed by this repository | At the pin; implemented |
 | 18 | Serial | An operator stop or start of the application by a session without the right | Elevation | Both commands need an Access login and the permission `system.reboot` (S4); the application scenario shows both refused to an account of the read-only role | Every session that may restart the controller may also stop the application; no permission of its own yet | Implemented |
 | 19 | Application status items and parameters | An item or parameter exposed with a weak permission | Disclosure, tampering | Crux requires a read permission for every item and parameter, and a write permission for a writable parameter; the product reviews its application's tables | The framework does not judge the permissions that the application names | Product |
-| 20 | Volume | Application data fills the volume and leaves no space for the credential store and the settings | Denial of service | A size limit of the application data root (specification section 5.4) | No limit before delivery stage 4 (C15) | Specified |
+| 20 | Volume | Application data fills the volume and leaves no space for the credential store and the settings | Denial of service | A byte limit of the application data root, enforced by Crux File, and storage reported degraded at the limit (specification section 5.4) | Files written outside Crux File are not counted (Crux `docs/file-contract.md`, "Root byte limits") | Implemented |
 | 21 | Controller | An application that hangs, stalls a thread or fails | Denial of service | A channel per application thread, deadlines on `init`, `start` and `stop`, `safe_state` before a reset, and a reset on a hang (specification sections 3 and 4) | Outputs keep a safe state across a reset only through the board's hardware default, and application threads can overwrite outputs after the supervisor's `safe_state` until the reset (specification section 3.3) | Implemented |
+| 22 | Controller | A Crux service thread of device management that hangs | Denial of service | A task watchdog channel per started Crux service thread, fed from Crux's progress function, and a reset on an expiry (specification section 4.3, C8) | The HTTP server thread and Zephyr's network and logging threads are still supervised indirectly | Implemented |
 
 ## 5. Annex I applicability
 

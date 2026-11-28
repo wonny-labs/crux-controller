@@ -299,7 +299,7 @@ ZTEST(base, test_10_a_watchdog_that_is_not_armed_degrades_the_controller)
 
 /* The status service shows the copy of the reset cause that step 1 captured (POR, although the
  * flags were cleared after the capture) and the framework's items, through the status command of
- * the serial command line. */
+ * the serial command line, the certificate made at this boot included. */
 ZTEST(base, test_11_the_status_command_shows_the_captured_cause_and_the_framework_items)
 {
     console_type(FIRST_USER);
@@ -331,6 +331,11 @@ ZTEST(base, test_11_the_status_command_shows_the_captured_cause_and_the_framewor
                    "\"value\":\"none\"}",
                    false);
     console_expect("{\"name\":\"controller.stack_min\",\"status\":\"ok\",\"type\":\"text\"", false);
+    /* The blank disk holds no device identity, so Crux made the key and a self-signed certificate
+     * in this boot, and the status service says so (specification section 5.5, interim state). */
+    console_expect("{\"name\":\"controller.certificate\",\"status\":\"ok\",\"type\":\"text\","
+                   "\"value\":\"made at boot\"}",
+                   false);
     console_expect("> ", false);
     console_type("logout");
     console_expect("login: ", false);

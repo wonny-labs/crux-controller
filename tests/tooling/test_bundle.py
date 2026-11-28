@@ -31,6 +31,10 @@ METADATA = {
 }
 LOCK = "manifest:\n  projects:\n    - name: crux\n      revision: db5adca\n"
 PINS = "CONTRACT crux db5adca28bd3\nOK zephyr dccb09599635\n"
+SPDX = {
+    "app.spdx": "SPDXVersion: SPDX-2.3\nDocumentName: app\n",
+    "zephyr.spdx": "SPDXVersion: SPDX-2.3\nDocumentName: zephyr\n",
+}
 
 
 def make_build_dir(base, image=IMAGE, config=CONFIG):
@@ -50,12 +54,23 @@ def make_inputs(base):
     return lock, pins
 
 
+def make_spdx_dir(base, documents=None):
+    """A folder of SPDX documents as west spdx writes them, with a file that is not SPDX."""
+    spdx = pathlib.Path(base) / "spdx"
+    spdx.mkdir()
+    for name, text in (SPDX if documents is None else documents).items():
+        (spdx / name).write_text(text)
+    (spdx / "notes.txt").write_text("not an SPDX document\n")
+    return spdx
+
+
 def make_bundle(base, **overrides):
     base = pathlib.Path(base)
     build = make_build_dir(base)
     lock, pins = make_inputs(base)
+    spdx = make_spdx_dir(base)
     metadata = {**METADATA, **overrides}
-    return assemble_bundle.assemble(build, lock, pins, base / "bundle", metadata)
+    return assemble_bundle.assemble(build, lock, pins, base / "bundle", metadata, spdx_dir=spdx)
 
 
 def put_item(bundle, name, data):
@@ -108,8 +123,35 @@ class AssembleBundle(unittest.TestCase):
             build = make_build_dir(base)
             (build / "zephyr" / "zephyr.bin").unlink()
             lock, pins = make_inputs(base)
+            spdx = make_spdx_dir(base)
             with self.assertRaises(FileNotFoundError):
-                assemble_bundle.assemble(build, lock, pins, pathlib.Path(base) / "bundle", METADATA)
+                assemble_bundle.assemble(
+                    build, lock, pins, pathlib.Path(base) / "bundle", METADATA, spdx_dir=spdx
+                )
+
+    def test_manifest_records_the_hash_of_each_spdx_file(self):
+        with tempfile.TemporaryDirectory() as base:
+            manifest = read_manifest(make_bundle(base))
+            expected = {
+                name: hashlib.sha256(text.encode()).hexdigest() for name, text in SPDX.items()
+            }
+            self.assertEqual(expected, manifest["spdx_hashes"])
+
+    def test_spdx_files_stay_outside_the_bundle(self):
+        # West spdx writes absolute build paths, which check_bundle.py refuses in a bundle item.
+        with tempfile.TemporaryDirectory() as base:
+            bundle = make_bundle(base)
+            self.assertFalse(any(path.suffix == ".spdx" for path in bundle.rglob("*")))
+
+    def test_assemble_refuses_a_folder_without_spdx_files(self):
+        with tempfile.TemporaryDirectory() as base:
+            build = make_build_dir(base)
+            lock, pins = make_inputs(base)
+            spdx = make_spdx_dir(base, documents={})
+            with self.assertRaises(ValueError):
+                assemble_bundle.assemble(
+                    build, lock, pins, pathlib.Path(base) / "bundle", METADATA, spdx_dir=spdx
+                )
 
 
 class CheckBundle(unittest.TestCase):
@@ -134,6 +176,63 @@ class CheckBundle(unittest.TestCase):
             write_manifest(bundle, manifest)
             problems = check_bundle.check(bundle)
             self.assertTrue(any("firmware_identity" in problem for problem in problems), problems)
+
+    def test_schema_rejects_a_manifest_without_spdx_hashes(self):
+        for value in (None, {}, {"app.txt": "0" * 64}, {"app.spdx": "short"}):
+            with self.subTest(value=value), tempfile.TemporaryDirectory() as base:
+                bundle = make_bundle(base)
+                manifest = read_manifest(bundle)
+                if value is None:
+                    del manifest["spdx_hashes"]
+                else:
+                    manifest["spdx_hashes"] = value
+                write_manifest(bundle, manifest)
+                problems = check_bundle.check(bundle)
+                self.assertTrue(any("spdx_hashes" in problem for problem in problems), problems)
+
+    def test_check_accepts_spdx_files_that_match_the_manifest(self):
+        with tempfile.TemporaryDirectory() as base:
+            bundle = make_bundle(base)
+            spdx = pathlib.Path(base) / "spdx"
+            self.assertEqual([], check_bundle.check(bundle, spdx_dir=spdx))
+
+    def test_check_rejects_an_spdx_file_changed_after_hashing(self):
+        with tempfile.TemporaryDirectory() as base:
+            bundle = make_bundle(base)
+            spdx = pathlib.Path(base) / "spdx"
+            (spdx / "app.spdx").write_text(SPDX["app.spdx"] + "PackageName: added\n")
+            problems = check_bundle.check(bundle, spdx_dir=spdx)
+            self.assertTrue(any("app.spdx" in problem for problem in problems), problems)
+
+    def test_check_rejects_an_spdx_file_missing_from_either_side(self):
+        with tempfile.TemporaryDirectory() as base:
+            bundle = make_bundle(base)
+            spdx = pathlib.Path(base) / "spdx"
+            (spdx / "zephyr.spdx").unlink()
+            (spdx / "build.spdx").write_text("SPDXVersion: SPDX-2.3\n")
+            problems = check_bundle.check(bundle, spdx_dir=spdx)
+            self.assertTrue(any("zephyr.spdx" in problem for problem in problems), problems)
+            self.assertTrue(any("build.spdx" in problem for problem in problems), problems)
+
+    def test_command_line_checks_the_spdx_hashes_when_given_the_folder(self):
+        with tempfile.TemporaryDirectory() as base:
+            bundle = make_bundle(base)
+            spdx = pathlib.Path(base) / "spdx"
+            script = str(ROOT / "release" / "check_bundle.py")
+            command = [sys.executable, script, str(bundle), "--spdx-dir", str(spdx)]
+            clean = subprocess.run(command, capture_output=True, text=True)
+            self.assertEqual(0, clean.returncode, clean.stderr)
+            (spdx / "app.spdx").write_text("changed\n")
+            changed = subprocess.run(command, capture_output=True, text=True)
+            self.assertEqual(1, changed.returncode)
+            self.assertIn("app.spdx", changed.stderr)
+
+    def test_command_line_warns_when_no_spdx_folder_is_given(self):
+        with tempfile.TemporaryDirectory() as base:
+            bundle = make_bundle(base)
+            script = str(ROOT / "release" / "check_bundle.py")
+            result = subprocess.run([sys.executable, script, str(bundle)], capture_output=True, text=True)
+            self.assertIn("SPDX files were not checked", result.stderr)
 
     def test_check_rejects_elf_in_bundle(self):
         with tempfile.TemporaryDirectory() as base:

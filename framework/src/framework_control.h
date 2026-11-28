@@ -48,4 +48,20 @@ void framework_control_planned_reset(void);
 /* After a pass of the reboot thread: no reset happened, so operator requests are accepted again. */
 void framework_control_reset_abandoned(void);
 
+/*
+ * A factory reset (specification section 5.3), which an authorised operator requests before asking
+ * Crux Reboot for the restart: set true marks the next planned reset as a factory reset, and false
+ * withdraws the mark when Crux Reboot refused the request. framework_control_planned_reset() then
+ * runs the data part (management_port_factory_reset()) on the reboot thread, after the application
+ * stopped and before the operator reset marker is written, and clears the mark. Any thread.
+ */
+void framework_control_factory_reset(bool requested);
+
+/*
+ * On the reboot thread, after crux_reboot_work_once() carried out a request that ended without a
+ * reset (reboot_policy.h): withdraw a factory reset mark, so that a later restart that someone
+ * without access.manage requests erases nothing (specification sections 5.3 and 6.2).
+ */
+void framework_control_restart_ended(void);
+
 #endif

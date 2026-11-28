@@ -64,8 +64,10 @@ static const char *channel_names[SUPERVISION_CHANNELS_MAX];
 static int channel_ids[SUPERVISION_CHANNELS_MAX];
 static const size_t channel_count = SUPERVISION_CHANNELS_MAX;
 /* The slot number of each handle, whose address is the callback's argument. */
-static const size_t slot_numbers[SUPERVISION_CHANNELS_MAX] = {0, 1, 2, 3, 4, 5, 6, 7};
-BUILD_ASSERT(SUPERVISION_CHANNELS_MAX == 8u, "slot_numbers lists every slot");
+static const size_t slot_numbers[SUPERVISION_CHANNELS_MAX] = {0, 1, 2,  3,  4,  5,  6,  7,
+                                                              8, 9, 10, 11, 12, 13, 14, 15};
+BUILD_ASSERT(SUPERVISION_CHANNELS_MAX == 16u, "slot_numbers lists every slot");
+BUILD_ASSERT(SUPERVISION_CHANNELS_MAX <= 32u, "the expiry bits fit one atomic_t");
 /* One bit per handle whose channel expired; set in the timer callback, read by the thread. A slot
  * whose bit is set is never given again before the reset. */
 static atomic_t expired;

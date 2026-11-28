@@ -269,7 +269,7 @@ class SntpBuildFiles(unittest.TestCase):
         # adapters of the framework's health supervision and its application thread.
         self.assertEqual(["CMakeLists.txt", "workload_os_zephyr.c"], sorted(p.name for p in APP_OS.iterdir()))
         self.assertEqual(["app_zephyr.c", "fatal_zephyr.c", "reboot_zephyr.c", "retained_zephyr.c",
-                          "supervisor_zephyr.c",
+                          "storage_worker_zephyr.c", "supervisor_zephyr.c",
                           "time_sync_zephyr.c"], sorted(p.name for p in FRAMEWORK_OS.iterdir()))
 
     def test_the_workload_adapter_is_still_added_for_every_step_unconditionally(self):
@@ -387,6 +387,9 @@ class SntpSources(unittest.TestCase):
             "<stdbool.h>", "<stddef.h>", "<stdint.h>", "<stdio.h>", "<crux/logging.h>",
             "<crux/status.h>", "<crux/time.h>", "<crux/time_authority.h>", '"time_sync.h"',
             '"time_sync_policy.h"', '"time_sync_port.h"',
+            # The security event of a step of the wall time, in the framework module only
+            # (specification section 6.2).
+            "<crux/security_event.h>", '"framework_events.h"',
         }
         for path in (self.GLUE, self.HEADER):
             for include in includes(path):
@@ -531,8 +534,9 @@ class SntpSources(unittest.TestCase):
             check_boundary.COMPOSITION_ZEPHYR_HEADERS)
         self.assertEqual(["app/src", "workload", "app/compose", "app/os", "include", "framework/src", "framework/compose", "framework/os",
                           # Added with the fixture application (delivery stage 3); the zone
-                          # allow-lists above stay as they were.
-                          "tests/framework/fixture"],
+                          # allow-lists above stay as they were. The application template
+                          # (delivery stage 4) adds a rule and no zone header.
+                          "tests/framework/fixture", "template"],
                          [rule.directory for rule in check_boundary.RULES])
 
     def test_the_sntp_header_still_fails_outside_the_adapter_zone(self):

@@ -31,6 +31,14 @@
 #include "../src/controller_state.h"
 #include "../src/framework_status.h"
 #include "../src/supervision_compose.h"
+#ifdef CONFIG_CRUX_WEB_MANAGEMENT
+#include "../src/management_port.h"
+#endif
+#if defined(CONFIG_CRUX_CONTROLLER_FRAMEWORK_MANAGEMENT) && defined(CONFIG_CRUX_THREAD)
+#include "../src/service_progress.h"
+
+#include <crux/service_priority_zephyr.h>
+#endif
 
 #include <crux/logging.h>
 #include <crux/management_status.h>
@@ -50,11 +58,13 @@
 #endif
 
 #ifdef CONFIG_CRUX_CONTROLLER_FRAMEWORK_REBOOT
+#include "../src/framework_events.h"
 #include "../src/management_policy.h"
 #include "../src/reboot_policy.h"
 #include "../src/recovery.h"
 
 #include <crux/reboot.h>
+#include <crux/security_event.h>
 
 #include <stdio.h>
 #endif
@@ -68,6 +78,9 @@ typedef void (*text_source_t)(char *text, size_t size);
 static const text_source_t sources[] = {
     framework_status_controller, framework_status_application, framework_status_boot,
     framework_status_watchdog,   framework_status_last_fault,  framework_status_stack,
+#ifdef CONFIG_CRUX_WEB_MANAGEMENT
+    management_port_certificate,
+#endif
 };
 
 static crux_status_t read_text(void *context, crux_mgmt_status_value_t *out)
@@ -132,6 +145,11 @@ static const crux_mgmt_status_item_t framework_items[] = {
     HEALTH_ITEM("controller.health.time", SERVICE_TIME),
     HEALTH_ITEM("controller.health.web", SERVICE_WEB),
     HEALTH_ITEM("controller.health.command-line", SERVICE_COMMAND_LINE),
+#ifdef CONFIG_CRUX_WEB_MANAGEMENT
+    /* How the TLS certificate started: stored, made at boot, refused or not started (section 5.5).
+     */
+    TEXT_ITEM("controller.certificate", 6),
+#endif
 };
 
 #define FRAMEWORK_ITEMS (sizeof framework_items / sizeof framework_items[0])
@@ -289,6 +307,31 @@ static crux_cli_result_t reboot_command(crux_cli_call_t *call, size_t argc, cons
     return request_restart(call);
 }
 
+/* factory reset: mark the next planned reset as a factory reset, then ask Crux Reboot for it in the
+ * session's name (specification section 5.3). The command needs access.manage, so a session
+ * without it never sees it, and no serial command without a login erases anything. */
+static crux_cli_result_t factory_reset_command(crux_cli_call_t *call, size_t argc,
+                                               const char *const *argv, void *context)
+{
+    (void)argc;
+    (void)argv;
+    (void)context;
+    framework_control_factory_reset(true);
+    (void)crux_log_write(CRUX_LOG_WARN, LOG_TAG, "factory reset requested by an operator");
+    const crux_security_event_t event = {
+        .id = (crux_security_event_id_t)FRAMEWORK_EVENT_FACTORY_RESET,
+        .result = CRUX_SECURITY_EVENT_OK,
+        .channel = 1u, /* serial */
+    };
+    crux_security_event_emit(&event);
+    const crux_cli_result_t result = request_restart(call);
+
+    if (result != CRUX_CLI_OK) {
+        framework_control_factory_reset(false);
+    }
+    return result;
+}
+
 static crux_cli_result_t recovery_clear_command(crux_cli_call_t *call, size_t argc,
                                                 const char *const *argv, void *context)
 {
@@ -373,6 +416,10 @@ static const crux_cli_command_t commands[] = {
     CRUX_CLI_COMMAND("recovery exit", "Leave safe mode: clear the counter and restart",
                      CRUX_CLI_PERMISSION(CRUX_REBOOT_PERMISSION), 0u, 0u, CRUX_CLI_CHANNEL_SERIAL,
                      recovery_exit_command, NULL),
+    CRUX_CLI_COMMAND("factory reset",
+                     "Remove the application data and settings, erase the accounts and restart",
+                     CRUX_CLI_PERMISSION(MANAGEMENT_PERMISSION_ACCESS_MANAGE), 0u, 0u,
+                     CRUX_CLI_CHANNEL_SERIAL, factory_reset_command, NULL),
 #endif
 };
 
@@ -382,5 +429,44 @@ const crux_cli_command_t *supervision_commands(size_t *count)
         *count = sizeof commands / sizeof commands[0];
     }
     return commands;
+}
+#endif
+
+#if defined(CONFIG_CRUX_CONTROLLER_FRAMEWORK_MANAGEMENT) && defined(CONFIG_CRUX_THREAD)
+/* The progress function: Crux calls it on each service thread, possibly on several at once. It maps
+ * the identifier and feeds, and takes no lock and never waits, as <crux/service_priority_zephyr.h>
+ * requires. */
+static void on_progress(crux_service_thread_t thread, void *context)
+{
+    (void)context;
+    switch (thread) {
+    case CRUX_SERVICE_THREAD_SECURITY_EVENT_DRAIN:
+        service_progress_report(SERVICE_THREAD_EVENT_DRAIN);
+        break;
+    case CRUX_SERVICE_THREAD_WEB_SESSION_WORKER:
+        service_progress_report(SERVICE_THREAD_WEB_SESSION);
+        break;
+    case CRUX_SERVICE_THREAD_WEB_MANAGEMENT_WORKER:
+        service_progress_report(SERVICE_THREAD_WEB_MANAGEMENT);
+        break;
+    case CRUX_SERVICE_THREAD_CLI_CONSOLE:
+        service_progress_report(SERVICE_THREAD_CONSOLE);
+        break;
+    default:
+        /* The reboot worker is never started, and Crux Reboot reports its identifier on the
+         * framework's reboot thread, which feeds its own channel (gap C14); the network settings
+         * worker is not started either. */
+        break;
+    }
+}
+
+int supervision_compose_progress_start(void)
+{
+    return crux_service_progress_register(on_progress, NULL) == CRUX_OK ? 0 : -1;
+}
+#else
+int supervision_compose_progress_start(void)
+{
+    return -1;
 }
 #endif

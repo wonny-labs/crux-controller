@@ -70,12 +70,12 @@ EXPECTED_FULL = {
     "management": ["management-mbed-default", "management-mbed-group-on", "management-mbed-fetch",
                    "management-sdk", "management-native-sim", "management-native-sim-report", "management-build",
                    "management-outputs", "management-config", "management-symbols"],
-    "boundary": ["boundary-check", "product-include-check", "kit-include-check"],
+    "boundary": ["boundary-check", "product-include-check", "kit-include-check", "template-check"],
     "patch-style": ["patch-style-fetch-zephyr", "patch-style"],
     "minimal": ["minimal-build", "minimal-outputs"],
     "base": ["base-mbed-default", "base-mbed-group-on", "base-mbed-fetch", "base-sdk", "base-native-sim",
              "base-native-sim-report", "base-native-sim-interactive-report", "static-analysis-zephyr",
-             "base-prerequisite-refused", "base-build", "base-outputs",
+             "base-prerequisite-refused", "base-settings-file-sources", "base-build", "base-outputs",
              "base-config", "base-symbols", "base-sbom"],
     "static": ["format", "static-analysis"],
     **BUDGET,
@@ -90,7 +90,8 @@ EXPECTED_FULL = {
                 "rebuild-compare", "rebuild-not-done"],
     "release": ["release-tool-tests", "release-pins", "release-freeze", "release-fresh-workspace",
                 "release-sdk", "release-build", "release-parse-spdx", "release-assemble",
-                "release-check-bundle", "release-print-manifest", "release-sbom-scan", "release-not-done"],
+                "release-check-bundle", "release-print-manifest", "release-vulnerabilities",
+                "release-sbom-scan", "release-not-done"],
 }
 EXPECTED_NIGHTLY_ONLY = {
     "scheduled-main": ["scheduled-pin-main", "scheduled-fetch", "scheduled-pins", "scheduled-sdk",
@@ -98,11 +99,13 @@ EXPECTED_NIGHTLY_ONLY = {
     "product-integration": ["product-integration-workspace", "product-integration-build",
                             "product-integration-run", "product-integration-sbom",
                             "product-integration-vulnerabilities"],
+    "template": ["template-workspace", "template-build", "template-run", "template-test", "template-joining-steps"],
 }
 # Checks of the nightly tier only, in a job that the full tier runs too, by job, in run order after
 # the checks of the full tier.
 EXPECTED_NIGHTLY_EXTRA = {
-    "base": ["base-vulnerabilities"],
+    "host-OFF": ["host-fuzz"],
+    "base": ["base-vulnerabilities", "template-board-workspace", "template-board-build"],
 }
 # The jobs of ci.yml and budget.yml run for every change, documentation-only changes included. The
 # other three workflows run only for the paths of their filter.
@@ -117,7 +120,7 @@ WORKFLOW_JOBS = {
     "devcontainer.yml": ["devcontainer"],
     "rebuild.yml": ["rebuild"],
     "release.yml": ["release"],
-    "scheduled-main.yml": ["scheduled-main", "product-integration"],
+    "scheduled-main.yml": ["scheduled-main", "product-integration", "template"],
 }
 # The checks that every fast run selects: the tooling tests, the secret scan and the SPDX headers.
 DOCS_READERS = {"tooling-tests", "secret-scan", "spdx"}
