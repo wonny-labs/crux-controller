@@ -401,7 +401,7 @@ build configurations by their earlier step ids, S0 to S6.
 
 - Status pages match the code at the current pin: the README states that the application interface is in the
   framework and links the application template; the roadmap describes the services that the base image composes,
-  the five composition interfaces that the boundary check allows, and static sizes with a `base` row; the
+  the five composition interfaces that the boundary check allows, and static sizes with a `base` row (it also names the operator commands and the four named `native_sim` scenarios); the
   dependencies page names the jobs that switch the Mbed TLS group on; the capabilities page has a `base` section;
   the documentation map lists the template; the glossary describes `base` and why `management` has no account;
   the controller framework page gives the current state of each
