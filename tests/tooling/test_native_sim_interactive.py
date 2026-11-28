@@ -197,10 +197,10 @@ class OffloadFix(unittest.TestCase):
 
     def test_it_states_its_label_provenance_and_removal(self):
         self.assertTrue(self.text.startswith("# SPDX-License-Identifier: Apache-2.0\n"))
-        for words in ("project-specific workaround", "tests/native/web_https/nsos_rdhup.cmake at 1330195487c3",
+        for words in ("project-specific workaround", "tests/native/web_https/nsos_rdhup.cmake at a70e20eae573",
                       "Removal:"):
             self.assertIn(words, self.text)
-        self.assertIn("1330195487c34c8df6046d41ae030d3cdf8a5138", read("west.yml"))
+        self.assertIn("a70e20eae5734ab7ee8a6dc4e79937432c2680f5", read("west.yml"))
 
 
 class NoSecrets(unittest.TestCase):

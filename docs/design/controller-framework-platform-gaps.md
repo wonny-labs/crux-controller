@@ -30,15 +30,16 @@ When the pin moves, each gap is checked again. A gap whose Crux change is at the
 | [C17](#c17-security-event-persistence) | A composition-level reader of security events | Planned in Crux | 2 | Delivery stage 4 (criterion 44); Framework Complete |
 | [C18](#c18-request-rate-limit) | A request rate limit in Crux Web | Crux change needed | 3 | Delivery stage 5 (criterion 45); Product Ready |
 | [C19](#c19-credential-store-at-rest) | A hardware-bound key basis for the credential store | Crux change needed when a product's record (S9) asks for it | 3 | Product Ready of that product |
-| [C20](#c20-removing-a-configuration-parameter) | A configuration service call that removes or disables a parameter | Planned in Crux | Open | Delivery stage 4; Framework Complete |
+| [C20](#c20-removing-a-configuration-parameter) | A configuration service call that removes or disables a parameter | Resolved (1151c978) | Open | Delivery stage 4; Framework Complete |
 | [C21](#c21-creating-a-further-account) | A command or web route that creates an account | Crux change needed | Open | Open |
-| [C22](#c22-settings-file-initialisation-not-public) | The Settings File initialisation as a composition interface | Planned in Crux | 1 | Delivery stage 4 (criteria 12 and 24); Framework Complete |
+| [C22](#c22-settings-file-initialisation-not-public) | The Settings File initialisation as a composition interface | Resolved (1151c978) | 1 | Delivery stage 4 (criteria 12 and 24); Framework Complete |
 | [Web adapter](#other-crux-changes) | A web adapter for the File service | Crux change needed | 3 | Product Ready of a product that offers HTTPS file transfer |
 
 The pin is the Crux revision of [specification section 1](controller-framework-spec.md#1-scope-and-conventions), and these gaps were checked again at it.
 Delivery stage 4 adopts the Crux changes of C5, C8 and C15 and the account-only erase of C9, which ends their interim states.
 It uses the LittleFS File provider of C4 for files and the credential store in the `native_sim` storage scenario, but not for configuration saving (C22), and the board images keep the FatFs provider, so the C4 interim state holds.
 The framework does not use the shared UART of C6 or the `require_existing_identity` setting of C9, so their interim states hold.
+The Crux changes of C20 and C22 are at the pin and the framework has not adopted them, so their interim states hold.
 The pin has Zephyr v4.5.0 and therefore no Wolf profile until a patch for Zephyr 4.5 exists ([C7](#c7-ssh-and-tls-profiles)).
 
 ## Service mapping
@@ -129,18 +130,20 @@ These Crux facts back [specification section 6.2](controller-framework-spec.md#6
 
 ### C20. Removing a configuration parameter
 
-- Evidence: the configuration service takes one table at its start, borrowed for the program's life, and a second start changes nothing; its public calls start, list, read, update and save, and none removes or disables a parameter, at the pin and on Crux `main` (`components/config_service/include/crux/config_service.h`).
+- Evidence (`13301954`): the configuration service takes one table at its start, borrowed for the program's life, and a second start changes nothing; its public calls start, list, read, update and save, and none removes or disables a parameter (`components/config_service/include/crux/config_service.h`).
+- At the pin: `crux_config_service_disable()` withdraws a parameter until the program starts again, one-way; afterwards every operation treats the name as missing, and an update accepted before the call keeps its unsaved mark, so the next save still writes it (`components/config_service/include/crux/config_service.h:275-309`). The framework does not call it.
 - Effect: after a failed activation or `start`, or a reported application fault, the application's parameters stay readable and writable under their permissions, although the framework has released the registrations ([specification section 3.3](controller-framework-spec.md#33-call-order-and-concurrency)).
-- Crux change: a configuration service call that removes or disables a parameter. State: Planned in Crux (approved to build, not merged). Priority: open. Source: Crux role statement of 2026-11-28; no Crux issue yet.
-- Interim state (project-specific workaround; no external source): a parameter that has reached the configuration service stays there until the next reset.
+- Crux change: a configuration service call that removes or disables a parameter. State: Resolved (1151c978, wonny-labs/crux#619). Priority: open.
+- Interim state (project-specific workaround; no external source), in force until the framework adopts the change: a parameter that has reached the configuration service stays there until the next reset.
 - Replacement criterion: in criterion 8, the release of the registrations leaves such a parameter in the configuration service.
 
 ### C22. Settings File initialisation not public
 
-- Evidence (read at the Crux revision that `west.yml` pins): the Settings File provider answers every record read with `NOT_READY` until `crux_config_zephyr_init()` has run (`components/configuration/ports/zephyr/configuration_settings.c:54-59`); that function is declared only in the provider's private header `components/configuration/ports/zephyr/configuration_settings.h`, whose include directory is `PRIVATE` to `crux_configuration_zephyr` (`components/configuration/ports/zephyr/CMakeLists.txt:41`), and `docs/composition-interfaces.md` names no composition interface for it; only Crux's own eMMC sample calls it.
-- Effect: the framework cannot initialise configuration saving on the LittleFS volume of C4 without including a private Crux header, which the boundary rules of [specification section 7.3](controller-framework-spec.md#73-source-zones-and-os-neutrality) forbid; files and the credential store do run on LittleFS.
-- Crux change: publish the initialisation as a composition interface, as for the credential store erase. State: Planned in Crux (approved to build, not merged). Priority 1. Source: Crux role statement of 2026-11-28; no Crux issue yet.
-- Interim state: the interim state of C4 and its replacement criterion stay in force for configuration saving. Replacement criterion: none for Framework Complete; criteria 12 and 24 need the change.
+- Evidence (`13301954`): the Settings File provider answers every record read with `NOT_READY` until `crux_config_zephyr_init()` has run (`components/configuration/ports/zephyr/configuration_settings.c:54-59`); that function is declared only in the provider's private header `components/configuration/ports/zephyr/configuration_settings.h`, whose include directory is `PRIVATE` to `crux_configuration_zephyr` (`components/configuration/ports/zephyr/CMakeLists.txt:41`), and `docs/composition-interfaces.md` names no composition interface for it; only Crux's own eMMC sample calls it.
+- At the pin: `crux_config_zephyr_init()` is declared in the composition interface `<crux/configuration_zephyr.h>`, target `crux::configuration_zephyr`, which exists only with a Settings File selection; the private header now only includes it (`components/configuration/ports/zephyr/include/crux/configuration_zephyr.h`, `components/configuration/ports/zephyr/CMakeLists.txt:52-65`, Crux `docs/composition-interfaces.md:59-64`). The framework does not link the target or call the function, and the composition zone does not list the header.
+- Effect (`13301954`): the framework cannot initialise configuration saving on the LittleFS volume of C4 without including a private Crux header, which the boundary rules of [specification section 7.3](controller-framework-spec.md#73-source-zones-and-os-neutrality) forbid; files and the credential store do run on LittleFS.
+- Crux change: publish the initialisation as a composition interface, as for the credential store erase. State: Resolved (1151c978, wonny-labs/crux#619). Priority 1.
+- Interim state, in force until the framework adopts the change: the interim state of C4 and its replacement criterion stay in force for configuration saving. Adopting it adds `<crux/configuration_zephyr.h>` to the composition zone, a boundary change. Replacement criterion: none for Framework Complete; criteria 12 and 24 need the change.
 
 ## Supervision and reset
 
@@ -175,11 +178,11 @@ These Crux facts back [specification section 6.2](controller-framework-spec.md#6
 
 - Evidence: Crux Reboot asks the composition's policy callback when a request arrives, on the requesting thread, and again just before the reset, on the thread that carries out the request; the callback "may be called more than once for one request" and receives no argument that names the check (`components/reboot/include/crux/reboot.h:19-21`, `:92-102`, at the pin and on Crux `main`).
 - Evidence: Crux Reboot offers no call that runs once immediately before the reset.
-- Evidence: the order of the calls does not identify the last check, because a request that fails before the second check (`CRUX_REBOOT_FAILURE_NO_TIMER`, `CRUX_REBOOT_FAILURE_SAVE_IN_FLIGHT`) makes no second call, a request made while another is pending runs no policy, and the always-allow policy calls no callback (`components/reboot/src/reboot.c:227-228`, `:263` and `:393-403` at the pin).
-- Evidence: `crux_reboot_work_once()` carries out the accepted request on the calling thread: the delay, the bounded wait for events and saves, the second policy check, then the reset; a composition with no worker thread calls it itself (`reboot.h:178-185`, `:223-231`).
-- Evidence: after a second check that allows the restart, the next step is the reset, and the call returns only when no reset happened (`reboot.c:409-415` at `62ed69f1`, `:413-419` at the pin).
-- Evidence (at the pin): the settle wait inside `crux_reboot_work_once()` reports progress as `CRUX_SERVICE_THREAD_REBOOT_WORKER` on the calling thread (`reboot.c:348-351`), although `service_priority_zephyr.h` says that a thread that is not started never reports, so the framework's progress function ignores that identifier; project-specific workaround ([C8](#c8-crux-service-threads-and-supervision)).
-- Effect: the framework starts no Crux reboot worker, and its own reboot thread calls `crux_reboot_work_once()`, so a policy call on that thread is the last step before the reset ([specification section 5.1](controller-framework-spec.md#51-retained-region-and-reset-classification-d4)); documented but optional (`reboot.h:178-180`).
+- Evidence: the order of the calls does not identify the last check, because a request that fails before the second check (`CRUX_REBOOT_FAILURE_NO_TIMER`, `CRUX_REBOOT_FAILURE_SAVE_IN_FLIGHT`) makes no second call, a request made while another is pending runs no policy, and the always-allow policy calls no callback (`components/reboot/src/reboot.c:227-228`, `:265-270` and `:402-412` at the pin).
+- Evidence: `crux_reboot_work_once()` carries out the accepted request on the calling thread: the delay, the bounded wait for events and saves, the second policy check, then the reset; a composition with no worker thread calls it itself (`reboot.h:178-187`, `:225-233`).
+- Evidence: after a second check that allows the restart, the next step is the reset, and the call returns only when no reset happened (`reboot.c:409-415` at `62ed69f1`, `:422-428` at the pin).
+- Evidence (at the pin): the settle wait inside `crux_reboot_work_once()` reports progress as `CRUX_SERVICE_THREAD_REBOOT_WORKER` on the calling thread (`reboot.c:357-360`), which `service_priority_zephyr.h:19-22` documents as the one exception to its rule that a thread that is not started never reports; the framework's progress function ignores that identifier, a project-specific workaround ([C8](#c8-crux-service-threads-and-supervision)).
+- Effect: the framework starts no Crux reboot worker, and its own reboot thread calls `crux_reboot_work_once()`, so a policy call on that thread is the last step before the reset ([specification section 5.1](controller-framework-spec.md#51-retained-region-and-reset-classification-d4)); documented but optional (`reboot.h:178-182`; Crux `docs/reboot-service.md`, "A final check before the reset").
 - Effect: one call can wait for its lock, the delay and the settle wait (1 s, 1 s and 15 s at their defaults, `reboot.c:34-46`), plus the time of its polls, the policy call and its event, so the reboot thread's channel follows the reload rule of [specification section 5.1](controller-framework-spec.md#51-retained-region-and-reset-classification-d4).
 - Crux change: none.
 - Interim state: none.

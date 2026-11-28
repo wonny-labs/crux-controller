@@ -15,22 +15,22 @@ manifest:
   projects:
     - name: crux
       remote: crux
-      # Commit of Crux origin/main, the merge of its account-only credential erase and the
-      # require_existing_identity option of TLS certificate start. It follows 05a50475 and keeps
-      # Zephyr v4.5.0 (41d10b59) and the Crux manifest: every Zephyr module, MCUboot (2.5.0),
-      # Mbed TLS 4.1.1 and TF-PSA-Crypto 1.1.1 keep their revisions; the three are in the optional groups
-      # crux-boot and crux-secure-management, which stay off here. picolibc and cmsis keep their
-      # revisions. In every image with Zephyr's own TCP and the RFC 6528 initial sequence number (here
-      # management and base, which have PSA SHA-256), Crux builds a copy of tcp.c that refuses a
-      # connection when the key or the hash fails; net and sntp have no PSA SHA-256 and keep Zephyr's
-      # tcp.c. The range adds a byte limit for a File root, the account-only erase of the credential
-      # store, a new last member of the TLS certificate start options (false keeps the earlier
-      # behaviour) and a native PTY UART for Logging on native_sim, all unused unless a product
-      # selects them; the framework uses the byte limit and the account-only erase, and leaves
-      # the new option false. The deprecated RT1060 File aliases that
+      # Commit of Crux origin/main, the merge of a planning document (the proposed scope of the
+      # MCUboot FlexSPI write path). It follows 13301954 and keeps Zephyr v4.5.0 (41d10b59) and the
+      # Crux manifest, in which only the folder of Crux itself became crux: every Zephyr module,
+      # MCUboot (2.5.0), Mbed TLS 4.1.1 and TF-PSA-Crypto 1.1.1 keep their revisions; the three are
+      # in the optional groups crux-boot and crux-secure-management, which stay off here. picolibc
+      # and cmsis keep their revisions. In every image with Zephyr's own TCP and the RFC 6528 initial
+      # sequence number (here management and base, which have PSA SHA-256), Crux builds a copy of
+      # tcp.c that refuses a connection when the key or the hash fails; net and sntp have no PSA
+      # SHA-256 and keep Zephyr's tcp.c. The range adds the start of the Configuration provider as a
+      # composition interface (<crux/configuration_zephyr.h>), a call that disables a configuration
+      # parameter and the update agent core, which only a build with image state compiles, and fixes
+      # a reboot request that finds a pending one so that it joins it inside the lock. The framework
+      # adopts none of the additions yet (gaps C20 and C22). The deprecated RT1060 File aliases that
       # app/conf/file.conf, app/conf/management.conf and app/conf/base.conf use are still defined.
       # No Crux tag exists yet, so this is a commit, not a tag.
-      revision: 1330195487c34c8df6046d41ae030d3cdf8a5138
+      revision: a70e20eae5734ab7ee8a6dc4e79937432c2680f5
       # The Crux manifest puts Mbed TLS and TF-PSA-Crypto in the same optional group
       # (crux-secure-management) as wolfSSL, wolfSSH and wolfPSA, which are GPL or commercial.
       # Blocking the three wolf projects by name keeps them out of the resolved manifest, so

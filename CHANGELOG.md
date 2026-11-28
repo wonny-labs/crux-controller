@@ -160,7 +160,7 @@ build configurations by their earlier step ids, S0 to S6.
 
 ### Build and manifest
 
-- The west manifest imports `crux` at a pinned commit (`13301954`, which contains the File
+- The west manifest imports `crux` at a pinned commit (`a70e20ea`, which contains the File
   composition interface `<crux/file_zephyr.h>`) and adds `picolibc` as a test-only project. A CI job
   checks the pins with `west crux-pins` and has a negative control that must fail.
 - The `crux-pilot` pin moved from `37c92b18` to `dfd3ad7d`, which adds the public management headers
@@ -277,6 +277,16 @@ build configurations by their earlier step ids, S0 to S6.
   sets the options with designated initialisers, so the option is false there. The other additions are new
   functions and accepted devicetree nodes that this repository does not use. No controller code, configuration or
   overlay changes.
+- The Crux pin moved from `13301954` to `a70e20ea`, the head of Crux `main` after a description of a final check
+  before a reboot reset (wonny-labs/crux#614), a reboot request that finds a pending job and now joins it inside the
+  lock (#616), one `ci-gate` check for Crux's merge rule (#615), the rename inside Crux (#617, #618), a HAB signing
+  test (#494), the update agent core (#620), the start of the Configuration provider as the composition interface
+  `<crux/configuration_zephyr.h>` with `crux_config_service_disable()` (#619) and a planning document (#491). The
+  Crux manifest changes only the folder of Crux itself; the Zephyr revision and every module revision are as
+  before, and the update agent is not built here. The framework does not adopt the new interfaces yet: the interim
+  states of gaps C20 and C22 stay in force, and Framework Complete is still not declared. The platform gaps page
+  records both Crux changes as Resolved and moves its reboot line references to the new pin. No controller code,
+  configuration or overlay changes.
 - The `crux-pilot` import blocks wolfSSL, wolfSSH and wolfPSA by name, so enabling the Mbed TLS group
   would activate Mbed TLS and TF-PSA-Crypto and no GPL stack (checked on the project list; no job
   enables the group or fetches with it on, and it stays off in every job).

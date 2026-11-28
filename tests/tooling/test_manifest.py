@@ -48,7 +48,7 @@ class ManifestIsOptionA(unittest.TestCase):
         # main keeps Zephyr v4.5.0 (wonny-labs/crux#603) and adds the follow-ups up to
         # wonny-labs/crux#613; the crypto modules follow Zephyr's own manifest at v4.5.0.
         revision = load_manifest()["projects"][0]["revision"]
-        self.assertEqual(revision, "1330195487c34c8df6046d41ae030d3cdf8a5138")
+        self.assertEqual(revision, "a70e20eae5734ab7ee8a6dc4e79937432c2680f5")
 
     def test_every_pinned_crux_link_of_the_readme_uses_the_manifest_revision(self):
         revision = load_manifest()["projects"][0]["revision"]

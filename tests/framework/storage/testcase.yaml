@@ -32,7 +32,7 @@ tests:
         - "access.account_created"
         - "access.logout"
         - "storage scenario: a credential save succeeds with the data root full"
-        # No application parameter, so the save has nothing to write (gap G1 blocks a real save).
+        # No application parameter, so the save has nothing to write (gap C22 blocks a real save).
         - "storage scenario: parameter save result=0"
         - "storage scenario: the read-only account cannot run the factory reset"
         - "access.role_changed"
